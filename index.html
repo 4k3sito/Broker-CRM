@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OfficeScrapper — Dashboard</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --card: #fff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --border: #e2e8f0;
+      --c-new: #3b82f6;
+      --c-reviewed: #8b5cf6;
+      --c-contacted: #f59e0b;
+      --c-rented: #10b981;
+      --c-discarded: #ef4444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ── Header ── */
+    header {
+      background: #0f172a; color: #f8fafc;
+      padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; }
+    #count-label { margin-left: auto; font-size: 0.8rem; color: #94a3b8; }
+
+    /* ── Filter bar ── */
+    .filters {
+      position: sticky; top: 0; z-index: 10;
+      background: #fff; border-bottom: 1px solid var(--border);
+      padding: 0.625rem 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+    }
+    #search {
+      flex: 1; min-width: 180px; padding: 0.4rem 0.75rem;
+      border: 1px solid var(--border); border-radius: 6px; font-size: 0.8rem; outline: none;
+    }
+    #search:focus { border-color: var(--accent); }
+
+    .fbtn {
+      padding: 0.3rem 0.7rem; border-radius: 999px;
+      border: 1.5px solid var(--border); background: transparent;
+      cursor: pointer; font-size: 0.75rem; font-weight: 600; color: var(--muted);
+      transition: all 0.12s;
+    }
+    .fbtn:hover { border-color: var(--accent); color: var(--accent); }
+    .fbtn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .fbtn[data-status="new"].active       { background: var(--c-new);       border-color: var(--c-new); }
+    .fbtn[data-status="reviewed"].active  { background: var(--c-reviewed);  border-color: var(--c-reviewed); }
+    .fbtn[data-status="contacted"].active { background: var(--c-contacted); border-color: var(--c-contacted); }
+    .fbtn[data-status="rented"].active    { background: var(--c-rented);    border-color: var(--c-rented); }
+    .fbtn[data-status="discarded"].active { background: var(--c-discarded); border-color: var(--c-discarded); }
+
+    .starred-toggle {
+      padding: 0.3rem 0.7rem; border-radius: 999px;
+      border: 1.5px solid var(--border); background: transparent;
+      cursor: pointer; font-size: 0.75rem; font-weight: 600; color: var(--muted);
+      transition: all 0.12s;
+    }
+    .starred-toggle.active { background: #fef3c7; color: #b45309; border-color: #fcd34d; }
+
+    .export-btn {
+      margin-left: auto; padding: 0.3rem 0.75rem;
+      background: #10b981; color: #fff; border: none; border-radius: 6px;
+      cursor: pointer; font-size: 0.75rem; font-weight: 600;
+    }
+    .export-btn:hover { background: #059669; }
+
+    /* ── Grid ── */
+    main {
+      padding: 1.25rem 1.5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card); border-radius: 10px; border: 1px solid var(--border);
+      overflow: hidden; display: flex; flex-direction: column;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      transition: box-shadow 0.15s, opacity 0.15s;
+    }
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+    .card.is-discarded { opacity: 0.45; }
+
+    .card-photo {
+      height: 170px; background: #e2e8f0;
+      position: relative; overflow: hidden; flex-shrink: 0;
+    }
+    .card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .no-photo {
+      display: flex; align-items: center; justify-content: center;
+      height: 100%; color: var(--muted); font-size: 0.8rem;
+    }
+
+    .star-btn {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(0,0,0,0.35); border: none; border-radius: 50%;
+      width: 30px; height: 30px; cursor: pointer; font-size: 0.9rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s;
+    }
+    .star-btn:hover  { background: rgba(0,0,0,0.55); }
+    .star-btn.active { background: #f59e0b; }
+
+    .card-body { padding: 0.875rem; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .price { font-size: 1.1rem; font-weight: 700; line-height: 1; }
+    .price .curr { font-size: 0.7rem; font-weight: 400; color: var(--muted); margin-left: 3px; }
+    .no-price { font-size: 0.85rem; color: var(--muted); font-style: italic; }
+
+    .location { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+    .card-link { font-size: 0.75rem; color: var(--accent); text-decoration: none; }
+    .card-link:hover { text-decoration: underline; }
+
+    .status-row { display: flex; gap: 0.5rem; align-items: center; margin-top: auto; padding-top: 0.25rem; }
+    .status-select {
+      flex: 1; padding: 0.35rem 0.5rem; border-radius: 6px;
+      border: 1.5px solid var(--border); font-size: 0.78rem;
+      background: #fff; cursor: pointer; font-weight: 600; outline: none;
+      transition: border-color 0.12s, color 0.12s;
+    }
+    .status-select.s-new       { border-color: var(--c-new);       color: var(--c-new); }
+    .status-select.s-reviewed  { border-color: var(--c-reviewed);  color: var(--c-reviewed); }
+    .status-select.s-contacted { border-color: var(--c-contacted); color: var(--c-contacted); }
+    .status-select.s-rented    { border-color: var(--c-rented);    color: var(--c-rented); }
+    .status-select.s-discarded { border-color: var(--c-discarded); color: var(--c-discarded); }
+
+    .notes-input {
+      width: 100%; padding: 0.35rem 0.5rem;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 0.75rem; resize: vertical; min-height: 48px;
+      font-family: inherit; color: var(--text);
+    }
+    .notes-input:focus { outline: none; border-color: var(--accent); }
+
+    .empty { grid-column: 1/-1; text-align: center; padding: 5rem 2rem; color: var(--muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>OfficeScrapper</h1>
+  <span id="count-label">Cargando...</span>
+</header>
+
+<div class="filters">
+  <input type="search" id="search" placeholder="Buscar por dirección...">
+  <button class="fbtn active" data-status="all">Todos</button>
+  <button class="fbtn" data-status="new">Nuevo</button>
+  <button class="fbtn" data-status="reviewed">Revisado</button>
+  <button class="fbtn" data-status="contacted">Contactado</button>
+  <button class="fbtn" data-status="rented">Rentado</button>
+  <button class="fbtn" data-status="discarded">Descartado</button>
+  <button class="starred-toggle" id="starred-toggle">★ Destacados</button>
+  <button class="export-btn" id="export-btn">Exportar CSV</button>
+</div>
+
+<main id="grid"></main>
+
+<script>
+  const LS_KEY = 'officescrapper_v1';
+
+  let listings = [];
+  let tracking = {};
+  let activeStatus = 'all';
+  let onlyStarred = false;
+  let searchText = '';
+
+  // ── Tracking persistence ────────────────────────────────────────────────
+  function loadTracking() {
+    try { tracking = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); }
+    catch { tracking = {}; }
+  }
+
+  function saveTracking() {
+    localStorage.setItem(LS_KEY, JSON.stringify(tracking));
+  }
+
+  function getState(id) {
+    return tracking[id] ?? { status: 'new', starred: false, notes: '' };
+  }
+
+  function setState(id, patch) {
+    tracking[id] = { ...getState(id), ...patch };
+    saveTracking();
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  function formatPrice(p) {
+    if (!p || p.monto == null) return null;
+    const n = p.monto.toLocaleString('es-MX');
+    const curr = p.moneda === 'MN' ? 'MXN' : (p.moneda ?? '');
+    return { n, curr };
+  }
+
+  // ── Filtering ───────────────────────────────────────────────────────────
+  function filtered() {
+    return listings.filter(l => {
+      const s = getState(l.id);
+      if (activeStatus !== 'all' && s.status !== activeStatus) return false;
+      if (onlyStarred && !s.starred) return false;
+      if (searchText && !(l.direccion ?? '').toLowerCase().includes(searchText)) return false;
+      return true;
+    });
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────
+  function render() {
+    const list = filtered();
+    document.getElementById('count-label').textContent =
+      `${list.length} de ${listings.length} listings`;
+
+    const grid = document.getElementById('grid');
+
+    if (list.length === 0) {
+      grid.innerHTML = '<p class="empty">No hay listings con ese filtro.</p>';
+      return;
+    }
+
+    grid.innerHTML = list.map(l => {
+      const s = getState(l.id);
+      const p = formatPrice(l.precio);
+      const photo = l.fotos?.[0] ?? null;
+      return `
+        <div class="card${s.status === 'discarded' ? ' is-discarded' : ''}" data-id="${l.id}">
+          <div class="card-photo">
+            ${photo
+              ? `<img src="${photo}" alt="foto" loading="lazy">`
+              : `<div class="no-photo">Sin foto</div>`}
+            <button class="star-btn${s.starred ? ' active' : ''}" title="Destacar">★</button>
+          </div>
+          <div class="card-body">
+            ${p
+              ? `<div class="price">$${p.n}<span class="curr">${p.curr}</span></div>`
+              : `<div class="no-price">Precio no indicado</div>`}
+            <div class="location">${l.direccion ?? '—'}</div>
+            ${l.url
+              ? `<a class="card-link" href="${l.url}" target="_blank" rel="noopener">Ver listing ↗</a>`
+              : ''}
+            <div class="status-row">
+              <select class="status-select s-${s.status}">
+                <option value="new"       ${s.status==='new'       ?'selected':''}>Nuevo</option>
+                <option value="reviewed"  ${s.status==='reviewed'  ?'selected':''}>Revisado</option>
+                <option value="contacted" ${s.status==='contacted' ?'selected':''}>Contactado</option>
+                <option value="rented"    ${s.status==='rented'    ?'selected':''}>Rentado</option>
+                <option value="discarded" ${s.status==='discarded' ?'selected':''}>Descartado</option>
+              </select>
+            </div>
+            <textarea class="notes-input" placeholder="Notas...">${s.notes}</textarea>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Bind per-card events
+    grid.querySelectorAll('.card').forEach(card => {
+      const id = card.dataset.id;
+
+      card.querySelector('.star-btn').addEventListener('click', () => {
+        setState(id, { starred: !getState(id).starred });
+        render();
+      });
+
+      card.querySelector('.status-select').addEventListener('change', e => {
+        setState(id, { status: e.target.value });
+        render();
+      });
+
+      // Save notes on blur (not on every keystroke)
+      card.querySelector('.notes-input').addEventListener('blur', e => {
+        setState(id, { notes: e.target.value });
+      });
+    });
+  }
+
+  // ── Export CSV ──────────────────────────────────────────────────────────
+  function exportCSV() {
+    const header = ['ID','Precio','Moneda','Dirección','Estado','Destacado','Notas','URL'];
+    const rows = listings.map(l => {
+      const s = getState(l.id);
+      return [
+        l.id,
+        l.precio?.monto ?? '',
+        l.precio?.moneda ?? '',
+        l.direccion ?? '',
+        s.status,
+        s.starred ? 'Sí' : 'No',
+        s.notes,
+        l.url ?? '',
+      ];
+    });
+    const esc = v => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map(r => r.map(esc).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `officescrapper_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────
+  loadTracking();
+
+  fetch('listings.json')
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(data => { listings = data; render(); })
+    .catch(() => {
+      document.getElementById('count-label').textContent = 'Error';
+      document.getElementById('grid').innerHTML =
+        '<p class="empty">No se pudo cargar listings.json.<br>Asegúrate de subir el archivo al repo.</p>';
+    });
+
+  document.getElementById('search').addEventListener('input', e => {
+    searchText = e.target.value.toLowerCase().trim();
+    render();
+  });
+
+  document.querySelectorAll('.fbtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeStatus = btn.dataset.status;
+      render();
+    });
+  });
+
+  document.getElementById('starred-toggle').addEventListener('click', e => {
+    onlyStarred = !onlyStarred;
+    e.currentTarget.classList.toggle('active', onlyStarred);
+    render();
+  });
+
+  document.getElementById('export-btn').addEventListener('click', exportCSV);
+</script>
+</body>
+</html>
