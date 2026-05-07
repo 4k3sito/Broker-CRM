@@ -1,0 +1,17 @@
+{
+  "name": "officescrapper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "scrape": "playwright test tests/scrape.spec.ts --project=chromium --reporter=line --headed"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.1"
+  }
+}
