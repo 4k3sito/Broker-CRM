@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "scrape": "playwright test tests/scrape.spec.ts --project=chromium --reporter=line --headed"
+    "scrape": "playwright test tests/scrape.spec.ts --project=chromium --reporter=line --headed",
+    "dev": "npx serve . --listen 3000"
   },
   "keywords": [],
   "author": "",
