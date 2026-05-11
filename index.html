@@ -94,9 +94,11 @@
     }
     .card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .no-photo {
-      display: flex; align-items: center; justify-content: center;
-      height: 100%; color: var(--muted); font-size: 0.8rem;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; background: #e2e8f0; gap: 0.4rem;
+      color: var(--muted); font-size: 0.75rem;
     }
+    .no-photo svg { opacity: 0.35; }
 
     .star-btn {
       position: absolute; top: 8px; right: 8px;
@@ -110,11 +112,16 @@
 
     .card-body { padding: 0.875rem; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
 
-    .price { font-size: 1.1rem; font-weight: 700; line-height: 1; }
-    .price .curr { font-size: 0.7rem; font-weight: 400; color: var(--muted); margin-left: 3px; }
+    .card-title {
+      font-size: 0.88rem; font-weight: 700; line-height: 1.3;
+      color: var(--text); display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .price { font-size: 1.15rem; font-weight: 800; line-height: 1; color: #0f172a; }
+    .price .curr { font-size: 0.7rem; font-weight: 500; color: var(--muted); margin-left: 3px; }
     .no-price { font-size: 0.85rem; color: var(--muted); font-style: italic; }
 
-    .location { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+    .location { font-size: 0.75rem; color: var(--muted); line-height: 1.4; }
     .card-link { font-size: 0.75rem; color: var(--accent); text-decoration: none; }
     .card-link:hover { text-decoration: underline; }
 
@@ -140,6 +147,13 @@
     .notes-input:focus { outline: none; border-color: var(--accent); }
 
     .empty { grid-column: 1/-1; text-align: center; padding: 5rem 2rem; color: var(--muted); font-size: 0.9rem; }
+
+    .badge {
+      display: inline-block; padding: 0.15rem 0.45rem; border-radius: 4px;
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+    }
+    .badge-eb  { background: #dbeafe; color: #1d4ed8; }
+    .badge-i24 { background: #fce7f3; color: #9d174d; }
   </style>
 </head>
 <body>
@@ -157,6 +171,9 @@
   <button class="fbtn" data-status="contacted">Contactado</button>
   <button class="fbtn" data-status="rented">Rentado</button>
   <button class="fbtn" data-status="discarded">Descartado</button>
+  <button class="fbtn" data-fuente="all"         id="fuente-all">Todas las fuentes</button>
+  <button class="fbtn" data-fuente="easybroker" id="fuente-eb">EasyBroker</button>
+  <button class="fbtn" data-fuente="inmuebles24" id="fuente-i24">Inmuebles24</button>
   <button class="starred-toggle" id="starred-toggle">★ Destacados</button>
   <button class="export-btn" id="export-btn">Exportar CSV</button>
 </div>
@@ -169,6 +186,7 @@
   let listings = [];
   let tracking = {};
   let activeStatus = 'all';
+  let activeFuente = 'all';
   let onlyStarred = false;
   let searchText = '';
 
@@ -204,8 +222,10 @@
     return listings.filter(l => {
       const s = getState(l.id);
       if (activeStatus !== 'all' && s.status !== activeStatus) return false;
+      if (activeFuente !== 'all' && (l.fuente ?? 'inmuebles24') !== activeFuente) return false;
       if (onlyStarred && !s.starred) return false;
-      if (searchText && !(l.direccion ?? '').toLowerCase().includes(searchText)) return false;
+      if (searchText && !(l.direccion ?? '').toLowerCase().includes(searchText) &&
+          !(l.titulo ?? '').toLowerCase().includes(searchText)) return false;
       return true;
     });
   }
@@ -232,10 +252,24 @@
           <div class="card-photo">
             ${photo
               ? `<img src="${photo}" alt="foto" loading="lazy">`
-              : `<div class="no-photo">Sin foto</div>`}
+              : `<div class="no-photo">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5">
+                    <path d="M3 21V7l9-4 9 4v14"/>
+                    <path d="M9 21V12h6v9"/>
+                    <path d="M3 7h18"/>
+                    <rect x="10" y="3" width="4" height="4" rx="0.5"/>
+                  </svg>
+                  Sin foto
+                </div>`}
             <button class="star-btn${s.starred ? ' active' : ''}" title="Destacar">★</button>
           </div>
           <div class="card-body">
+                  ${l.fuente === 'easybroker'
+              ? `<span class="badge badge-eb">EasyBroker</span>`
+              : `<span class="badge badge-i24">Inmuebles24</span>`}
+            ${l.titulo
+              ? `<div class="card-title">${l.titulo}</div>`
+              : ''}
             ${p
               ? `<div class="price">$${p.n}<span class="curr">${p.curr}</span></div>`
               : `<div class="no-price">Precio no indicado</div>`}
@@ -320,14 +354,26 @@
     render();
   });
 
-  document.querySelectorAll('.fbtn').forEach(btn => {
+  const statusBtns = document.querySelectorAll('.fbtn[data-status]');
+  statusBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+      statusBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeStatus = btn.dataset.status;
       render();
     });
   });
+
+  const fuenteBtns = document.querySelectorAll('.fbtn[data-fuente]');
+  fuenteBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      fuenteBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFuente = btn.dataset.fuente;
+      render();
+    });
+  });
+  document.getElementById('fuente-all').classList.add('active');
 
   document.getElementById('starred-toggle').addEventListener('click', e => {
     onlyStarred = !onlyStarred;

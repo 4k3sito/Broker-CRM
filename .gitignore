@@ -2,6 +2,9 @@
 # Claude Code (memoria local, no debe subirse)
 .claude/
 
+# Variables de entorno (API keys)
+.env
+
 # Playwright
 node_modules/
 /test-results/
