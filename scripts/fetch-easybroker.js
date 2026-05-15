@@ -38,7 +38,7 @@ async function apiFetch(url) {
 // ── Obtener lista paginada ────────────────────────────────────────────────
 async function fetchAllBasic() {
   const all = [];
-  let page = 1, totalPages = 1;
+  let page = 1, totalPages = 4;
 
   do {
     const qs   = new URLSearchParams({ page: String(page), limit: String(PER_PAGE) });

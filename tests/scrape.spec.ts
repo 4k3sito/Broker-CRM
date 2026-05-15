@@ -2,7 +2,7 @@ import { test } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const BASE = 'https://www.inmuebles24.com';
+const BASE   = 'https://www.inmuebles24.com';
 const OUTPUT = path.resolve(__dirname, '..', 'listings.json');
 
 function pageUrl(p: number) {
@@ -12,10 +12,13 @@ function pageUrl(p: number) {
 }
 
 function parsePrice(text: string): { monto: number; moneda: string } | null {
-  // e.g. "MN 200,000" or "USD 1,500"
   const m = text.match(/^([A-Z]+)\s*([\d,.]+)/);
   if (!m) return null;
   return { moneda: m[1], monto: parseInt(m[2].replace(/[,\.]/g, ''), 10) };
+}
+
+function randomDelay(min = 1200, max = 2500) {
+  return Math.floor(Math.random() * (max - min) + min);
 }
 
 async function extractPage(page: any): Promise<any[]> {
@@ -35,43 +38,54 @@ async function extractPage(page: any): Promise<any[]> {
 }
 
 test('scrape — locales en renta Monterrey', async ({ page }) => {
-  test.setTimeout(15 * 60 * 1000); // 15 min
+  test.setTimeout(15 * 60 * 1000);
+
+  // ── Stealth: parchear fingerprints que Cloudflare detecta ──────────────
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['es-MX', 'es', 'en-US'] });
+    // @ts-ignore
+    window.chrome = { runtime: {} };
+  });
 
   // ── Página 1 ──────────────────────────────────────────────────────────
   await page.goto(pageUrl(1), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.waitForSelector('[data-id]', { timeout: 30_000 });
 
-  // Total desde el título: "1,008 Locales Comerciales en renta en Monterrey..."
-  const title = await page.title();
+  // Scroll suave para parecer humano
+  await page.evaluate(() => window.scrollTo({ top: 400, behavior: 'smooth' }));
+  await page.waitForTimeout(500);
+
+  const title      = await page.title();
   const totalMatch = title.match(/([\d,]+)\s+Locales/i);
   const total      = totalMatch ? parseInt(totalMatch[1].replace(/,/g, ''), 10) : 0;
   const totalPages = Math.ceil(total / 30);
   console.log(`\nTotal: ${total} listings — ${totalPages} páginas\n`);
 
   const raw: any[] = [];
-
   const p1 = await extractPage(page);
   raw.push(...p1);
   console.log(`Página  1/${totalPages} — ${p1.length} listings`);
 
   // ── Páginas 2-N ───────────────────────────────────────────────────────
   for (let p = 2; p <= totalPages; p++) {
-    await page.waitForTimeout(1200); // pausa para no triggerear rate limit
+    await page.waitForTimeout(randomDelay());
     await page.goto(pageUrl(p), { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
     let cards: any[] = [];
     try {
       await page.waitForSelector('[data-id]', { timeout: 30_000 });
+      await page.evaluate(() => window.scrollTo({ top: 300, behavior: 'smooth' }));
       cards = await extractPage(page);
     } catch {
-      // Posible challenge de Cloudflare — esperar y reintentar una vez
-      process.stdout.write(`\n  Página ${p}: reintentando...`);
-      await page.waitForTimeout(3000);
+      process.stdout.write(`\n  Página ${p}: challenge detectado, reintentando...`);
       try {
+        await page.waitForTimeout(4000);
         await page.waitForSelector('[data-id]', { timeout: 20_000 });
         cards = await extractPage(page);
       } catch {
-        console.log(` sin listings — fin.`);
+        console.log(' sin listings — deteniendo.');
         break;
       }
     }
@@ -84,12 +98,14 @@ test('scrape — locales en renta Monterrey', async ({ page }) => {
   }
   console.log();
 
-  // ── Dedup y formatear ─────────────────────────────────────────────────
+  // ── Dedup i24 ─────────────────────────────────────────────────────────
   const seen = new Set<string>();
-  const listings = raw
+  const i24Listings = raw
     .filter(c => { if (!c.id || seen.has(c.id)) return false; seen.add(c.id); return true; })
     .map(c => ({
       id:        c.id,
+      fuente:    'inmuebles24' as const,
+      titulo:    '',
       precio:    parsePrice(c.price),
       direccion: c.dir,
       fotos:     c.fotos,
@@ -97,6 +113,18 @@ test('scrape — locales en renta Monterrey', async ({ page }) => {
       whatsapp:  null as string | null,
     }));
 
-  fs.writeFileSync(OUTPUT, JSON.stringify(listings, null, 2), 'utf-8');
-  console.log(`\nGuardados ${listings.length} listings únicos → ${OUTPUT}\n`);
+  // ── Merge: preservar listings de otras fuentes (EasyBroker, etc.) ──────
+  let existing: any[] = [];
+  try { existing = JSON.parse(fs.readFileSync(OUTPUT, 'utf-8')); } catch { /* primer run */ }
+
+  const merged = new Map(existing.map((l: any) => [l.id, l]));
+  for (const l of i24Listings) merged.set(l.id, l);
+
+  const result = Array.from(merged.values());
+  fs.writeFileSync(OUTPUT, JSON.stringify(result, null, 2), 'utf-8');
+
+  const cI24 = result.filter((l: any) => l.fuente === 'inmuebles24').length;
+  const cEB  = result.filter((l: any) => l.fuente === 'easybroker').length;
+  console.log(`\nGuardados ${result.length} listings únicos → ${OUTPUT}`);
+  console.log(`  Inmuebles24: ${cI24}  |  EasyBroker: ${cEB}\n`);
 });

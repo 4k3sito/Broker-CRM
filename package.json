@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "scrape": "playwright test tests/scrape.spec.ts --project=chromium --reporter=line --headed",
+    "scrape": "playwright test tests/scrape.spec.ts --project=scrape --reporter=line --headed",
     "scrape:eb": "node scripts/fetch-easybroker.js",
     "scrape:all": "npm run scrape && npm run scrape:eb",
     "dev": "npx serve . --listen 3000"
