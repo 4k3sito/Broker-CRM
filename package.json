@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "scrape": "playwright test tests/scrape.spec.ts --project=scrape --reporter=line --headed",
     "scrape:eb": "node scripts/fetch-easybroker.js",
-    "scrape:all": "npm run scrape && npm run scrape:eb",
+    "scrape:apify": "node scripts/fetch-apify.js",
+    "scrape:all": "npm run scrape:eb && npm run scrape:apify",
     "dev": "npx serve . --listen 3000"
   },
   "keywords": [],
@@ -16,5 +16,8 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.1"
+  },
+  "dependencies": {
+    "apify-client": "^2.23.3"
   }
 }
