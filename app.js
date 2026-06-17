@@ -1,6 +1,6 @@
 const SUPABASE_URL = 'https://fbtyjwpeymnguetrcwzt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Ke4bAiGgcM6bMxaOk-u2Zw_S9AMSo1C';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const STATUSES = ['Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'];
 
 const STATUS_FROM_API = { new: 'Nuevo', reviewed: 'Revisado', contacted: 'Contactado', rented: 'Rentado', discarded: 'Descartado' };
@@ -46,7 +46,7 @@ function adaptListing(l) {
 }
 
 async function fetchAllListings() {
-  const { data, error } = await supabase.from('listings').select('*').order('id');
+  const { data, error } = await db.from('listings').select('*').order('id');
   if (error) throw new Error(error.message);
   return data;
 }
@@ -65,7 +65,7 @@ function setState(id, patch) {
   if (patch.starred !== undefined) dbPatch.starred = patch.starred;
   if (patch.notes   !== undefined) dbPatch.notes   = patch.notes;
 
-  supabase.from('listings').update(dbPatch).eq('id', id)
+  db.from('listings').update(dbPatch).eq('id', id)
     .then(({ error }) => { if (error) console.warn('Update failed:', error.message); });
 }
 
