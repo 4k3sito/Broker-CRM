@@ -14,10 +14,10 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.1"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
     "apify-client": "^2.23.3"
   }
 }

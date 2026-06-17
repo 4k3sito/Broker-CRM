@@ -27,12 +27,23 @@ let locationIndex = [];
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
+function parseLocation(loc) {
+  if (loc == null) return null;
+  let v = loc;
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (!s.startsWith('{')) return s;
+    try { v = JSON.parse(s); } catch { return s; }
+  }
+  return (v && typeof v === 'object') ? (v.name ?? null) : null;
+}
+
 function adaptListing(l) {
   return {
     id:       l.id,
     fuente:   l.source ?? 'desconocido',
     titulo:   l.title  ?? l.broker_name ?? null,
-    direccion: l.location ?? l.neighborhood ?? null,
+    direccion: parseLocation(l.location) ?? l.neighborhood ?? null,
     precio:   l.price_numeric != null
                 ? { monto: l.price_numeric, moneda: l.currency ?? 'MXN' }
                 : null,
