@@ -1,2247 +1,2992 @@
 {
-  "/home/ake/Proyects/4k3sito.github.io/package.json": {
-    "mtime": 1781677881.5969386,
-    "ast_hash": "f7cd033848c2eeff2b79ce82c333841d",
-    "semantic_hash": "f7cd033848c2eeff2b79ce82c333841d"
+  "package.json": {
+    "mtime": 1781683434.3229222,
+    "ast_hash": "bcd98e4fac5b3e71b5432fbe69096595",
+    "semantic_hash": ""
   },
-  "/home/ake/Proyects/4k3sito.github.io/scripts/apify-actors.config.js": {
-    "mtime": 1781641821.1137843,
-    "ast_hash": "df0b7afbc5c70ab626a46381199fd607",
-    "semantic_hash": "df0b7afbc5c70ab626a46381199fd607"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/scripts/fetch-apify.js": {
-    "mtime": 1781641821.1137843,
-    "ast_hash": "4192368c7df528499cd88ad4640cfe55",
-    "semantic_hash": "4192368c7df528499cd88ad4640cfe55"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/scripts/fetch-easybroker.js": {
-    "mtime": 1781641821.1137843,
-    "ast_hash": "83e6cb2f6869a34396bb1913ee5bf1c3",
-    "semantic_hash": "83e6cb2f6869a34396bb1913ee5bf1c3"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/.github/workflows/playwright.yml": {
+  ".github/workflows/playwright.yml": {
     "mtime": 1781641821.1137843,
     "ast_hash": "8eeea4038250dc5028a9d1bf4da54425",
     "semantic_hash": "8eeea4038250dc5028a9d1bf4da54425"
   },
-  "/home/ake/Proyects/4k3sito.github.io/README.md": {
-    "mtime": 1781641821.1137843,
-    "ast_hash": "e307f92aa9f9d075ebd3b0a2a1894faa",
-    "semantic_hash": "e307f92aa9f9d075ebd3b0a2a1894faa"
+  "README.md": {
+    "mtime": 1781729969.1389592,
+    "ast_hash": "6ab29682e63f87c0988c89cccfcc3364",
+    "semantic_hash": ""
   },
-  "/home/ake/Proyects/4k3sito.github.io/index.html": {
-    "mtime": 1781665918.5648873,
-    "ast_hash": "512511b32bc5ca0c957667c826c96b96",
-    "semantic_hash": "512511b32bc5ca0c957667c826c96b96"
+  "index.html": {
+    "mtime": 1781681064.4691663,
+    "ast_hash": "cd468fc542518674f5638fa9da556611",
+    "semantic_hash": ""
   },
-  "/home/ake/Proyects/4k3sito.github.io/api/database.py": {
+  "api/database.py": {
     "mtime": 1781548566.5320797,
     "ast_hash": "4e99e1653ffb19917b7b80c4426e8ec2",
     "semantic_hash": "4e99e1653ffb19917b7b80c4426e8ec2"
   },
-  "/home/ake/Proyects/4k3sito.github.io/api/entrypoint.sh": {
+  "api/entrypoint.sh": {
     "mtime": 1781655877.135493,
     "ast_hash": "c5ea7cfaf940a55631d68ff23bd5451d",
     "semantic_hash": "c5ea7cfaf940a55631d68ff23bd5451d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/api/import_data.py": {
+  "api/import_data.py": {
     "mtime": 1781655887.5651221,
     "ast_hash": "4ffda900d823a017faa57f6b9d92fdf5",
     "semantic_hash": "4ffda900d823a017faa57f6b9d92fdf5"
   },
-  "/home/ake/Proyects/4k3sito.github.io/api/main.py": {
+  "api/main.py": {
     "mtime": 1781665503.288552,
     "ast_hash": "7913da2306c3c7c46566e2ff80720a96",
     "semantic_hash": "7913da2306c3c7c46566e2ff80720a96"
   },
-  "/home/ake/Proyects/4k3sito.github.io/api/models.py": {
+  "api/models.py": {
     "mtime": 1781665472.292177,
     "ast_hash": "49ba2667e800db82505fb34656c6a5ee",
     "semantic_hash": "49ba2667e800db82505fb34656c6a5ee"
   },
-  "/home/ake/Proyects/4k3sito.github.io/api/schemas.py": {
+  "api/schemas.py": {
     "mtime": 1781665479.8241396,
     "ast_hash": "5550a35b394f8cdef11c3e78657326aa",
     "semantic_hash": "5550a35b394f8cdef11c3e78657326aa"
   },
-  "/home/ake/Proyects/4k3sito.github.io/lamudi_scraper.py": {
-    "mtime": 1781676686.8864455,
-    "ast_hash": "80356c39936832f14be347b9e8b597ea",
-    "semantic_hash": "80356c39936832f14be347b9e8b597ea"
+  "output/lamudi-comercial-renta.json": {
+    "mtime": 1781728219.2214231,
+    "ast_hash": "d6c2353ad6e7d6c949236d9492b545ac",
+    "semantic_hash": ""
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/lamudi-comercial-renta.json": {
-    "mtime": 1781676004.6742663,
-    "ast_hash": "27a70e72151a2f3faf9836892f082bcd",
-    "semantic_hash": "27a70e72151a2f3faf9836892f082bcd"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/output/locales-comerciales-en-renta.json": {
+  "output/locales-comerciales-en-renta.json": {
     "mtime": 1781669199.9248834,
     "ast_hash": "2ef15b073fa96346e8e7eb472d016133",
     "semantic_hash": "2ef15b073fa96346e8e7eb472d016133"
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/locales-comerciales-en-venta.json": {
+  "output/locales-comerciales-en-venta.json": {
     "mtime": 1781669283.3208778,
     "ast_hash": "cfdafba5abafc73fdc65891192bf29a1",
     "semantic_hash": "cfdafba5abafc73fdc65891192bf29a1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/scrape.json": {
-    "mtime": 1781676271.1241162,
+  "output/scrape.json": {
+    "mtime": 1781728290.3095984,
     "ast_hash": "b4cb9c050030ac3371b7bb42a80a4aac",
     "semantic_hash": "b4cb9c050030ac3371b7bb42a80a4aac"
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/scrape_lamudi.json": {
+  "output/scrape_lamudi.json": {
     "mtime": 1781548566.5357463,
     "ast_hash": "6793054ec3c1c046f1d5f297d1939b8a",
     "semantic_hash": "6793054ec3c1c046f1d5f297d1939b8a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/terrenos-en-venta.json": {
+  "output/terrenos-en-venta.json": {
     "mtime": 1781669367.4253855,
     "ast_hash": "d1bedb6aa58de4f119a689252c641126",
     "semantic_hash": "d1bedb6aa58de4f119a689252c641126"
   },
-  "/home/ake/Proyects/4k3sito.github.io/api/requirements.txt": {
+  "api/requirements.txt": {
     "mtime": 1781548566.5320797,
     "ast_hash": "44a9d4e8a94d48f3e12e30494c3b4e52",
     "semantic_hash": "44a9d4e8a94d48f3e12e30494c3b4e52"
   },
-  "/home/ake/Proyects/4k3sito.github.io/docker-compose.yml": {
+  "docker-compose.yml": {
     "mtime": 1781668412.5946555,
     "ast_hash": "73824b2fdaa31e13d786aed828cd4847",
     "semantic_hash": "73824b2fdaa31e13d786aed828cd4847"
   },
-  "/home/ake/Proyects/4k3sito.github.io/Inmuebles_scraper.py": {
-    "mtime": 1781675046.8802693,
-    "ast_hash": "239c77a4d3ca66edf1cfe4a994339d31",
-    "semantic_hash": "239c77a4d3ca66edf1cfe4a994339d31"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/00a6bc3f6d427e1204920344ed840f45.json": {
+  "cache/scrape_detail_page/00a6bc3f6d427e1204920344ed840f45.json": {
     "mtime": 1781667023.628092,
     "ast_hash": "3df6f210b2bb524ef40f8563d5b4205c",
     "semantic_hash": "3df6f210b2bb524ef40f8563d5b4205c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/01be682bc99acb2bc0224230ef8f73a7.json": {
+  "cache/scrape_detail_page/01be682bc99acb2bc0224230ef8f73a7.json": {
     "mtime": 1781666961.9018574,
     "ast_hash": "2ed87ab23878d667bff10d87e30fffed",
     "semantic_hash": "2ed87ab23878d667bff10d87e30fffed"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/031c4f9b505bc845b69b423de58984f6.json": {
+  "cache/scrape_detail_page/031c4f9b505bc845b69b423de58984f6.json": {
     "mtime": 1781666808.695047,
     "ast_hash": "e7869b4bdb7bf6d0a0eef0e0eee7338f",
     "semantic_hash": "e7869b4bdb7bf6d0a0eef0e0eee7338f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/045daabb5b5c5c9f2e71edcb9f7a1991.json": {
+  "cache/scrape_detail_page/045daabb5b5c5c9f2e71edcb9f7a1991.json": {
     "mtime": 1781669510.4238508,
     "ast_hash": "9ad8f463db73dd65e01640cd31a61ed5",
     "semantic_hash": "9ad8f463db73dd65e01640cd31a61ed5"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0572717f05024295e009def178c7bcf9.json": {
+  "cache/scrape_detail_page/0572717f05024295e009def178c7bcf9.json": {
     "mtime": 1781675598.640027,
     "ast_hash": "bcd0ea955df10158b80ae380054622b3",
     "semantic_hash": "bcd0ea955df10158b80ae380054622b3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/058971e6943af330bc1c3651af285fd1.json": {
+  "cache/scrape_detail_page/058971e6943af330bc1c3651af285fd1.json": {
     "mtime": 1781666774.0716403,
     "ast_hash": "806b9c8ba31015c160cf42ea9ebb434a",
     "semantic_hash": "806b9c8ba31015c160cf42ea9ebb434a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/05b764619301c694d2655905c9c1df74.json": {
+  "cache/scrape_detail_page/05b764619301c694d2655905c9c1df74.json": {
     "mtime": 1781675607.5288358,
     "ast_hash": "891064522974e0b7df89bfbbe41e5022",
     "semantic_hash": "891064522974e0b7df89bfbbe41e5022"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/06075da8eb55a02fb7bf9c973a3f2465.json": {
+  "cache/scrape_detail_page/06075da8eb55a02fb7bf9c973a3f2465.json": {
     "mtime": 1781669560.8362079,
     "ast_hash": "1f205d6b49700a4f63714c10530eace7",
     "semantic_hash": "1f205d6b49700a4f63714c10530eace7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0642853894ec30f31cdf01b5e9d9ab1e.json": {
+  "cache/scrape_detail_page/0642853894ec30f31cdf01b5e9d9ab1e.json": {
     "mtime": 1781667226.5912817,
     "ast_hash": "afa91fe0038613b13fb355cfa0e60fed",
     "semantic_hash": "afa91fe0038613b13fb355cfa0e60fed"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/06c1e665545c332000a1e6f7eb3067a0.json": {
+  "cache/scrape_detail_page/06c1e665545c332000a1e6f7eb3067a0.json": {
     "mtime": 1781666869.7847848,
     "ast_hash": "e108287ceb541b0e38957ee94849272c",
     "semantic_hash": "e108287ceb541b0e38957ee94849272c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/06f10f7c8d9c805190db985c9e611f2d.json": {
+  "cache/scrape_detail_page/06f10f7c8d9c805190db985c9e611f2d.json": {
     "mtime": 1781676002.2205422,
     "ast_hash": "d8297dd71697ae08fa4a9211bae47032",
     "semantic_hash": "d8297dd71697ae08fa4a9211bae47032"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0766aeffd67e095243f54b4ef340eb45.json": {
+  "cache/scrape_detail_page/0766aeffd67e095243f54b4ef340eb45.json": {
     "mtime": 1781669565.9883935,
     "ast_hash": "e1b39c720f4b7b33fbb10d6700740441",
     "semantic_hash": "e1b39c720f4b7b33fbb10d6700740441"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/076f70fe527fedc036525a189b39baa9.json": {
+  "cache/scrape_detail_page/076f70fe527fedc036525a189b39baa9.json": {
     "mtime": 1781675641.3363779,
     "ast_hash": "f9587c468ed0fe394c1e5039f56543a0",
     "semantic_hash": "f9587c468ed0fe394c1e5039f56543a0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/07d42e092327db6df635c25522c5cda3.json": {
+  "cache/scrape_detail_page/07d42e092327db6df635c25522c5cda3.json": {
     "mtime": 1781666757.5050676,
     "ast_hash": "9dd8ec9391ac808e8763f5585714d22f",
     "semantic_hash": "9dd8ec9391ac808e8763f5585714d22f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/07df25d897b18a3d66f54d8b7bc2debf.json": {
+  "cache/scrape_detail_page/07df25d897b18a3d66f54d8b7bc2debf.json": {
     "mtime": 1781666874.0209525,
     "ast_hash": "6440bb8cc152c805222cd61832bae625",
     "semantic_hash": "6440bb8cc152c805222cd61832bae625"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/08a38e195f5baa953356c959278dc113.json": {
+  "cache/scrape_detail_page/08a38e195f5baa953356c959278dc113.json": {
     "mtime": 1781667127.890749,
     "ast_hash": "cd218ec0a3ad49e27ad0eb0f71fdd6b9",
     "semantic_hash": "cd218ec0a3ad49e27ad0eb0f71fdd6b9"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/08e703f86c9016bf3603e32ccb030a52.json": {
+  "cache/scrape_detail_page/08e703f86c9016bf3603e32ccb030a52.json": {
     "mtime": 1781675676.0298214,
     "ast_hash": "d4a18dd60248b9933410642507f54434",
     "semantic_hash": "d4a18dd60248b9933410642507f54434"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/091144a3b2884d5dd3d10367fb90b29e.json": {
+  "cache/scrape_detail_page/091144a3b2884d5dd3d10367fb90b29e.json": {
     "mtime": 1781675836.4867585,
     "ast_hash": "53794d156984828cdc7167941e7427c4",
     "semantic_hash": "53794d156984828cdc7167941e7427c4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/099f9a3dc512f14462c7573f7b7e1daf.json": {
+  "cache/scrape_detail_page/099f9a3dc512f14462c7573f7b7e1daf.json": {
     "mtime": 1781666848.9838638,
     "ast_hash": "0d793fd818ea19e15a627005d64a974b",
     "semantic_hash": "0d793fd818ea19e15a627005d64a974b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0a4627f6bff6aad7890924575fef25be.json": {
+  "cache/scrape_detail_page/0a4627f6bff6aad7890924575fef25be.json": {
     "mtime": 1781667139.3570373,
     "ast_hash": "4eca8ffdd28a2f68cc94c51cda1b0b5c",
     "semantic_hash": "4eca8ffdd28a2f68cc94c51cda1b0b5c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0abcdcbe4551f00523eee17e56cb8002.json": {
+  "cache/scrape_detail_page/0abcdcbe4551f00523eee17e56cb8002.json": {
     "mtime": 1781675706.5868027,
     "ast_hash": "6a71d9829fd5e19542b6ebf038ee237f",
     "semantic_hash": "6a71d9829fd5e19542b6ebf038ee237f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0bf1ba2169eb3ca17a1adaff3d0f93dd.json": {
+  "cache/scrape_detail_page/0bf1ba2169eb3ca17a1adaff3d0f93dd.json": {
     "mtime": 1781675769.5851312,
     "ast_hash": "d672e4f8a059eb2df438887bba6e7645",
     "semantic_hash": "d672e4f8a059eb2df438887bba6e7645"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0c273d9238049ad1a59f3a63acf8bb4f.json": {
+  "cache/scrape_detail_page/0c273d9238049ad1a59f3a63acf8bb4f.json": {
     "mtime": 1781675803.4971793,
     "ast_hash": "657b8c98bfb7dc114c5c64e0e21c6639",
     "semantic_hash": "657b8c98bfb7dc114c5c64e0e21c6639"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0cd96b809c0289d1e934bb6c2b35096f.json": {
+  "cache/scrape_detail_page/0cd96b809c0289d1e934bb6c2b35096f.json": {
     "mtime": 1781669468.6514237,
     "ast_hash": "3a26fbb92af6e56834f39cf4346c9fa3",
     "semantic_hash": "3a26fbb92af6e56834f39cf4346c9fa3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0e0eae3ec5cdc9bb1cc7f2837650b8a0.json": {
+  "cache/scrape_detail_page/0e0eae3ec5cdc9bb1cc7f2837650b8a0.json": {
     "mtime": 1781666766.9640365,
     "ast_hash": "15aa5236972b687157ae19bf8733cdd1",
     "semantic_hash": "15aa5236972b687157ae19bf8733cdd1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0e97ced56bcdbbc916e5f2f6871ee9c9.json": {
+  "cache/scrape_detail_page/0e97ced56bcdbbc916e5f2f6871ee9c9.json": {
     "mtime": 1781667199.9164324,
     "ast_hash": "1a75d195c7b55488a09494a96886c21a",
     "semantic_hash": "1a75d195c7b55488a09494a96886c21a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0f4bfbc9122c5c0ed1ea953123270b42.json": {
+  "cache/scrape_detail_page/0f4bfbc9122c5c0ed1ea953123270b42.json": {
     "mtime": 1781675902.9925048,
     "ast_hash": "373228c9d2463f8484323d60fd1fc787",
     "semantic_hash": "373228c9d2463f8484323d60fd1fc787"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/0ff0a02e6e9e1d308164eb25eb1f0bdd.json": {
+  "cache/scrape_detail_page/0ff0a02e6e9e1d308164eb25eb1f0bdd.json": {
     "mtime": 1781675954.7438047,
     "ast_hash": "6199cdfbc07fcf4902d1e738b68844a8",
     "semantic_hash": "6199cdfbc07fcf4902d1e738b68844a8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/10266bfacf94b55a5257753024f4efb5.json": {
+  "cache/scrape_detail_page/10266bfacf94b55a5257753024f4efb5.json": {
     "mtime": 1781666973.7921212,
     "ast_hash": "a9d8bb61f1f5f0be30838043df7e666c",
     "semantic_hash": "a9d8bb61f1f5f0be30838043df7e666c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/10fb0e02846097be07ed21f157789ac1.json": {
+  "cache/scrape_detail_page/10fb0e02846097be07ed21f157789ac1.json": {
     "mtime": 1781666889.967376,
     "ast_hash": "778f31557cfa8e6f84f7734295910d82",
     "semantic_hash": "778f31557cfa8e6f84f7734295910d82"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/12195bee44b1d76585a1e4dff8b1342c.json": {
+  "cache/scrape_detail_page/12195bee44b1d76585a1e4dff8b1342c.json": {
     "mtime": 1781669569.8515685,
     "ast_hash": "d2b53455cd069c9099949f6f79b065e3",
     "semantic_hash": "d2b53455cd069c9099949f6f79b065e3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/122b1792b140bdf5b5ad710f463ab900.json": {
+  "cache/scrape_detail_page/122b1792b140bdf5b5ad710f463ab900.json": {
     "mtime": 1781675933.1688008,
     "ast_hash": "903b0a6e52eac47d730f4640416c4feb",
     "semantic_hash": "903b0a6e52eac47d730f4640416c4feb"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/15ad443ac594f92f4705ee94595d79f1.json": {
+  "cache/scrape_detail_page/15ad443ac594f92f4705ee94595d79f1.json": {
     "mtime": 1781669485.757467,
     "ast_hash": "205efec05a174de6530d6235451d41f4",
     "semantic_hash": "205efec05a174de6530d6235451d41f4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/15b920c0d19d0a44808bacbb64b1f385.json": {
+  "cache/scrape_detail_page/15b920c0d19d0a44808bacbb64b1f385.json": {
     "mtime": 1781669506.4653358,
     "ast_hash": "4f4c3e7258a21d293e58f20018555ec0",
     "semantic_hash": "4f4c3e7258a21d293e58f20018555ec0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1602cd5f6881ecbd788ef7486756b70a.json": {
+  "cache/scrape_detail_page/1602cd5f6881ecbd788ef7486756b70a.json": {
     "mtime": 1781667035.933693,
     "ast_hash": "66a8b489412097c520758a335ee25db1",
     "semantic_hash": "66a8b489412097c520758a335ee25db1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/189ba1e0c68d8bd299f2a46d691c2e29.json": {
+  "cache/scrape_detail_page/189ba1e0c68d8bd299f2a46d691c2e29.json": {
     "mtime": 1781675717.1930084,
     "ast_hash": "ea1b50670d07d67977abfe4d07acc044",
     "semantic_hash": "ea1b50670d07d67977abfe4d07acc044"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/18f13bdec6d13a8aae8bbd6802e9efee.json": {
+  "cache/scrape_detail_page/18f13bdec6d13a8aae8bbd6802e9efee.json": {
     "mtime": 1781675680.4305778,
     "ast_hash": "314dcd27e260a91800eed8a332c01426",
     "semantic_hash": "314dcd27e260a91800eed8a332c01426"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/19a204d7959d129cc2d3fcc64173e0dc.json": {
+  "cache/scrape_detail_page/19a204d7959d129cc2d3fcc64173e0dc.json": {
     "mtime": 1781669554.777209,
     "ast_hash": "483975fe50d92d01b1c6b808b661d40d",
     "semantic_hash": "483975fe50d92d01b1c6b808b661d40d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1bc16aa4bc9dbf7958885dccb0ae2816.json": {
+  "cache/scrape_detail_page/1bc16aa4bc9dbf7958885dccb0ae2816.json": {
     "mtime": 1781666565.6363304,
     "ast_hash": "944dc6f850f1b2622a18ea4e1829beba",
     "semantic_hash": "944dc6f850f1b2622a18ea4e1829beba"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1be375dee953e39ea48a91886316325a.json": {
+  "cache/scrape_detail_page/1be375dee953e39ea48a91886316325a.json": {
     "mtime": 1781675748.3781428,
     "ast_hash": "8984505275eb0ee07a0613adb4d55161",
     "semantic_hash": "8984505275eb0ee07a0613adb4d55161"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1bed702aaa58ad14e71466d607fe4670.json": {
+  "cache/scrape_detail_page/1bed702aaa58ad14e71466d607fe4670.json": {
     "mtime": 1781675686.4786003,
     "ast_hash": "0b53d2d761a5c5bbbb27c1031cfaff45",
     "semantic_hash": "0b53d2d761a5c5bbbb27c1031cfaff45"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1c6ba1b3f811968f845cfae10b751174.json": {
+  "cache/scrape_detail_page/1c6ba1b3f811968f845cfae10b751174.json": {
     "mtime": 1781666912.171071,
     "ast_hash": "e0802b027cb1a0f44b658c0147d1d800",
     "semantic_hash": "e0802b027cb1a0f44b658c0147d1d800"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1cd53cf2b71c3371886558f5bca737bc.json": {
+  "cache/scrape_detail_page/1cd53cf2b71c3371886558f5bca737bc.json": {
     "mtime": 1781667075.7497818,
     "ast_hash": "3d491466425865d40ca7020105b0684b",
     "semantic_hash": "3d491466425865d40ca7020105b0684b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1d50ba36b1f45791117c9d64d656749e.json": {
+  "cache/scrape_detail_page/1d50ba36b1f45791117c9d64d656749e.json": {
     "mtime": 1781675964.8237462,
     "ast_hash": "07a1259978158dc0427fc9f6dec970a1",
     "semantic_hash": "07a1259978158dc0427fc9f6dec970a1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1db47de2599143bd7eb6aa1fe785d48e.json": {
+  "cache/scrape_detail_page/1db47de2599143bd7eb6aa1fe785d48e.json": {
     "mtime": 1781666723.755803,
     "ast_hash": "8498595bc78cddfb1d27232a54e684f6",
     "semantic_hash": "8498595bc78cddfb1d27232a54e684f6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1e5a02c47dc4bd5e82a477950e11427f.json": {
+  "cache/scrape_detail_page/1e5a02c47dc4bd5e82a477950e11427f.json": {
     "mtime": 1781666678.8875856,
     "ast_hash": "e8339cdf63b46ac8c5d066900d25c77b",
     "semantic_hash": "e8339cdf63b46ac8c5d066900d25c77b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1eeeb6ff4894e9857b750c8b2aa2ea4e.json": {
+  "cache/scrape_detail_page/1eeeb6ff4894e9857b750c8b2aa2ea4e.json": {
     "mtime": 1781675825.8734877,
     "ast_hash": "bc75a060e0e07c87d40212b6146073a7",
     "semantic_hash": "bc75a060e0e07c87d40212b6146073a7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1f2af3240fd3f717def71b8201f57ea7.json": {
+  "cache/scrape_detail_page/1f2af3240fd3f717def71b8201f57ea7.json": {
     "mtime": 1781675620.147789,
     "ast_hash": "fe5de629035ef20a1f130b51c1b0d5d4",
     "semantic_hash": "fe5de629035ef20a1f130b51c1b0d5d4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1f4b9d95a08131194f608b6bc286be5a.json": {
+  "cache/scrape_detail_page/1f4b9d95a08131194f608b6bc286be5a.json": {
     "mtime": 1781675881.6456287,
     "ast_hash": "bce292728eb734abf1aa2250395301f7",
     "semantic_hash": "bce292728eb734abf1aa2250395301f7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1f564571e4a6e6fada7d0d6ea74ea5fa.json": {
+  "cache/scrape_detail_page/1f564571e4a6e6fada7d0d6ea74ea5fa.json": {
     "mtime": 1781675728.3680058,
     "ast_hash": "443ad93e85da8540f9ec3d8601a2ff0d",
     "semantic_hash": "443ad93e85da8540f9ec3d8601a2ff0d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1fb38c649d333a95d27247c111c08c4a.json": {
+  "cache/scrape_detail_page/1fb38c649d333a95d27247c111c08c4a.json": {
     "mtime": 1781666804.0082836,
     "ast_hash": "e7524a55ed0a868af3647aaf36c688ff",
     "semantic_hash": "e7524a55ed0a868af3647aaf36c688ff"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/1fdfad8c2603a040ec083fd64b663cff.json": {
+  "cache/scrape_detail_page/1fdfad8c2603a040ec083fd64b663cff.json": {
     "mtime": 1781669581.4852448,
     "ast_hash": "fe3ef84118e637f360e8ed3a395bb85d",
     "semantic_hash": "fe3ef84118e637f360e8ed3a395bb85d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/21b7631ec3a851ddff12da6a89168e88.json": {
+  "cache/scrape_detail_page/21b7631ec3a851ddff12da6a89168e88.json": {
     "mtime": 1781666990.909352,
     "ast_hash": "e00fb5840f52002c8c50e381ffe49a88",
     "semantic_hash": "e00fb5840f52002c8c50e381ffe49a88"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2320350e3c4b92ef18ff862420f35ad2.json": {
+  "cache/scrape_detail_page/2320350e3c4b92ef18ff862420f35ad2.json": {
     "mtime": 1781666578.7618806,
     "ast_hash": "2204efd742f0bef50e407c3ae9686d93",
     "semantic_hash": "2204efd742f0bef50e407c3ae9686d93"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/24677c49b6251ae1af6ad5a05a338e55.json": {
+  "cache/scrape_detail_page/24677c49b6251ae1af6ad5a05a338e55.json": {
     "mtime": 1781667190.3655574,
     "ast_hash": "37cbc5c780d06c1317c824396e999558",
     "semantic_hash": "37cbc5c780d06c1317c824396e999558"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/24caa6befd030014ef7559b31456c1a0.json": {
+  "cache/scrape_detail_page/24caa6befd030014ef7559b31456c1a0.json": {
     "mtime": 1781667031.3695648,
     "ast_hash": "0ea0bb79748d1ef49502befec4527b9c",
     "semantic_hash": "0ea0bb79748d1ef49502befec4527b9c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/24f09515c4be020076a18dee2fff0ffa.json": {
+  "cache/scrape_detail_page/24f09515c4be020076a18dee2fff0ffa.json": {
     "mtime": 1781675577.7298014,
     "ast_hash": "8780664d79e71c1dfe61754bd14f4463",
     "semantic_hash": "8780664d79e71c1dfe61754bd14f4463"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/250f3f8411b5f1b48c28a8c8ee1212b1.json": {
+  "cache/scrape_detail_page/250f3f8411b5f1b48c28a8c8ee1212b1.json": {
     "mtime": 1781666971.694437,
     "ast_hash": "4cb54ddfde5609542ea2250623e5ca6d",
     "semantic_hash": "4cb54ddfde5609542ea2250623e5ca6d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2575a9a1d1183f0f06e78c077315668b.json": {
+  "cache/scrape_detail_page/2575a9a1d1183f0f06e78c077315668b.json": {
     "mtime": 1781675577.6611528,
     "ast_hash": "439cf8939e9652cc2cb5e06a97115cd5",
     "semantic_hash": "439cf8939e9652cc2cb5e06a97115cd5"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/261e0db3fcda3e133606faf5f717dcd6.json": {
+  "cache/scrape_detail_page/261e0db3fcda3e133606faf5f717dcd6.json": {
     "mtime": 1781667109.238896,
     "ast_hash": "85ed88818a9f835482e37486710bbcce",
     "semantic_hash": "85ed88818a9f835482e37486710bbcce"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2625317510508c312fb68af030d76732.json": {
+  "cache/scrape_detail_page/2625317510508c312fb68af030d76732.json": {
     "mtime": 1781666827.7719228,
     "ast_hash": "346e910df0af02c760ce631466435bc3",
     "semantic_hash": "346e910df0af02c760ce631466435bc3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/26977b1039e4811e212e734c0efbbc2f.json": {
+  "cache/scrape_detail_page/26977b1039e4811e212e734c0efbbc2f.json": {
     "mtime": 1781666700.753384,
     "ast_hash": "176ab558378727badfc76042cd65696f",
     "semantic_hash": "176ab558378727badfc76042cd65696f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2888de43fd485a9977a57a5c9b474b6a.json": {
+  "cache/scrape_detail_page/2888de43fd485a9977a57a5c9b474b6a.json": {
     "mtime": 1781666732.86972,
     "ast_hash": "3fb97489abb7f39ba9a1c222707f6c18",
     "semantic_hash": "3fb97489abb7f39ba9a1c222707f6c18"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2890ef3d07b4fa6898e455484956db4f.json": {
+  "cache/scrape_detail_page/2890ef3d07b4fa6898e455484956db4f.json": {
     "mtime": 1781667246.652024,
     "ast_hash": "b4fabe07910b2cb2d8a6fed056ce370c",
     "semantic_hash": "b4fabe07910b2cb2d8a6fed056ce370c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/28ab14394deb39231a5364c4507edfc2.json": {
+  "cache/scrape_detail_page/28ab14394deb39231a5364c4507edfc2.json": {
     "mtime": 1781667086.2981331,
     "ast_hash": "fbd0bbb2700a79a6255cde4bcf221754",
     "semantic_hash": "fbd0bbb2700a79a6255cde4bcf221754"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/28ae88d1f76665715fca1aaa9ae10d21.json": {
+  "cache/scrape_detail_page/28ae88d1f76665715fca1aaa9ae10d21.json": {
     "mtime": 1781666675.3032079,
     "ast_hash": "755d59e84b43607cb4b595f0b3070663",
     "semantic_hash": "755d59e84b43607cb4b595f0b3070663"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/29f51020bc29d0589aba322586da35d3.json": {
+  "cache/scrape_detail_page/29f51020bc29d0589aba322586da35d3.json": {
     "mtime": 1781675770.091635,
     "ast_hash": "d598d533e5587bf7b8ba5162c5db956a",
     "semantic_hash": "d598d533e5587bf7b8ba5162c5db956a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2a8106f33894ce727c4ba526be66401b.json": {
+  "cache/scrape_detail_page/2a8106f33894ce727c4ba526be66401b.json": {
     "mtime": 1781667118.0299428,
     "ast_hash": "777929093cb2ae880f3be4b57b3a5532",
     "semantic_hash": "777929093cb2ae880f3be4b57b3a5532"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2b6c78289dc61938df0a1e5d4b3aca96.json": {
+  "cache/scrape_detail_page/2b6c78289dc61938df0a1e5d4b3aca96.json": {
     "mtime": 1781675923.2343612,
     "ast_hash": "71dc1b0244c06d3b474d8d5cab2de1ac",
     "semantic_hash": "71dc1b0244c06d3b474d8d5cab2de1ac"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2c01898f75e868eaf9271c5fe4653da0.json": {
+  "cache/scrape_detail_page/2c01898f75e868eaf9271c5fe4653da0.json": {
     "mtime": 1781666904.6233258,
     "ast_hash": "8e01fa1b96a98e022100eb0051695eca",
     "semantic_hash": "8e01fa1b96a98e022100eb0051695eca"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2c9d1a34bc279cbd544e6421c6ad612d.json": {
+  "cache/scrape_detail_page/2c9d1a34bc279cbd544e6421c6ad612d.json": {
     "mtime": 1781675758.8951926,
     "ast_hash": "ccec294bc9b23ec1664844ea25daba68",
     "semantic_hash": "ccec294bc9b23ec1664844ea25daba68"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2cd591085f8d8b2c7aa78595647f7e46.json": {
+  "cache/scrape_detail_page/2cd591085f8d8b2c7aa78595647f7e46.json": {
     "mtime": 1781666496.4904857,
     "ast_hash": "a579e6c70b0385588cafd619c201dd57",
     "semantic_hash": "a579e6c70b0385588cafd619c201dd57"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2d1d3e8ebf764e60661b5196cef35318.json": {
+  "cache/scrape_detail_page/2d1d3e8ebf764e60661b5196cef35318.json": {
     "mtime": 1781666763.1444027,
     "ast_hash": "b9e6c758cfd743e4fbfc2525b0ff67de",
     "semantic_hash": "b9e6c758cfd743e4fbfc2525b0ff67de"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2d2c57e9abdd704b7b619e208a786cb1.json": {
+  "cache/scrape_detail_page/2d2c57e9abdd704b7b619e208a786cb1.json": {
     "mtime": 1781666623.3074822,
     "ast_hash": "2de33fe7136cec8de51b6803f7e53f95",
     "semantic_hash": "2de33fe7136cec8de51b6803f7e53f95"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2d7ee664ac9f107686351adfd4fe7a94.json": {
+  "cache/scrape_detail_page/2d7ee664ac9f107686351adfd4fe7a94.json": {
     "mtime": 1781669609.7618399,
     "ast_hash": "84b69c82b5f155235ba699b4aae30e95",
     "semantic_hash": "84b69c82b5f155235ba699b4aae30e95"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2dbd0d74d44b86bb19e97125cf75f572.json": {
+  "cache/scrape_detail_page/2dbd0d74d44b86bb19e97125cf75f572.json": {
     "mtime": 1781669445.0708332,
     "ast_hash": "90be8784136796aac7bade154bd11ad8",
     "semantic_hash": "90be8784136796aac7bade154bd11ad8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/2e28943e6eae6780bccc583b8717ddf9.json": {
+  "cache/scrape_detail_page/2e28943e6eae6780bccc583b8717ddf9.json": {
     "mtime": 1781666886.3340306,
     "ast_hash": "09d47e77f3ea014a58ef935aa16e08bc",
     "semantic_hash": "09d47e77f3ea014a58ef935aa16e08bc"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/303e3aebe5fb08e13aa0d03164058c0e.json": {
+  "cache/scrape_detail_page/303e3aebe5fb08e13aa0d03164058c0e.json": {
     "mtime": 1781669531.8112254,
     "ast_hash": "af4a9ce7b32c40f0d20879879573c943",
     "semantic_hash": "af4a9ce7b32c40f0d20879879573c943"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/304e738763ae1e2ca5c24f6bc7bf6dc6.json": {
+  "cache/scrape_detail_page/304e738763ae1e2ca5c24f6bc7bf6dc6.json": {
     "mtime": 1781667004.5945563,
     "ast_hash": "77252a2e1f39a69d054e258733236206",
     "semantic_hash": "77252a2e1f39a69d054e258733236206"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/344e5bc269a04707b4739ef386ddccd3.json": {
+  "cache/scrape_detail_page/344e5bc269a04707b4739ef386ddccd3.json": {
     "mtime": 1781669485.3696642,
     "ast_hash": "0981de62807f1a7bcd7ce9aa74595001",
     "semantic_hash": "0981de62807f1a7bcd7ce9aa74595001"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/34dbea11a74ee0594b47807761deeba6.json": {
+  "cache/scrape_detail_page/34dbea11a74ee0594b47807761deeba6.json": {
     "mtime": 1781669467.013774,
     "ast_hash": "2ccba0540290c7a8105242563bccb6cc",
     "semantic_hash": "2ccba0540290c7a8105242563bccb6cc"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/359c406a161fb26865a2e27c7d98731c.json": {
+  "cache/scrape_detail_page/359c406a161fb26865a2e27c7d98731c.json": {
     "mtime": 1781669496.6198792,
     "ast_hash": "4b38ef08e0db1c75a2b98ff775085f68",
     "semantic_hash": "4b38ef08e0db1c75a2b98ff775085f68"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/362244ee6190c843d0519edea5e68016.json": {
+  "cache/scrape_detail_page/362244ee6190c843d0519edea5e68016.json": {
     "mtime": 1781666787.392465,
     "ast_hash": "75f7582d32c0a6bd2d4ea9f32a685dc2",
     "semantic_hash": "75f7582d32c0a6bd2d4ea9f32a685dc2"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3644fd007c3cfd0f4afd09794ad755d6.json": {
+  "cache/scrape_detail_page/3644fd007c3cfd0f4afd09794ad755d6.json": {
     "mtime": 1781666787.3770025,
     "ast_hash": "68d7a1c9683dcf9b06a3e98be35ccae4",
     "semantic_hash": "68d7a1c9683dcf9b06a3e98be35ccae4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/365807ebc685032bc41d5c9b191e04f3.json": {
+  "cache/scrape_detail_page/365807ebc685032bc41d5c9b191e04f3.json": {
     "mtime": 1781666963.4122105,
     "ast_hash": "c65e03bbf2e035a2b77f300a24b064cf",
     "semantic_hash": "c65e03bbf2e035a2b77f300a24b064cf"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3708fead28ae1106d7a02667b35c45a0.json": {
+  "cache/scrape_detail_page/3708fead28ae1106d7a02667b35c45a0.json": {
     "mtime": 1781669627.902517,
     "ast_hash": "abb13aa67d04fd1350c782e3228d9d3d",
     "semantic_hash": "abb13aa67d04fd1350c782e3228d9d3d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/374c31c2526d87d39d127eaa2285987a.json": {
+  "cache/scrape_detail_page/374c31c2526d87d39d127eaa2285987a.json": {
     "mtime": 1781666713.712734,
     "ast_hash": "4c959f40168c71c1212cba6f7e456ffe",
     "semantic_hash": "4c959f40168c71c1212cba6f7e456ffe"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/38261f3fc2fd057989b920c33e163381.json": {
+  "cache/scrape_detail_page/38261f3fc2fd057989b920c33e163381.json": {
     "mtime": 1781666879.8105044,
     "ast_hash": "de647303e3e62ec40a2dd62688cdb1cd",
     "semantic_hash": "de647303e3e62ec40a2dd62688cdb1cd"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/38e35f411820c1c0e6c176f930910885.json": {
+  "cache/scrape_detail_page/38e35f411820c1c0e6c176f930910885.json": {
     "mtime": 1781666778.6674325,
     "ast_hash": "861f1e410695b2961654e25e04106018",
     "semantic_hash": "861f1e410695b2961654e25e04106018"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/390739e7676dd631326c9f7b1c69fbe0.json": {
+  "cache/scrape_detail_page/390739e7676dd631326c9f7b1c69fbe0.json": {
     "mtime": 1781666594.2361069,
     "ast_hash": "0f021c16833e66b706c15da611e9347c",
     "semantic_hash": "0f021c16833e66b706c15da611e9347c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3a337da3be98824c1e433861d886270e.json": {
+  "cache/scrape_detail_page/3a337da3be98824c1e433861d886270e.json": {
     "mtime": 1781669435.316523,
     "ast_hash": "0139e1573cdf11e09fc005a2fc4dabb6",
     "semantic_hash": "0139e1573cdf11e09fc005a2fc4dabb6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3b0174f7caa95b004b8a3d04b73683f1.json": {
+  "cache/scrape_detail_page/3b0174f7caa95b004b8a3d04b73683f1.json": {
     "mtime": 1781675887.5847197,
     "ast_hash": "fedf25730ee0320e8c69084ea3603f6a",
     "semantic_hash": "fedf25730ee0320e8c69084ea3603f6a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3b4275a47ad645935ca835c31a46fd7a.json": {
+  "cache/scrape_detail_page/3b4275a47ad645935ca835c31a46fd7a.json": {
     "mtime": 1781675622.1814187,
     "ast_hash": "95172928f855c0a8d3327a3f4a228404",
     "semantic_hash": "95172928f855c0a8d3327a3f4a228404"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3bd6c55f998be34ead846a8d14be77bf.json": {
+  "cache/scrape_detail_page/3bd6c55f998be34ead846a8d14be77bf.json": {
     "mtime": 1781666984.382602,
     "ast_hash": "110bc792523cadf40e157cf6c7a37a52",
     "semantic_hash": "110bc792523cadf40e157cf6c7a37a52"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3c5b720a6ca5813b70e02b570922f8c8.json": {
+  "cache/scrape_detail_page/3c5b720a6ca5813b70e02b570922f8c8.json": {
     "mtime": 1781675832.958965,
     "ast_hash": "d76a5ade88ef414a7213fc996c671927",
     "semantic_hash": "d76a5ade88ef414a7213fc996c671927"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3d36f0fc709a10994d1fede44b64a661.json": {
+  "cache/scrape_detail_page/3d36f0fc709a10994d1fede44b64a661.json": {
     "mtime": 1781669540.8222492,
     "ast_hash": "6bbadbcd36a98f55109d12ba5ac06692",
     "semantic_hash": "6bbadbcd36a98f55109d12ba5ac06692"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/3d98215f82f6e9dd695265dbdf3b7ad4.json": {
+  "cache/scrape_detail_page/3d98215f82f6e9dd695265dbdf3b7ad4.json": {
     "mtime": 1781669570.7428725,
     "ast_hash": "f3b5afe309946de6ad3360b4c11c6f8e",
     "semantic_hash": "f3b5afe309946de6ad3360b4c11c6f8e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4036077ea2572dd2382b3133549b3ea3.json": {
+  "cache/scrape_detail_page/4036077ea2572dd2382b3133549b3ea3.json": {
     "mtime": 1781669479.3313906,
     "ast_hash": "7e38589b33064d06265ffe8f15d1f37a",
     "semantic_hash": "7e38589b33064d06265ffe8f15d1f37a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/40caf11d0fa53174b16cf7147d04fa27.json": {
+  "cache/scrape_detail_page/40caf11d0fa53174b16cf7147d04fa27.json": {
     "mtime": 1781669600.2107642,
     "ast_hash": "b1571f62b17a670cb8e6549b4143eea3",
     "semantic_hash": "b1571f62b17a670cb8e6549b4143eea3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/40df364429f4633e5c4408e817790746.json": {
+  "cache/scrape_detail_page/40df364429f4633e5c4408e817790746.json": {
     "mtime": 1781666549.0195355,
     "ast_hash": "27cfb4699e3233def14ff9b2c1a24f94",
     "semantic_hash": "27cfb4699e3233def14ff9b2c1a24f94"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4391f5e87f51eae8e73db1af40eb6f51.json": {
+  "cache/scrape_detail_page/4391f5e87f51eae8e73db1af40eb6f51.json": {
     "mtime": 1781675633.1625123,
     "ast_hash": "42bb8b99e5c4e2dad39c828c0a57fe5a",
     "semantic_hash": "42bb8b99e5c4e2dad39c828c0a57fe5a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/43a9759a2da008b0ce2c39eee06585da.json": {
+  "cache/scrape_detail_page/43a9759a2da008b0ce2c39eee06585da.json": {
     "mtime": 1781669493.694917,
     "ast_hash": "997a973e04595a74172a5729902a7d44",
     "semantic_hash": "997a973e04595a74172a5729902a7d44"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4482b32b17ad1e841b4346d926101555.json": {
+  "cache/scrape_detail_page/4482b32b17ad1e841b4346d926101555.json": {
     "mtime": 1781667244.9295027,
     "ast_hash": "380b7c15689036a89ce754d506fb3d63",
     "semantic_hash": "380b7c15689036a89ce754d506fb3d63"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/44cb8980d7e11ab5645e3dc791458fa8.json": {
+  "cache/scrape_detail_page/44cb8980d7e11ab5645e3dc791458fa8.json": {
     "mtime": 1781669516.4243004,
     "ast_hash": "9d36d3e7057956ad3d14d38646be2921",
     "semantic_hash": "9d36d3e7057956ad3d14d38646be2921"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/452018e90a68d08c7488a200a7ea7e99.json": {
+  "cache/scrape_detail_page/452018e90a68d08c7488a200a7ea7e99.json": {
     "mtime": 1781666755.5455046,
     "ast_hash": "54bb645ad538be28a34fe87d9db78b42",
     "semantic_hash": "54bb645ad538be28a34fe87d9db78b42"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/460ed97f0ee120d0c78825fc7903626a.json": {
+  "cache/scrape_detail_page/460ed97f0ee120d0c78825fc7903626a.json": {
     "mtime": 1781666929.2925313,
     "ast_hash": "8123a954191ba26c836ee7ac2b5bdd02",
     "semantic_hash": "8123a954191ba26c836ee7ac2b5bdd02"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4739f2380fc2710c9cd65b5a590ca1c7.json": {
+  "cache/scrape_detail_page/4739f2380fc2710c9cd65b5a590ca1c7.json": {
     "mtime": 1781675696.471564,
     "ast_hash": "8aa90a9cc8c299194951b6996b122c60",
     "semantic_hash": "8aa90a9cc8c299194951b6996b122c60"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/474888651710d1adfb33afd6aec206d7.json": {
+  "cache/scrape_detail_page/474888651710d1adfb33afd6aec206d7.json": {
     "mtime": 1781666528.2120886,
     "ast_hash": "311a049359c912cebdc4fc0346fbacb7",
     "semantic_hash": "311a049359c912cebdc4fc0346fbacb7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/477018552fa778518afbd89e37f3ac42.json": {
+  "cache/scrape_detail_page/477018552fa778518afbd89e37f3ac42.json": {
     "mtime": 1781675780.8499644,
     "ast_hash": "62351f0703573af71fa18ae3880fd8fc",
     "semantic_hash": "62351f0703573af71fa18ae3880fd8fc"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4885c55ba95007697c1b782ec957d70b.json": {
+  "cache/scrape_detail_page/4885c55ba95007697c1b782ec957d70b.json": {
     "mtime": 1781667256.7349257,
     "ast_hash": "f517eef09994bfe62a25a3f3f4769f9a",
     "semantic_hash": "f517eef09994bfe62a25a3f3f4769f9a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4a4f1bba04cdbb4ead4b7809cf8f9e4f.json": {
+  "cache/scrape_detail_page/4a4f1bba04cdbb4ead4b7809cf8f9e4f.json": {
     "mtime": 1781675566.2609506,
     "ast_hash": "faa0909d1f6440c9a49c1c6edc24bc17",
     "semantic_hash": "faa0909d1f6440c9a49c1c6edc24bc17"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4a723bb4aefd908baa161aa901c90d0b.json": {
+  "cache/scrape_detail_page/4a723bb4aefd908baa161aa901c90d0b.json": {
     "mtime": 1781666615.272985,
     "ast_hash": "3f22b68b00b918b02c1277c52f4f38db",
     "semantic_hash": "3f22b68b00b918b02c1277c52f4f38db"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4ad8dd70ec76f304379d12e7b0bd489c.json": {
+  "cache/scrape_detail_page/4ad8dd70ec76f304379d12e7b0bd489c.json": {
     "mtime": 1781675835.7705326,
     "ast_hash": "ea9fd44002639cd05e101124785f2194",
     "semantic_hash": "ea9fd44002639cd05e101124785f2194"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4bed7b74499998b4e03252812b72d049.json": {
+  "cache/scrape_detail_page/4bed7b74499998b4e03252812b72d049.json": {
     "mtime": 1781669559.7189353,
     "ast_hash": "ea2638b97f1e8539c05053f0717e334a",
     "semantic_hash": "ea2638b97f1e8539c05053f0717e334a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4bfbb5985fa5c934d1054edebd39c8ac.json": {
+  "cache/scrape_detail_page/4bfbb5985fa5c934d1054edebd39c8ac.json": {
     "mtime": 1781667106.3986714,
     "ast_hash": "5ee7e3f70f4f5d23f48a7d129fa1caf9",
     "semantic_hash": "5ee7e3f70f4f5d23f48a7d129fa1caf9"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4c4c9adb0399de00c88206b7a8ebc5cf.json": {
+  "cache/scrape_detail_page/4c4c9adb0399de00c88206b7a8ebc5cf.json": {
     "mtime": 1781675728.1395082,
     "ast_hash": "513a62cbadaaa1e0a2f8bb6a65fbc60f",
     "semantic_hash": "513a62cbadaaa1e0a2f8bb6a65fbc60f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4d6dd581706906315bc8a6656f27f5e0.json": {
+  "cache/scrape_detail_page/4d6dd581706906315bc8a6656f27f5e0.json": {
     "mtime": 1781666689.5431912,
     "ast_hash": "13afa53ed4995c879296295d11980974",
     "semantic_hash": "13afa53ed4995c879296295d11980974"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4dabec3f16d61264dec60d279e05e7d8.json": {
+  "cache/scrape_detail_page/4dabec3f16d61264dec60d279e05e7d8.json": {
     "mtime": 1781675945.047065,
     "ast_hash": "50c158e42f0b57d1a60b19fc08de01e0",
     "semantic_hash": "50c158e42f0b57d1a60b19fc08de01e0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4e60668a7f157469355c2e3e8822bcfe.json": {
+  "cache/scrape_detail_page/4e60668a7f157469355c2e3e8822bcfe.json": {
     "mtime": 1781666938.2216175,
     "ast_hash": "7bf2daa8e997dc44ec866e3190c7a3b8",
     "semantic_hash": "7bf2daa8e997dc44ec866e3190c7a3b8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4eecf3866c334f285628d217f2c4413c.json": {
+  "cache/scrape_detail_page/4eecf3866c334f285628d217f2c4413c.json": {
     "mtime": 1781666605.6829007,
     "ast_hash": "b56a5309dfe4e763d4bf95995fc5e880",
     "semantic_hash": "b56a5309dfe4e763d4bf95995fc5e880"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4f034d8750911c5e96dd61d52c07bc37.json": {
+  "cache/scrape_detail_page/4f034d8750911c5e96dd61d52c07bc37.json": {
     "mtime": 1781667014.991447,
     "ast_hash": "4455c00efc5018f1b9ba6f18354ede39",
     "semantic_hash": "4455c00efc5018f1b9ba6f18354ede39"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/4f3bc65767a019817a75213d06cdb5f3.json": {
+  "cache/scrape_detail_page/4f3bc65767a019817a75213d06cdb5f3.json": {
     "mtime": 1781667230.5721703,
     "ast_hash": "570806d0f9b90cabbcf54b37c438d072",
     "semantic_hash": "570806d0f9b90cabbcf54b37c438d072"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/504739e3456931722d7853f1419c78b2.json": {
+  "cache/scrape_detail_page/504739e3456931722d7853f1419c78b2.json": {
     "mtime": 1781667191.0455654,
     "ast_hash": "da22b8389615a95cdfcb95b91ac5b943",
     "semantic_hash": "da22b8389615a95cdfcb95b91ac5b943"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/50ad06e2c25ff5aba871e9751db6943a.json": {
+  "cache/scrape_detail_page/50ad06e2c25ff5aba871e9751db6943a.json": {
     "mtime": 1781666508.940011,
     "ast_hash": "a7cf13e6034bdeae598dbcd47067aae2",
     "semantic_hash": "a7cf13e6034bdeae598dbcd47067aae2"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/50e6579f82fc118ff9c8ac9bc08cc797.json": {
+  "cache/scrape_detail_page/50e6579f82fc118ff9c8ac9bc08cc797.json": {
     "mtime": 1781676004.663062,
     "ast_hash": "cc069ce38fb8ce26e0a771426732fcd8",
     "semantic_hash": "cc069ce38fb8ce26e0a771426732fcd8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5156421a499664d11eb7583ca9a716eb.json": {
+  "cache/scrape_detail_page/5156421a499664d11eb7583ca9a716eb.json": {
     "mtime": 1781666669.0370138,
     "ast_hash": "e5e6288649260c823a40c52cace6dbec",
     "semantic_hash": "e5e6288649260c823a40c52cace6dbec"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/51dde24c3742270f94fea3ab4d787f0f.json": {
+  "cache/scrape_detail_page/51dde24c3742270f94fea3ab4d787f0f.json": {
     "mtime": 1781666559.7593749,
     "ast_hash": "67393c859acfedee6767c614906499f6",
     "semantic_hash": "67393c859acfedee6767c614906499f6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/52191b68f322e5c170c1733eda1e42b3.json": {
+  "cache/scrape_detail_page/52191b68f322e5c170c1733eda1e42b3.json": {
     "mtime": 1781666564.593034,
     "ast_hash": "c5c67a808e75909091734fae4eed0eaa",
     "semantic_hash": "c5c67a808e75909091734fae4eed0eaa"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5233a806abf13bde21d8b24c2c5cec3a.json": {
+  "cache/scrape_detail_page/5233a806abf13bde21d8b24c2c5cec3a.json": {
     "mtime": 1781675738.6063547,
     "ast_hash": "4ccbe51445c92cdbf0c09ba74acceaea",
     "semantic_hash": "4ccbe51445c92cdbf0c09ba74acceaea"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/533f3b726e76c9c507c7e2fd27877ece.json": {
+  "cache/scrape_detail_page/533f3b726e76c9c507c7e2fd27877ece.json": {
     "mtime": 1781669592.9503927,
     "ast_hash": "6bf5dcbdb9df6e27adacd0a9b43207e5",
     "semantic_hash": "6bf5dcbdb9df6e27adacd0a9b43207e5"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/546fd2be28d91c0f5597a61516b088e2.json": {
+  "cache/scrape_detail_page/546fd2be28d91c0f5597a61516b088e2.json": {
     "mtime": 1781666658.2474442,
     "ast_hash": "587b91d192a6bbe8c15aa1833192139a",
     "semantic_hash": "587b91d192a6bbe8c15aa1833192139a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/55fb22e108760c96ef5b77346601aaab.json": {
+  "cache/scrape_detail_page/55fb22e108760c96ef5b77346601aaab.json": {
     "mtime": 1781666568.2175233,
     "ast_hash": "c520ebb06d8a9b2fddfefa5571910e0b",
     "semantic_hash": "c520ebb06d8a9b2fddfefa5571910e0b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/568343b055bad58f35db6ea2ada5d573.json": {
+  "cache/scrape_detail_page/568343b055bad58f35db6ea2ada5d573.json": {
     "mtime": 1781666682.1799502,
     "ast_hash": "f130aaa75c60cfbc92ec89c18a913988",
     "semantic_hash": "f130aaa75c60cfbc92ec89c18a913988"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5739cd05db3370c42054b0709ba3a058.json": {
+  "cache/scrape_detail_page/5739cd05db3370c42054b0709ba3a058.json": {
     "mtime": 1781666538.899848,
     "ast_hash": "bcdf706ddef86dbfd85b4bbd623a3c4e",
     "semantic_hash": "bcdf706ddef86dbfd85b4bbd623a3c4e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5770ce1949296edf2f2997b4abf6e0c0.json": {
+  "cache/scrape_detail_page/5770ce1949296edf2f2997b4abf6e0c0.json": {
     "mtime": 1781666901.310243,
     "ast_hash": "f41d7c5777caa8ab17615cec31248f85",
     "semantic_hash": "f41d7c5777caa8ab17615cec31248f85"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/57c91badb34d1aec469f26c4bad191d3.json": {
+  "cache/scrape_detail_page/57c91badb34d1aec469f26c4bad191d3.json": {
     "mtime": 1781667188.638492,
     "ast_hash": "34116b9ce952efe34c2d1fb1f56a136c",
     "semantic_hash": "34116b9ce952efe34c2d1fb1f56a136c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5896131a6b189d76a56a25c70b761511.json": {
+  "cache/scrape_detail_page/5896131a6b189d76a56a25c70b761511.json": {
     "mtime": 1781666722.565178,
     "ast_hash": "3d33e23a5e467337e6ca0b97f7f27a71",
     "semantic_hash": "3d33e23a5e467337e6ca0b97f7f27a71"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/589a17b6865f84360049eb59562e5edd.json": {
+  "cache/scrape_detail_page/589a17b6865f84360049eb59562e5edd.json": {
     "mtime": 1781666717.9495635,
     "ast_hash": "3731d8a1b5a8883773741b3dc016cc9b",
     "semantic_hash": "3731d8a1b5a8883773741b3dc016cc9b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5923aed98b1a0c27ef0d44a77780bcff.json": {
+  "cache/scrape_detail_page/5923aed98b1a0c27ef0d44a77780bcff.json": {
     "mtime": 1781666666.7634232,
     "ast_hash": "5b03459ed29c3023b04bb90bf9bc791e",
     "semantic_hash": "5b03459ed29c3023b04bb90bf9bc791e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5b2786df50fd9ba441016fd6695dac93.json": {
+  "cache/scrape_detail_page/5b2786df50fd9ba441016fd6695dac93.json": {
     "mtime": 1781667170.3599684,
     "ast_hash": "f22cd08a486b9499ed8b68ebe2cdae0a",
     "semantic_hash": "f22cd08a486b9499ed8b68ebe2cdae0a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5bf4126c3d905127d6f2d22ace4682c3.json": {
+  "cache/scrape_detail_page/5bf4126c3d905127d6f2d22ace4682c3.json": {
     "mtime": 1781666556.5257754,
     "ast_hash": "54e006f1da4b8fe4aea715f7998e3214",
     "semantic_hash": "54e006f1da4b8fe4aea715f7998e3214"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5ca96c8c558df8e4ac2b779017457312.json": {
+  "cache/scrape_detail_page/5ca96c8c558df8e4ac2b779017457312.json": {
     "mtime": 1781675676.5365024,
     "ast_hash": "227386467d429a23c5b9511d490523af",
     "semantic_hash": "227386467d429a23c5b9511d490523af"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5ce2db07a80ad3a5ff56a4cb43a5dd29.json": {
+  "cache/scrape_detail_page/5ce2db07a80ad3a5ff56a4cb43a5dd29.json": {
     "mtime": 1781667213.3597012,
     "ast_hash": "568fadb3cc8a8a6caef90da8892213d4",
     "semantic_hash": "568fadb3cc8a8a6caef90da8892213d4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5cec26e7a60733338ec95b11e865b1c0.json": {
+  "cache/scrape_detail_page/5cec26e7a60733338ec95b11e865b1c0.json": {
     "mtime": 1781667224.571874,
     "ast_hash": "9d93c45b3be6a183688e4b98ce156a35",
     "semantic_hash": "9d93c45b3be6a183688e4b98ce156a35"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/5f8cf4e810f3bb5bcd19fd1482c1a9bb.json": {
+  "cache/scrape_detail_page/5f8cf4e810f3bb5bcd19fd1482c1a9bb.json": {
     "mtime": 1781666536.4058242,
     "ast_hash": "34e6cead10785e4e255ef0e3431725c7",
     "semantic_hash": "34e6cead10785e4e255ef0e3431725c7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/60cdc1275693571426a55347fd53e409.json": {
+  "cache/scrape_detail_page/60cdc1275693571426a55347fd53e409.json": {
     "mtime": 1781666813.552164,
     "ast_hash": "56d875f34445214247f015cb959c7ee8",
     "semantic_hash": "56d875f34445214247f015cb959c7ee8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/613feddde10c66dba6368d607a39bd12.json": {
+  "cache/scrape_detail_page/613feddde10c66dba6368d607a39bd12.json": {
     "mtime": 1781666752.897969,
     "ast_hash": "9c536a8a642e45b30a83c1a6a54928f2",
     "semantic_hash": "9c536a8a642e45b30a83c1a6a54928f2"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/61b11f3abf279955356ab83cb706fb88.json": {
+  "cache/scrape_detail_page/61b11f3abf279955356ab83cb706fb88.json": {
     "mtime": 1781675974.209444,
     "ast_hash": "f812dfc519ee5d5945cfdaae02b85c68",
     "semantic_hash": "f812dfc519ee5d5945cfdaae02b85c68"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/61e1b96c5849bfa1f327db04ddcd0c4a.json": {
+  "cache/scrape_detail_page/61e1b96c5849bfa1f327db04ddcd0c4a.json": {
     "mtime": 1781675668.2758913,
     "ast_hash": "a278767f354c36444a6d88fe0267bb62",
     "semantic_hash": "a278767f354c36444a6d88fe0267bb62"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6213bc78713dfcc8a04f38362031b668.json": {
+  "cache/scrape_detail_page/6213bc78713dfcc8a04f38362031b668.json": {
     "mtime": 1781666507.3551626,
     "ast_hash": "fd2648feaab260024d95b396db87c4de",
     "semantic_hash": "fd2648feaab260024d95b396db87c4de"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/62ae3a56eb703915411cb34926a15c43.json": {
+  "cache/scrape_detail_page/62ae3a56eb703915411cb34926a15c43.json": {
     "mtime": 1781666639.2461734,
     "ast_hash": "6edc7f297819736be4d65912a8831445",
     "semantic_hash": "6edc7f297819736be4d65912a8831445"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/63644602e342354be118618c8a3df5aa.json": {
+  "cache/scrape_detail_page/63644602e342354be118618c8a3df5aa.json": {
     "mtime": 1781666574.4782686,
     "ast_hash": "f11b7b0893f3005edcb4443a88734bd3",
     "semantic_hash": "f11b7b0893f3005edcb4443a88734bd3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/636ac7091a19401fe0e959ff68975363.json": {
+  "cache/scrape_detail_page/636ac7091a19401fe0e959ff68975363.json": {
     "mtime": 1781669446.5382361,
     "ast_hash": "b588d7e55cff5d0719787efbed19e604",
     "semantic_hash": "b588d7e55cff5d0719787efbed19e604"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/63af083983fb629de535b94ce3584893.json": {
+  "cache/scrape_detail_page/63af083983fb629de535b94ce3584893.json": {
     "mtime": 1781666692.4929464,
     "ast_hash": "356e2d4b49953ca236daed94f97ada48",
     "semantic_hash": "356e2d4b49953ca236daed94f97ada48"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/641607dc02e5c7571fdffd98948505b7.json": {
+  "cache/scrape_detail_page/641607dc02e5c7571fdffd98948505b7.json": {
     "mtime": 1781666829.7821586,
     "ast_hash": "d1089e7f86ce565760f6ad3104d12444",
     "semantic_hash": "d1089e7f86ce565760f6ad3104d12444"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/666fdd2673cc95fad3acf047a34e9a3a.json": {
+  "cache/scrape_detail_page/666fdd2673cc95fad3acf047a34e9a3a.json": {
     "mtime": 1781675991.0190516,
     "ast_hash": "8ef30944dde543805bc0fa138f8f1dd6",
     "semantic_hash": "8ef30944dde543805bc0fa138f8f1dd6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/66b19172d258ac104228610b08c76f44.json": {
+  "cache/scrape_detail_page/66b19172d258ac104228610b08c76f44.json": {
     "mtime": 1781669582.670023,
     "ast_hash": "0f630b91c1c7dd2f72d7bcf8e9cd775b",
     "semantic_hash": "0f630b91c1c7dd2f72d7bcf8e9cd775b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6756d649d870f389df4d3c74309e16bf.json": {
+  "cache/scrape_detail_page/6756d649d870f389df4d3c74309e16bf.json": {
     "mtime": 1781675859.0944493,
     "ast_hash": "759c4ac81931f6d5aef4420b5a534bb4",
     "semantic_hash": "759c4ac81931f6d5aef4420b5a534bb4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/678b10c110c366930dc28356593a6ff4.json": {
+  "cache/scrape_detail_page/678b10c110c366930dc28356593a6ff4.json": {
     "mtime": 1781666953.8797772,
     "ast_hash": "ddbd7b5c6eead5dbfda066bbda80f33a",
     "semantic_hash": "ddbd7b5c6eead5dbfda066bbda80f33a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/684c0ba138f8478d8eb689c3705c5d50.json": {
+  "cache/scrape_detail_page/684c0ba138f8478d8eb689c3705c5d50.json": {
     "mtime": 1781666799.9708102,
     "ast_hash": "94edcf8f0dd9fae2fac35c22b470ff34",
     "semantic_hash": "94edcf8f0dd9fae2fac35c22b470ff34"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/68790ba940d7dad6a562ce058b47e5b0.json": {
+  "cache/scrape_detail_page/68790ba940d7dad6a562ce058b47e5b0.json": {
     "mtime": 1781675845.7275903,
     "ast_hash": "8d891b2a4cf09e65359958adab403689",
     "semantic_hash": "8d891b2a4cf09e65359958adab403689"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/687e23b3924ee1146bf20de374ea7dd0.json": {
+  "cache/scrape_detail_page/687e23b3924ee1146bf20de374ea7dd0.json": {
     "mtime": 1781666703.873509,
     "ast_hash": "122a33e99ba3fba6447f6320361c99cd",
     "semantic_hash": "122a33e99ba3fba6447f6320361c99cd"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/68d3ac9b7301f7f15e1117edb1feaf66.json": {
+  "cache/scrape_detail_page/68d3ac9b7301f7f15e1117edb1feaf66.json": {
     "mtime": 1781675967.1128755,
     "ast_hash": "0f5f3775eed539fe4ebdaf4e9bfb93ec",
     "semantic_hash": "0f5f3775eed539fe4ebdaf4e9bfb93ec"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/69216503c5c064231fd6f4755ac538ea.json": {
+  "cache/scrape_detail_page/69216503c5c064231fd6f4755ac538ea.json": {
     "mtime": 1781675870.6871269,
     "ast_hash": "23d3ac3c983067dec99522155740d256",
     "semantic_hash": "23d3ac3c983067dec99522155740d256"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6935f108f01d2a0d1032ac338585300d.json": {
+  "cache/scrape_detail_page/6935f108f01d2a0d1032ac338585300d.json": {
     "mtime": 1781667163.6571832,
     "ast_hash": "c97707b7923194660e0c7dc9c2cfcc6a",
     "semantic_hash": "c97707b7923194660e0c7dc9c2cfcc6a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/69b683b64677a83a9cea6bb5913a0646.json": {
+  "cache/scrape_detail_page/69b683b64677a83a9cea6bb5913a0646.json": {
     "mtime": 1781675645.0316336,
     "ast_hash": "533bf0d973cb3b4fe527bf27083b9a78",
     "semantic_hash": "533bf0d973cb3b4fe527bf27083b9a78"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6baa64bc7a09fe9f665c919304c13cae.json": {
+  "cache/scrape_detail_page/6baa64bc7a09fe9f665c919304c13cae.json": {
     "mtime": 1781666933.7222059,
     "ast_hash": "bd9682910ff9f1102b88767b0dd8758c",
     "semantic_hash": "bd9682910ff9f1102b88767b0dd8758c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6c4f8387274bd4c6c4d97258ae70c48c.json": {
+  "cache/scrape_detail_page/6c4f8387274bd4c6c4d97258ae70c48c.json": {
     "mtime": 1781666984.3478441,
     "ast_hash": "72407bdbe16563001a3318eac1e8d086",
     "semantic_hash": "72407bdbe16563001a3318eac1e8d086"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6c6c158a7db62a7a33c827842d07c06c.json": {
+  "cache/scrape_detail_page/6c6c158a7db62a7a33c827842d07c06c.json": {
     "mtime": 1781667219.033164,
     "ast_hash": "d084bd6d1d446293fe7ee4d4d73c0142",
     "semantic_hash": "d084bd6d1d446293fe7ee4d4d73c0142"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6c9453e6a344255326b0a7c08c71b03a.json": {
+  "cache/scrape_detail_page/6c9453e6a344255326b0a7c08c71b03a.json": {
     "mtime": 1781667253.3789382,
     "ast_hash": "6131bf1d6466aa6f0b3cf72ae52a7458",
     "semantic_hash": "6131bf1d6466aa6f0b3cf72ae52a7458"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6c969d7e209bc59dc74b889d4481a187.json": {
+  "cache/scrape_detail_page/6c969d7e209bc59dc74b889d4481a187.json": {
     "mtime": 1781675978.1678371,
     "ast_hash": "089c445d1a820b3b06d91037a3918a5c",
     "semantic_hash": "089c445d1a820b3b06d91037a3918a5c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6d3522e9c19804d8590400a635ab1eea.json": {
+  "cache/scrape_detail_page/6d3522e9c19804d8590400a635ab1eea.json": {
     "mtime": 1781666605.7022314,
     "ast_hash": "7e9908d5a9425d35ba3ae80325ed98d0",
     "semantic_hash": "7e9908d5a9425d35ba3ae80325ed98d0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6d815bc159cc67035184e4d1e0ac9e80.json": {
+  "cache/scrape_detail_page/6d815bc159cc67035184e4d1e0ac9e80.json": {
     "mtime": 1781667013.6580932,
     "ast_hash": "5ff37395d0326354b23fff8bbbb13b53",
     "semantic_hash": "5ff37395d0326354b23fff8bbbb13b53"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6dcd2b7954af23108ec2480cf946aed1.json": {
+  "cache/scrape_detail_page/6dcd2b7954af23108ec2480cf946aed1.json": {
     "mtime": 1781675647.070106,
     "ast_hash": "476febe001036e6ab1e94a9e1e4ebe9f",
     "semantic_hash": "476febe001036e6ab1e94a9e1e4ebe9f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6e4ed8a6dd3679dd0556d4405167b03d.json": {
+  "cache/scrape_detail_page/6e4ed8a6dd3679dd0556d4405167b03d.json": {
     "mtime": 1781675995.6887298,
     "ast_hash": "8fb80d6d8b9e4e8d8b891ac463a5e3dc",
     "semantic_hash": "8fb80d6d8b9e4e8d8b891ac463a5e3dc"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6e68bc804d9f60881b927f580219bd21.json": {
+  "cache/scrape_detail_page/6e68bc804d9f60881b927f580219bd21.json": {
     "mtime": 1781666941.3155165,
     "ast_hash": "6d221b2b145f6629c86f649bcfc04c03",
     "semantic_hash": "6d221b2b145f6629c86f649bcfc04c03"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6f49950240e567422e81cb391e398627.json": {
+  "cache/scrape_detail_page/6f49950240e567422e81cb391e398627.json": {
     "mtime": 1781667208.644238,
     "ast_hash": "e8f001f15d11e8b88a0b40109fe64a61",
     "semantic_hash": "e8f001f15d11e8b88a0b40109fe64a61"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6f69c97c885638a78500e1457f22af3b.json": {
+  "cache/scrape_detail_page/6f69c97c885638a78500e1457f22af3b.json": {
     "mtime": 1781675696.9191587,
     "ast_hash": "4e339508729e7686c8da0069f6f42ed6",
     "semantic_hash": "4e339508729e7686c8da0069f6f42ed6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/6f6a9bba3cb36113b1e32640049507fa.json": {
+  "cache/scrape_detail_page/6f6a9bba3cb36113b1e32640049507fa.json": {
     "mtime": 1781666859.661051,
     "ast_hash": "9e3c525ab6a9feb9f011f5e5b4596909",
     "semantic_hash": "9e3c525ab6a9feb9f011f5e5b4596909"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/70775c470ce517a844bed47bb31bf25f.json": {
+  "cache/scrape_detail_page/70775c470ce517a844bed47bb31bf25f.json": {
     "mtime": 1781669636.9489214,
     "ast_hash": "98664b1cf4fe079367211ac5a575fd9b",
     "semantic_hash": "98664b1cf4fe079367211ac5a575fd9b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/724ae338070f4c337de16719be3b239e.json": {
+  "cache/scrape_detail_page/724ae338070f4c337de16719be3b239e.json": {
     "mtime": 1781666555.9308243,
     "ast_hash": "d9d4f4922e52d9ad77ae208a4141df03",
     "semantic_hash": "d9d4f4922e52d9ad77ae208a4141df03"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/72958e41dd56ef25fd4f795c6b26eb55.json": {
+  "cache/scrape_detail_page/72958e41dd56ef25fd4f795c6b26eb55.json": {
     "mtime": 1781667025.2554278,
     "ast_hash": "9d604520563218cc137bf5c37c66cfd1",
     "semantic_hash": "9d604520563218cc137bf5c37c66cfd1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/72e6c81682cf90a5fc9ddf5ba3a9edd8.json": {
+  "cache/scrape_detail_page/72e6c81682cf90a5fc9ddf5ba3a9edd8.json": {
     "mtime": 1781667119.038948,
     "ast_hash": "d5284016c74114e1caf75af1a65d99d8",
     "semantic_hash": "d5284016c74114e1caf75af1a65d99d8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/73267f4d56637fe7a7e74ad81049fd02.json": {
+  "cache/scrape_detail_page/73267f4d56637fe7a7e74ad81049fd02.json": {
     "mtime": 1781666970.4736855,
     "ast_hash": "cda09d799dfe5907ba01f15d33260e48",
     "semantic_hash": "cda09d799dfe5907ba01f15d33260e48"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/73b98ca63909857ee2938643259e3000.json": {
+  "cache/scrape_detail_page/73b98ca63909857ee2938643259e3000.json": {
     "mtime": 1781667250.3271103,
     "ast_hash": "0cf6d7ca07bc09f399ec5c338cc56609",
     "semantic_hash": "0cf6d7ca07bc09f399ec5c338cc56609"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/73c5b03060dbd261569fc8ff9569b4f7.json": {
+  "cache/scrape_detail_page/73c5b03060dbd261569fc8ff9569b4f7.json": {
     "mtime": 1781675654.3193629,
     "ast_hash": "90b2e753c83b61c56fcb82a8efb632cd",
     "semantic_hash": "90b2e753c83b61c56fcb82a8efb632cd"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/75ef73068ad8d357d7b0989244cc841d.json": {
+  "cache/scrape_detail_page/75ef73068ad8d357d7b0989244cc841d.json": {
     "mtime": 1781667129.756697,
     "ast_hash": "67d906da5a08f8bc95e8194605cfd54d",
     "semantic_hash": "67d906da5a08f8bc95e8194605cfd54d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/7a547badb89167b81769d151f871c07a.json": {
+  "cache/scrape_detail_page/7a547badb89167b81769d151f871c07a.json": {
     "mtime": 1781675634.6413972,
     "ast_hash": "e17ba7ee15774efbde4d7210237bd60d",
     "semantic_hash": "e17ba7ee15774efbde4d7210237bd60d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/7baf3b9cda509da4e810d106fddf9149.json": {
+  "cache/scrape_detail_page/7baf3b9cda509da4e810d106fddf9149.json": {
     "mtime": 1781666982.5851026,
     "ast_hash": "ff27915166f8e41715a51d43c90f22c0",
     "semantic_hash": "ff27915166f8e41715a51d43c90f22c0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/7c83fda4e01db5575a39222e34579c52.json": {
+  "cache/scrape_detail_page/7c83fda4e01db5575a39222e34579c52.json": {
     "mtime": 1781667053.9125051,
     "ast_hash": "f0a0b50cb3476ab7e385cf929f026422",
     "semantic_hash": "f0a0b50cb3476ab7e385cf929f026422"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/7d16e548d2d22c08fffcc55331559e51.json": {
+  "cache/scrape_detail_page/7d16e548d2d22c08fffcc55331559e51.json": {
     "mtime": 1781675861.877344,
     "ast_hash": "a08904f1ee98749596d4447b77268ce4",
     "semantic_hash": "a08904f1ee98749596d4447b77268ce4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/7e3d689f98a059558f40a45a56c15a9d.json": {
+  "cache/scrape_detail_page/7e3d689f98a059558f40a45a56c15a9d.json": {
     "mtime": 1781666734.6911535,
     "ast_hash": "a946f9b6916a04a9d9cd46ce76f36d8b",
     "semantic_hash": "a946f9b6916a04a9d9cd46ce76f36d8b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/7e97bf9e2183576096b596b787c8a67e.json": {
+  "cache/scrape_detail_page/7e97bf9e2183576096b596b787c8a67e.json": {
     "mtime": 1781666707.1289155,
     "ast_hash": "7686f0c772b1ae5219958bbc5b7d8154",
     "semantic_hash": "7686f0c772b1ae5219958bbc5b7d8154"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/808e4a5741e074b4bb140e206863496b.json": {
+  "cache/scrape_detail_page/808e4a5741e074b4bb140e206863496b.json": {
     "mtime": 1781669489.1632214,
     "ast_hash": "17f31cce768b5587aeb6ce95fae54be1",
     "semantic_hash": "17f31cce768b5587aeb6ce95fae54be1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/80acacd5b2e2cfd9ca4dfb5cac6f45eb.json": {
+  "cache/scrape_detail_page/80acacd5b2e2cfd9ca4dfb5cac6f45eb.json": {
     "mtime": 1781666634.8639495,
     "ast_hash": "a53cb88f178878986c3a844a8515ca2f",
     "semantic_hash": "a53cb88f178878986c3a844a8515ca2f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8128a913aeb273772c9008882f95a82a.json": {
+  "cache/scrape_detail_page/8128a913aeb273772c9008882f95a82a.json": {
     "mtime": 1781669550.8201864,
     "ast_hash": "7ea958d9b782acb5e79b7ca216244d5a",
     "semantic_hash": "7ea958d9b782acb5e79b7ca216244d5a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8153254aef960fcad7f5e55bc3547d8f.json": {
+  "cache/scrape_detail_page/8153254aef960fcad7f5e55bc3547d8f.json": {
     "mtime": 1781667156.2724884,
     "ast_hash": "3b26492c2be33859dbc8f75638b220ab",
     "semantic_hash": "3b26492c2be33859dbc8f75638b220ab"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/82885022d1f297e8096c8c0c35b70d5e.json": {
+  "cache/scrape_detail_page/82885022d1f297e8096c8c0c35b70d5e.json": {
     "mtime": 1781667159.9225085,
     "ast_hash": "4b9335a35be26415b97199d6a08c1508",
     "semantic_hash": "4b9335a35be26415b97199d6a08c1508"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/82ff953341a9d0c37512e71f1951ad1d.json": {
+  "cache/scrape_detail_page/82ff953341a9d0c37512e71f1951ad1d.json": {
     "mtime": 1781667085.5292935,
     "ast_hash": "4c6ee473bba6bfbb685e35d6e8f8b8c3",
     "semantic_hash": "4c6ee473bba6bfbb685e35d6e8f8b8c3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/83c7eca4e29024f39d5c4b0a3f15017c.json": {
+  "cache/scrape_detail_page/83c7eca4e29024f39d5c4b0a3f15017c.json": {
     "mtime": 1781669614.9717777,
     "ast_hash": "7840148013bce7f12a81e5aa0ad159d1",
     "semantic_hash": "7840148013bce7f12a81e5aa0ad159d1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/845263e8006fc794094601be7acedf44.json": {
+  "cache/scrape_detail_page/845263e8006fc794094601be7acedf44.json": {
     "mtime": 1781666931.426338,
     "ast_hash": "eac4c518c806238cd34bb36579e9004c",
     "semantic_hash": "eac4c518c806238cd34bb36579e9004c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/84e2556d21150f7d22f2aa8a70566d54.json": {
+  "cache/scrape_detail_page/84e2556d21150f7d22f2aa8a70566d54.json": {
     "mtime": 1781675739.9179587,
     "ast_hash": "088335ab194d3f0cdca6987504560e7c",
     "semantic_hash": "088335ab194d3f0cdca6987504560e7c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/85079abb6893fb40282a99631041beca.json": {
+  "cache/scrape_detail_page/85079abb6893fb40282a99631041beca.json": {
     "mtime": 1781675890.6413019,
     "ast_hash": "de5bc8aa2ae756e1c98826d3b58f618c",
     "semantic_hash": "de5bc8aa2ae756e1c98826d3b58f618c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/85d67bb6aa27a38f8992c6741214af8a.json": {
+  "cache/scrape_detail_page/85d67bb6aa27a38f8992c6741214af8a.json": {
     "mtime": 1781666916.0511496,
     "ast_hash": "232e04499103d0744374603fb4cca99f",
     "semantic_hash": "232e04499103d0744374603fb4cca99f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/86545808e4a80a5c5274d6c6fa8f5baa.json": {
+  "cache/scrape_detail_page/86545808e4a80a5c5274d6c6fa8f5baa.json": {
     "mtime": 1781675566.1241019,
     "ast_hash": "880ef2770518bd444673cbdaf632f83d",
     "semantic_hash": "880ef2770518bd444673cbdaf632f83d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/86b27a7d0ef84dea110291a60ddd9ecc.json": {
+  "cache/scrape_detail_page/86b27a7d0ef84dea110291a60ddd9ecc.json": {
     "mtime": 1781666527.6751502,
     "ast_hash": "bdb7fbaf6e35da8453fa6d13780752a5",
     "semantic_hash": "bdb7fbaf6e35da8453fa6d13780752a5"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/86f0ee2a0fc2d88967e3fbe7fac7f11e.json": {
+  "cache/scrape_detail_page/86f0ee2a0fc2d88967e3fbe7fac7f11e.json": {
     "mtime": 1781669604.1737852,
     "ast_hash": "793c7806478969e203aca012fc29283e",
     "semantic_hash": "793c7806478969e203aca012fc29283e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/87292d76a09194fcc594bc83b1aebb8b.json": {
+  "cache/scrape_detail_page/87292d76a09194fcc594bc83b1aebb8b.json": {
     "mtime": 1781675722.5527465,
     "ast_hash": "4330cc83f2eef261b22686057c7c759d",
     "semantic_hash": "4330cc83f2eef261b22686057c7c759d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8738b66bcb7f2cad0b14dd0dfc46efe4.json": {
+  "cache/scrape_detail_page/8738b66bcb7f2cad0b14dd0dfc46efe4.json": {
     "mtime": 1781666627.9916005,
     "ast_hash": "5e2c86b9db68548f860db885929d2df8",
     "semantic_hash": "5e2c86b9db68548f860db885929d2df8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/89a3004b0965bcdabf58b456e3d0e1bf.json": {
+  "cache/scrape_detail_page/89a3004b0965bcdabf58b456e3d0e1bf.json": {
     "mtime": 1781666545.5085716,
     "ast_hash": "01734554b044ac6298ae2a2631f7e72c",
     "semantic_hash": "01734554b044ac6298ae2a2631f7e72c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/89d4e46ddcd7169f94eeb6d01e6145e6.json": {
+  "cache/scrape_detail_page/89d4e46ddcd7169f94eeb6d01e6145e6.json": {
     "mtime": 1781666662.1183429,
     "ast_hash": "ab2d06e7dd06ffe349b3284b50807894",
     "semantic_hash": "ab2d06e7dd06ffe349b3284b50807894"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/89e7a0238f79e2bf5b45c16f5282a71a.json": {
+  "cache/scrape_detail_page/89e7a0238f79e2bf5b45c16f5282a71a.json": {
     "mtime": 1781666575.247618,
     "ast_hash": "0a12afbb62945c5a2f759e61722d9fff",
     "semantic_hash": "0a12afbb62945c5a2f759e61722d9fff"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8a56bbcc7ed5111037399a9fcf0d0d1b.json": {
+  "cache/scrape_detail_page/8a56bbcc7ed5111037399a9fcf0d0d1b.json": {
     "mtime": 1781667055.7844226,
     "ast_hash": "9ab9174bb7c29965e26d4da4b9462fa0",
     "semantic_hash": "9ab9174bb7c29965e26d4da4b9462fa0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8a8a5adabbc7eb391d9da4f164372596.json": {
+  "cache/scrape_detail_page/8a8a5adabbc7eb391d9da4f164372596.json": {
     "mtime": 1781667010.7131207,
     "ast_hash": "fdf4de86fc76032940a173427a09461f",
     "semantic_hash": "fdf4de86fc76032940a173427a09461f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8a8ec1195f4289a9730a322c9af7481f.json": {
+  "cache/scrape_detail_page/8a8ec1195f4289a9730a322c9af7481f.json": {
     "mtime": 1781666547.6236567,
     "ast_hash": "45f784d5cbc68b25e1cd7eb5d0d2fb75",
     "semantic_hash": "45f784d5cbc68b25e1cd7eb5d0d2fb75"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8b065de0c434504166003b1858b49318.json": {
+  "cache/scrape_detail_page/8b065de0c434504166003b1858b49318.json": {
     "mtime": 1781666695.6593986,
     "ast_hash": "a58e66763bbfaefcd2d08856ae67a3b6",
     "semantic_hash": "a58e66763bbfaefcd2d08856ae67a3b6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8ba01e0688c324b1ad6767c929674529.json": {
+  "cache/scrape_detail_page/8ba01e0688c324b1ad6767c929674529.json": {
     "mtime": 1781669521.4659054,
     "ast_hash": "b40392d7a3678be8628aa0d235c87e0c",
     "semantic_hash": "b40392d7a3678be8628aa0d235c87e0c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8d68184e2b2605724be8cb0ae91416ea.json": {
+  "cache/scrape_detail_page/8d68184e2b2605724be8cb0ae91416ea.json": {
     "mtime": 1781669618.7137802,
     "ast_hash": "6d98c7e01fd51e3d90918578bd60791f",
     "semantic_hash": "6d98c7e01fd51e3d90918578bd60791f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8de91ddb6788d8aea268bf1d898d7555.json": {
+  "cache/scrape_detail_page/8de91ddb6788d8aea268bf1d898d7555.json": {
     "mtime": 1781666776.3561695,
     "ast_hash": "9b9bed5119ce7456f15fd4ce3ae277bf",
     "semantic_hash": "9b9bed5119ce7456f15fd4ce3ae277bf"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/8fc271ced75c6058d678e06578ef99c0.json": {
+  "cache/scrape_detail_page/8fc271ced75c6058d678e06578ef99c0.json": {
     "mtime": 1781669456.503727,
     "ast_hash": "c09c2f4ec73c0a743cc550a0e5adfda9",
     "semantic_hash": "c09c2f4ec73c0a743cc550a0e5adfda9"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9089edfc78d29c9a50929291a79c5ce5.json": {
+  "cache/scrape_detail_page/9089edfc78d29c9a50929291a79c5ce5.json": {
     "mtime": 1781675793.023758,
     "ast_hash": "2e27978fd009c0d1fc702f15efb63a93",
     "semantic_hash": "2e27978fd009c0d1fc702f15efb63a93"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9113d299221bce9a55a73889055f201c.json": {
+  "cache/scrape_detail_page/9113d299221bce9a55a73889055f201c.json": {
     "mtime": 1781669515.591673,
     "ast_hash": "2385e3d50a2e459966c837bc00119ded",
     "semantic_hash": "2385e3d50a2e459966c837bc00119ded"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/91218c6ae48f27247ab463da32bf781d.json": {
+  "cache/scrape_detail_page/91218c6ae48f27247ab463da32bf781d.json": {
     "mtime": 1781675820.870422,
     "ast_hash": "285d06b1b1dfb3d0e6444c4f3b736bba",
     "semantic_hash": "285d06b1b1dfb3d0e6444c4f3b736bba"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/91f4b7ad88b2a7b85524fb06e2d0058b.json": {
+  "cache/scrape_detail_page/91f4b7ad88b2a7b85524fb06e2d0058b.json": {
     "mtime": 1781675712.0681891,
     "ast_hash": "e3a24d8b95f79b96035ab3b7443d0b99",
     "semantic_hash": "e3a24d8b95f79b96035ab3b7443d0b99"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/91fb22cc68e07c0c431226dd2aa4ef23.json": {
+  "cache/scrape_detail_page/91fb22cc68e07c0c431226dd2aa4ef23.json": {
     "mtime": 1781666589.195793,
     "ast_hash": "b4d088036be20fbc51fd97852ebe5a33",
     "semantic_hash": "b4d088036be20fbc51fd97852ebe5a33"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/922a140f1b929e635a4031db44390004.json": {
+  "cache/scrape_detail_page/922a140f1b929e635a4031db44390004.json": {
     "mtime": 1781675790.1181378,
     "ast_hash": "fdd228bb80ff6b3673265b8cb1e10dda",
     "semantic_hash": "fdd228bb80ff6b3673265b8cb1e10dda"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/92d24c3e67650d98bc62ef895962f023.json": {
+  "cache/scrape_detail_page/92d24c3e67650d98bc62ef895962f023.json": {
     "mtime": 1781666908.5426488,
     "ast_hash": "d1e40b8589a5e8521bd35dfec76d3804",
     "semantic_hash": "d1e40b8589a5e8521bd35dfec76d3804"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/93904df31e66f08629c20d89662e911b.json": {
+  "cache/scrape_detail_page/93904df31e66f08629c20d89662e911b.json": {
     "mtime": 1781667063.7699037,
     "ast_hash": "18b477472e67cb580d9019ebb86abdea",
     "semantic_hash": "18b477472e67cb580d9019ebb86abdea"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/96ca515402e4d76f44d787d93faf45f6.json": {
+  "cache/scrape_detail_page/96ca515402e4d76f44d787d93faf45f6.json": {
     "mtime": 1781675814.6199446,
     "ast_hash": "6c4403c9ad751f22862314dd0970cf8d",
     "semantic_hash": "6c4403c9ad751f22862314dd0970cf8d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/974a2c2a404faf93feb84445a833905c.json": {
+  "cache/scrape_detail_page/974a2c2a404faf93feb84445a833905c.json": {
     "mtime": 1781675910.3668,
     "ast_hash": "1713aa8b0c6f97140d5bb49735391fd8",
     "semantic_hash": "1713aa8b0c6f97140d5bb49735391fd8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/97656a3cf413583c77db450d83b3a515.json": {
+  "cache/scrape_detail_page/97656a3cf413583c77db450d83b3a515.json": {
     "mtime": 1781675847.29264,
     "ast_hash": "054aaa68210dff05d4357c2cb113a9a7",
     "semantic_hash": "054aaa68210dff05d4357c2cb113a9a7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/97a462bcc92749653702b9b3f087cf69.json": {
+  "cache/scrape_detail_page/97a462bcc92749653702b9b3f087cf69.json": {
     "mtime": 1781667177.2406552,
     "ast_hash": "9785725a7c1dd29be386287b2323b011",
     "semantic_hash": "9785725a7c1dd29be386287b2323b011"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/986112b07f80408fb97944027c712553.json": {
+  "cache/scrape_detail_page/986112b07f80408fb97944027c712553.json": {
     "mtime": 1781669476.1941931,
     "ast_hash": "ed73e37d7929ca8070faf8c6c7e4b7da",
     "semantic_hash": "ed73e37d7929ca8070faf8c6c7e4b7da"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/98bbec9b2b62d464586075cdad2dd592.json": {
+  "cache/scrape_detail_page/98bbec9b2b62d464586075cdad2dd592.json": {
     "mtime": 1781675590.0467536,
     "ast_hash": "431a596c5a2093f2ef741215d98a84b8",
     "semantic_hash": "431a596c5a2093f2ef741215d98a84b8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/98cd5d456ce66247fd7a9428f2eb92f3.json": {
+  "cache/scrape_detail_page/98cd5d456ce66247fd7a9428f2eb92f3.json": {
     "mtime": 1781667141.7369018,
     "ast_hash": "e4224632d7b416541daa3b784d386791",
     "semantic_hash": "e4224632d7b416541daa3b784d386791"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/98d920c09055fc4c50c70efdae7a5c18.json": {
+  "cache/scrape_detail_page/98d920c09055fc4c50c70efdae7a5c18.json": {
     "mtime": 1781675810.6937478,
     "ast_hash": "4a101fa29e961eab0719fabd75a0e3f0",
     "semantic_hash": "4a101fa29e961eab0719fabd75a0e3f0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9aeeff5029f3010d300937f2bcd6b706.json": {
+  "cache/scrape_detail_page/9aeeff5029f3010d300937f2bcd6b706.json": {
     "mtime": 1781667032.7299519,
     "ast_hash": "cee955a19d3ea7a73bc8b897959b4c1b",
     "semantic_hash": "cee955a19d3ea7a73bc8b897959b4c1b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9b3d82a6e1cfabfb5a2a17e969447b52.json": {
+  "cache/scrape_detail_page/9b3d82a6e1cfabfb5a2a17e969447b52.json": {
     "mtime": 1781667202.8992147,
     "ast_hash": "9dae45e3b9c6318c85110dd3835403f0",
     "semantic_hash": "9dae45e3b9c6318c85110dd3835403f0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9bc095c58d06c73269929e625469152e.json": {
+  "cache/scrape_detail_page/9bc095c58d06c73269929e625469152e.json": {
     "mtime": 1781667095.7213664,
     "ast_hash": "255f9b280d1756f922638e14daf0500a",
     "semantic_hash": "255f9b280d1756f922638e14daf0500a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9c0a27aad48d6acabeeb86fb20f3f2dc.json": {
+  "cache/scrape_detail_page/9c0a27aad48d6acabeeb86fb20f3f2dc.json": {
     "mtime": 1781675823.8631084,
     "ast_hash": "9851a2c824469292cf17bed1ca1a7e2a",
     "semantic_hash": "9851a2c824469292cf17bed1ca1a7e2a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9cb71b551b1fa26c3f9868cd69b48aca.json": {
+  "cache/scrape_detail_page/9cb71b551b1fa26c3f9868cd69b48aca.json": {
     "mtime": 1781666825.6727057,
     "ast_hash": "8f9052db639874bbef6ace955b66fc1f",
     "semantic_hash": "8f9052db639874bbef6ace955b66fc1f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9cc424c18576d7dc4456ba530454c583.json": {
+  "cache/scrape_detail_page/9cc424c18576d7dc4456ba530454c583.json": {
     "mtime": 1781667085.5370207,
     "ast_hash": "52d45171a44958e7d8febe35ac7eab48",
     "semantic_hash": "52d45171a44958e7d8febe35ac7eab48"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9cd25a271d2c73f34f9fbbdab6b15b79.json": {
+  "cache/scrape_detail_page/9cd25a271d2c73f34f9fbbdab6b15b79.json": {
     "mtime": 1781667000.0127795,
     "ast_hash": "c9db38c5eb4b1b4feb0fd0d5643e01e3",
     "semantic_hash": "c9db38c5eb4b1b4feb0fd0d5643e01e3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9d21eca90803c35067f2b6133c61311f.json": {
+  "cache/scrape_detail_page/9d21eca90803c35067f2b6133c61311f.json": {
     "mtime": 1781667236.514912,
     "ast_hash": "b14ded28699342d42c3d4507c9542c81",
     "semantic_hash": "b14ded28699342d42c3d4507c9542c81"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9e1315caef0a80a6c8e6108903f32844.json": {
+  "cache/scrape_detail_page/9e1315caef0a80a6c8e6108903f32844.json": {
     "mtime": 1781675749.333604,
     "ast_hash": "085c64ae9a9bb19c8b0f90318aa58cae",
     "semantic_hash": "085c64ae9a9bb19c8b0f90318aa58cae"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9e8030479af72815704d833d8d2d5ca1.json": {
+  "cache/scrape_detail_page/9e8030479af72815704d833d8d2d5ca1.json": {
     "mtime": 1781669476.3480577,
     "ast_hash": "e87eeeb99c7880a14b52117264c72f87",
     "semantic_hash": "e87eeeb99c7880a14b52117264c72f87"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9f65dd30576ced88496bcb0b25ea8353.json": {
+  "cache/scrape_detail_page/9f65dd30576ced88496bcb0b25ea8353.json": {
     "mtime": 1781666868.5502002,
     "ast_hash": "18b462523d34fb9d77b2d0765a20348c",
     "semantic_hash": "18b462523d34fb9d77b2d0765a20348c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9f9836c9e1b5734f60633f6826c5a9b6.json": {
+  "cache/scrape_detail_page/9f9836c9e1b5734f60633f6826c5a9b6.json": {
     "mtime": 1781667074.88423,
     "ast_hash": "4aacabd615e0ce4fafb454405c3a0d03",
     "semantic_hash": "4aacabd615e0ce4fafb454405c3a0d03"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/9fa5f9c825d7ebd8de0052208206e047.json": {
+  "cache/scrape_detail_page/9fa5f9c825d7ebd8de0052208206e047.json": {
     "mtime": 1781675784.3394394,
     "ast_hash": "debcc40b4edb26ee9e8d2ba63ceaa627",
     "semantic_hash": "debcc40b4edb26ee9e8d2ba63ceaa627"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a1e9d1c8cf09045ad989f2f608e02094.json": {
+  "cache/scrape_detail_page/a1e9d1c8cf09045ad989f2f608e02094.json": {
     "mtime": 1781666878.8250725,
     "ast_hash": "fa4ac5a4526a370978d6fb7abae3021e",
     "semantic_hash": "fa4ac5a4526a370978d6fb7abae3021e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a2bfbf4d19125a4998f023cceaf40aab.json": {
+  "cache/scrape_detail_page/a2bfbf4d19125a4998f023cceaf40aab.json": {
     "mtime": 1781667005.4639,
     "ast_hash": "1d803a7a2d1eee2fbb00d341a2b21bdd",
     "semantic_hash": "1d803a7a2d1eee2fbb00d341a2b21bdd"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a3b4e8ec22a2b62464b52d9131cf01c3.json": {
+  "cache/scrape_detail_page/a3b4e8ec22a2b62464b52d9131cf01c3.json": {
     "mtime": 1781669587.6639776,
     "ast_hash": "11d52d263c75d56f2c805e3ea0a11ea4",
     "semantic_hash": "11d52d263c75d56f2c805e3ea0a11ea4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a3c0ca02815c48dd0f708c61c25fa497.json": {
+  "cache/scrape_detail_page/a3c0ca02815c48dd0f708c61c25fa497.json": {
     "mtime": 1781666657.7408423,
     "ast_hash": "3f7436bce25935983899398d4753fbd6",
     "semantic_hash": "3f7436bce25935983899398d4753fbd6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a3d933f9d9e74dbc988d964e171d1a56.json": {
+  "cache/scrape_detail_page/a3d933f9d9e74dbc988d964e171d1a56.json": {
     "mtime": 1781675912.6716123,
     "ast_hash": "b39d4e8d96000c894a74c558bef95b8f",
     "semantic_hash": "b39d4e8d96000c894a74c558bef95b8f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a4314004d69d7eb8e5674b8f4e04b1a9.json": {
+  "cache/scrape_detail_page/a4314004d69d7eb8e5674b8f4e04b1a9.json": {
     "mtime": 1781675708.6733153,
     "ast_hash": "0715e7b30cdbc328214a2849531f82e2",
     "semantic_hash": "0715e7b30cdbc328214a2849531f82e2"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a46ac498741220559cf2cb180ce13f08.json": {
+  "cache/scrape_detail_page/a46ac498741220559cf2cb180ce13f08.json": {
     "mtime": 1781667045.7497504,
     "ast_hash": "bad6b032f7fc051aef1adb8d5e0ce2c6",
     "semantic_hash": "bad6b032f7fc051aef1adb8d5e0ce2c6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a47c26a5e0ab4427709e350cefe61b49.json": {
+  "cache/scrape_detail_page/a47c26a5e0ab4427709e350cefe61b49.json": {
     "mtime": 1781667146.4793992,
     "ast_hash": "b7e23a61c2ca41e9ab75505be16c668b",
     "semantic_hash": "b7e23a61c2ca41e9ab75505be16c668b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a558467b6e51ccc1c32d4f0c20456603.json": {
+  "cache/scrape_detail_page/a558467b6e51ccc1c32d4f0c20456603.json": {
     "mtime": 1781669534.5552382,
     "ast_hash": "d8bf5d61bcdf895fba3e7042d74325ad",
     "semantic_hash": "d8bf5d61bcdf895fba3e7042d74325ad"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a55e71a12843abbf8e64af8312241760.json": {
+  "cache/scrape_detail_page/a55e71a12843abbf8e64af8312241760.json": {
     "mtime": 1781675718.4960723,
     "ast_hash": "955dd6f6c01c45ce5123555dd865dace",
     "semantic_hash": "955dd6f6c01c45ce5123555dd865dace"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a5bdc324c4527aedf6c0021d49d24934.json": {
+  "cache/scrape_detail_page/a5bdc324c4527aedf6c0021d49d24934.json": {
     "mtime": 1781669543.3851085,
     "ast_hash": "069eaff4c5f268c1281c53ca223f4ae0",
     "semantic_hash": "069eaff4c5f268c1281c53ca223f4ae0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a5c50d2f2525dc9a8b4717c3b947d267.json": {
+  "cache/scrape_detail_page/a5c50d2f2525dc9a8b4717c3b947d267.json": {
     "mtime": 1781666508.9863968,
     "ast_hash": "2cc84629156ed7efa367a0fbd0a3936f",
     "semantic_hash": "2cc84629156ed7efa367a0fbd0a3936f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a5d80569a4f7c599e03e19ab121fb8b0.json": {
+  "cache/scrape_detail_page/a5d80569a4f7c599e03e19ab121fb8b0.json": {
     "mtime": 1781675945.8334863,
     "ast_hash": "1e4bb91c1a6a40c6e14fba002dc0286f",
     "semantic_hash": "1e4bb91c1a6a40c6e14fba002dc0286f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a5ea6ba1c70dd0aaa589307d21b76d61.json": {
+  "cache/scrape_detail_page/a5ea6ba1c70dd0aaa589307d21b76d61.json": {
     "mtime": 1781666837.7876136,
     "ast_hash": "882fd1c5b6eddca19f20053c8cb7f167",
     "semantic_hash": "882fd1c5b6eddca19f20053c8cb7f167"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a77e68e442c7e9cb96e06492d38b59af.json": {
+  "cache/scrape_detail_page/a77e68e442c7e9cb96e06492d38b59af.json": {
     "mtime": 1781669604.0620997,
     "ast_hash": "1fa7a7c75756650856bc7c4c2cb972f9",
     "semantic_hash": "1fa7a7c75756650856bc7c4c2cb972f9"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a786dcd6474263a4e452fd632e0187d3.json": {
+  "cache/scrape_detail_page/a786dcd6474263a4e452fd632e0187d3.json": {
     "mtime": 1781675876.6259665,
     "ast_hash": "34053c8f3974e292c37f4eaf190bfdd9",
     "semantic_hash": "34053c8f3974e292c37f4eaf190bfdd9"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/a92f0868adf862595d65139bce79431d.json": {
+  "cache/scrape_detail_page/a92f0868adf862595d65139bce79431d.json": {
     "mtime": 1781675609.1023455,
     "ast_hash": "61cdced4d4b5f328dc9949dfbe0c8464",
     "semantic_hash": "61cdced4d4b5f328dc9949dfbe0c8464"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/aa2b99166cbbe16b0a1224f8b684a279.json": {
+  "cache/scrape_detail_page/aa2b99166cbbe16b0a1224f8b684a279.json": {
     "mtime": 1781667172.8285863,
     "ast_hash": "0355f7c9f96bf9dcf8856cd74656c27c",
     "semantic_hash": "0355f7c9f96bf9dcf8856cd74656c27c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/aa5cb2a0cac194af8ac8c605a82dad0b.json": {
+  "cache/scrape_detail_page/aa5cb2a0cac194af8ac8c605a82dad0b.json": {
     "mtime": 1781666942.7604659,
     "ast_hash": "bc0d59369512d815eccb5bcee81d830d",
     "semantic_hash": "bc0d59369512d815eccb5bcee81d830d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ab709772902ac8f93e61bb495ceefb00.json": {
+  "cache/scrape_detail_page/ab709772902ac8f93e61bb495ceefb00.json": {
     "mtime": 1781666625.7592793,
     "ast_hash": "b2dfb0b5fdfc93d6342670e6fd141d34",
     "semantic_hash": "b2dfb0b5fdfc93d6342670e6fd141d34"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/acc28ce53ff2d321e51eadf9568e2df5.json": {
+  "cache/scrape_detail_page/acc28ce53ff2d321e51eadf9568e2df5.json": {
     "mtime": 1781675942.0913367,
     "ast_hash": "c3d1cb49700a1e6c1a39f0eb69c679d1",
     "semantic_hash": "c3d1cb49700a1e6c1a39f0eb69c679d1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ad07dfc3fe53f73daf207366c2f9c8d7.json": {
+  "cache/scrape_detail_page/ad07dfc3fe53f73daf207366c2f9c8d7.json": {
     "mtime": 1781669595.403927,
     "ast_hash": "c916fb443a5e5d0a41a31e4938e393af",
     "semantic_hash": "c916fb443a5e5d0a41a31e4938e393af"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ad36627b91dcecefb88b805af18f0161.json": {
+  "cache/scrape_detail_page/ad36627b91dcecefb88b805af18f0161.json": {
     "mtime": 1781667075.7188694,
     "ast_hash": "ab5071eacb0017f87d948e7b350d5907",
     "semantic_hash": "ab5071eacb0017f87d948e7b350d5907"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ad899526de140d40eb9291c73f2bae21.json": {
+  "cache/scrape_detail_page/ad899526de140d40eb9291c73f2bae21.json": {
     "mtime": 1781675731.9592195,
     "ast_hash": "5706c65e146533ff3c0adc9745162883",
     "semantic_hash": "5706c65e146533ff3c0adc9745162883"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ae56a1d93afdc50234479c5efe48e520.json": {
+  "cache/scrape_detail_page/ae56a1d93afdc50234479c5efe48e520.json": {
     "mtime": 1781666849.293037,
     "ast_hash": "30b8e98b6e65fd4dcb79f77fad665f3c",
     "semantic_hash": "30b8e98b6e65fd4dcb79f77fad665f3c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/af27db1a2d57b1eb5271ba42a4725fec.json": {
+  "cache/scrape_detail_page/af27db1a2d57b1eb5271ba42a4725fec.json": {
     "mtime": 1781666519.9053533,
     "ast_hash": "23be2d64d5941739ca8dd3549fcad9cf",
     "semantic_hash": "23be2d64d5941739ca8dd3549fcad9cf"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b05b29088f1d14d4b9efcc2f4f5a8932.json": {
+  "cache/scrape_detail_page/b05b29088f1d14d4b9efcc2f4f5a8932.json": {
     "mtime": 1781666895.2729177,
     "ast_hash": "fe61c50b83ca50534ded1049d665d245",
     "semantic_hash": "fe61c50b83ca50534ded1049d665d245"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b158d4baf42f31548e33d04100718938.json": {
+  "cache/scrape_detail_page/b158d4baf42f31548e33d04100718938.json": {
     "mtime": 1781667108.605533,
     "ast_hash": "88af6e6641545b749522b1bb3069f1e5",
     "semantic_hash": "88af6e6641545b749522b1bb3069f1e5"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b16179c15e6870993fd49bde14541e14.json": {
+  "cache/scrape_detail_page/b16179c15e6870993fd49bde14541e14.json": {
     "mtime": 1781667126.7626812,
     "ast_hash": "6b293826e89a44e2223ed6209c8d5373",
     "semantic_hash": "6b293826e89a44e2223ed6209c8d5373"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b1e25ac0809efc45fdc906d4a99b36f1.json": {
+  "cache/scrape_detail_page/b1e25ac0809efc45fdc906d4a99b36f1.json": {
     "mtime": 1781675934.718576,
     "ast_hash": "0d72ef742c67ad27f9ecad201fd67562",
     "semantic_hash": "0d72ef742c67ad27f9ecad201fd67562"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b2b683f6cec1e9bd44ccff916e3201e1.json": {
+  "cache/scrape_detail_page/b2b683f6cec1e9bd44ccff916e3201e1.json": {
     "mtime": 1781666652.972597,
     "ast_hash": "5055b0b690449d816e84edf0e78a0c53",
     "semantic_hash": "5055b0b690449d816e84edf0e78a0c53"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b30c42a77d094eee7a17f340830cf3f3.json": {
+  "cache/scrape_detail_page/b30c42a77d094eee7a17f340830cf3f3.json": {
     "mtime": 1781669455.0812361,
     "ast_hash": "7a59ed81ef4e52d68d2c671063069c9a",
     "semantic_hash": "7a59ed81ef4e52d68d2c671063069c9a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b36f9cebfec5b11b48d30f90a69fdec8.json": {
+  "cache/scrape_detail_page/b36f9cebfec5b11b48d30f90a69fdec8.json": {
     "mtime": 1781669547.1256752,
     "ast_hash": "3ee03ea0d1f15b2f122a09dcad11812e",
     "semantic_hash": "3ee03ea0d1f15b2f122a09dcad11812e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b3a0a83a1eca7b5704704ec6da5d580e.json": {
+  "cache/scrape_detail_page/b3a0a83a1eca7b5704704ec6da5d580e.json": {
     "mtime": 1781666686.612766,
     "ast_hash": "4b490f0658242a37e745e05c9cbcd0bd",
     "semantic_hash": "4b490f0658242a37e745e05c9cbcd0bd"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b3ebf3464025f3c4264360b71cf7d686.json": {
+  "cache/scrape_detail_page/b3ebf3464025f3c4264360b71cf7d686.json": {
     "mtime": 1781675632.3109179,
     "ast_hash": "070134b32849c60997334db5b253378f",
     "semantic_hash": "070134b32849c60997334db5b253378f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b3f7165fcdbe634fca42a08bd26039db.json": {
+  "cache/scrape_detail_page/b3f7165fcdbe634fca42a08bd26039db.json": {
     "mtime": 1781675934.280679,
     "ast_hash": "f942a1b1924fa893be6d5244566a2734",
     "semantic_hash": "f942a1b1924fa893be6d5244566a2734"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b52d65d6f6f3f80939f28f7f66da56b3.json": {
+  "cache/scrape_detail_page/b52d65d6f6f3f80939f28f7f66da56b3.json": {
     "mtime": 1781675804.5977018,
     "ast_hash": "6337e6e67e29429e570ad66e7bba0082",
     "semantic_hash": "6337e6e67e29429e570ad66e7bba0082"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b6649b4e66f01fd56a08a996002d22f7.json": {
+  "cache/scrape_detail_page/b6649b4e66f01fd56a08a996002d22f7.json": {
     "mtime": 1781666742.8424175,
     "ast_hash": "361ae23a09db6a1a976c945fdfb3f80f",
     "semantic_hash": "361ae23a09db6a1a976c945fdfb3f80f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b67a00699da8bc2fa0f9d1ea37c12a68.json": {
+  "cache/scrape_detail_page/b67a00699da8bc2fa0f9d1ea37c12a68.json": {
     "mtime": 1781666855.6203723,
     "ast_hash": "677e7cc1ee933cf823c00671d635886d",
     "semantic_hash": "677e7cc1ee933cf823c00671d635886d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b6bdb51a9babbd2aa8dc4473b7c7db16.json": {
+  "cache/scrape_detail_page/b6bdb51a9babbd2aa8dc4473b7c7db16.json": {
     "mtime": 1781667235.4074934,
     "ast_hash": "6704654f843270ca388927e4cce58f46",
     "semantic_hash": "6704654f843270ca388927e4cce58f46"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b70dec7d4db56da4e95391f0b6642dc7.json": {
+  "cache/scrape_detail_page/b70dec7d4db56da4e95391f0b6642dc7.json": {
     "mtime": 1781675955.2495215,
     "ast_hash": "dc62b1d4fc93009c88857e3d20c60054",
     "semantic_hash": "dc62b1d4fc93009c88857e3d20c60054"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b953189d787c11e808bf60b87d90a0d7.json": {
+  "cache/scrape_detail_page/b953189d787c11e808bf60b87d90a0d7.json": {
     "mtime": 1781667115.7513173,
     "ast_hash": "c7c0f940c5c0ac40955c4319317a434b",
     "semantic_hash": "c7c0f940c5c0ac40955c4319317a434b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/b9543eace36a4cf90e1cc44763c2942c.json": {
+  "cache/scrape_detail_page/b9543eace36a4cf90e1cc44763c2942c.json": {
     "mtime": 1781669616.0499613,
     "ast_hash": "abdd0c6fa4ac2a5a5e8ead86b0c7ef0f",
     "semantic_hash": "abdd0c6fa4ac2a5a5e8ead86b0c7ef0f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ba08400fef22e1494e7b21a3561122cf.json": {
+  "cache/scrape_detail_page/ba08400fef22e1494e7b21a3561122cf.json": {
     "mtime": 1781675690.7586844,
     "ast_hash": "75b4b3a1a7708375c5cf4f9214b01fa0",
     "semantic_hash": "75b4b3a1a7708375c5cf4f9214b01fa0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ba68abf8ea6c135a8a5985dc4beff7e3.json": {
+  "cache/scrape_detail_page/ba68abf8ea6c135a8a5985dc4beff7e3.json": {
     "mtime": 1781675924.441373,
     "ast_hash": "e81f154db66afb732215e72f259849ac",
     "semantic_hash": "e81f154db66afb732215e72f259849ac"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/bb8a418ab2aac6f39b74840bf41968c0.json": {
+  "cache/scrape_detail_page/bb8a418ab2aac6f39b74840bf41968c0.json": {
     "mtime": 1781675685.0151844,
     "ast_hash": "a59ea15be746aaa71ff38671b1af1a7e",
     "semantic_hash": "a59ea15be746aaa71ff38671b1af1a7e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/bb951a9e1249486a05f771f5996a2e64.json": {
+  "cache/scrape_detail_page/bb951a9e1249486a05f771f5996a2e64.json": {
     "mtime": 1781666864.2626183,
     "ast_hash": "48298d3e31b2fedd0c0481d8b5520de7",
     "semantic_hash": "48298d3e31b2fedd0c0481d8b5520de7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/bbf67710c0a1a0c4e69cc620f6f8352d.json": {
+  "cache/scrape_detail_page/bbf67710c0a1a0c4e69cc620f6f8352d.json": {
     "mtime": 1781667179.0411236,
     "ast_hash": "267aff3671e6c5a8af8bbffbf75b6c41",
     "semantic_hash": "267aff3671e6c5a8af8bbffbf75b6c41"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/bc4709ddf18a910dc6d66eb209960404.json": {
+  "cache/scrape_detail_page/bc4709ddf18a910dc6d66eb209960404.json": {
     "mtime": 1781666583.9308083,
     "ast_hash": "272ae218337a269904f103047ea8928c",
     "semantic_hash": "272ae218337a269904f103047ea8928c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/bc99516a322ab6eb329702a087d0a5f1.json": {
+  "cache/scrape_detail_page/bc99516a322ab6eb329702a087d0a5f1.json": {
     "mtime": 1781675802.2443354,
     "ast_hash": "d5b92f85d3be49da2e8bd9719652c48d",
     "semantic_hash": "d5b92f85d3be49da2e8bd9719652c48d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/bdb33950fd7b114aca94ccb4cad81c43.json": {
+  "cache/scrape_detail_page/bdb33950fd7b114aca94ccb4cad81c43.json": {
     "mtime": 1781666594.2051847,
     "ast_hash": "481d3f1f8e6819e28576947aaa275f61",
     "semantic_hash": "481d3f1f8e6819e28576947aaa275f61"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/bdeffe3d6af3350d2db3697d0a8c45c5.json": {
+  "cache/scrape_detail_page/bdeffe3d6af3350d2db3697d0a8c45c5.json": {
     "mtime": 1781666747.5687757,
     "ast_hash": "026e203da6e432e6c838635e1e66e3d0",
     "semantic_hash": "026e203da6e432e6c838635e1e66e3d0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/be0a9a713d8d3fafd27ede4f3a5b72f1.json": {
+  "cache/scrape_detail_page/be0a9a713d8d3fafd27ede4f3a5b72f1.json": {
     "mtime": 1781675653.094111,
     "ast_hash": "5f59b3ed0278dabea94e5bf7373d739e",
     "semantic_hash": "5f59b3ed0278dabea94e5bf7373d739e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/bf6362e67f1fd0bda8cd338672481cb1.json": {
+  "cache/scrape_detail_page/bf6362e67f1fd0bda8cd338672481cb1.json": {
     "mtime": 1781675899.6372082,
     "ast_hash": "0c87b11b8208f126346553cd5efa58d4",
     "semantic_hash": "0c87b11b8208f126346553cd5efa58d4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c0520dff8b592e3dab14173f612aeab3.json": {
+  "cache/scrape_detail_page/c0520dff8b592e3dab14173f612aeab3.json": {
     "mtime": 1781666793.5513897,
     "ast_hash": "1093d0c04e934ebcc64fc5c7fc8fedf1",
     "semantic_hash": "1093d0c04e934ebcc64fc5c7fc8fedf1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c06b9040a34d657b26027d0f51ccda57.json": {
+  "cache/scrape_detail_page/c06b9040a34d657b26027d0f51ccda57.json": {
     "mtime": 1781669500.129313,
     "ast_hash": "4a66c4858efe776b72750faf93b7274d",
     "semantic_hash": "4a66c4858efe776b72750faf93b7274d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c1e96b27a567526371c3f663a7024bbe.json": {
+  "cache/scrape_detail_page/c1e96b27a567526371c3f663a7024bbe.json": {
     "mtime": 1781667182.132057,
     "ast_hash": "dbc6ca7f281c671726652e469227a515",
     "semantic_hash": "dbc6ca7f281c671726652e469227a515"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c23b7ef4f2fe8d497a87a4bf2c815e1b.json": {
+  "cache/scrape_detail_page/c23b7ef4f2fe8d497a87a4bf2c815e1b.json": {
     "mtime": 1781666610.871293,
     "ast_hash": "8a54e091c594ae58d4b98d0c7331595a",
     "semantic_hash": "8a54e091c594ae58d4b98d0c7331595a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c2d0762cc7d1d280adbb9f9261943cbd.json": {
+  "cache/scrape_detail_page/c2d0762cc7d1d280adbb9f9261943cbd.json": {
     "mtime": 1781675985.424807,
     "ast_hash": "f600519fb58d0ba609c3ffdd73496204",
     "semantic_hash": "f600519fb58d0ba609c3ffdd73496204"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c30f8a78b33e93ab9f4061488296c738.json": {
+  "cache/scrape_detail_page/c30f8a78b33e93ab9f4061488296c738.json": {
     "mtime": 1781666536.7770276,
     "ast_hash": "dab57fc2e06dfa0448cbb3db4901f4b5",
     "semantic_hash": "dab57fc2e06dfa0448cbb3db4901f4b5"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c32afcf7e56fbe65858af9cc6a970be2.json": {
+  "cache/scrape_detail_page/c32afcf7e56fbe65858af9cc6a970be2.json": {
     "mtime": 1781675773.3289623,
     "ast_hash": "67b82bfe56025d27a5983244b6a1a030",
     "semantic_hash": "67b82bfe56025d27a5983244b6a1a030"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c381e95524981fc020633e343cb25960.json": {
+  "cache/scrape_detail_page/c381e95524981fc020633e343cb25960.json": {
     "mtime": 1781667064.8424754,
     "ast_hash": "e60c927db8287413f4fa04c85441d395",
     "semantic_hash": "e60c927db8287413f4fa04c85441d395"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c3fee1869c06eb523d9157cd71f4cd47.json": {
+  "cache/scrape_detail_page/c3fee1869c06eb523d9157cd71f4cd47.json": {
     "mtime": 1781667062.608594,
     "ast_hash": "2145b06c4ba5a5d01bbfca19919a157a",
     "semantic_hash": "2145b06c4ba5a5d01bbfca19919a157a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c431fa6a2a5672901b7e78da0da40daa.json": {
+  "cache/scrape_detail_page/c431fa6a2a5672901b7e78da0da40daa.json": {
     "mtime": 1781675566.135506,
     "ast_hash": "a7a64258b32c12c943d26e24da76fd24",
     "semantic_hash": "a7a64258b32c12c943d26e24da76fd24"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c5d6ed980addd07b0509617415901c6a.json": {
+  "cache/scrape_detail_page/c5d6ed980addd07b0509617415901c6a.json": {
     "mtime": 1781666951.2941642,
     "ast_hash": "486d3553a1802f76583b1c4ccedd72b1",
     "semantic_hash": "486d3553a1802f76583b1c4ccedd72b1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c60747e961d476d59e240c50558e7fdb.json": {
+  "cache/scrape_detail_page/c60747e961d476d59e240c50558e7fdb.json": {
     "mtime": 1781667097.8154554,
     "ast_hash": "cbdb2b8b7b046a01fdc22dcb706366e4",
     "semantic_hash": "cbdb2b8b7b046a01fdc22dcb706366e4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c6aaa841515d20588eba8acbd3a48e9c.json": {
+  "cache/scrape_detail_page/c6aaa841515d20588eba8acbd3a48e9c.json": {
     "mtime": 1781675872.013737,
     "ast_hash": "514a03e92584afa023a386b71d876c58",
     "semantic_hash": "514a03e92584afa023a386b71d876c58"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c6ec8feb291fe0293f610357e0b145d4.json": {
+  "cache/scrape_detail_page/c6ec8feb291fe0293f610357e0b145d4.json": {
     "mtime": 1781675742.0645669,
     "ast_hash": "655dcc46bb30d0bb5e23c5cf4c32aee2",
     "semantic_hash": "655dcc46bb30d0bb5e23c5cf4c32aee2"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c741923f983867e5c3df9baea3f0eb2d.json": {
+  "cache/scrape_detail_page/c741923f983867e5c3df9baea3f0eb2d.json": {
     "mtime": 1781667202.6403503,
     "ast_hash": "73955ec8085e50ad7947ddf7a3024e6b",
     "semantic_hash": "73955ec8085e50ad7947ddf7a3024e6b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c785376fa32dc2336dd44800aed5797c.json": {
+  "cache/scrape_detail_page/c785376fa32dc2336dd44800aed5797c.json": {
     "mtime": 1781666809.1312943,
     "ast_hash": "1f496e0a8ba25e44ac1f105240c1a8c1",
     "semantic_hash": "1f496e0a8ba25e44ac1f105240c1a8c1"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c8652637f8a2a50890fd33189505c712.json": {
+  "cache/scrape_detail_page/c8652637f8a2a50890fd33189505c712.json": {
     "mtime": 1781675761.1526854,
     "ast_hash": "fc1fb212cc17efd239d7d6694e629f50",
     "semantic_hash": "fc1fb212cc17efd239d7d6694e629f50"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c8828e1ef9b13b4cd9f0a55bcf114367.json": {
+  "cache/scrape_detail_page/c8828e1ef9b13b4cd9f0a55bcf114367.json": {
     "mtime": 1781675844.1773622,
     "ast_hash": "9bc49d36b8250a65dfc4dbe67ac1338b",
     "semantic_hash": "9bc49d36b8250a65dfc4dbe67ac1338b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c89eed96e93bdc5a249be40d33db734b.json": {
+  "cache/scrape_detail_page/c89eed96e93bdc5a249be40d33db734b.json": {
     "mtime": 1781666845.2235465,
     "ast_hash": "71685e5e3f5eaedbe72d7108ed3e84b6",
     "semantic_hash": "71685e5e3f5eaedbe72d7108ed3e84b6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c9127173fd103caaf2f831c6ded62933.json": {
+  "cache/scrape_detail_page/c9127173fd103caaf2f831c6ded62933.json": {
     "mtime": 1781666726.6512134,
     "ast_hash": "0073c7594a6e05ffa8f274dbc9ceb828",
     "semantic_hash": "0073c7594a6e05ffa8f274dbc9ceb828"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c9170bae3afaba98be06dbe5fdc5b7d6.json": {
+  "cache/scrape_detail_page/c9170bae3afaba98be06dbe5fdc5b7d6.json": {
     "mtime": 1781675868.0756824,
     "ast_hash": "49681db7bfdf1e7e46651b09f6c6a3c3",
     "semantic_hash": "49681db7bfdf1e7e46651b09f6c6a3c3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c99129a878b748270cc689f9dd441925.json": {
+  "cache/scrape_detail_page/c99129a878b748270cc689f9dd441925.json": {
     "mtime": 1781675701.9830472,
     "ast_hash": "11539ca7b6c4605116223c6ef6bf7afa",
     "semantic_hash": "11539ca7b6c4605116223c6ef6bf7afa"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/c9ca91a676dc8bd1781ec245ffe84a01.json": {
+  "cache/scrape_detail_page/c9ca91a676dc8bd1781ec245ffe84a01.json": {
     "mtime": 1781666995.0185769,
     "ast_hash": "a7a8477e7813879ed8ac834f69a4393c",
     "semantic_hash": "a7a8477e7813879ed8ac834f69a4393c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ca6f0ac46ba8a2af50ddb7a1ed380583.json": {
+  "cache/scrape_detail_page/ca6f0ac46ba8a2af50ddb7a1ed380583.json": {
     "mtime": 1781667042.0048652,
     "ast_hash": "5345d0aeb7d45f9a13bac47c59e53743",
     "semantic_hash": "5345d0aeb7d45f9a13bac47c59e53743"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/cd09b79034e0a8167c9c2d9b83bfc2ff.json": {
+  "cache/scrape_detail_page/cd09b79034e0a8167c9c2d9b83bfc2ff.json": {
     "mtime": 1781666960.6773512,
     "ast_hash": "a53edfbc3c1fd06a2051710937281122",
     "semantic_hash": "a53edfbc3c1fd06a2051710937281122"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ce2d134d463fc9724ef698ca437d594d.json": {
+  "cache/scrape_detail_page/ce2d134d463fc9724ef698ca437d594d.json": {
     "mtime": 1781669445.5522647,
     "ast_hash": "66331f119be7a4dfb0f36cc3203f319d",
     "semantic_hash": "66331f119be7a4dfb0f36cc3203f319d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ce918dc74c03f0d55e1c2c8e2301d19c.json": {
+  "cache/scrape_detail_page/ce918dc74c03f0d55e1c2c8e2301d19c.json": {
     "mtime": 1781675598.213288,
     "ast_hash": "9005d91ce646e1c2d9364aced26553b7",
     "semantic_hash": "9005d91ce646e1c2d9364aced26553b7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/cff1236cdba99fd75508f9ea5e3e614e.json": {
+  "cache/scrape_detail_page/cff1236cdba99fd75508f9ea5e3e614e.json": {
     "mtime": 1781666922.1660872,
     "ast_hash": "e20d05992617d4fbdddf9f90f185e215",
     "semantic_hash": "e20d05992617d4fbdddf9f90f185e215"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d00444fd25842c36ec7e08c8cd91ec25.json": {
+  "cache/scrape_detail_page/d00444fd25842c36ec7e08c8cd91ec25.json": {
     "mtime": 1781675891.1058567,
     "ast_hash": "deb3669860acef7bc037fb775859d9be",
     "semantic_hash": "deb3669860acef7bc037fb775859d9be"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d03d9f279a904add3d08e9bb1502a68c.json": {
+  "cache/scrape_detail_page/d03d9f279a904add3d08e9bb1502a68c.json": {
     "mtime": 1781666497.8230503,
     "ast_hash": "747f3411d2d146931b7b1008384987cf",
     "semantic_hash": "747f3411d2d146931b7b1008384987cf"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d04952d0aff50e436845c45814deac4e.json": {
+  "cache/scrape_detail_page/d04952d0aff50e436845c45814deac4e.json": {
     "mtime": 1781675589.924787,
     "ast_hash": "c0640ff9f4eb2988ebc690ac42432295",
     "semantic_hash": "c0640ff9f4eb2988ebc690ac42432295"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d11b0b9938fb2fde6ef9fc2d5caa17f4.json": {
+  "cache/scrape_detail_page/d11b0b9938fb2fde6ef9fc2d5caa17f4.json": {
     "mtime": 1781669466.5013313,
     "ast_hash": "01390c4c67418fa198e6fc33a34bbb6d",
     "semantic_hash": "01390c4c67418fa198e6fc33a34bbb6d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d12658c3f80fa6ea31f1fb28bbc2b7b2.json": {
+  "cache/scrape_detail_page/d12658c3f80fa6ea31f1fb28bbc2b7b2.json": {
     "mtime": 1781666817.784457,
     "ast_hash": "dc0c1fda9df3b8bb924280995aa51502",
     "semantic_hash": "dc0c1fda9df3b8bb924280995aa51502"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d147ee1410934ab277ef2bb640d2dadc.json": {
+  "cache/scrape_detail_page/d147ee1410934ab277ef2bb640d2dadc.json": {
     "mtime": 1781675663.94456,
     "ast_hash": "ea3b318095b4e6da5865870a1405ed60",
     "semantic_hash": "ea3b318095b4e6da5865870a1405ed60"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d22d9331bb829d2d71241737e2af5d12.json": {
+  "cache/scrape_detail_page/d22d9331bb829d2d71241737e2af5d12.json": {
     "mtime": 1781666919.8544025,
     "ast_hash": "a53cfd75e02ceb436d4d4f986c669f13",
     "semantic_hash": "a53cfd75e02ceb436d4d4f986c669f13"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d47a8f17f4b936749e22b3e61e10909e.json": {
+  "cache/scrape_detail_page/d47a8f17f4b936749e22b3e61e10909e.json": {
     "mtime": 1781669526.2606204,
     "ast_hash": "b1eeddc84062c317ea30317d7cab9a4f",
     "semantic_hash": "b1eeddc84062c317ea30317d7cab9a4f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d49b5570033b0f82c3d0ab93fefafd52.json": {
+  "cache/scrape_detail_page/d49b5570033b0f82c3d0ab93fefafd52.json": {
     "mtime": 1781666529.0456917,
     "ast_hash": "e075df97d0eb110fb072b2ef62f6d074",
     "semantic_hash": "e075df97d0eb110fb072b2ef62f6d074"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d5819294a7d06b8a09a763a695c273c7.json": {
+  "cache/scrape_detail_page/d5819294a7d06b8a09a763a695c273c7.json": {
     "mtime": 1781666799.526084,
     "ast_hash": "caed9622e47435b7f18ea590af40ef01",
     "semantic_hash": "caed9622e47435b7f18ea590af40ef01"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d5b974ea6e0370c8ca5aab2d085c9b22.json": {
+  "cache/scrape_detail_page/d5b974ea6e0370c8ca5aab2d085c9b22.json": {
     "mtime": 1781666890.4466684,
     "ast_hash": "48a05e8c04934b8f59fe7ce5591dfd4c",
     "semantic_hash": "48a05e8c04934b8f59fe7ce5591dfd4c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d5e277aca28822f9385cc8b699f25afd.json": {
+  "cache/scrape_detail_page/d5e277aca28822f9385cc8b699f25afd.json": {
     "mtime": 1781666899.4871273,
     "ast_hash": "24cec5d0df80fc708fc1b47b7e6e49f2",
     "semantic_hash": "24cec5d0df80fc708fc1b47b7e6e49f2"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d71c1821408a254d6542b5ba1f1b1405.json": {
+  "cache/scrape_detail_page/d71c1821408a254d6542b5ba1f1b1405.json": {
     "mtime": 1781675600.6479862,
     "ast_hash": "851dbfa1d6430bb3646a3c75377d6991",
     "semantic_hash": "851dbfa1d6430bb3646a3c75377d6991"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d82e537a74cc42b49491c242691e4500.json": {
+  "cache/scrape_detail_page/d82e537a74cc42b49491c242691e4500.json": {
     "mtime": 1781675852.9766076,
     "ast_hash": "48488b0ee97c3c5d190d5f61da203633",
     "semantic_hash": "48488b0ee97c3c5d190d5f61da203633"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d8c69b52543320aaa9cf83a50065d5ab.json": {
+  "cache/scrape_detail_page/d8c69b52543320aaa9cf83a50065d5ab.json": {
     "mtime": 1781669436.7742853,
     "ast_hash": "b868f56018df9189643804ce1275a97a",
     "semantic_hash": "b868f56018df9189643804ce1275a97a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/d938c894966f45f571ffb91222961aeb.json": {
+  "cache/scrape_detail_page/d938c894966f45f571ffb91222961aeb.json": {
     "mtime": 1781675576.501754,
     "ast_hash": "7ee1fe46bac70a59a3aa8d869edccbf9",
     "semantic_hash": "7ee1fe46bac70a59a3aa8d869edccbf9"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/dafe7cf85ef90ffce9df246ec8c5d72e.json": {
+  "cache/scrape_detail_page/dafe7cf85ef90ffce9df246ec8c5d72e.json": {
     "mtime": 1781669525.0426843,
     "ast_hash": "4cc88cc2952a588707bf59d5992baa0b",
     "semantic_hash": "4cc88cc2952a588707bf59d5992baa0b"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/dbbffac235e0a1b97fd3a02d86b80d91.json": {
+  "cache/scrape_detail_page/dbbffac235e0a1b97fd3a02d86b80d91.json": {
     "mtime": 1781666497.6646874,
     "ast_hash": "7e119a15c9ed6c3964cf694d8a077294",
     "semantic_hash": "7e119a15c9ed6c3964cf694d8a077294"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/dbc87a4a9b988326c4018b9de74052ec.json": {
+  "cache/scrape_detail_page/dbc87a4a9b988326c4018b9de74052ec.json": {
     "mtime": 1781667095.72523,
     "ast_hash": "c6495a3c14a9309953a8752d59837be2",
     "semantic_hash": "c6495a3c14a9309953a8752d59837be2"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/dc0318f00e20803e948470b8afc8676e.json": {
+  "cache/scrape_detail_page/dc0318f00e20803e948470b8afc8676e.json": {
     "mtime": 1781666994.2935498,
     "ast_hash": "c10a38b92cd54e463d17d33c87241b02",
     "semantic_hash": "c10a38b92cd54e463d17d33c87241b02"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/dcf6618848d7621e110e2c067205b2c7.json": {
+  "cache/scrape_detail_page/dcf6618848d7621e110e2c067205b2c7.json": {
     "mtime": 1781676000.095475,
     "ast_hash": "d40156ee9b340f986a556f274dacd9e7",
     "semantic_hash": "d40156ee9b340f986a556f274dacd9e7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ddbe2efbf29599eb743c0a9f59dc2577.json": {
+  "cache/scrape_detail_page/ddbe2efbf29599eb743c0a9f59dc2577.json": {
     "mtime": 1781666599.8987281,
     "ast_hash": "3eb1af176e51c0c43cf22992818d99b7",
     "semantic_hash": "3eb1af176e51c0c43cf22992818d99b7"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/de86803b3746f2183ca0e762ec39cb12.json": {
+  "cache/scrape_detail_page/de86803b3746f2183ca0e762ec39cb12.json": {
     "mtime": 1781666646.0679235,
     "ast_hash": "1ee4b42c5423ddc172455602c0630b16",
     "semantic_hash": "1ee4b42c5423ddc172455602c0630b16"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/dee91bd21fd61fff2b5852e19d9380bb.json": {
+  "cache/scrape_detail_page/dee91bd21fd61fff2b5852e19d9380bb.json": {
     "mtime": 1781675609.1328251,
     "ast_hash": "1bfaf5cf38ee388903d2eda057d2a359",
     "semantic_hash": "1bfaf5cf38ee388903d2eda057d2a359"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e0301481f59f8bd91acf13ba232337e5.json": {
+  "cache/scrape_detail_page/e0301481f59f8bd91acf13ba232337e5.json": {
     "mtime": 1781666613.939796,
     "ast_hash": "5a231596babcc9af190bd980e077b588",
     "semantic_hash": "5a231596babcc9af190bd980e077b588"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e1d3cad6f4f6a93091a8abdc1f540201.json": {
+  "cache/scrape_detail_page/e1d3cad6f4f6a93091a8abdc1f540201.json": {
     "mtime": 1781669538.2008235,
     "ast_hash": "2ef0049946e4f447a606eaeb8c3970a6",
     "semantic_hash": "2ef0049946e4f447a606eaeb8c3970a6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e2f541d8684b5eb97db0b738970221f0.json": {
+  "cache/scrape_detail_page/e2f541d8684b5eb97db0b738970221f0.json": {
     "mtime": 1781669436.6161683,
     "ast_hash": "3343dbb703f51f0d4f599173078a69c5",
     "semantic_hash": "3343dbb703f51f0d4f599173078a69c5"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e3fcc62bfdf60c1387f7b9650b74068f.json": {
+  "cache/scrape_detail_page/e3fcc62bfdf60c1387f7b9650b74068f.json": {
     "mtime": 1781667052.7839622,
     "ast_hash": "f8504f152cad727958d2d167b8dfd96f",
     "semantic_hash": "f8504f152cad727958d2d167b8dfd96f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e3fe1fc50f45bd67dbaf4aad06ad8580.json": {
+  "cache/scrape_detail_page/e3fe1fc50f45bd67dbaf4aad06ad8580.json": {
     "mtime": 1781666783.7219994,
     "ast_hash": "f1f58f248873c2bfb5c2d8ca8b151319",
     "semantic_hash": "f1f58f248873c2bfb5c2d8ca8b151319"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e44ab1c186395e444046ff7020f73b91.json": {
+  "cache/scrape_detail_page/e44ab1c186395e444046ff7020f73b91.json": {
     "mtime": 1781666924.5396228,
     "ast_hash": "a8560833b4ea9c26726a00a22ed0fa86",
     "semantic_hash": "a8560833b4ea9c26726a00a22ed0fa86"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e475a759a3ffbba962c10f39188864ae.json": {
+  "cache/scrape_detail_page/e475a759a3ffbba962c10f39188864ae.json": {
     "mtime": 1781666619.7629948,
     "ast_hash": "4981aec7998ca49e372f5bda99430161",
     "semantic_hash": "4981aec7998ca49e372f5bda99430161"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e519541ed0b3686eccebca21530e7224.json": {
+  "cache/scrape_detail_page/e519541ed0b3686eccebca21530e7224.json": {
     "mtime": 1781666585.0944934,
     "ast_hash": "03cace989af4c6c99e228fced18affbd",
     "semantic_hash": "03cace989af4c6c99e228fced18affbd"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e563d8f365fdf5eaff892205c716d262.json": {
+  "cache/scrape_detail_page/e563d8f365fdf5eaff892205c716d262.json": {
     "mtime": 1781667214.6109788,
     "ast_hash": "932918e15c8809050e12973e9bfde4ab",
     "semantic_hash": "932918e15c8809050e12973e9bfde4ab"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e5865368554a81c6de8c09af87aa78a4.json": {
+  "cache/scrape_detail_page/e5865368554a81c6de8c09af87aa78a4.json": {
     "mtime": 1781667043.4309123,
     "ast_hash": "f027313139a97a5c453ada18fa839f04",
     "semantic_hash": "f027313139a97a5c453ada18fa839f04"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e5e800fa3b181320220cdb3c006fa572.json": {
+  "cache/scrape_detail_page/e5e800fa3b181320220cdb3c006fa572.json": {
     "mtime": 1781675855.150429,
     "ast_hash": "4f9c362c2329ca21daf23b17c92bc0c3",
     "semantic_hash": "4f9c362c2329ca21daf23b17c92bc0c3"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e75d671024e3329fa395efd14332d069.json": {
+  "cache/scrape_detail_page/e75d671024e3329fa395efd14332d069.json": {
     "mtime": 1781675586.9747176,
     "ast_hash": "2438cb54caa49941b7646e0d11eec93d",
     "semantic_hash": "2438cb54caa49941b7646e0d11eec93d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e788e36bd7f5a294203444d58d2a78f4.json": {
+  "cache/scrape_detail_page/e788e36bd7f5a294203444d58d2a78f4.json": {
     "mtime": 1781675758.8761902,
     "ast_hash": "0c940f01ca5ea967812ee8ed2af50393",
     "semantic_hash": "0c940f01ca5ea967812ee8ed2af50393"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e87542c2bff44f51d2d6498b93b20b47.json": {
+  "cache/scrape_detail_page/e87542c2bff44f51d2d6498b93b20b47.json": {
     "mtime": 1781675813.465543,
     "ast_hash": "3ac4fcac8f8607efc0b69c3b91b8cf5f",
     "semantic_hash": "3ac4fcac8f8607efc0b69c3b91b8cf5f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/e9a207d71f5998a4e10cdfd9308fa845.json": {
+  "cache/scrape_detail_page/e9a207d71f5998a4e10cdfd9308fa845.json": {
     "mtime": 1781675657.3520513,
     "ast_hash": "75c3af24773cbda39e42bff4e162c6c9",
     "semantic_hash": "75c3af24773cbda39e42bff4e162c6c9"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/eabbd36f9dc31dfaf6c5cae1cec54fd3.json": {
+  "cache/scrape_detail_page/eabbd36f9dc31dfaf6c5cae1cec54fd3.json": {
     "mtime": 1781675921.886468,
     "ast_hash": "cbbf9fe21fee6ab8a33dceda057bb8c0",
     "semantic_hash": "cbbf9fe21fee6ab8a33dceda057bb8c0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ebc139f9fef4fd52e5da7fe0d02d28a8.json": {
+  "cache/scrape_detail_page/ebc139f9fef4fd52e5da7fe0d02d28a8.json": {
     "mtime": 1781666744.0477886,
     "ast_hash": "8fa87d2daac1ed7e2d0e528d04e17cab",
     "semantic_hash": "8fa87d2daac1ed7e2d0e528d04e17cab"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ed9b6da2b850006a884bfa1c8b1d6375.json": {
+  "cache/scrape_detail_page/ed9b6da2b850006a884bfa1c8b1d6375.json": {
     "mtime": 1781666836.0484061,
     "ast_hash": "793aec7ed62b4516e8310f8575d2e522",
     "semantic_hash": "793aec7ed62b4516e8310f8575d2e522"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/eee1d639bf181ed0bc9016e54deb3a8b.json": {
+  "cache/scrape_detail_page/eee1d639bf181ed0bc9016e54deb3a8b.json": {
     "mtime": 1781667136.4285676,
     "ast_hash": "f318fce22b181f21cd0fda2afef1a0e0",
     "semantic_hash": "f318fce22b181f21cd0fda2afef1a0e0"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ef7fcc5c3fabca0971ed6f9452666d4b.json": {
+  "cache/scrape_detail_page/ef7fcc5c3fabca0971ed6f9452666d4b.json": {
     "mtime": 1781667150.1481836,
     "ast_hash": "ea5b6b3c10596526a47c3e5569e0d360",
     "semantic_hash": "ea5b6b3c10596526a47c3e5569e0d360"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f07f96e34aab5b4bbb0709aa5d1c28b4.json": {
+  "cache/scrape_detail_page/f07f96e34aab5b4bbb0709aa5d1c28b4.json": {
     "mtime": 1781675967.120468,
     "ast_hash": "32593a52f2de3a384cbd421cc4861b2a",
     "semantic_hash": "32593a52f2de3a384cbd421cc4861b2a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f0f8f402a080604ed06fbff97f63120e.json": {
+  "cache/scrape_detail_page/f0f8f402a080604ed06fbff97f63120e.json": {
     "mtime": 1781675751.0199363,
     "ast_hash": "b80a53eff79113c04c64b422525a3416",
     "semantic_hash": "b80a53eff79113c04c64b422525a3416"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f1b3730d58c65d89b5acd0a054196184.json": {
+  "cache/scrape_detail_page/f1b3730d58c65d89b5acd0a054196184.json": {
     "mtime": 1781675663.2638679,
     "ast_hash": "972c15588d4c58ea2f9fbca906702b59",
     "semantic_hash": "972c15588d4c58ea2f9fbca906702b59"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f364cefb146642f7af714101a7b02c1b.json": {
+  "cache/scrape_detail_page/f364cefb146642f7af714101a7b02c1b.json": {
     "mtime": 1781666673.249231,
     "ast_hash": "cf54c6a888b4f78403f7dfffa7fc43de",
     "semantic_hash": "cf54c6a888b4f78403f7dfffa7fc43de"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f3781ce7ce05d2c44216e89962b2667d.json": {
+  "cache/scrape_detail_page/f3781ce7ce05d2c44216e89962b2667d.json": {
     "mtime": 1781669637.8694818,
     "ast_hash": "f454eba9ac0a89f6e56fb52a42a4266a",
     "semantic_hash": "f454eba9ac0a89f6e56fb52a42a4266a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f3b3f2051363230e8176e04d4df72cc0.json": {
+  "cache/scrape_detail_page/f3b3f2051363230e8176e04d4df72cc0.json": {
     "mtime": 1781667021.2299223,
     "ast_hash": "4fc05cf02292e03ff3c827ddbf8e824c",
     "semantic_hash": "4fc05cf02292e03ff3c827ddbf8e824c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f3fa15a375aaf472fe570c42a2a2c485.json": {
+  "cache/scrape_detail_page/f3fa15a375aaf472fe570c42a2a2c485.json": {
     "mtime": 1781675977.1319253,
     "ast_hash": "000fbda7b338ba5769b97061a48ef149",
     "semantic_hash": "000fbda7b338ba5769b97061a48ef149"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f521a5bd778392834fbf16fc88842d9e.json": {
+  "cache/scrape_detail_page/f521a5bd778392834fbf16fc88842d9e.json": {
     "mtime": 1781669576.58126,
     "ast_hash": "c1ef8e3a53bc82930d1ee35cec67a66e",
     "semantic_hash": "c1ef8e3a53bc82930d1ee35cec67a66e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f5221b025ef5cedf24534f931a3ce5c1.json": {
+  "cache/scrape_detail_page/f5221b025ef5cedf24534f931a3ce5c1.json": {
     "mtime": 1781666642.6157432,
     "ast_hash": "7499fcd951b586893af12306201a9a7e",
     "semantic_hash": "7499fcd951b586893af12306201a9a7e"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f542cac600d675b7b107dc23f5e1291a.json": {
+  "cache/scrape_detail_page/f542cac600d675b7b107dc23f5e1291a.json": {
     "mtime": 1781669626.8313167,
     "ast_hash": "b43a77a23d662441f6d6b40448015a21",
     "semantic_hash": "b43a77a23d662441f6d6b40448015a21"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f596e147994c034d5afbf8f65a8e9ecb.json": {
+  "cache/scrape_detail_page/f596e147994c034d5afbf8f65a8e9ecb.json": {
     "mtime": 1781666818.5151281,
     "ast_hash": "5e00f5df33e45c6f904e2b5316479a4c",
     "semantic_hash": "5e00f5df33e45c6f904e2b5316479a4c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f5e2a995007a081af6f5b6a5ddc51b82.json": {
+  "cache/scrape_detail_page/f5e2a995007a081af6f5b6a5ddc51b82.json": {
     "mtime": 1781666838.9354904,
     "ast_hash": "4477adf6536af9c50b7e643878524447",
     "semantic_hash": "4477adf6536af9c50b7e643878524447"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f616b6cf7ef3b0a1933f2480ff817c82.json": {
+  "cache/scrape_detail_page/f616b6cf7ef3b0a1933f2480ff817c82.json": {
     "mtime": 1781669629.8599625,
     "ast_hash": "1b96a2630ef7d6ecec9beabfb66b1572",
     "semantic_hash": "1b96a2630ef7d6ecec9beabfb66b1572"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f67378d3f9e8a9d6a72ff4bd7cd43fe2.json": {
+  "cache/scrape_detail_page/f67378d3f9e8a9d6a72ff4bd7cd43fe2.json": {
     "mtime": 1781666860.1056054,
     "ast_hash": "a61e4c88bbec65105be67fbec0e4317c",
     "semantic_hash": "a61e4c88bbec65105be67fbec0e4317c"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f6cba8b9565bad3b48f96d5b9c0bf9ba.json": {
+  "cache/scrape_detail_page/f6cba8b9565bad3b48f96d5b9c0bf9ba.json": {
     "mtime": 1781667152.6928978,
     "ast_hash": "0783c16b1fde0ebd416ca48f7c8c5268",
     "semantic_hash": "0783c16b1fde0ebd416ca48f7c8c5268"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f832ad8806626fc3d4e6cce0e194f32f.json": {
+  "cache/scrape_detail_page/f832ad8806626fc3d4e6cce0e194f32f.json": {
     "mtime": 1781675987.2329416,
     "ast_hash": "f61cf36e050ac5699c50e796da00b0ce",
     "semantic_hash": "f61cf36e050ac5699c50e796da00b0ce"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f87d849172e999afb9a49233d9987981.json": {
+  "cache/scrape_detail_page/f87d849172e999afb9a49233d9987981.json": {
     "mtime": 1781667167.7020514,
     "ast_hash": "52c8366f9c7fde6f8274d91f9e59bb2f",
     "semantic_hash": "52c8366f9c7fde6f8274d91f9e59bb2f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f8a1c850dad19b3f9884645af4af1ee6.json": {
+  "cache/scrape_detail_page/f8a1c850dad19b3f9884645af4af1ee6.json": {
     "mtime": 1781666519.8666677,
     "ast_hash": "70fc0f922bce8d749cdae9d39f99e5ba",
     "semantic_hash": "70fc0f922bce8d749cdae9d39f99e5ba"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f8acd84518ebfaad79f0512808553e5e.json": {
+  "cache/scrape_detail_page/f8acd84518ebfaad79f0512808553e5e.json": {
     "mtime": 1781669455.6194758,
     "ast_hash": "bd9dbce3e62d72e80de1fd8e7241401a",
     "semantic_hash": "bd9dbce3e62d72e80de1fd8e7241401a"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f918d3a760aab3859491403d1ea0bbef.json": {
+  "cache/scrape_detail_page/f918d3a760aab3859491403d1ea0bbef.json": {
     "mtime": 1781675901.7318883,
     "ast_hash": "427ca292018f0948f79d23d903f09888",
     "semantic_hash": "427ca292018f0948f79d23d903f09888"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f9224a580a991dbc63732466f9a6dcdc.json": {
+  "cache/scrape_detail_page/f9224a580a991dbc63732466f9a6dcdc.json": {
     "mtime": 1781666949.350121,
     "ast_hash": "80bd4abe5a6e610afe3571e6093cac9d",
     "semantic_hash": "80bd4abe5a6e610afe3571e6093cac9d"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f9bb7a6cbc2d5208eaf247945b30d4fc.json": {
+  "cache/scrape_detail_page/f9bb7a6cbc2d5208eaf247945b30d4fc.json": {
     "mtime": 1781669503.80978,
     "ast_hash": "ca7077d09cf2e006e3c1f0b6007194dd",
     "semantic_hash": "ca7077d09cf2e006e3c1f0b6007194dd"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f9d3c914863991a4cede3d2c3801fd1a.json": {
+  "cache/scrape_detail_page/f9d3c914863991a4cede3d2c3801fd1a.json": {
     "mtime": 1781675952.980694,
     "ast_hash": "48ad4e545b548c2c5f9cf817ed67fff8",
     "semantic_hash": "48ad4e545b548c2c5f9cf817ed67fff8"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f9e34936da6bcc8ae01d6054e5c0662e.json": {
+  "cache/scrape_detail_page/f9e34936da6bcc8ae01d6054e5c0662e.json": {
     "mtime": 1781675913.7249343,
     "ast_hash": "d8c639d89a8d7ed4a8790afc046c5748",
     "semantic_hash": "d8c639d89a8d7ed4a8790afc046c5748"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/f9f952f1db76ce3ec643c1b494a91f30.json": {
+  "cache/scrape_detail_page/f9f952f1db76ce3ec643c1b494a91f30.json": {
     "mtime": 1781666519.0271907,
     "ast_hash": "3745616b58f9c9e0f45e500aa2b52561",
     "semantic_hash": "3745616b58f9c9e0f45e500aa2b52561"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/fa83b6744587ffb64a601fd19100a7d8.json": {
+  "cache/scrape_detail_page/fa83b6744587ffb64a601fd19100a7d8.json": {
     "mtime": 1781666711.9151738,
     "ast_hash": "028527eda40fc338d266215c11fb0a85",
     "semantic_hash": "028527eda40fc338d266215c11fb0a85"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/faeda026dfb97d8ab451a7cdaa9fc899.json": {
+  "cache/scrape_detail_page/faeda026dfb97d8ab451a7cdaa9fc899.json": {
     "mtime": 1781666768.962321,
     "ast_hash": "9b6fbecb92e383ede011e5198bcce144",
     "semantic_hash": "9b6fbecb92e383ede011e5198bcce144"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/fd877d0f37cc3c06384073955f84142c.json": {
+  "cache/scrape_detail_page/fd877d0f37cc3c06384073955f84142c.json": {
     "mtime": 1781675791.5595384,
     "ast_hash": "13c1ebe305a81001b86e5c6eddc3c298",
     "semantic_hash": "13c1ebe305a81001b86e5c6eddc3c298"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/fe29c65328f9894642dabcd490e519d8.json": {
+  "cache/scrape_detail_page/fe29c65328f9894642dabcd490e519d8.json": {
     "mtime": 1781666632.5213075,
     "ast_hash": "c98f04217c947aa40afd62393ad3c0cf",
     "semantic_hash": "c98f04217c947aa40afd62393ad3c0cf"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/fe565111d75fdf2d40d990d2018c5056.json": {
+  "cache/scrape_detail_page/fe565111d75fdf2d40d990d2018c5056.json": {
     "mtime": 1781675779.776865,
     "ast_hash": "35cf46cb698ed7348c5b055185485a3f",
     "semantic_hash": "35cf46cb698ed7348c5b055185485a3f"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/fe690981f44b994f5a9bc1daf8ab982f.json": {
+  "cache/scrape_detail_page/fe690981f44b994f5a9bc1daf8ab982f.json": {
     "mtime": 1781675621.9072213,
     "ast_hash": "9859ebb94f63b4210b6008ac29533596",
     "semantic_hash": "9859ebb94f63b4210b6008ac29533596"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/feb8c9682ef965d4ee3f8927e5ccf337.json": {
+  "cache/scrape_detail_page/feb8c9682ef965d4ee3f8927e5ccf337.json": {
     "mtime": 1781675880.221614,
     "ast_hash": "838acf1a3b196d4b377678c629ca4f69",
     "semantic_hash": "838acf1a3b196d4b377678c629ca4f69"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ff46d1a2c5ce9d58446f1db57b3bd4cc.json": {
+  "cache/scrape_detail_page/ff46d1a2c5ce9d58446f1db57b3bd4cc.json": {
     "mtime": 1781666738.1545298,
     "ast_hash": "1635252ac70b49bc19bda9a0a3186b66",
     "semantic_hash": "1635252ac70b49bc19bda9a0a3186b66"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ff817930c61e6a5dd2369aacbb437b1b.json": {
+  "cache/scrape_detail_page/ff817930c61e6a5dd2369aacbb437b1b.json": {
     "mtime": 1781667239.8873289,
     "ast_hash": "526db1f390f383f8f8fbf9be3f7b7291",
     "semantic_hash": "526db1f390f383f8f8fbf9be3f7b7291"
   },
-  "/home/ake/Proyects/4k3sito.github.io/cache/scrape_detail_page/ffe7d4d1ccfc506fff95bc0973a88749.json": {
+  "cache/scrape_detail_page/ffe7d4d1ccfc506fff95bc0973a88749.json": {
     "mtime": 1781666648.0421355,
     "ast_hash": "9d5d0d3aa628b32c30777bb4ce87bff6",
     "semantic_hash": "9d5d0d3aa628b32c30777bb4ce87bff6"
   },
-  "/home/ake/Proyects/4k3sito.github.io/discover_propiedades.py": {
-    "mtime": 1781656439.8539574,
-    "ast_hash": "9efb5eacf68274b5012ee252866eb43c",
-    "semantic_hash": "9efb5eacf68274b5012ee252866eb43c"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/easybroker_scraper.py": {
-    "mtime": 1781677621.7065985,
-    "ast_hash": "89bd21071b46268fde996a41b682265c",
-    "semantic_hash": "89bd21071b46268fde996a41b682265c"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/output/discover.json": {
+  "output/discover.json": {
     "mtime": 1781656483.9975548,
     "ast_hash": "1b3ab1e5202521a44e1fc8ef5c7e35db",
     "semantic_hash": "1b3ab1e5202521a44e1fc8ef5c7e35db"
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/inmuebles24.json": {
-    "mtime": 1781675439.7506323,
-    "ast_hash": "54e775c1302b5b848347e65f82dc9360",
-    "semantic_hash": "54e775c1302b5b848347e65f82dc9360"
+  "output/inmuebles24.json": {
+    "mtime": 1781729520.2020042,
+    "ast_hash": "cc3f04b788a0ef3e526e0e101e096e7c",
+    "semantic_hash": ""
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/pm_cache.json": {
+  "output/pm_cache.json": {
     "mtime": 1781676259.938277,
     "ast_hash": "9c25b78e51495ca7953f05d869b67550",
     "semantic_hash": "9c25b78e51495ca7953f05d869b67550"
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/propiedades-mexico-terrenos-mty.json": {
+  "output/propiedades-mexico-terrenos-mty.json": {
     "mtime": 1781659284.899774,
     "ast_hash": "a6b53dc2daeed7a49a617db1b59e0f64",
     "semantic_hash": "a6b53dc2daeed7a49a617db1b59e0f64"
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/run_test.json": {
+  "output/run_test.json": {
     "mtime": 1781666343.1790504,
     "ast_hash": "37a6259cc0c1dae299a7866489dff0bd",
     "semantic_hash": "37a6259cc0c1dae299a7866489dff0bd"
   },
-  "/home/ake/Proyects/4k3sito.github.io/propiedadesmx_scraper.py": {
-    "mtime": 1781673266.7044392,
-    "ast_hash": "6b0b75f00193536a271f8e565228c062",
-    "semantic_hash": "6b0b75f00193536a271f8e565228c062"
+  "scrape_all.py": {
+    "mtime": 1781729199.4310305,
+    "ast_hash": "fc574718abe228be271cd8432ac8628f",
+    "semantic_hash": ""
   },
-  "/home/ake/Proyects/4k3sito.github.io/scrape_all.py": {
-    "mtime": 1781677439.157296,
-    "ast_hash": "a7b7b1349328458088f602a1118e69ed",
-    "semantic_hash": "a7b7b1349328458088f602a1118e69ed"
+  "scrapers/db_writer.py": {
+    "mtime": 1781718047.1106868,
+    "ast_hash": "4584ba28d858d514b52d624675dada6c",
+    "semantic_hash": ""
   },
-  "/home/ake/Proyects/4k3sito.github.io/scrapers/__init__.py": {
-    "mtime": 1781665612.9598186,
-    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
-    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  "scrapers/normalize.py": {
+    "mtime": 1781725842.7644687,
+    "ast_hash": "28ae2009b8393f8e8d26ee2b86fd139b",
+    "semantic_hash": ""
   },
-  "/home/ake/Proyects/4k3sito.github.io/scrapers/db_writer.py": {
-    "mtime": 1781675200.6988885,
-    "ast_hash": "ef891737707299410574ffd267ceb3f7",
-    "semantic_hash": "ef891737707299410574ffd267ceb3f7"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/scrapers/normalize.py": {
-    "mtime": 1781677428.8076239,
-    "ast_hash": "45b2abed6294b8d172d26923391e4b9c",
-    "semantic_hash": "45b2abed6294b8d172d26923391e4b9c"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/test_inmuebles_fields.py": {
-    "mtime": 1781666316.5544016,
-    "ast_hash": "1cdfc224c04cd5c07a69c05fd9b278ba",
-    "semantic_hash": "1cdfc224c04cd5c07a69c05fd9b278ba"
-  },
-  "/home/ake/Proyects/4k3sito.github.io/error_logs/2026-06-16_20-32-01/page.html": {
+  "error_logs/2026-06-16_20-32-01/page.html": {
     "mtime": 1781663521.023824,
     "ast_hash": "7c72d11865c1f7e8e18204a5b4ba30d4",
     "semantic_hash": "7c72d11865c1f7e8e18204a5b4ba30d4"
   },
-  "/home/ake/Proyects/4k3sito.github.io/output/propiedades_page1.html": {
+  "output/propiedades_page1.html": {
     "mtime": 1781656483.763938,
     "ast_hash": "359dbba1352b02aab717559f8b727362",
     "semantic_hash": "359dbba1352b02aab717559f8b727362"
   },
-  "/home/ake/Proyects/4k3sito.github.io/error_logs/2026-06-16_20-32-01/screenshot.png": {
+  "error_logs/2026-06-16_20-32-01/screenshot.png": {
     "mtime": 1781663521.3738325,
     "ast_hash": "bf81e550946ccee59e6d05f527c132a6",
     "semantic_hash": "bf81e550946ccee59e6d05f527c132a6"
+  },
+  ".mcp.json": {
+    "mtime": 1781680501.637349,
+    "ast_hash": "dc211a0c344b82d49c2247f2a36a5040",
+    "semantic_hash": ""
+  },
+  "app.js": {
+    "mtime": 1781725317.3838778,
+    "ast_hash": "d158b3ba0ccd79068c8771f62b1a8456",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/0144bb2d4298e72347c57f2b6f12adbf.json": {
+    "mtime": 1781727895.1984956,
+    "ast_hash": "7122680db300eb59f519781d536ad828",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/0325a53a32e48df9041de4b9f9cd7a7b.json": {
+    "mtime": 1781728151.3647685,
+    "ast_hash": "645cf9a2789822221752ad3949ecf10c",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/04c48e78c859ee290507bc45d8ff1a09.json": {
+    "mtime": 1781728126.6326408,
+    "ast_hash": "570ed45c3d1097388804cb095dd2da67",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/04c72c0acd094057008f3e88de5e87fd.json": {
+    "mtime": 1781728037.5022674,
+    "ast_hash": "83ab1f4b043fb69874b41344d89a007f",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/09f3f4cd290055047dc0326aafd4c8bf.json": {
+    "mtime": 1781728137.02227,
+    "ast_hash": "37d502b2b5d5ca5014df7b981bd775c3",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/0be701ccb2297083d72ec74e609d5af0.json": {
+    "mtime": 1781727875.827805,
+    "ast_hash": "4a408ede5af1f92413298b3ec761be19",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/0cedce9ad99b86c3c53539f030b8e63c.json": {
+    "mtime": 1781728016.549508,
+    "ast_hash": "a1bab98fba3a49648b53d2b83841e83d",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/0ed1da1c3709d56e0dae840da9ae2800.json": {
+    "mtime": 1781728113.3754826,
+    "ast_hash": "06cf5328b828420bba884c085505319c",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/1065e048f57d7e939c21a458a4f5939f.json": {
+    "mtime": 1781728201.764446,
+    "ast_hash": "3e5e15109bd30192ed960ccb3a95d8e8",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/10cdd8279f20d251d500fe637c79b31c.json": {
+    "mtime": 1781727865.1168888,
+    "ast_hash": "9a45c09ae9be5707b184a43f65340c41",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/13c352ece8cdf8b6408b51f916e0d528.json": {
+    "mtime": 1781728076.6247056,
+    "ast_hash": "06a40c4e3ffa6efa2cdb017428f97bd1",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/1904230d0dba8c2f5d9ca9745efc1233.json": {
+    "mtime": 1781728186.1752844,
+    "ast_hash": "5ed8bb84039df5ca519a87a7d8f4c3b3",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/1ced6eef93042792973e9c3c6d33f9be.json": {
+    "mtime": 1781727981.0644748,
+    "ast_hash": "64dda0b5fdb6b91e93c5bcb55dce0185",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/1fc5337c274c5d231c9c3031274a555d.json": {
+    "mtime": 1781728086.7512214,
+    "ast_hash": "74e82f6d0150124e9ee8ac3830350e73",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/24473aa932e8f131db7fd16b839d7a9b.json": {
+    "mtime": 1781728000.4151492,
+    "ast_hash": "ef8e8af15659e8878cb9e5336b0159f9",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/298820bf654ea01648a0e6908350ae5e.json": {
+    "mtime": 1781727893.4852662,
+    "ast_hash": "966ba97efd5bb20b85156bb4ca4ad13a",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/2b140c3b05c4bde32a99ca7db4887632.json": {
+    "mtime": 1781728144.4024577,
+    "ast_hash": "6878d7db1369450ec860991f0be23678",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/2c538ff2d0eeea5702ba2fa40e2577c0.json": {
+    "mtime": 1781727837.2062886,
+    "ast_hash": "04dc840a3688c4b2d2c0fdc552d0cce1",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/2c8751d87f6bca0f90d30a1bf981ee8f.json": {
+    "mtime": 1781728056.7494419,
+    "ast_hash": "2a0297c5075bee05c5f72fe0639cd9da",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/2da3f5c2e3a482f03bbb4071ca5979fb.json": {
+    "mtime": 1781727836.2349439,
+    "ast_hash": "ceab9410e23386844c762486d1939b6c",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/2f970c267aad2fc514dc1a4697f03a3c.json": {
+    "mtime": 1781728009.844405,
+    "ast_hash": "efc5f329c2a2024e976ac0e7abcc7c0b",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/30d31d41b554ef327a6b3596152aa29a.json": {
+    "mtime": 1781728039.3722675,
+    "ast_hash": "0b281c5d978f8029ad9d85636abffeb5",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/319e96e8f6774b5b2082c5dff2cbf4a8.json": {
+    "mtime": 1781727938.2245603,
+    "ast_hash": "4cdc8c4aa1e9932dc1526ffe5e5200f2",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/325c4b1ff806ca9c280170ac6757d95e.json": {
+    "mtime": 1781727992.4229972,
+    "ast_hash": "9b3b0d86bafc57c3626cb1128f364ac3",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/394519febc5c3139d82698525484ed4f.json": {
+    "mtime": 1781728176.8814147,
+    "ast_hash": "d6bf74a775209f956740fa446819566a",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/39a0cb1d784f959cb99f76311fc476bf.json": {
+    "mtime": 1781727867.4425845,
+    "ast_hash": "ec20c611b73aa2e28912c8dfffa2c8e3",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/39e7ad074a711fbe7cf74b1e03460051.json": {
+    "mtime": 1781727957.9059076,
+    "ast_hash": "5b2463b83369d8e3f7c4ea48c0063731",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/41ddc97a7672ce7b765dfd8b3ef872b4.json": {
+    "mtime": 1781728005.4457333,
+    "ast_hash": "95e60b2d266ed79a7704f33cc6552dfb",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/436ea6e1a7ece758ad9fd9e09e57214f.json": {
+    "mtime": 1781728048.1722684,
+    "ast_hash": "582b54e4238fc41576b68d94a9c182ce",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/43e696720bc538fc3692a070be5a7d3a.json": {
+    "mtime": 1781728060.8452528,
+    "ast_hash": "de15cbd89003a2c95aa7e639316c80e1",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/45eabae4ffc0382eaeb5ed83e90e7e81.json": {
+    "mtime": 1781727856.9026854,
+    "ast_hash": "d1315a8e41a475e2a316b7d229ebbb89",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/466f76ab327603c3ef97284e057a944e.json": {
+    "mtime": 1781728204.9249318,
+    "ast_hash": "5381a7375937a24ca46879832a83aef2",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/4901f1948e62fd312580527d4dabe831.json": {
+    "mtime": 1781728170.9076986,
+    "ast_hash": "44f9f22f0c0e6c435fa372235838ae1a",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/496151e587bb8165eef0c25e6310b789.json": {
+    "mtime": 1781727854.2919624,
+    "ast_hash": "aae47640724d77f8147d2567dcd76ffb",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/4a84e487cdeec9c077ff3a2e58bc7373.json": {
+    "mtime": 1781727876.2164717,
+    "ast_hash": "d72c5e3a0f87fc1920d9161970b69190",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/4e78d47bd286cb403cbce950addf9405.json": {
+    "mtime": 1781727847.7019947,
+    "ast_hash": "cef1f2de8335e564b6a0ec78e1783648",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/4eccfbbc8d877a8ba6e07f75e3e3ba03.json": {
+    "mtime": 1781727934.785857,
+    "ast_hash": "8d7bd3681a7154083a621c6a05c65158",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/5754c473666d564f0ed65931f07d06ed.json": {
+    "mtime": 1781727961.5994961,
+    "ast_hash": "f70d12518de172c7a304abce4bda0b91",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/59063e64cd70c1f8b20c49627f76c435.json": {
+    "mtime": 1781728063.2449493,
+    "ast_hash": "452e8044c39996bbed8f9b019377ca48",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/5918fdaa4fefbb262a69e59f873f4a01.json": {
+    "mtime": 1781727920.2717118,
+    "ast_hash": "d3b2e28dca43888422b992164b87e3fe",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/5a19a119ab666e0bf273c9daf13b128f.json": {
+    "mtime": 1781728040.4759345,
+    "ast_hash": "c21b5187dcbcc7289cdefdc2dfab89a8",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/5d989f88178bf20299517ce32c978a86.json": {
+    "mtime": 1781728132.3750014,
+    "ast_hash": "27aa3f5b1e87ee5d03e5a10e3343d690",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/5e4bc1f8fe118eda9a0d327e9210ae74.json": {
+    "mtime": 1781728147.5009024,
+    "ast_hash": "9973bd4bd3e1474dc13e369594b9ea9e",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/6596a55666d0c59385f4ba79b347c30b.json": {
+    "mtime": 1781727886.2677805,
+    "ast_hash": "730bc89faa4dabbd3d7060df68687fd1",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/662fc813cdac4bd664b3c2f89b897080.json": {
+    "mtime": 1781728118.8926687,
+    "ast_hash": "e8649e481f0c5ee2c028a230246544a7",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/6b21472419277e7fb095384637f248b5.json": {
+    "mtime": 1781728209.8473504,
+    "ast_hash": "d21d7b51c8e4913b1601823547e13aea",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/6e629fe30dfb67f07b7cd41c9ffa9a76.json": {
+    "mtime": 1781728153.8976352,
+    "ast_hash": "54dc889106f811f0ed43009773611e5b",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/7071068bc90f5c9e3812c7ed29cb0ed3.json": {
+    "mtime": 1781727983.2679772,
+    "ast_hash": "492f6636ed275c989a9d13e1b5bdb2d7",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/724efc56db0bb2d0d5992ca7126ca4cb.json": {
+    "mtime": 1781727885.266281,
+    "ast_hash": "e7704fda9193526ba8e9357ff075e7e5",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/73cfbb2e6a990786c40f3c9867fc9bb5.json": {
+    "mtime": 1781728051.5656705,
+    "ast_hash": "3118c16a6930923d295b9fa3ad4a0fbf",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/7407940a7f2bf6d37fe2f07fbe72a69d.json": {
+    "mtime": 1781727988.1997926,
+    "ast_hash": "861e23a45e2d4f3ed7d4d1b2d4ae19bd",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/75151e376590322a449a88c7b84c6381.json": {
+    "mtime": 1781727917.7431877,
+    "ast_hash": "703f1f30730aabf6585418bbbff36b9e",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/7bda4085756d96f0aa0ff309f810ba2a.json": {
+    "mtime": 1781727927.532152,
+    "ast_hash": "59dcb44daeafe68c4c2dc1dd8a709322",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/7d1eaf4ad0e321cffebb0946c9e3187a.json": {
+    "mtime": 1781728164.9930758,
+    "ast_hash": "c7dd0e3d8b55c01f80bc99100906dc0c",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/7ea31a671beeb013b5a02c7bc2f48743.json": {
+    "mtime": 1781727886.9009125,
+    "ast_hash": "c0d94f48815a5af7863eb7d86fb90ca5",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/80f62480181f42513e31b43005cf97fd.json": {
+    "mtime": 1781728014.9217687,
+    "ast_hash": "867e562403301e52aa6b49180ce3a0e4",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/8413a2530a79e45938b631feb0446bc6.json": {
+    "mtime": 1781728025.245924,
+    "ast_hash": "86b4392b39f86af3aefed8468c230b51",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/850d4896e20268bb6d3bb30d31e8adc2.json": {
+    "mtime": 1781728158.1584837,
+    "ast_hash": "6e8fcbaf8a54f1068991d360b2a1e7fb",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/86aa2341ebddf776a86225d0c012b039.json": {
+    "mtime": 1781727947.5047731,
+    "ast_hash": "ff93680f11a44dc0baf74d914f2ec680",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/87b56ba7a9fc8f6ea808f7e3a8588f8b.json": {
+    "mtime": 1781727876.7334719,
+    "ast_hash": "fa5992586824e83de240ead2f298f7ff",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/88bb25786f64ef6d46f0afd1eb754063.json": {
+    "mtime": 1781728109.81261,
+    "ast_hash": "5f78a745c18681c0a09c776e1efeef74",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/89bf68cb22a3d9620730bdcd73b3f4aa.json": {
+    "mtime": 1781728050.3936703,
+    "ast_hash": "203993a8a21e920312268d2fccda4efd",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/89e757635885adce7b179a0af5280683.json": {
+    "mtime": 1781727945.3179805,
+    "ast_hash": "c9b934afa7fd9a7cc200251a26ad0c6f",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/8f454639c7dd0317027022976b63abca.json": {
+    "mtime": 1781728181.8586352,
+    "ast_hash": "e4d0f27d0afe956c398566b4664c6881",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/955f4636679ce4d1f27e031250545426.json": {
+    "mtime": 1781727907.2384531,
+    "ast_hash": "7fa7a0097248756dc0ffead10cfe6e9e",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/95f8979d18601a7215285ef45d406739.json": {
+    "mtime": 1781727844.5550435,
+    "ast_hash": "4d324ef225df86a848fe11f878cf9455",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/97901be45abc0680fd1e1756c22e41d7.json": {
+    "mtime": 1781728073.8231936,
+    "ast_hash": "67db1a50279d39f1bf47180e2d5cdaa6",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/981ac6b9cc8461727da88dd12b2a3a5c.json": {
+    "mtime": 1781727904.3784528,
+    "ast_hash": "ad2aba36766e210e571b29d23e534bfe",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/9c68da7c42b7045f26c540f19b07fd8f.json": {
+    "mtime": 1781727994.5010011,
+    "ast_hash": "fa0c43d9b82648a67e259b4b7e52a196",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/a02293fb5c053bf7e58568fdae511bf8.json": {
+    "mtime": 1781727835.7587945,
+    "ast_hash": "039f6abf3a26cca413b8a392b91afcde",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/a14c546928e2cc5ee88f9aecc935a2d1.json": {
+    "mtime": 1781728129.8795962,
+    "ast_hash": "269491caba5824a53fa0712344b104bf",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/a2bb272d0b8d1b5170fb206d04b1a648.json": {
+    "mtime": 1781728219.2134233,
+    "ast_hash": "f01fb8b16a96be08d96a21813a599cb5",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/a587216b609cb95d96f847f57aa839a5.json": {
+    "mtime": 1781727969.3906786,
+    "ast_hash": "72c7979aad6c77029624f35ee31b3ec2",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/a9e5d83aebff5a9e7082755f3f3b138e.json": {
+    "mtime": 1781728121.8668818,
+    "ast_hash": "4cbc0b567eb0c369ec604c06e0f6a16b",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/b25d1513a7f7edbb06fd2a67558d32b8.json": {
+    "mtime": 1781728097.2155814,
+    "ast_hash": "5af399902756f271734b5cf7c3f2b261",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/b2980d0254d3e931b6f9e42255fc9d60.json": {
+    "mtime": 1781728006.9967334,
+    "ast_hash": "5898281574996efd8cce826f9973a5b7",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/b5ab190e8fd07645c774fe8008084d05.json": {
+    "mtime": 1781728066.1184716,
+    "ast_hash": "17eb81e290b96bebc3ca6d401984bd37",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/b729cb683d6ce097df57ab9722182122.json": {
+    "mtime": 1781728172.309101,
+    "ast_hash": "e0fd6a2db258d5eb9b41e2a7c7c25a18",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/b8a6610a7c8da0592d1500db1ceb8592.json": {
+    "mtime": 1781727942.1554499,
+    "ast_hash": "8029997eb24cdcca98658ae87dbfd47a",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/bfb4c89fcf29b08414b64248d195beb3.json": {
+    "mtime": 1781728074.600527,
+    "ast_hash": "8c3908872523e824f607c60dcc45a0b0",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/bfe5a94fda654c1946864d56ad991b66.json": {
+    "mtime": 1781728117.7046685,
+    "ast_hash": "7a55388912c54766e57697134ee03687",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/c01e5ed5b11b30a950adcd80ab660231.json": {
+    "mtime": 1781728029.5741503,
+    "ast_hash": "0e7a0f9ff10894db0b7e79be5445083d",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/c03e8aa87c9dc4294c89d6776c42f9dd.json": {
+    "mtime": 1781727974.5318134,
+    "ast_hash": "4cb6d962eff2436c819084b8e128e151",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/c10942c6428e14dd3c89dedd6f6c15f8.json": {
+    "mtime": 1781728019.3610628,
+    "ast_hash": "22cb694e4371f83525f26c884b963dc3",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/c9620a1f7872b120a0eb7a047bcb8152.json": {
+    "mtime": 1781728161.3384843,
+    "ast_hash": "db227d7266e314a853bfe73341c32a16",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/ca1aed187445bb3b74450c2e9bb8a430.json": {
+    "mtime": 1781728107.4989429,
+    "ast_hash": "fbfc4bb6b2aabe43b6a77e63474c307e",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/caaec207a183c059475b43532c755e62.json": {
+    "mtime": 1781728192.633491,
+    "ast_hash": "e7d1729f61c7eeb93dfdccdaabfe2237",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/cc3b45b483c460311b0879e40139fb95.json": {
+    "mtime": 1781727845.4268599,
+    "ast_hash": "ac0e430da2f92ca081be3887091f8348",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/cd453619e96e6131bcc218952aa19b55.json": {
+    "mtime": 1781727868.5238035,
+    "ast_hash": "41419fe24582f581598b66d81ffd6cd4",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/d1890b228ee243c4dac8fc9fe0e33df4.json": {
+    "mtime": 1781727924.3316793,
+    "ast_hash": "2f744cc9f41b513e35ca8d2dff9834ed",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/d47e4dd8a366fc5a3aa25d4abc3a0616.json": {
+    "mtime": 1781728181.8879685,
+    "ast_hash": "a56c7ee1c301b3e155e58d005524d766",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/d4ff3eef9d5f553c4631baf4dfbc0f18.json": {
+    "mtime": 1781727970.0333204,
+    "ast_hash": "60d27bfd0b15f34f257067edfdc1b617",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/d708a3652fdd9a5d2968af7a641a0db3.json": {
+    "mtime": 1781728085.929557,
+    "ast_hash": "24747928dba1986daddb4d25714028db",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/d7b4254652c603c0728aea9de8f1103e.json": {
+    "mtime": 1781728140.3287704,
+    "ast_hash": "dbdc42b298881b5d486ed74692c896a1",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/d9d0cee0a8900d6079346ff983b7b061.json": {
+    "mtime": 1781727908.6977868,
+    "ast_hash": "7065ac6bd8bb1e7e507da73958a93a9e",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/dd4a4021b86634643c91af1d9d8f3a55.json": {
+    "mtime": 1781728083.9775567,
+    "ast_hash": "896b414906fd1c3aee0f12d564c6b068",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/ddef519e6b5b3dd3aa0f47bb003cead2.json": {
+    "mtime": 1781728215.0701962,
+    "ast_hash": "580c8256e42b8520deeda959b29f2e8e",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/e115c3a015d043cd61ca081de8c14bd9.json": {
+    "mtime": 1781728103.7532623,
+    "ast_hash": "90e0c12e4a0ef482f9ac2090407d2b6d",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/e16b36177fccb9cbc5b3c4088ae6f3d2.json": {
+    "mtime": 1781727951.0786629,
+    "ast_hash": "ebfce15e709f4b1d3f6e530f0d7c9553",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/e1724c09c44339af3c674d66a4d4b5c2.json": {
+    "mtime": 1781728026.2953064,
+    "ast_hash": "058d4b72e537107a503002c443f8ad12",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/e372c6e7dae0205313a8070bcb064d06.json": {
+    "mtime": 1781728197.1559772,
+    "ast_hash": "69fd86a85de95534389b1fbb94579083",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/e3a28a0edc88a638994575bc9086b1b2.json": {
+    "mtime": 1781728193.5574913,
+    "ast_hash": "cf70d8ca0a600923bcae93b02686692b",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/e41ecf5d276ea620ec26d80d496542f8.json": {
+    "mtime": 1781728214.0215294,
+    "ast_hash": "706d3a4bfb450fb5bff508c171d9bb2b",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/e5680bbc55c65f4e609bf443e056779f.json": {
+    "mtime": 1781727978.4904745,
+    "ast_hash": "e5fe995d6fbe2e3b0ff8c701299f0a25",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/e792ccda55b1e24c2e1abc0794648acd.json": {
+    "mtime": 1781727856.3929913,
+    "ast_hash": "becb71111bde29ff5c6d715ec9891d22",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/f2366d6d799a0f98f42b9cc04169f79d.json": {
+    "mtime": 1781727914.3114545,
+    "ast_hash": "04d15b8fe268cf5813ff49cf36b37c02",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/f3a272a30104ea566028fb7624ae4f21.json": {
+    "mtime": 1781727956.5567434,
+    "ast_hash": "147a4244444e93351fcffda24ebb0893",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/f3dfc3613d750065bf1f475efb00e83e.json": {
+    "mtime": 1781727896.31133,
+    "ast_hash": "12ec1a752d7ec51f259d48fae96e5b18",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/f50e941a38f099759b6dd95146ae15d6.json": {
+    "mtime": 1781728095.3323977,
+    "ast_hash": "881eed02ca5e428e88ffbb0d18ac5d60",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/fc2f5294e7fa772ebdf78c7cd8a17ee6.json": {
+    "mtime": 1781728092.955393,
+    "ast_hash": "190b61f11a9a0e934a82eaed22de9ccb",
+    "semantic_hash": ""
+  },
+  "cache/scrape_detail_page/feee1fe079902653176841e90bdbd726.json": {
+    "mtime": 1781727933.2400916,
+    "ast_hash": "add4f9587192f2256a380dcb2770178a",
+    "semantic_hash": ""
+  },
+  "scrapers/discover_propiedades.py": {
+    "mtime": 1781656439.8539574,
+    "ast_hash": "9efb5eacf68274b5012ee252866eb43c",
+    "semantic_hash": ""
+  },
+  "scrapers/easybroker.py": {
+    "mtime": 1781725934.5444915,
+    "ast_hash": "012dd2a1f1f1016a57dab98431a79c41",
+    "semantic_hash": ""
+  },
+  "scrapers/inmuebles24.py": {
+    "mtime": 1781729915.0557108,
+    "ast_hash": "7c97996c36e6c8c018de3226846782b4",
+    "semantic_hash": ""
+  },
+  "scrapers/lamudi.py": {
+    "mtime": 1781676686.8864455,
+    "ast_hash": "80356c39936832f14be347b9e8b597ea",
+    "semantic_hash": ""
+  },
+  "scrapers/propiedadesmx.py": {
+    "mtime": 1781673266.7044392,
+    "ast_hash": "6b0b75f00193536a271f8e565228c062",
+    "semantic_hash": ""
+  },
+  "skills-lock.json": {
+    "mtime": 1781680647.569431,
+    "ast_hash": "e7ad5d25a50685fda47ce8564af09a8d",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/CHANGELOG.md": {
+    "mtime": 1781680647.4937863,
+    "ast_hash": "c2431bd02e1717ed5f6a728643953695",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/SKILL.md": {
+    "mtime": 1781680647.4937863,
+    "ast_hash": "0e31e4a19cccde79afd7fee73982a158",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/_contributing.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "19edd365b47667a9b81108cacfd75775",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/_sections.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "7cc4829a3718c745dfdbec554c30485f",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/_template.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "384ee769a417d3001e81d81b139acbf6",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/advanced-full-text-search.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "f32a27eab306ad2a29db0a2a8a55b03c",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/advanced-jsonb-indexing.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "5b4fbcc451879892d366fa02194bb536",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/conn-idle-timeout.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "c73ea45eecdb007786cd3b3e08e31640",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/conn-limits.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "59025fe12439048e81296f28feca4ce1",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/conn-pooling.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "8561b805a5e0bdfa348840266861de66",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/conn-prepared-statements.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "fe941145678825d273baac1fe66d4dce",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/data-batch-inserts.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "75a4e92f80b90818221fae51f8b994f1",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/data-n-plus-one.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "4fc111bb51121f5181910b3759061ada",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/data-pagination.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "0e9b3211df99b3d35f7083c984b03ccb",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/data-upsert.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "51a26138848f5fec547cd56b9bcb33d4",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/lock-advisory.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "3f3523b7b0a812a6906f92a6610a5a9b",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/lock-deadlock-prevention.md": {
+    "mtime": 1781680647.5013506,
+    "ast_hash": "07eae98867b47074d82528df59d2135e",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/lock-short-transactions.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "aea973297ac14bba2586a2ff57fd8ff7",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/lock-skip-locked.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "26e9bd402801299afce06ee506a9f864",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/monitor-explain-analyze.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "93d5998318098652ac380cd354718924",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/monitor-pg-stat-statements.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "ee51d9586cf18c848563799c14dcc638",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/monitor-vacuum-analyze.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "e3d1e4f8831a37bdb1c7f364b911f7a6",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/query-composite-indexes.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "bd959891036289cfaf3d54e49599b2d0",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/query-covering-indexes.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "5e62afcfe9289405caec1f32f351dd29",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/query-index-types.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "ef0d4ad9d1eb0466a0bde542ade59de2",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/query-missing-indexes.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "1bd5f85a9c930219dd479825986bd6ad",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/query-partial-indexes.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "a6c64f9136f8a7880e53df3e259d90c9",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/schema-constraints.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "e7362385f5b79c28f5e495d7c45a7a52",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/schema-data-types.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "a10f1ec17bd499622d9201af3d00e0d4",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/schema-foreign-key-indexes.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "6bc02b38edd88e56c89bab863f5c789b",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/schema-lowercase-identifiers.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "1df2eae336d542d365f99abdfa968367",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/schema-partitioning.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "e95568857288b614ba0d4b8cd1b4fb72",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/schema-primary-keys.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "63412819d632d8cbe39f14630e5de085",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/security-privileges.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "212beb5d93e7c02cb61c95e117af3aaa",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/security-rls-basics.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "2349e490ff266b1c2b81a2368c054baa",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase-postgres-best-practices/references/security-rls-performance.md": {
+    "mtime": 1781680647.505133,
+    "ast_hash": "6c87b7d050ba714a95a2b88eb0b6caf0",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase/CHANGELOG.md": {
+    "mtime": 1781680647.5543022,
+    "ast_hash": "bd88eabad50a89d284a0f737bda015af",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase/SKILL.md": {
+    "mtime": 1781680647.5543022,
+    "ast_hash": "24a2e7ad2c7e071f98c021cd4c32bccf",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase/assets/feedback-issue-template.md": {
+    "mtime": 1781680647.5543022,
+    "ast_hash": "a38bcf7c09794faf287d91a992830b47",
+    "semantic_hash": ""
+  },
+  ".agents/skills/supabase/references/skill-feedback.md": {
+    "mtime": 1781680647.5543022,
+    "ast_hash": "38a53e95ded880782190ddf2f2810317",
+    "semantic_hash": ""
   }
 }

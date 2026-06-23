@@ -2145,8 +2145,8 @@
     "semantic_hash": "1b3ab1e5202521a44e1fc8ef5c7e35db"
   },
   "output/inmuebles24.json": {
-    "mtime": 1781729520.2020042,
-    "ast_hash": "cc3f04b788a0ef3e526e0e101e096e7c",
+    "mtime": 1781730448.2839699,
+    "ast_hash": "995010b81060b4a6fb94b48ce46b3c40",
     "semantic_hash": ""
   },
   "output/pm_cache.json": {
@@ -2175,8 +2175,8 @@
     "semantic_hash": ""
   },
   "scrapers/normalize.py": {
-    "mtime": 1781725842.7644687,
-    "ast_hash": "28ae2009b8393f8e8d26ee2b86fd139b",
+    "mtime": 1781734162.5554922,
+    "ast_hash": "6c5db4151047b5030accfa53e6c64c14",
     "semantic_hash": ""
   },
   "error_logs/2026-06-16_20-32-01/page.html": {
@@ -2770,8 +2770,8 @@
     "semantic_hash": ""
   },
   "scrapers/inmuebles24.py": {
-    "mtime": 1781729915.0557108,
-    "ast_hash": "7c97996c36e6c8c018de3226846782b4",
+    "mtime": 1781734144.5826614,
+    "ast_hash": "8677fae5d403de9db78b198819cbf5e0",
     "semantic_hash": ""
   },
   "scrapers/lamudi.py": {
@@ -2987,6 +2987,11 @@
   ".agents/skills/supabase/references/skill-feedback.md": {
     "mtime": 1781680647.5543022,
     "ast_hash": "38a53e95ded880782190ddf2f2810317",
+    "semantic_hash": ""
+  },
+  "scrapers/test_inmuebles24.py": {
+    "mtime": 1781734173.177218,
+    "ast_hash": "af15f0c9f69fbefd188121d586747d40",
     "semantic_hash": ""
   }
 }

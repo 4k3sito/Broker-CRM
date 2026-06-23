@@ -57,9 +57,17 @@ function adaptListing(l) {
 }
 
 async function fetchAllListings() {
-  const { data, error } = await db.from('listings').select('*').order('id');
-  if (error) throw new Error(error.message);
-  return data;
+  // PostgREST caps each request at 1000 rows; page through until exhausted.
+  const PAGE = 1000;
+  const all = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db.from('listings').select('*')
+      .order('id').range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    all.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return all;
 }
 
 // ── State ────────────────────────────────────────────────────────────────────

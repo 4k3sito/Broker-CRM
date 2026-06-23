@@ -1,13 +1,18 @@
-# Graph Report - .  (2026-06-17)
+# Graph Report - 4k3sito.github.io  (2026-06-17)
 
 ## Corpus Check
-- 449 files · ~301,370 words
+- 591 files · ~350,976 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3564 nodes · 3221 edges · 481 communities (472 shown, 9 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 26 edges (avg confidence: 0.69)
-- Token cost: 13,200 input · 1,980 output
+- 4500 nodes · 4004 edges · 632 communities (589 shown, 43 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 26 edges (avg confidence: 0.68)
+- Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `8e5e8d37`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_API Backend & Data Import|API Backend & Data Import]]
@@ -479,7 +484,159 @@
 - [[_COMMUNITY_Module Cluster 466|Module Cluster 466]]
 - [[_COMMUNITY_Module Cluster 476|Module Cluster 476]]
 - [[_COMMUNITY_Module Cluster 478|Module Cluster 478]]
+- [[_COMMUNITY_Module Cluster 479|Module Cluster 479]]
 - [[_COMMUNITY_Module Cluster 480|Module Cluster 480]]
+- [[_COMMUNITY_Community 481|Community 481]]
+- [[_COMMUNITY_Community 482|Community 482]]
+- [[_COMMUNITY_Community 483|Community 483]]
+- [[_COMMUNITY_Community 484|Community 484]]
+- [[_COMMUNITY_Community 485|Community 485]]
+- [[_COMMUNITY_Community 486|Community 486]]
+- [[_COMMUNITY_Community 487|Community 487]]
+- [[_COMMUNITY_Community 488|Community 488]]
+- [[_COMMUNITY_Community 489|Community 489]]
+- [[_COMMUNITY_Community 490|Community 490]]
+- [[_COMMUNITY_Community 491|Community 491]]
+- [[_COMMUNITY_Community 492|Community 492]]
+- [[_COMMUNITY_Community 493|Community 493]]
+- [[_COMMUNITY_Community 494|Community 494]]
+- [[_COMMUNITY_Community 495|Community 495]]
+- [[_COMMUNITY_Community 496|Community 496]]
+- [[_COMMUNITY_Community 497|Community 497]]
+- [[_COMMUNITY_Community 498|Community 498]]
+- [[_COMMUNITY_Community 499|Community 499]]
+- [[_COMMUNITY_Community 500|Community 500]]
+- [[_COMMUNITY_Community 501|Community 501]]
+- [[_COMMUNITY_Community 502|Community 502]]
+- [[_COMMUNITY_Community 503|Community 503]]
+- [[_COMMUNITY_Community 504|Community 504]]
+- [[_COMMUNITY_Community 505|Community 505]]
+- [[_COMMUNITY_Community 506|Community 506]]
+- [[_COMMUNITY_Community 507|Community 507]]
+- [[_COMMUNITY_Community 508|Community 508]]
+- [[_COMMUNITY_Community 509|Community 509]]
+- [[_COMMUNITY_Community 510|Community 510]]
+- [[_COMMUNITY_Community 511|Community 511]]
+- [[_COMMUNITY_Community 512|Community 512]]
+- [[_COMMUNITY_Community 513|Community 513]]
+- [[_COMMUNITY_Community 514|Community 514]]
+- [[_COMMUNITY_Community 515|Community 515]]
+- [[_COMMUNITY_Community 516|Community 516]]
+- [[_COMMUNITY_Community 517|Community 517]]
+- [[_COMMUNITY_Community 518|Community 518]]
+- [[_COMMUNITY_Community 519|Community 519]]
+- [[_COMMUNITY_Community 520|Community 520]]
+- [[_COMMUNITY_Community 521|Community 521]]
+- [[_COMMUNITY_Community 522|Community 522]]
+- [[_COMMUNITY_Community 523|Community 523]]
+- [[_COMMUNITY_Community 524|Community 524]]
+- [[_COMMUNITY_Community 525|Community 525]]
+- [[_COMMUNITY_Community 526|Community 526]]
+- [[_COMMUNITY_Community 527|Community 527]]
+- [[_COMMUNITY_Community 528|Community 528]]
+- [[_COMMUNITY_Community 529|Community 529]]
+- [[_COMMUNITY_Community 530|Community 530]]
+- [[_COMMUNITY_Community 531|Community 531]]
+- [[_COMMUNITY_Community 532|Community 532]]
+- [[_COMMUNITY_Community 533|Community 533]]
+- [[_COMMUNITY_Community 534|Community 534]]
+- [[_COMMUNITY_Community 535|Community 535]]
+- [[_COMMUNITY_Community 536|Community 536]]
+- [[_COMMUNITY_Community 537|Community 537]]
+- [[_COMMUNITY_Community 538|Community 538]]
+- [[_COMMUNITY_Community 539|Community 539]]
+- [[_COMMUNITY_Community 540|Community 540]]
+- [[_COMMUNITY_Community 541|Community 541]]
+- [[_COMMUNITY_Community 542|Community 542]]
+- [[_COMMUNITY_Community 543|Community 543]]
+- [[_COMMUNITY_Community 544|Community 544]]
+- [[_COMMUNITY_Community 545|Community 545]]
+- [[_COMMUNITY_Community 546|Community 546]]
+- [[_COMMUNITY_Community 547|Community 547]]
+- [[_COMMUNITY_Community 548|Community 548]]
+- [[_COMMUNITY_Community 549|Community 549]]
+- [[_COMMUNITY_Community 550|Community 550]]
+- [[_COMMUNITY_Community 551|Community 551]]
+- [[_COMMUNITY_Community 552|Community 552]]
+- [[_COMMUNITY_Community 553|Community 553]]
+- [[_COMMUNITY_Community 554|Community 554]]
+- [[_COMMUNITY_Community 555|Community 555]]
+- [[_COMMUNITY_Community 556|Community 556]]
+- [[_COMMUNITY_Community 557|Community 557]]
+- [[_COMMUNITY_Community 558|Community 558]]
+- [[_COMMUNITY_Community 559|Community 559]]
+- [[_COMMUNITY_Community 560|Community 560]]
+- [[_COMMUNITY_Community 561|Community 561]]
+- [[_COMMUNITY_Community 562|Community 562]]
+- [[_COMMUNITY_Community 563|Community 563]]
+- [[_COMMUNITY_Community 564|Community 564]]
+- [[_COMMUNITY_Community 565|Community 565]]
+- [[_COMMUNITY_Community 566|Community 566]]
+- [[_COMMUNITY_Community 567|Community 567]]
+- [[_COMMUNITY_Community 568|Community 568]]
+- [[_COMMUNITY_Community 569|Community 569]]
+- [[_COMMUNITY_Community 570|Community 570]]
+- [[_COMMUNITY_Community 571|Community 571]]
+- [[_COMMUNITY_Community 572|Community 572]]
+- [[_COMMUNITY_Community 573|Community 573]]
+- [[_COMMUNITY_Community 574|Community 574]]
+- [[_COMMUNITY_Community 575|Community 575]]
+- [[_COMMUNITY_Community 576|Community 576]]
+- [[_COMMUNITY_Community 577|Community 577]]
+- [[_COMMUNITY_Community 578|Community 578]]
+- [[_COMMUNITY_Community 579|Community 579]]
+- [[_COMMUNITY_Community 580|Community 580]]
+- [[_COMMUNITY_Community 581|Community 581]]
+- [[_COMMUNITY_Community 582|Community 582]]
+- [[_COMMUNITY_Community 583|Community 583]]
+- [[_COMMUNITY_Community 584|Community 584]]
+- [[_COMMUNITY_Community 585|Community 585]]
+- [[_COMMUNITY_Community 586|Community 586]]
+- [[_COMMUNITY_Community 587|Community 587]]
+- [[_COMMUNITY_Community 588|Community 588]]
+- [[_COMMUNITY_Community 589|Community 589]]
+- [[_COMMUNITY_Community 590|Community 590]]
+- [[_COMMUNITY_Community 591|Community 591]]
+- [[_COMMUNITY_Community 592|Community 592]]
+- [[_COMMUNITY_Community 593|Community 593]]
+- [[_COMMUNITY_Community 594|Community 594]]
+- [[_COMMUNITY_Community 595|Community 595]]
+- [[_COMMUNITY_Community 596|Community 596]]
+- [[_COMMUNITY_Community 597|Community 597]]
+- [[_COMMUNITY_Community 598|Community 598]]
+- [[_COMMUNITY_Community 599|Community 599]]
+- [[_COMMUNITY_Community 600|Community 600]]
+- [[_COMMUNITY_Community 601|Community 601]]
+- [[_COMMUNITY_Community 602|Community 602]]
+- [[_COMMUNITY_Community 603|Community 603]]
+- [[_COMMUNITY_Community 604|Community 604]]
+- [[_COMMUNITY_Community 605|Community 605]]
+- [[_COMMUNITY_Community 606|Community 606]]
+- [[_COMMUNITY_Community 607|Community 607]]
+- [[_COMMUNITY_Community 608|Community 608]]
+- [[_COMMUNITY_Community 609|Community 609]]
+- [[_COMMUNITY_Community 610|Community 610]]
+- [[_COMMUNITY_Community 611|Community 611]]
+- [[_COMMUNITY_Community 612|Community 612]]
+- [[_COMMUNITY_Community 613|Community 613]]
+- [[_COMMUNITY_Community 614|Community 614]]
+- [[_COMMUNITY_Community 615|Community 615]]
+- [[_COMMUNITY_Community 616|Community 616]]
+- [[_COMMUNITY_Community 617|Community 617]]
+- [[_COMMUNITY_Community 618|Community 618]]
+- [[_COMMUNITY_Community 619|Community 619]]
+- [[_COMMUNITY_Community 620|Community 620]]
+- [[_COMMUNITY_Community 621|Community 621]]
+- [[_COMMUNITY_Community 622|Community 622]]
+- [[_COMMUNITY_Community 623|Community 623]]
+- [[_COMMUNITY_Community 624|Community 624]]
+- [[_COMMUNITY_Community 625|Community 625]]
+- [[_COMMUNITY_Community 626|Community 626]]
+- [[_COMMUNITY_Community 627|Community 627]]
+- [[_COMMUNITY_Community 628|Community 628]]
+- [[_COMMUNITY_Community 629|Community 629]]
+- [[_COMMUNITY_Community 630|Community 630]]
+- [[_COMMUNITY_Community 631|Community 631]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `PM-01896213` - 12 edges
@@ -496,14 +653,14 @@
 ## Surprising Connections (you probably didn't know these)
 - `Bot Detection / Anti-Scraping Block Event` --semantically_similar_to--> `PropiedadesMexico.com Scraped Page 1 (Terrenos Monterrey)`  [INFERRED] [semantically similar]
   error_logs/2026-06-16_20-32-01/page.html → output/propiedades_page1.html
-- `get_session()` --calls--> `Session`  [INFERRED]
-  scrapers/db_writer.py → api/main.py
 - `upsert_listing()` --calls--> `Listing`  [INFERRED]
   scrapers/db_writer.py → api/models.py
-- `runActor()` --shares_data_with--> `Listing Data Schema (id, fuente, titulo, precio, direccion, fotos, url, whatsapp)`  [INFERRED]
-  scripts/fetch-apify.js → /home/ake/Proyects/4k3sito.github.io/scripts/apify-actors.config.js
-- `mapListing()` --shares_data_with--> `Listing Data Schema (id, fuente, titulo, precio, direccion, fotos, url, whatsapp)`  [INFERRED]
-  scripts/fetch-easybroker.js → /home/ake/Proyects/4k3sito.github.io/scripts/apify-actors.config.js
+- `OfficeScrapper Single-Page App` --references--> `API Service (FastAPI/Python)`  [INFERRED]
+  index.html → docker-compose.yml
+- `Bot Detection / Anti-Scraping Block Event` --conceptually_related_to--> `FUENTE_CONFIG - Multi-source portal registry`  [INFERRED]
+  error_logs/2026-06-16_20-32-01/page.html → index.html
+- `PropiedadesMexico.com Scraped Page 1 (Terrenos Monterrey)` --references--> `FUENTE_CONFIG - Multi-source portal registry`  [INFERRED]
+  output/propiedades_page1.html → index.html
 
 ## Import Cycles
 - None detected.
@@ -512,15 +669,15 @@
 - **Listing State Management Pipeline** — index_fetch_all_listings, index_adapt_listing, index_render, index_set_state [INFERRED 0.85]
 - **Docker API + DB Backend Stack** — docker_compose_api_service, docker_compose_postgres_service, docker_compose_postgres_data_volume [EXTRACTED 1.00]
 
-## Communities (481 total, 9 thin omitted)
+## Communities (632 total, 43 thin omitted)
 
 ### Community 0 - "API Backend & Data Import"
 Cohesion: 0.07
-Nodes (42): main(), parse_date(), parse_price(), parse_size(), get_listing(), get_listings(), get_sources(), update_listing() (+34 more)
+Nodes (45): main(), parse_date(), parse_price(), parse_size(), get_listing(), get_listings(), get_sources(), update_listing() (+37 more)
 
 ### Community 1 - "Apify Config & Listing Schema"
-Cohesion: 0.11
-Nodes (22): Listing Data Schema (id, fuente, titulo, precio, direccion, fotos, url, whatsapp), mapItem(), str(), ACTORS, { ApifyClient }, client, envFile, fs (+14 more)
+Cohesion: 0.09
+Nodes (37): BeautifulSoup, _collect_from_url(), extract_id(), _go_to_next_page(), is_blocked(), parse_card(), parse_properties(), Driver (+29 more)
 
 ### Community 2 - "Docker Infrastructure & Bot Events"
 Cohesion: 0.11
@@ -528,15 +685,15 @@ Nodes (22): API Service (FastAPI/Python), Output Directory Volume Mount, Postgre
 
 ### Community 3 - "Package Config & Dependencies"
 Cohesion: 0.11
-Nodes (17): author, dependencies, apify-client, description, devDependencies, @types/node, keywords, license (+9 more)
+Nodes (18): author, dependencies, apify-client, @supabase/supabase-js, description, devDependencies, @types/node, keywords (+10 more)
 
 ### Community 4 - "Inmuebles24 Scraper"
-Cohesion: 0.23
-Nodes (14): _collect_from_url(), extract_id(), page_url(), parse_card(), parse_properties(), Driver, Scrape all configured URLs and return a flat list of raw records., run() (+6 more)
+Cohesion: 0.10
+Nodes (19): adaptListing(), clearStreetFilter(), computeFiltered(), db, exportCSV(), fmtPrice(), FUENTE_CONFIG, listings (+11 more)
 
 ### Community 5 - "Lamudi Scraper"
-Cohesion: 0.27
-Nodes (13): _collect_from_url(), _collect_images(), _from_jsonld(), get_next_page_url(), parse_detail_page(), parse_listing_page(), Driver, Run both scraping phases and return the enriched record list. (+5 more)
+Cohesion: 0.12
+Nodes (15): 1. Variables de entorno, 2. Dependencias de Python (scrapers), 3. Dependencias de Node (solo dashboard / servidor de desarrollo), 4k3sito.github.io — Office Tracker, API + Postgres local (opcional), Arquitectura, Componentes, Despliegue (GitHub Pages) (+7 more)
 
 ### Community 6 - "PropiedadesMX Cached Listing"
 Cohesion: 0.17
@@ -707,12 +864,12 @@ Cohesion: 0.22
 Nodes (8): PM-01673958, area, city, id, neighborhood, price, price_per_m2, url
 
 ### Community 48 - "PropiedadesMX Scraper"
-Cohesion: 0.39
-Nodes (8): load_cache(), parse_cards(), Driver, Scrape propiedadesmexico.com and return all cached records., run(), save_cache(), scrape(), scrape_url()
+Cohesion: 0.12
+Nodes (15): 1. Concrete Transformation Patterns, 2. Error-First Structure, 3. Quantified Impact, 4. Self-Contained Examples, 5. Semantic Naming, Code Example Standards, Comments, Impact Level Guidelines (+7 more)
 
 ### Community 49 - "EasyBroker API Scraper"
-Cohesion: 0.52
-Nodes (6): _fetch_all_basics(), _fetch_detail(), _fetch_page(), _get(), easybroker_scraper.py — fetches commercial properties (rent + sale) and land (sa, run()
+Cohesion: 0.15
+Nodes (12): skills, supabase, supabase-postgres-best-practices, computedHash, computedHash, skillPath, source, sourceType (+4 more)
 
 ### Community 50 - "Scraped Detail Page Record"
 Cohesion: 0.29
@@ -2358,25 +2515,497 @@ Nodes (6): description, images, location, name, price, url
 Cohesion: 0.67
 Nodes (4): Mercado Libre Auth Wall Screenshot (Error Log 2026-06-16), Bot Detection / Anti-Scraping Block, Mercado Libre Login / Authentication Wall, Scraper Error Log Session 2026-06-16 20:32:01
 
+### Community 462 - "Module Cluster 462"
+Cohesion: 0.20
+Nodes (9): 1. Query Performance (query), 2. Connection Management (conn), 3. Security & RLS (security), 4. Schema Design (schema), 5. Concurrency & Locking (lock), 6. Data Access Patterns (data), 7. Monitoring & Diagnostics (monitor), 8. Advanced Features (advanced) (+1 more)
+
+### Community 479 - "Module Cluster 479"
+Cohesion: 0.25
+Nodes (7): [0.1.3](https://github.com/supabase/agent-skills/compare/v0.1.2...v0.1.3) (2026-06-02), [0.1.4](https://github.com/supabase/agent-skills/compare/v0.1.3...v0.1.4) (2026-06-05), Bug Fixes, Bug Fixes, Changelog, Features, Features
+
+### Community 481 - "Community 481"
+Cohesion: 0.25
+Nodes (7): [1.2.0](https://github.com/supabase/agent-skills/compare/v1.1.1...v1.2.0) (2026-06-02), [1.3.0](https://github.com/supabase/agent-skills/compare/v1.2.0...v1.3.0) (2026-06-05), Bug Fixes, Bug Fixes, Changelog, Features, Features
+
+### Community 482 - "Community 482"
+Cohesion: 0.25
+Nodes (7): Core Principles, Making and Committing Schema Changes, Reference Guides, Supabase, Supabase CLI, Supabase Documentation, Supabase MCP Server
+
+### Community 483 - "Community 483"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 484 - "Community 484"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 485 - "Community 485"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 486 - "Community 486"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 487 - "Community 487"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 488 - "Community 488"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 489 - "Community 489"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 490 - "Community 490"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 491 - "Community 491"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 492 - "Community 492"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 493 - "Community 493"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 494 - "Community 494"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 495 - "Community 495"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 496 - "Community 496"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 497 - "Community 497"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 498 - "Community 498"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 499 - "Community 499"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 500 - "Community 500"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 501 - "Community 501"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 502 - "Community 502"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 503 - "Community 503"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 504 - "Community 504"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 505 - "Community 505"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 506 - "Community 506"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 507 - "Community 507"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 508 - "Community 508"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 509 - "Community 509"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 510 - "Community 510"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 511 - "Community 511"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 512 - "Community 512"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 513 - "Community 513"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 514 - "Community 514"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 515 - "Community 515"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 516 - "Community 516"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 517 - "Community 517"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 518 - "Community 518"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 519 - "Community 519"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 520 - "Community 520"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 521 - "Community 521"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 522 - "Community 522"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 523 - "Community 523"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 524 - "Community 524"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 525 - "Community 525"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 526 - "Community 526"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 527 - "Community 527"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 528 - "Community 528"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 529 - "Community 529"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 530 - "Community 530"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 531 - "Community 531"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 532 - "Community 532"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 533 - "Community 533"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 534 - "Community 534"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 535 - "Community 535"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 536 - "Community 536"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 537 - "Community 537"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 538 - "Community 538"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 539 - "Community 539"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 540 - "Community 540"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 541 - "Community 541"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 542 - "Community 542"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 543 - "Community 543"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 544 - "Community 544"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 545 - "Community 545"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 546 - "Community 546"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 547 - "Community 547"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 548 - "Community 548"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 549 - "Community 549"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 550 - "Community 550"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 551 - "Community 551"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 552 - "Community 552"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 553 - "Community 553"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 554 - "Community 554"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 555 - "Community 555"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 556 - "Community 556"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 557 - "Community 557"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 558 - "Community 558"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 559 - "Community 559"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 560 - "Community 560"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 561 - "Community 561"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 562 - "Community 562"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 563 - "Community 563"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 564 - "Community 564"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 565 - "Community 565"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 566 - "Community 566"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 567 - "Community 567"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 568 - "Community 568"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 569 - "Community 569"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 570 - "Community 570"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 571 - "Community 571"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 572 - "Community 572"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 573 - "Community 573"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 574 - "Community 574"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 575 - "Community 575"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 576 - "Community 576"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 577 - "Community 577"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 578 - "Community 578"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 579 - "Community 579"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 580 - "Community 580"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 581 - "Community 581"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 582 - "Community 582"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 583 - "Community 583"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 584 - "Community 584"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 585 - "Community 585"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 586 - "Community 586"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 587 - "Community 587"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 588 - "Community 588"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 589 - "Community 589"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 590 - "Community 590"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 591 - "Community 591"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 592 - "Community 592"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 593 - "Community 593"
+Cohesion: 0.29
+Nodes (6): description, images, location, name, price, url
+
+### Community 594 - "Community 594"
+Cohesion: 0.52
+Nodes (6): _fetch_all_basics(), _fetch_detail(), _fetch_page(), _get(), easybroker_scraper.py — fetches commercial properties (rent + sale) and land (sa, run()
+
+### Community 595 - "Community 595"
+Cohesion: 0.33
+Nodes (5): How to Use, References, Rule Categories by Priority, Supabase Postgres Best Practices, When to Apply
+
+### Community 596 - "Community 596"
+Cohesion: 0.50
+Nodes (3): Fix suggestion, Source, What happened
+
 ## Knowledge Gaps
-- **2962 isolated node(s):** `entrypoint.sh script`, `name`, `description`, `price`, `location` (+2957 more)
+- **3722 isolated node(s):** `supabase`, `entrypoint.sh script`, `db`, `STATUSES`, `STATUS_FROM_API` (+3717 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **9 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **43 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `PM-02268575` connect `PropiedadesMX Cached Listing` to `PropiedadesMX Cached Listing`?**
-  _High betweenness centrality (0.003) - this node is a cross-community bridge._
-- **Why does `PM-02269542` connect `PropiedadesMX Cached Listing` to `PropiedadesMX Cached Listing`?**
-  _High betweenness centrality (0.003) - this node is a cross-community bridge._
 - **Why does `PM-02252936` connect `PropiedadesMX Cached Listing` to `PropiedadesMX Cached Listing`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **What connects `Scrape all configured URLs and return a flat list of raw records.`, `entrypoint.sh script`, `name` to the rest of the system?**
-  _2976 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `PM-01896213` connect `PropiedadesMX Cached Listing` to `PropiedadesMX Cached Listing`?**
+  _High betweenness centrality (0.001) - this node is a cross-community bridge._
+- **Why does `PM-01824334` connect `PropiedadesMX Cached Listing` to `PropiedadesMX Cached Listing`?**
+  _High betweenness centrality (0.001) - this node is a cross-community bridge._
+- **What connects `supabase`, `entrypoint.sh script`, `db` to the rest of the system?**
+  _3739 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `API Backend & Data Import` be split into smaller, more focused modules?**
-  _Cohesion score 0.07428571428571429 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07013574660633484 - nodes in this community are weakly interconnected._
 - **Should `Apify Config & Listing Schema` be split into smaller, more focused modules?**
-  _Cohesion score 0.10582010582010581 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09487179487179487 - nodes in this community are weakly interconnected._
 - **Should `Docker Infrastructure & Bot Events` be split into smaller, more focused modules?**
   _Cohesion score 0.11255411255411256 - nodes in this community are weakly interconnected._

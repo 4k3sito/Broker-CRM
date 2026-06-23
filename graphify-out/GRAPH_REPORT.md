@@ -1,16 +1,16 @@
 # Graph Report - 4k3sito.github.io  (2026-06-17)
 
 ## Corpus Check
-- 591 files · ~350,976 words
+- 592 files · ~312,385 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4500 nodes · 4004 edges · 632 communities (589 shown, 43 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 26 edges (avg confidence: 0.68)
+- 4519 nodes · 4043 edges · 637 communities (594 shown, 43 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 29 edges (avg confidence: 0.69)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8e5e8d37`
+- Built from commit: `2e9db6fd`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -637,18 +637,23 @@
 - [[_COMMUNITY_Community 629|Community 629]]
 - [[_COMMUNITY_Community 630|Community 630]]
 - [[_COMMUNITY_Community 631|Community 631]]
+- [[_COMMUNITY_Community 632|Community 632]]
+- [[_COMMUNITY_Community 633|Community 633]]
+- [[_COMMUNITY_Community 634|Community 634]]
+- [[_COMMUNITY_Community 635|Community 635]]
+- [[_COMMUNITY_Community 636|Community 636]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `PM-01896213` - 12 edges
-2. `PM-02199344` - 12 edges
-3. `PM-02192048` - 12 edges
-4. `PM-02266681` - 12 edges
-5. `PM-02252936` - 12 edges
-6. `PM-00642535` - 12 edges
-7. `PM-01824334` - 12 edges
-8. `PM-01931558` - 12 edges
-9. `PM-02268575` - 12 edges
-10. `PM-02158237` - 12 edges
+1. `parse_detail()` - 13 edges
+2. `PM-01896213` - 12 edges
+3. `PM-02199344` - 12 edges
+4. `PM-02192048` - 12 edges
+5. `PM-02266681` - 12 edges
+6. `PM-02252936` - 12 edges
+7. `PM-00642535` - 12 edges
+8. `PM-01824334` - 12 edges
+9. `PM-01931558` - 12 edges
+10. `PM-02268575` - 12 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Bot Detection / Anti-Scraping Block Event` --semantically_similar_to--> `PropiedadesMexico.com Scraped Page 1 (Terrenos Monterrey)`  [INFERRED] [semantically similar]
@@ -669,15 +674,15 @@
 - **Listing State Management Pipeline** — index_fetch_all_listings, index_adapt_listing, index_render, index_set_state [INFERRED 0.85]
 - **Docker API + DB Backend Stack** — docker_compose_api_service, docker_compose_postgres_service, docker_compose_postgres_data_volume [EXTRACTED 1.00]
 
-## Communities (632 total, 43 thin omitted)
+## Communities (637 total, 43 thin omitted)
 
 ### Community 0 - "API Backend & Data Import"
-Cohesion: 0.07
-Nodes (45): main(), parse_date(), parse_price(), parse_size(), get_listing(), get_listings(), get_sources(), update_listing() (+37 more)
+Cohesion: 0.19
+Nodes (17): main(), parse_date(), parse_price(), parse_size(), get_listing(), get_listings(), get_sources(), update_listing() (+9 more)
 
 ### Community 1 - "Apify Config & Listing Schema"
-Cohesion: 0.09
-Nodes (37): BeautifulSoup, _collect_from_url(), extract_id(), _go_to_next_page(), is_blocked(), parse_card(), parse_properties(), Driver (+29 more)
+Cohesion: 0.27
+Nodes (13): _collect_from_url(), _collect_images(), _from_jsonld(), get_next_page_url(), parse_detail_page(), parse_listing_page(), Driver, Run both scraping phases and return the enriched record list. (+5 more)
 
 ### Community 2 - "Docker Infrastructure & Bot Events"
 Cohesion: 0.11
@@ -2987,6 +2992,26 @@ Nodes (5): How to Use, References, Rule Categories by Priority, Supabase Postgre
 Cohesion: 0.50
 Nodes (3): Fix suggestion, Source, What happened
 
+### Community 632 - "Community 632"
+Cohesion: 0.16
+Nodes (24): BeautifulSoup, collect_listing_urls(), _collect_urls_from_source(), _extract_features(), _extract_gallery_images(), _extract_listing_urls(), _go_to_next_page(), is_blocked() (+16 more)
+
+### Community 633 - "Community 633"
+Cohesion: 0.19
+Nodes (14): Client, main(), scrape_all.py — unified runner for all property scrapers.  Usage:     python scr, run_scraper(), ensure_schema(), _get_client(), Upsert normalized listing records into Supabase.  Matches on (source, external_i, Upsert a list of normalized records. Returns (inserted, updated) counts. (+6 more)
+
+### Community 634 - "Community 634"
+Cohesion: 0.24
+Nodes (14): date_type, _id_from_url(), normalize_easybroker(), normalize_inmuebles24(), normalize_lamudi(), normalize_mercadolibre(), normalize_propiedadesmexico(), _parse_date() (+6 more)
+
+### Community 635 - "Community 635"
+Cohesion: 0.18
+Nodes (10): parse_price_value(), parse_publisher_codes(), parse_type_and_size(), Terreno / Lote · 1472m²' -> ('Terreno / Lote', 1472.0)., venta MN 12,800,000' -> ('sale', 12800000.0, 'MXN')., ...anunciante: 64L97GCód. Inmuebles24: 149615326' -> ('64L97G', '149615326')., Pruebas de las funciones puras de parseo de inmuebles24.  Ejecuta:     python sc, test_parse_price_value() (+2 more)
+
+### Community 636 - "Community 636"
+Cohesion: 0.39
+Nodes (8): load_cache(), parse_cards(), Driver, Scrape propiedadesmexico.com and return all cached records., run(), save_cache(), scrape(), scrape_url()
+
 ## Knowledge Gaps
 - **3722 isolated node(s):** `supabase`, `entrypoint.sh script`, `db`, `STATUSES`, `STATUS_FROM_API` (+3717 more)
   These have ≤1 connection - possible missing edges or undocumented components.
@@ -3002,10 +3027,10 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `PM-01824334` connect `PropiedadesMX Cached Listing` to `PropiedadesMX Cached Listing`?**
   _High betweenness centrality (0.001) - this node is a cross-community bridge._
 - **What connects `supabase`, `entrypoint.sh script`, `db` to the rest of the system?**
-  _3739 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `API Backend & Data Import` be split into smaller, more focused modules?**
-  _Cohesion score 0.07013574660633484 - nodes in this community are weakly interconnected._
-- **Should `Apify Config & Listing Schema` be split into smaller, more focused modules?**
-  _Cohesion score 0.09487179487179487 - nodes in this community are weakly interconnected._
+  _3746 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Docker Infrastructure & Bot Events` be split into smaller, more focused modules?**
   _Cohesion score 0.11255411255411256 - nodes in this community are weakly interconnected._
+- **Should `Package Config & Dependencies` be split into smaller, more focused modules?**
+  _Cohesion score 0.10526315789473684 - nodes in this community are weakly interconnected._
+- **Should `Inmuebles24 Scraper` be split into smaller, more focused modules?**
+  _Cohesion score 0.09846153846153846 - nodes in this community are weakly interconnected._

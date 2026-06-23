@@ -90,10 +90,14 @@ def normalize_inmuebles24(record: dict) -> dict:
     features = record.get("features") or []
     country_obj = record.get("countryOfOrigin")
     country = country_obj.get("name") if isinstance(country_obj, dict) else None
-    image = record.get("image")
+
+    # Fase 2 entrega lista completa de fotos; el listado viejo solo traía 1.
+    images = record.get("images") or ([record["image"]] if record.get("image") else [])
+    image = images[0] if images else None
 
     return {
-        "external_id": _id_from_url(url) or url,
+        # platform_code = "Cód. Inmuebles24"; es el mismo id que va en la URL.
+        "external_id": record.get("platform_code") or _id_from_url(url) or url,
         "source": "inmuebles24",
         "url": url,
         "title": None,
@@ -110,12 +114,12 @@ def normalize_inmuebles24(record: dict) -> dict:
         "neighborhood": None,
         "country": country,
         "image": image,
-        "images": [image] if image else [],
+        "images": images,
         "whatsapp": None,
         "maps_url": None,
         "publisher_logo": record.get("publisher_logo"),
         "features": features,
-        "property_size_m2": _parse_size_from_features(features),
+        "property_size_m2": record.get("property_size_m2") or _parse_size_from_features(features),
         "date_posted": _parse_date(record.get("datePosted")),
         "scraped_at": datetime.utcnow(),
     }

@@ -169,10 +169,34 @@ desde la copia que lo tenga). El estado de usuario debe preservarse al deduplica
 
 ## Notas de scraping (antibot)
 
-- **inmuebles24** (Cloudflare). El scraper **no** construye URLs `-pagina-N.html` ni navega
-  directo a páginas profundas, porque ese salto dispara el antibot. En vez de eso carga la
-  primera página una vez (`driver.get`), hace scroll y avanza dando **click en el botón
-  "Siguiente"** (`[data-qa="PAGING_NEXT"]`, con fallback al enlace con texto `Siguiente`),
-  imitando a un usuario real. La paginación termina cuando ya no hay botón "Siguiente" o
-  cuando una página solo trae IDs ya vistos (deduplicación). En caso de bloqueo se hace
-  `driver.reload()` de la página actual, nunca un salto por URL.
+- **inmuebles24** (Cloudflare). Construido con **Botasaurus** (`@browser`) + BeautifulSoup,
+  en **dos fases** (`scrapers/inmuebles24.py`):
+
+  1. **Fase 1 — `collect_listing_urls()`**: pagina los listados y recolecta **solo las URLs**
+     de las propiedades. **No** construye URLs `-pagina-N.html` ni navega directo a páginas
+     profundas (eso dispara el antibot): carga la primera página con `driver.google_get(...,
+     bypass_cloudflare=True)`, hace scroll y avanza dando **click en "Siguiente"**
+     (`[data-qa="PAGING_NEXT"]`, con fallback al enlace con texto `Siguiente`), como un
+     usuario real. Termina cuando no hay botón "Siguiente" o una página no trae URLs nuevas
+     (deduplicación). Ante bloqueo: `driver.reload()`, nunca un salto por URL.
+  2. **Fase 2 — `scrape_detail_page(urls)`**: se llama con la **lista** de URLs, así Botasaurus
+     itera por elemento con **caché por-URL** (`cache=True` → `cache/scrape_detail_page/`),
+     reintentos (`max_retry=5`) y reuso del navegador. Extrae el detalle completo (galería de
+     imágenes, tipo/tamaño, precio/operación, ubicación, descripción, features y los códigos
+     de anunciante/Inmuebles24).
+
+- **Selectores resilientes**: las páginas de detalle usan **CSS Modules con hash por build**
+  (p. ej. `imageGrid-module__mainContainer___3KfO_`). El hash cambia en cada despliegue, así
+  que el scraper hace match por **prefijo de clase** (`[class*="..."]`), no por la clase
+  completa.
+- **`platform_code`** ("Cód. Inmuebles24") se usa como `external_id` en la BD. `advertiser_code`
+  se conserva en el JSON crudo (`output/inmuebles24.json`) pero **no** se sube a Supabase
+  (no existe columna para él).
+- **Modo del navegador**: `HEADLESS = False` por defecto (Botasaurus evade mejor el antibot en
+  headful). En un servidor sin display o WSL sin WSLg, pon `HEADLESS = True` en el scraper.
+- **Funciones de parseo puras** (`parse_type_and_size`, `parse_price_value`,
+  `parse_publisher_codes`) están aisladas y probadas en `scrapers/test_inmuebles24.py`:
+
+  ```bash
+  python scrapers/test_inmuebles24.py     # sin dependencias extra (o `pytest` si lo tienes)
+  ```
