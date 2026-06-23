@@ -1,2 +1,0 @@
-[console_scripts]
-scrapling = scrapling.cli:main
