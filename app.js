@@ -18,6 +18,7 @@ const FUENTE_CONFIG = {
 
 let listings      = [];
 let listingsMap   = {};
+let currentUser   = null;
 let filterStatus  = 'Todos';
 let filterFuente  = 'all';
 let filterStarred = false;
@@ -42,6 +43,7 @@ function adaptListing(l) {
   return {
     id:       l.id,
     fuente:   l.source ?? 'desconocido',
+    codigo:   l.external_id ?? null,
     titulo:   l.title  ?? l.broker_name ?? null,
     direccion: parseLocation(l.location) ?? l.neighborhood ?? null,
     precio:   l.price_numeric != null
@@ -70,35 +72,63 @@ async function fetchAllListings() {
   return all;
 }
 
-// ── State ────────────────────────────────────────────────────────────────────
+// ── Per-user state ─────────────────────────────────────────────────────────────
+
+// Overlay this user's saved status/starred/notes onto the loaded listings.
+async function loadUserState() {
+  // reset to defaults (handles logout too)
+  for (const l of listings) { l.status = 'Nuevo'; l.starred = false; l.notes = ''; }
+  if (!currentUser) return;
+  const { data, error } = await db.from('user_listing')
+    .select('listing_id,status,starred,notes').eq('user_id', currentUser.id);
+  if (error) { console.warn('Carga de estado falló:', error.message); return; }
+  for (const r of data) {
+    const l = listingsMap[r.listing_id];
+    if (!l) continue;
+    l.status  = STATUS_FROM_API[r.status] ?? 'Nuevo';
+    l.starred = r.starred ?? false;
+    l.notes   = r.notes ?? '';
+  }
+}
 
 function setState(id, patch) {
   const l = listingsMap[id];
   if (!l) return;
+  if (!currentUser) { alert('Inicia sesión para guardar notas y favoritos.'); return; }
   if (patch.status  !== undefined) l.status  = patch.status;
   if (patch.starred !== undefined) l.starred = patch.starred;
   if (patch.notes   !== undefined) l.notes   = patch.notes;
 
-  const dbPatch = {};
-  if (patch.status  !== undefined) dbPatch.status  = STATUS_TO_API[patch.status] ?? patch.status;
-  if (patch.starred !== undefined) dbPatch.starred = patch.starred;
-  if (patch.notes   !== undefined) dbPatch.notes   = patch.notes;
-
-  db.from('listings').update(dbPatch).eq('id', id)
-    .then(({ error }) => { if (error) console.warn('Update failed:', error.message); });
+  // One row per (user, listing); upsert merges with what's already there.
+  db.from('user_listing').upsert({
+    user_id:    currentUser.id,
+    listing_id: id,
+    status:     STATUS_TO_API[l.status] ?? l.status,
+    starred:    l.starred,
+    notes:      l.notes,
+    updated_at: new Date().toISOString(),
+  }).then(({ error }) => { if (error) console.warn('Update failed:', error.message); });
 }
 
 // ── Filters ──────────────────────────────────────────────────────────────────
 
+// Compara sin acentos ni mayúsculas; exige que TODAS las palabras del query
+// aparezcan (orden libre). Cubre "san pedro garcia" → "San Pedro Garza García".
+const norm = s => (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function matchesText(haystack, query) {
+  const h = norm(haystack);
+  return norm(query).split(/\s+/).filter(Boolean).every(t => h.includes(t));
+}
+console.assert(matchesText('San Pedro Garza García', 'san pedro garcia'), 'matchesText: acentos/orden');
+console.assert(!matchesText('Centro, Monterrey', 'san pedro'), 'matchesText: no falso positivo');
+
 function computeFiltered() {
-  const q = searchQ.toLowerCase();
   return listings.filter(l => {
     if (filterStatus !== 'Todos' && l.status  !== filterStatus) return false;
     if (filterFuente !== 'all'   && l.fuente  !== filterFuente) return false;
     if (filterStarred && !l.starred) return false;
-    if (searchStreet && !(l.direccion ?? '').toLowerCase().includes(searchStreet.toLowerCase())) return false;
-    if (q && !(l.direccion ?? '').toLowerCase().includes(q) &&
-             !(l.titulo    ?? '').toLowerCase().includes(q)) return false;
+    if (searchStreet && !matchesText(l.direccion, searchStreet)) return false;
+    if (searchQ && !matchesText(l.direccion, searchQ) && !matchesText(l.titulo, searchQ)) return false;
     return true;
   });
 }
@@ -135,8 +165,7 @@ function buildLocationIndex(data) {
 function renderSuggestions(q) {
   const box = document.getElementById('searchSuggestions');
   if (q.length < 2 || searchStreet) { box.classList.remove('open'); return; }
-  const ql = q.toLowerCase();
-  const matches = locationIndex.filter(s => s.text.toLowerCase().includes(ql)).slice(0, 8);
+  const matches = locationIndex.filter(s => matchesText(s.text, q)).slice(0, 8);
   if (!matches.length) { box.classList.remove('open'); return; }
   box.innerHTML =
     '<div class="suggestions-header"><span>Ubicaciones</span></div>' +
@@ -218,7 +247,8 @@ function renderCard(l, i) {
           ${l.direccion ? `<div class="card-location">${l.direccion}</div>` : ''}
         </div>
         <div class="card-links">
-          ${l.url      ? `<a href="${l.url}" class="card-link" target="_blank" rel="noopener">Ver listing ${ICON_EXTERNAL}</a>` : ''}
+          ${l.url      ? `<a href="${l.url}" class="card-link" target="_blank" rel="noopener">Ver listing ${ICON_EXTERNAL}</a>`
+            : (l.fuente === 'easybroker' && l.codigo ? `<span class="card-link" title="Búscalo en EasyBroker por este código">ID ${l.codigo}</span>` : '')}
           ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="card-link wa" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
         </div>
       </div>
@@ -347,14 +377,40 @@ document.getElementById('searchSuggestions').addEventListener('mousedown', e => 
 document.getElementById('searchChipClose').addEventListener('click', clearStreetFilter);
 document.getElementById('export-btn').addEventListener('click', exportCSV);
 
+// ── Auth (Supabase magic link — registro y login en un solo flujo) ─────────────
+
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const email = document.getElementById('authEmail').value.trim();
+  if (!email) return;
+  const { error } = await db.auth.signInWithOtp({ email });
+  alert(error ? 'Error: ' + error.message
+              : 'Te enviamos un enlace de acceso a ' + email + '. Revísalo para entrar.');
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => db.auth.signOut());
+
+// Single source of truth: react to whatever auth state Supabase reports.
+db.auth.onAuthStateChange((_event, session) => {
+  currentUser = session?.user ?? null;
+  document.getElementById('authBox').hidden = !!currentUser;
+  document.getElementById('userBox').hidden = !currentUser;
+  if (currentUser) document.getElementById('userEmail').textContent = currentUser.email;
+  // ponytail: setTimeout libera el lock de auth; llamar db.from(...) aquí dentro
+  // deadlockea el cliente supabase-js (gotcha documentado).
+  if (listings.length) setTimeout(() => loadUserState().then(render), 0);
+});
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 fetchAllListings()
-  .then(raw => {
+  .then(async raw => {
     listings = raw.map(adaptListing);
     listingsMap = Object.fromEntries(listings.map(l => [l.id, l]));
     buildLocationIndex(listings);
     buildFuenteFilters(listings);
+    const { data } = await db.auth.getSession();
+    currentUser = data.session?.user ?? null;
+    await loadUserState();
     render();
   })
   .catch(err => {
