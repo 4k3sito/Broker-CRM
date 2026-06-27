@@ -1,0 +1,107 @@
+// ─────────────────────────────────────────────────────────────
+// Prisma schema for 4k3sito.github.io
+// PostGIS + Supabase (direct + pgbouncer connections)
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Raw scraped data ────────────────────────────────────────
+
+model RawListing {
+  id         String   @id @default(cuid())
+  source_url String   @unique
+  source     String
+  raw_data   Json     @default("{}")
+  status     String   @default("pending") // pending | processing | completed | failed
+  error      String?
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  property Property?
+}
+
+// ── Normalized property ─────────────────────────────────────
+
+model Property {
+  id           String   @id @default(cuid())
+  listing_id   String?  @unique
+  title        String
+  price        Float
+  currency     String   @default("MXN")
+  price_per_m2 Float?
+  area_m2      Float?
+  bedrooms     Int?
+  bathrooms    Int?
+  description  String?
+  location     Unsupported("geometry(Point, 4326)")?
+  address      String?
+  city         String   @default("Monterrey")
+  images       Json     @default("[]")
+  status       String   @default("new") // new | reviewed | contacted | rented | discarded
+  source_url   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  rawListing     RawListing?     @relation(fields: [listing_id], references: [id])
+  playlistItems  PlaylistItem[]
+  notes          Note[]
+}
+
+// ── User ─────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password_hash String
+  name          String?
+  createdAt     DateTime @default(now())
+
+  playlists Playlist[]
+  notes     Note[]
+}
+
+// ── Playlist (user-curated property collections) ────────────
+
+model Playlist {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User            @relation(fields: [userId], references: [id])
+  items PlaylistItem[]
+}
+
+model PlaylistItem {
+  id         String @id @default(cuid())
+  playlistId String
+  propertyId String
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+// ── Note (user notes on a property) ─────────────────────────
+
+model Note {
+  id         String   @id @default(cuid())
+  content    String
+  propertyId String
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+}
