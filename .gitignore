@@ -4,15 +4,6 @@
 
 # Variables de entorno (API keys)
 .env
-.env.local
-
-# Python virtual env
-.venv/
-__pycache__/
-*.pyc
-
-# Claude Code memories
-.hermes.md
 
 # Playwright
 node_modules/
@@ -21,16 +12,3 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
-
-# Next.js
-.next/
-
-# Prisma
-prisma/migrations/
-
-# Scraper output
-scraper/dlq/
-scraper/storage/
-
-# Old Python env
-scrape-env/
