@@ -3,16 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OfficeScrapper</title>
+<title>OfficeLab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <!-- TOPBAR -->
 <header class="topbar">
-  <div class="brand">Office<span>Scrapper</span></div>
+  <div class="brand-group">
+    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" class="brand-mark">
+      <rect x="2.5" y="2.5" width="27" height="27" rx="6" stroke="var(--accent)" stroke-width="2.2"/>
+      <rect x="9" y="9" width="14" height="14" rx="2.5" fill="var(--accent)"/>
+      <rect x="13.5" y="13.5" width="5" height="5" rx="1" fill="var(--topbar)"/>
+    </svg>
+    <div class="brand-text">
+      <div class="brand">Office<span>Lab</span></div>
+      <div class="brand-sub">Monterrey &middot; CRE Tracker</div>
+    </div>
+  </div>
   <div class="topbar-search">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
     <div class="search-box">
@@ -28,16 +39,16 @@
   <div class="topbar-right">
     <span id="authBox">
       <input id="authEmail" type="email" placeholder="tu@correo.com" />
-      <button class="btn-csv" id="login-btn">Entrar</button>
+      <button class="btn-outline" id="login-btn">Entrar</button>
     </span>
     <span id="userBox" hidden>
       <span class="count-tag" id="userEmail"></span>
-      <button class="btn-csv" id="logout-btn">Salir</button>
+      <button class="btn-outline" id="logout-btn">Salir</button>
     </span>
-    <span class="count-tag"><strong id="countNum">0</strong> de <strong id="countTotal">0</strong> listings</span>
+    <span class="count-tag"><strong id="countNum">0</strong> / <strong id="countTotal">0</strong></span>
     <button class="btn-csv" id="export-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar CSV
+      CSV
     </button>
   </div>
 </header>
@@ -46,18 +57,35 @@
 <nav class="filterbar" id="filterbar">
   <div class="filter-group">
     <span class="filter-group-label">Estado</span>
-    <button class="pill active" data-group="status" data-val="Todos">Todos</button>
-    <button class="pill" data-group="status" data-val="Nuevo">Nuevo</button>
-    <button class="pill" data-group="status" data-val="Revisado">Revisado</button>
-    <button class="pill" data-group="status" data-val="Contactado">Contactado</button>
-    <button class="pill" data-group="status" data-val="Rentado">Rentado</button>
-    <button class="pill" data-group="status" data-val="Descartado">Descartado</button>
+    <button class="pill active" data-group="status" data-val="Todos">Todos<span class="pill-count"></span></button>
+    <button class="pill" data-group="status" data-val="Nuevo">Nuevo<span class="pill-count"></span></button>
+    <button class="pill" data-group="status" data-val="Revisado">Revisado<span class="pill-count"></span></button>
+    <button class="pill" data-group="status" data-val="Contactado">Contactado<span class="pill-count"></span></button>
+    <button class="pill" data-group="status" data-val="Rentado">Rentado<span class="pill-count"></span></button>
+    <button class="pill" data-group="status" data-val="Descartado">Descartado<span class="pill-count"></span></button>
   </div>
   <div class="filter-group" id="fuente-group"></div>
   <div class="filter-group">
     <button class="pill" data-group="starred" data-val="Destacados">&#9733; Destacados</button>
+    <button class="pill pill-dashed" id="price-toggle">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 7V3M20 21v-5M20 11V3M2 14h4M10 7h4M18 13h4"/></svg>
+      Precio
+    </button>
   </div>
 </nav>
+
+<!-- ADVANCED PANEL -->
+<div class="advpanel" id="advPanel" hidden>
+  <div>
+    <div class="advpanel-label">Precio mensual (MXN)</div>
+    <div class="advpanel-row">
+      <input type="number" id="priceMin" placeholder="M&#237;n" class="price-input">
+      <span class="advpanel-sep">&mdash;</span>
+      <input type="number" id="priceMax" placeholder="M&#225;x" class="price-input">
+    </div>
+  </div>
+  <button class="btn-clear" id="price-clear">Limpiar</button>
+</div>
 
 <!-- STATS BAR -->
 <div class="statsbar" id="statsBar"></div>

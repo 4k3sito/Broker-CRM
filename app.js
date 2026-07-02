@@ -16,6 +16,17 @@ const FUENTE_CONFIG = {
   propiedadesmexico: { label: 'PropMX',        badge: 'pmx'    },
 };
 
+const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
+
+const TONES = [
+  'linear-gradient(135deg,#A9B6B0,#C8C2B2)',
+  'linear-gradient(135deg,#B7AE9E,#9FA9A6)',
+  'linear-gradient(135deg,#9CABB4,#BEB6A6)',
+  'linear-gradient(135deg,#BDB1A0,#A6AD99)',
+  'linear-gradient(135deg,#A4B0AE,#C5BBA8)',
+  'linear-gradient(135deg,#B0A898,#98A7A4)',
+];
+
 let listings      = [];
 let listingsMap   = {};
 let currentUser   = null;
@@ -25,6 +36,9 @@ let filterStarred = false;
 let searchQ       = '';
 let searchStreet  = '';
 let locationIndex = [];
+let priceMin      = '';
+let priceMax      = '';
+let filtersOpen   = false;
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +69,9 @@ function adaptListing(l) {
     status:   STATUS_FROM_API[l.status] ?? 'Nuevo',
     starred:  l.starred ?? false,
     notes:    l.notes   ?? '',
+    tipo:       l.property_type ?? null,
+    size:       l.property_size_m2 ?? null,
+    transaccion: TXN_FROM_API[l.transaction_type] ?? 'Renta',
   };
 }
 
@@ -122,15 +139,19 @@ function matchesText(haystack, query) {
 console.assert(matchesText('San Pedro Garza García', 'san pedro garcia'), 'matchesText: acentos/orden');
 console.assert(!matchesText('Centro, Monterrey', 'san pedro'), 'matchesText: no falso positivo');
 
+function passesExcept(l, exclude) {
+  if (exclude !== 'status'  && filterStatus !== 'Todos' && l.status !== filterStatus) return false;
+  if (exclude !== 'source'  && filterFuente !== 'all'   && l.fuente !== filterFuente) return false;
+  if (exclude !== 'starred' && filterStarred && !l.starred) return false;
+  if (searchStreet && !matchesText(l.direccion, searchStreet)) return false;
+  if (searchQ && !matchesText(l.direccion, searchQ) && !matchesText(l.titulo, searchQ)) return false;
+  if (priceMin !== '' && (l.precio?.monto ?? 0) < Number(priceMin)) return false;
+  if (priceMax !== '' && (l.precio?.monto ?? Infinity) > Number(priceMax)) return false;
+  return true;
+}
+
 function computeFiltered() {
-  return listings.filter(l => {
-    if (filterStatus !== 'Todos' && l.status  !== filterStatus) return false;
-    if (filterFuente !== 'all'   && l.fuente  !== filterFuente) return false;
-    if (filterStarred && !l.starred) return false;
-    if (searchStreet && !matchesText(l.direccion, searchStreet)) return false;
-    if (searchQ && !matchesText(l.direccion, searchQ) && !matchesText(l.titulo, searchQ)) return false;
-    return true;
-  });
+  return listings.filter(l => passesExcept(l, null));
 }
 
 function buildFuenteFilters(data) {
@@ -212,20 +233,23 @@ function fmtPrice(precio) {
 const ICON_EXTERNAL = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 const ICON_BUILDING = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21V7l9-4 9 4v14"/><polyline points="9 22 9 12 15 12 15 22"/><path d="M3 7h18"/></svg>`;
 
+const ICON_PIN = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+
 function renderCard(l, i) {
   const cfg    = FUENTE_CONFIG[l.fuente];
   const badge  = cfg?.badge  ?? 'other';
   const blabel = (cfg?.label ?? l.fuente).toUpperCase();
   const p      = fmtPrice(l.precio);
   const photo  = l.fotos?.[0] ?? null;
+  const ppm    = (l.precio?.monto && l.size) ? `$${Math.round(l.precio.monto / l.size).toLocaleString('es-MX')} / m²` : '';
 
   const imgHtml = photo
     ? `<img src="${photo}" alt="foto" loading="lazy">`
-    : `<div class="card-img-placeholder">${ICON_BUILDING}</div>`;
+    : `<div class="card-img-placeholder" style="background:${TONES[i % TONES.length]}">${ICON_BUILDING}</div>`;
 
   const priceHtml = p
     ? `<div class="card-price">$${p.n}<span class="currency">${p.curr}/mes</span></div>`
-    : `<div class="card-price"><span class="no-price">Precio no indicado</span></div>`;
+    : `<div class="card-price"><span class="no-price">Sin precio</span></div>`;
 
   const statusOptions = STATUSES.map(st =>
     `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`
@@ -235,6 +259,8 @@ function renderCard(l, i) {
     <div class="card-img">
       ${imgHtml}
       <span class="badge-src ${badge}">${blabel}</span>
+      <span class="badge-fotos">FOTO 1/${l.fotos.length || 1}</span>
+      ${l.size ? `<span class="badge-size">${l.size} m²</span>` : ''}
       <button class="btn-star ${l.starred ? 'on' : 'off'}" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">
         ${l.starred ? '&#9733;' : '&#9734;'}
       </button>
@@ -243,16 +269,26 @@ function renderCard(l, i) {
       <div class="card-top">
         <div>
           ${priceHtml}
-          ${l.titulo    ? `<div class="card-title">${l.titulo}</div>`       : ''}
-          ${l.direccion ? `<div class="card-location">${l.direccion}</div>` : ''}
+          ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
         </div>
         <div class="card-links">
-          ${l.url      ? `<a href="${l.url}" class="card-link" target="_blank" rel="noopener">Ver listing ${ICON_EXTERNAL}</a>`
+          ${l.url      ? `<a href="${l.url}" class="card-link" target="_blank" rel="noopener">Ver ${ICON_EXTERNAL}</a>`
             : (l.fuente === 'easybroker' && l.codigo ? `<span class="card-link" title="Búscalo en EasyBroker por este código">ID ${l.codigo}</span>` : '')}
           ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="card-link wa" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
         </div>
       </div>
-      <select class="status-select s-${l.status}">${statusOptions}</select>
+      ${l.titulo    ? `<div class="card-title">${l.titulo}</div>`       : ''}
+      ${l.direccion ? `<div class="card-location">${ICON_PIN}${l.direccion}</div>` : ''}
+      <div class="card-tags">
+        ${l.tipo ? `<span class="tag-tipo">${l.tipo}</span>` : ''}
+        <span class="tag-txn">${l.transaccion}</span>
+        ${l.codigo ? `<span class="tag-code">${l.codigo}</span>` : ''}
+      </div>
+      <div class="card-divider"></div>
+      <div class="card-status-row">
+        <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
+        <select class="status-select s-${l.status}">${statusOptions}</select>
+      </div>
       <textarea class="notes-area" placeholder="Agregar notas&#8230;">${l.notes}</textarea>
     </div>
   </article>`;
@@ -264,15 +300,24 @@ function renderStats(filtered) {
   filtered.forEach(l => { if (counts[l.status] !== undefined) counts[l.status]++; });
   const stars = filtered.filter(l => l.starred).length;
   document.getElementById('statsBar').innerHTML = `
-    <div class="stat-item"><span class="stat-num">${filtered.length}</span><span class="stat-label">listados</span></div>
-    <div class="statsbar-sep"></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-nuevo-c)">${counts['Nuevo']}</span><span class="stat-label">nuevos</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-revisado-c)">${counts['Revisado']}</span><span class="stat-label">revisados</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-contactado-c)">${counts['Contactado']}</span><span class="stat-label">contactados</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-rentado-c)">${counts['Rentado']}</span><span class="stat-label">rentados</span></div>
-    <div class="statsbar-sep"></div>
-    <div class="stat-item"><span class="stat-num">${stars}</span><span class="stat-label">&#9733; destacados</span></div>
+    <div class="stat-item stat-main"><span class="stat-num">${filtered.length}</span><span class="stat-label">listados visibles</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--s-nuevo)">${counts['Nuevo']}</span><span class="stat-label">nuevos</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--s-revisado)">${counts['Revisado']}</span><span class="stat-label">revisados</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--s-contactado)">${counts['Contactado']}</span><span class="stat-label">contactados</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--s-rentado)">${counts['Rentado']}</span><span class="stat-label">rentados</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--accent)">${stars}</span><span class="stat-label">&#9733; destacados</span></div>
   `;
+}
+
+// Faceted counts on the status pills: how many listings would match if only
+// the status filter changed (all other active filters still applied).
+function renderStatusCounts() {
+  const base = listings.filter(l => passesExcept(l, 'status'));
+  document.querySelectorAll('.pill[data-group="status"]').forEach(pill => {
+    const val = pill.dataset.val;
+    const n = val === 'Todos' ? base.length : base.filter(l => l.status === val).length;
+    pill.querySelector('.pill-count').textContent = n;
+  });
 }
 
 function render() {
@@ -280,6 +325,7 @@ function render() {
   document.getElementById('countNum').textContent   = filtered.length;
   document.getElementById('countTotal').textContent = listings.length;
   renderStats(filtered);
+  renderStatusCounts();
 
   const grid = document.getElementById('grid');
   if (!filtered.length) {
@@ -376,6 +422,20 @@ document.getElementById('searchSuggestions').addEventListener('mousedown', e => 
 
 document.getElementById('searchChipClose').addEventListener('click', clearStreetFilter);
 document.getElementById('export-btn').addEventListener('click', exportCSV);
+
+document.getElementById('price-toggle').addEventListener('click', () => {
+  filtersOpen = !filtersOpen;
+  document.getElementById('price-toggle').classList.toggle('active', filtersOpen);
+  document.getElementById('advPanel').hidden = !filtersOpen;
+});
+document.getElementById('priceMin').addEventListener('input', e => { priceMin = e.target.value; render(); });
+document.getElementById('priceMax').addEventListener('input', e => { priceMax = e.target.value; render(); });
+document.getElementById('price-clear').addEventListener('click', () => {
+  priceMin = ''; priceMax = '';
+  document.getElementById('priceMin').value = '';
+  document.getElementById('priceMax').value = '';
+  render();
+});
 
 // ── Auth (Supabase magic link — registro y login en un solo flujo) ─────────────
 
