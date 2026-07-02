@@ -12,3 +12,9 @@
 /test-results/
 __pycache__/
 node_modules/
+.env.local
+docker-compose.override.yml
+AGENTS.md
+.agents/
+.github/
+graphify-out/
