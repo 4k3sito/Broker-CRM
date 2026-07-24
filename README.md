@@ -108,6 +108,42 @@ npm run dev          # sirve la raíz en http://localhost:3000 (playground de pr
 `localhost:3000` sirve el working tree, así que refleja cambios **antes** de subirlos a
 GitHub Pages. Útil para verificar antes de hacer push.
 
+### Acceso al CRM
+
+El acceso se gestiona con **Supabase Auth**. Desde `login.html` una persona puede crear una
+cuenta con correo y contraseña, iniciar sesión y recuperar su contraseña. Supabase guarda el
+usuario en `auth.users` y protege la contraseña; el proyecto nunca la almacena ni la recibe en
+texto plano fuera del flujo de autenticación.
+
+En Supabase, configura **Authentication → URL Configuration → Redirect URLs** con:
+
+```text
+http://localhost:3000/**
+http://127.0.0.1:3000/**
+https://4k3sito.github.io/**
+```
+
+Mantén `https://4k3sito.github.io/` como **Site URL**. Activa *Confirm email* para que las
+cuentas nuevas se validen antes del primer acceso. Para limitar quién puede registrarse, desactiva
+*Allow new users to sign up* y crea/invita a los usuarios desde el panel de Supabase.
+
+El flujo redirige explícitamente al listado de propiedades: `http://localhost:3000/index.html`
+en desarrollo y `https://4k3sito.github.io/index.html` en producción. Las reglas con `/**` de
+arriba incluyen ambos destinos y las páginas de recuperación.
+
+Si personalizaste las plantillas de correo de Supabase, conserva `{{ .ConfirmationURL }}` o usa
+`{{ .RedirectTo }}` en el enlace correspondiente; de esa forma las confirmaciones y la
+recuperación vuelven a la URL local o de producción que abrió la persona.
+
+#### Protección de datos (RLS, obligatorio)
+
+El login de una aplicación estática no basta para proteger la API. En **Supabase → SQL Editor**,
+ejecuta una sola vez [`sql/enable-crm-rls.sql`](sql/enable-crm-rls.sql). Esta política deja el
+inventario disponible únicamente para sesiones autenticadas y aísla el seguimiento, clientes,
+fichas, procesos y documentos por `user_id`. El script reemplaza las políticas existentes de
+esas seis tablas, por lo que debe revisarse antes de ejecutarse si se habían configurado reglas
+de acceso adicionales.
+
 ### API + Postgres local (opcional)
 
 ```bash
@@ -132,7 +168,11 @@ El sitio se sirve desde la **raíz de la rama `main`** — no hay build. Para pu
 del dashboard:
 
 ```bash
-git add index.html app.js style.css
+git add index.html app.js style.css \
+  login.html login.js login.css \
+  reset-password.html reset-password.js \
+  update-password.html update-password.js \
+  README.md sql/enable-crm-rls.sql
 git commit -m "..."
 git push origin main
 ```

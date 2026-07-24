@@ -39,6 +39,13 @@ let locationIndex = [];
 let priceMin      = '';
 let priceMax      = '';
 let filtersOpen   = false;
+let page          = 1;
+let authResolved  = false;
+const PAGE_SIZE   = 70;
+
+function redirectToLogin() {
+  window.location.replace('login.html');
+}
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
@@ -75,12 +82,17 @@ function adaptListing(l) {
   };
 }
 
+// Only the columns adaptListing() actually reads — the table also carries
+// description/features/price_raw/etc. that would otherwise bloat every fetch.
+const LISTING_COLUMNS = 'id,source,external_id,title,broker_name,location,neighborhood,' +
+  'price_numeric,currency,images,image,url,whatsapp,property_type,property_size_m2,transaction_type';
+
 async function fetchAllListings() {
   // PostgREST caps each request at 1000 rows; page through until exhausted.
   const PAGE = 1000;
   const all = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await db.from('listings').select('*')
+    const { data, error } = await db.from('listings').select(LISTING_COLUMNS)
       .order('id').range(from, from + PAGE - 1);
     if (error) throw new Error(error.message);
     all.push(...data);
@@ -211,6 +223,7 @@ function selectSuggestion(text) {
   document.getElementById('searchChipText').textContent = text;
   document.getElementById('searchChip').style.display = '';
   document.getElementById('searchSuggestions').classList.remove('open');
+  page = 1;
   render();
 }
 
@@ -218,6 +231,7 @@ function clearStreetFilter() {
   searchStreet = '';
   document.getElementById('searchInput').placeholder = 'Buscar por dirección, título…';
   document.getElementById('searchChip').style.display = 'none';
+  page = 1;
   render();
 }
 
@@ -246,6 +260,7 @@ function renderCard(l, i) {
   const imgHtml = photo
     ? `<img src="${photo}" alt="foto" loading="lazy">`
     : `<div class="card-img-placeholder" style="background:${TONES[i % TONES.length]}">${ICON_BUILDING}</div>`;
+  const detailHref = `listing.html?id=${l.id}`;
 
   const priceHtml = p
     ? `<div class="card-price">$${p.n}<span class="currency">${p.curr}/mes</span></div>`
@@ -255,9 +270,9 @@ function renderCard(l, i) {
     `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`
   ).join('');
 
-  return `<article class="card ${l.starred ? 'starred' : ''} status-${l.status.toLowerCase()}" data-id="${l.id}" style="animation-delay:${Math.min(i,8)*0.04}s">
+  return `<article class="card ${l.starred ? 'starred' : ''} status-${l.status.toLowerCase()}" data-id="${l.id}">
     <div class="card-img">
-      ${imgHtml}
+      <a class="card-photo-link" href="${detailHref}">${imgHtml}</a>
       <span class="badge-src ${badge}">${blabel}</span>
       <span class="badge-fotos">FOTO 1/${l.fotos.length || 1}</span>
       ${l.size ? `<span class="badge-size">${l.size} m²</span>` : ''}
@@ -277,7 +292,7 @@ function renderCard(l, i) {
           ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="card-link wa" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
         </div>
       </div>
-      ${l.titulo    ? `<div class="card-title">${l.titulo}</div>`       : ''}
+      ${l.titulo    ? `<a class="card-title" href="${detailHref}">${l.titulo}</a>`       : ''}
       ${l.direccion ? `<div class="card-location">${ICON_PIN}${l.direccion}</div>` : ''}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${l.tipo}</span>` : ''}
@@ -320,6 +335,18 @@ function renderStatusCounts() {
   });
 }
 
+function renderPagination(totalPages) {
+  const box = document.getElementById('pagination');
+  if (totalPages <= 1) { box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <button class="btn-clear" id="page-prev" ${page <= 1 ? 'disabled' : ''}>&larr; Anterior</button>
+    <span>P&#225;gina ${page} de ${totalPages}</span>
+    <button class="btn-clear" id="page-next" ${page >= totalPages ? 'disabled' : ''}>Siguiente &rarr;</button>
+  `;
+  document.getElementById('page-prev')?.addEventListener('click', () => { page--; render(); window.scrollTo({ top: 0 }); });
+  document.getElementById('page-next')?.addEventListener('click', () => { page++; render(); window.scrollTo({ top: 0 }); });
+}
+
 function render() {
   const filtered = computeFiltered();
   document.getElementById('countNum').textContent   = filtered.length;
@@ -333,10 +360,17 @@ function render() {
       ${ICON_BUILDING}
       <p>Sin resultados para esta b&#250;squeda.</p>
     </div>`;
+    document.getElementById('pagination').innerHTML = '';
     return;
   }
 
-  grid.innerHTML = filtered.map(renderCard).join('');
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  if (page > totalPages) page = totalPages;
+  if (page < 1) page = 1;
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  renderPagination(totalPages);
+
+  grid.innerHTML = pageItems.map(renderCard).join('');
 
   grid.querySelectorAll('.card').forEach(card => {
     const id = card.dataset.id;
@@ -397,12 +431,14 @@ document.getElementById('filterbar').addEventListener('click', e => {
     pill.classList.add('active');
     filterFuente = pill.dataset.fuente;
   }
+  page = 1;
   render();
 });
 
 const searchInput = document.getElementById('searchInput');
 searchInput.addEventListener('input', e => {
   searchQ = e.target.value.trim();
+  page = 1;
   renderSuggestions(searchQ);
   render();
 });
@@ -428,25 +464,16 @@ document.getElementById('price-toggle').addEventListener('click', () => {
   document.getElementById('price-toggle').classList.toggle('active', filtersOpen);
   document.getElementById('advPanel').hidden = !filtersOpen;
 });
-document.getElementById('priceMin').addEventListener('input', e => { priceMin = e.target.value; render(); });
-document.getElementById('priceMax').addEventListener('input', e => { priceMax = e.target.value; render(); });
+document.getElementById('priceMin').addEventListener('input', e => { priceMin = e.target.value; page = 1; render(); });
+document.getElementById('priceMax').addEventListener('input', e => { priceMax = e.target.value; page = 1; render(); });
 document.getElementById('price-clear').addEventListener('click', () => {
-  priceMin = ''; priceMax = '';
+  priceMin = ''; priceMax = ''; page = 1;
   document.getElementById('priceMin').value = '';
   document.getElementById('priceMax').value = '';
   render();
 });
 
-// ── Auth (Supabase magic link — registro y login en un solo flujo) ─────────────
-
-document.getElementById('login-btn').addEventListener('click', async () => {
-  const email = document.getElementById('authEmail').value.trim();
-  if (!email) return;
-  const { error } = await db.auth.signInWithOtp({ email });
-  alert(error ? 'Error: ' + error.message
-              : 'Te enviamos un enlace de acceso a ' + email + '. Revísalo para entrar.');
-});
-
+// ── Auth ─────────────────────────────────────────────────────────────────────
 document.getElementById('logout-btn').addEventListener('click', () => db.auth.signOut());
 
 // Single source of truth: react to whatever auth state Supabase reports.
@@ -455,6 +482,10 @@ db.auth.onAuthStateChange((_event, session) => {
   document.getElementById('authBox').hidden = !!currentUser;
   document.getElementById('userBox').hidden = !currentUser;
   if (currentUser) document.getElementById('userEmail').textContent = currentUser.email;
+  if (!currentUser && authResolved) {
+    redirectToLogin();
+    return;
+  }
   // ponytail: setTimeout libera el lock de auth; llamar db.from(...) aquí dentro
   // deadlockea el cliente supabase-js (gotcha documentado).
   if (listings.length) setTimeout(() => loadUserState().then(render), 0);
@@ -462,14 +493,21 @@ db.auth.onAuthStateChange((_event, session) => {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
-fetchAllListings()
-  .then(async raw => {
+db.auth.getSession()
+  .then(async ({ data, error }) => {
+    if (error) throw new Error(error.message);
+    authResolved = true;
+    currentUser = data.session?.user ?? null;
+    if (!currentUser) {
+      redirectToLogin();
+      return;
+    }
+
+    const raw = await fetchAllListings();
     listings = raw.map(adaptListing);
     listingsMap = Object.fromEntries(listings.map(l => [l.id, l]));
     buildLocationIndex(listings);
     buildFuenteFilters(listings);
-    const { data } = await db.auth.getSession();
-    currentUser = data.session?.user ?? null;
     await loadUserState();
     render();
   })

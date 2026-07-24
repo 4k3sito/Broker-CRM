@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#F4F1EA; --surface:#FCFAF5; --ink:#221E18; --muted:#7C7468; --faint:#A89F90;
+    --border:#E6DFD3; --border-2:#D8D0C2;
+    --accent:#B5542F; --accent-soft:#F1E1D7;
+    --topbar:#241F19; --topbar-text:#F4F1EA;
+    --s-nuevo:#3F6DB5; --s-revisado:#7E5BC2; --s-contactado:#C07A2B; --s-rentado:#3E8F63; --s-descartado:#9A9088;
+    --font-ui:'Hanken Grotesk',system-ui,sans-serif;
+    --font-display:'Newsreader',Georgia,serif;
+    --font-mono:'Space Mono',monospace;
+    --photo-h:212px; --card-pad:18px; --gap:20px;
+  }
+  body { background:var(--bg); }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#CFC7B8; border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover { background:#B4AB9A; }
+  @keyframes flUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+  input::placeholder, textarea::placeholder { color:var(--faint); }
+</style>
+</helmet>
+<div style="min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--font-ui);-webkit-font-smoothing:antialiased">
+
+  <!-- TOPBAR -->
+  <header style="position:sticky;top:0;z-index:50;background:var(--topbar);color:var(--topbar-text);display:flex;align-items:center;gap:22px;padding:0 26px;height:66px;border-bottom:1px solid rgba(255,255,255,.06)">
+    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none" style="display:block">
+        <rect x="2.5" y="2.5" width="27" height="27" rx="6" stroke="var(--accent)" stroke-width="2.2"/>
+        <rect x="9" y="9" width="14" height="14" rx="2.5" fill="var(--accent)"/>
+        <rect x="13.5" y="13.5" width="5" height="5" rx="1" fill="var(--topbar)"/>
+      </svg>
+      <div style="display:flex;flex-direction:column;line-height:1">
+        <div style="font-size:20px;font-weight:700;letter-spacing:-.3px">Office<span style="color:var(--accent);font-weight:700">Lab</span></div>
+        <div style="font-family:var(--font-mono);font-size:9px;letter-spacing:.2em;color:rgba(244,241,234,.42);text-transform:uppercase;margin-top:4px">Monterrey · CRE Tracker</div>
+      </div>
+    </div>
+
+    <div style="flex:1;max-width:430px;position:relative">
+      <div style="display:flex;align-items:center;gap:9px;height:40px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:11px;padding:0 13px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(244,241,234,.4)" stroke-width="2" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" value="{{ search }}" onInput="{{ onSearch }}" placeholder="Buscar por dirección o título…" style="flex:1;height:100%;background:transparent;border:none;color:var(--topbar-text);font-family:var(--font-ui);font-size:14px;outline:none;min-width:40px"/>
+      </div>
+    </div>
+
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px;flex-shrink:0">
+      <div style="font-family:var(--font-mono);font-size:12px;color:rgba(244,241,234,.5);white-space:nowrap"><span style="color:var(--topbar-text)">{{ countNum }}</span> / {{ countTotal }}</div>
+      <button style="display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:#fff;border:none;border-radius:9px;font-family:var(--font-ui);font-size:13px;font-weight:600;padding:0 15px;height:36px;cursor:pointer">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        CSV
+      </button>
+      <div style="width:1px;height:26px;background:rgba(255,255,255,.12)"></div>
+      <a href="OfficeLab - Login.dc.html" style="display:inline-flex;align-items:center;background:transparent;border:1.5px solid rgba(255,255,255,.18);color:rgba(244,241,234,.85);border-radius:9px;font-family:var(--font-ui);font-size:13px;font-weight:500;padding:0 16px;height:36px;cursor:pointer;text-decoration:none">Entrar</a>
+    </div>
+  </header>
+
+  <!-- FILTER BAR -->
+  <nav style="background:var(--surface);border-bottom:1px solid var(--border);padding:0 26px;display:flex;align-items:center;gap:0;overflow-x:auto">
+    <div style="display:flex;align-items:center;gap:6px;padding:13px 18px 13px 0;margin-right:18px;border-right:1px solid var(--border);flex-shrink:0">
+      <span style="font-family:var(--font-mono);font-size:9.5px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-right:8px;white-space:nowrap">Estado</span>
+      <sc-for list="{{ statusPills }}" as="p" hint-placeholder-count="6">
+        <button onClick="{{ p.onClick }}" style="display:inline-flex;align-items:center;gap:6px;font-family:var(--font-ui);font-size:13px;font-weight:{{ p.weight }};white-space:nowrap;height:31px;padding:0 13px;border-radius:9px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.color }};cursor:pointer">
+          {{ p.label }}<span style="font-family:var(--font-mono);font-size:10px;opacity:.65">{{ p.count }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;padding:13px 18px 13px 0;margin-right:18px;border-right:1px solid var(--border);flex-shrink:0">
+      <span style="font-family:var(--font-mono);font-size:9.5px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-right:8px;white-space:nowrap">Fuente</span>
+      <sc-for list="{{ sourcePills }}" as="p" hint-placeholder-count="5">
+        <button onClick="{{ p.onClick }}" style="display:inline-flex;align-items:center;gap:6px;font-family:var(--font-ui);font-size:13px;font-weight:{{ p.weight }};white-space:nowrap;height:31px;padding:0 13px;border-radius:9px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.color }};cursor:pointer">{{ p.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:13px 0;flex-shrink:0">
+      <button onClick="{{ onStar }}" style="display:inline-flex;align-items:center;gap:6px;font-family:var(--font-ui);font-size:13px;font-weight:{{ starWeight }};white-space:nowrap;height:31px;padding:0 13px;border-radius:9px;border:1.5px solid {{ starBorder }};background:{{ starBg }};color:{{ starColor }};cursor:pointer">★ Destacados</button>
+      <button onClick="{{ onToggleFilters }}" style="display:inline-flex;align-items:center;gap:7px;height:31px;padding:0 13px;border-radius:9px;border:1.5px dashed {{ filtBorder }};background:{{ filtBg }};color:{{ filtColor }};font-family:var(--font-ui);font-size:13px;cursor:pointer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 7V3M20 21v-5M20 11V3M2 14h4M10 7h4M18 13h4"/></svg>
+        Precio
+      </button>
+    </div>
+  </nav>
+
+  <!-- ADVANCED PANEL -->
+  <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:16px 26px;display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:var(--font-mono);font-size:9.5px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Precio mensual (MXN)</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" value="{{ priceMin }}" onInput="{{ onPriceMin }}" placeholder="Mín" style="width:120px;height:36px;padding:0 12px;border:1.5px solid var(--border-2);border-radius:9px;font-family:var(--font-mono);font-size:13px;color:var(--ink);background:#fff;outline:none"/>
+          <span style="color:var(--faint)">—</span>
+          <input type="number" value="{{ priceMax }}" onInput="{{ onPriceMax }}" placeholder="Máx" style="width:120px;height:36px;padding:0 12px;border:1.5px solid var(--border-2);border-radius:9px;font-family:var(--font-mono);font-size:13px;color:var(--ink);background:#fff;outline:none"/>
+        </div>
+      </div>
+      <button onClick="{{ onClearPrice }}" style="height:36px;padding:0 16px;border-radius:9px;border:1.5px solid var(--border-2);background:#fff;color:var(--muted);font-family:var(--font-ui);font-size:13px;cursor:pointer">Limpiar</button>
+    </div>
+  </sc-if>
+
+  <!-- STATS -->
+  <div style="display:flex;align-items:stretch;gap:0;padding:20px 26px 6px;flex-wrap:wrap">
+    <div style="display:flex;flex-direction:column;gap:1px;padding-right:26px;margin-right:26px;border-right:1px solid var(--border)">
+      <span style="font-family:var(--font-display);font-size:32px;font-weight:500;line-height:1;color:var(--ink);font-feature-settings:'tnum'">{{ countNum }}</span>
+      <span style="font-size:12px;color:var(--muted);margin-top:5px">listados visibles</span>
+    </div>
+    <sc-for list="{{ stats }}" as="s" hint-placeholder-count="5">
+      <div style="display:flex;flex-direction:column;gap:1px;padding-right:24px;margin-right:0">
+        <span style="font-family:var(--font-display);font-size:24px;font-weight:500;line-height:1;color:{{ s.color }};font-feature-settings:'tnum'">{{ s.n }}</span>
+        <span style="font-size:12px;color:var(--muted);margin-top:6px">{{ s.label }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- GRID -->
+  <main style="display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:var(--gap);padding:18px 26px 56px">
+    <sc-for list="{{ cards }}" as="c" hint-placeholder-count="9">
+      <article style="background:var(--surface);border-radius:14px;border:1.5px solid {{ c.borderColor }};overflow:hidden;display:flex;flex-direction:column;opacity:{{ c.opacity }};box-shadow:0 1px 2px rgba(34,30,24,.04)">
+        <!-- photo -->
+        <div style="position:relative;height:var(--photo-h);background:{{ c.tone }};overflow:hidden;flex-shrink:0">
+          <div style="position:absolute;inset:0;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0,rgba(255,255,255,.16) 1px,transparent 1px,transparent 11px)"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.3"><path d="M3 21V7l9-4 9 4v14"/><polyline points="9 22 9 12 15 12 15 22"/><path d="M3 7h18"/></svg>
+          </div>
+          <span style="position:absolute;top:11px;left:11px;font-family:var(--font-mono);font-size:9.5px;font-weight:700;letter-spacing:.05em;padding:4px 8px;border-radius:7px;text-transform:uppercase;background:rgba(36,31,25,.82);color:{{ c.srcColor }};backdrop-filter:blur(4px)">{{ c.srcLabel }}</span>
+          <span style="position:absolute;bottom:11px;left:11px;font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;padding:3px 8px;border-radius:6px;background:rgba(36,31,25,.55);color:rgba(255,255,255,.85);backdrop-filter:blur(4px)">{{ c.fotoLabel }}</span>
+          <span style="position:absolute;bottom:11px;right:11px;font-family:var(--font-mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;background:rgba(36,31,25,.6);color:#fff;backdrop-filter:blur(4px)">{{ c.sizeLabel }}</span>
+          <button onClick="{{ c.onStar }}" style="position:absolute;top:9px;right:9px;width:34px;height:34px;border-radius:9px;background:rgba(252,250,245,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;color:{{ c.starColor }};backdrop-filter:blur(4px)">{{ c.starGlyph }}</button>
+        </div>
+        <!-- body -->
+        <div style="padding:var(--card-pad);display:flex;flex-direction:column;gap:11px;flex:1">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <div style="min-width:0">
+              <div style="display:flex;align-items:baseline;gap:5px">
+                <span style="font-family:var(--font-display);font-size:27px;font-weight:500;line-height:1;color:{{ c.priceColor }};font-feature-settings:'tnum';font-style:{{ c.priceStyle }}">{{ c.priceMain }}</span>
+                <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">{{ c.priceSuffix }}</span>
+              </div>
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);margin-top:5px">{{ c.ppm }}</div>
+            </div>
+            <a href="{{ c.href }}" style="font-size:11.5px;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0;font-weight:500">Ver
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          </div>
+          <div style="font-size:13.5px;font-weight:500;color:var(--ink);line-height:1.42;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ c.titulo }}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            {{ c.direccion }}
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <span style="font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:6px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase">{{ c.tipo }}</span>
+            <span style="font-size:11.5px;font-weight:500;padding:3px 9px;border-radius:6px;background:#EFEADF;color:var(--muted)">{{ c.transaccion }}</span>
+            <span style="font-family:var(--font-mono);font-size:10.5px;padding:3px 9px;border-radius:6px;background:transparent;color:var(--faint);border:1px solid var(--border)">{{ c.codigo }}</span>
+          </div>
+          <div style="height:1px;background:var(--border);margin:2px 0"></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div style="width:9px;height:9px;border-radius:50%;background:{{ c.statusColor }};flex-shrink:0;box-shadow:0 0 0 3px {{ c.statusRing }}"></div>
+            <select value="{{ c.status }}" onChange="{{ c.onStatus }}" style="flex:1;height:37px;padding:0 12px;border-radius:9px;border:1.5px solid {{ c.statusColor }};font-family:var(--font-ui);font-size:13px;font-weight:600;color:{{ c.statusColor }};background:{{ c.statusRing }};cursor:pointer;outline:none;-webkit-appearance:none;appearance:none">
+              <sc-for list="{{ statuses }}" as="st" hint-placeholder-count="5">
+                <option value="{{ st }}" style="color:var(--ink);background:#fff;font-weight:500">{{ st }}</option>
+              </sc-for>
+            </select>
+          </div>
+          <textarea placeholder="Agregar notas…" style="width:100%;min-height:46px;resize:vertical;border:1.5px solid var(--border);border-radius:9px;font-family:var(--font-ui);font-size:13px;color:var(--ink);padding:9px 11px;outline:none;background:#fff"></textarea>
+        </div>
+      </article>
+    </sc-for>
+  </main>
+</div>
+</x-dc>
+<template id="__bundler_thumbnail" data-bg-color="#241F19">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="380" y="210" width="440" height="440" rx="90" fill="none" stroke="#B5542F" stroke-width="34"/>
+    <rect x="478" y="308" width="244" height="244" rx="40" fill="#B5542F"/>
+    <rect x="556" y="386" width="88" height="88" rx="18" fill="#241F19"/>
+  </svg>
+</template>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:860},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#B5542F&quot;,&quot;options&quot;:[&quot;#B5542F&quot;,&quot;#3E8F63&quot;,&quot;#2A6FB0&quot;,&quot;#6B4FB0&quot;,&quot;#1F1B16&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;topbarTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;comfortable&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+class Component extends DCLogic {
+  STATUSES = ['Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'];
+  SC = {
+    Nuevo:      { c:'var(--s-nuevo)',      ring:'#E6EDF7' },
+    Revisado:   { c:'var(--s-revisado)',   ring:'#EEE9F8' },
+    Contactado: { c:'var(--s-contactado)', ring:'#F8EFE0' },
+    Rentado:    { c:'var(--s-rentado)',    ring:'#E4F2EA' },
+    Descartado: { c:'var(--s-descartado)', ring:'#EFEDE9' },
+  };
+  FUENTE = {
+    easybroker:  { label:'EasyBroker',  color:'#7FC8F0' },
+    inmuebles24: { label:'Inmuebles24', color:'#F0A0C8' },
+    lamudi:      { label:'Lamudi',      color:'#9EE0B4' },
+    vivanuncios: { label:'Vivanuncios', color:'#F4CE86' },
+  };
+  TONES = [
+    'linear-gradient(135deg,#A9B6B0,#C8C2B2)',
+    'linear-gradient(135deg,#B7AE9E,#9FA9A6)',
+    'linear-gradient(135deg,#9CABB4,#BEB6A6)',
+    'linear-gradient(135deg,#BDB1A0,#A6AD99)',
+    'linear-gradient(135deg,#A4B0AE,#C5BBA8)',
+    'linear-gradient(135deg,#B0A898,#98A7A4)',
+  ];
+  DATA = [
+    { id:1,  fuente:'easybroker',  codigo:'EB-7741', titulo:'Local comercial en avenida principal, alta afluencia peatonal', dir:'Av. Gonzalitos, Mitras Centro', precio:48000, size:120, tipo:'Local',   txn:'Renta', fotos:4, status:'Nuevo',      starred:true },
+    { id:2,  fuente:'inmuebles24', codigo:'I24-3920',titulo:'Oficina corporativa amueblada en torre clase A', dir:'Valle Oriente, San Pedro Garza García', precio:95000, size:220, tipo:'Oficina', txn:'Renta', fotos:6, status:'Revisado',   starred:false },
+    { id:3,  fuente:'lamudi',      codigo:'LM-1188', titulo:'Terreno comercial sobre carretera con uso de suelo mixto', dir:'Carretera Nacional km 12, Monterrey', precio:120000,size:850, tipo:'Terreno', txn:'Renta', fotos:2, status:'Nuevo',      starred:false },
+    { id:4,  fuente:'easybroker',  codigo:'EB-5520', titulo:'Local en planta baja de plaza consolidada', dir:'Cumbres 4° Sector, Monterrey', precio:22000, size:65,  tipo:'Local',   txn:'Renta', fotos:3, status:'Contactado', starred:true },
+    { id:5,  fuente:'vivanuncios', codigo:'VV-0461', titulo:'Oficina ejecutiva con sala de juntas y recepción', dir:'Obispado, Monterrey Centro', precio:38000, size:90,  tipo:'Oficina', txn:'Renta', fotos:5, status:'Nuevo',      starred:false },
+    { id:6,  fuente:'inmuebles24', codigo:'I24-8812',titulo:'Bodega industrial con andén y oficinas administrativas', dir:'Parque Industrial Apodaca', precio:85000, size:600, tipo:'Bodega',  txn:'Renta', fotos:4, status:'Revisado',   starred:false },
+    { id:7,  fuente:'lamudi',      codigo:'LM-6677', titulo:'Local con terraza en zona gastronómica del barrio antiguo', dir:'Barrio Antiguo, Centro de Monterrey', precio:30000, size:80,  tipo:'Local',   txn:'Renta', fotos:6, status:'Rentado',    starred:false },
+    { id:8,  fuente:'easybroker',  codigo:'EB-9103', titulo:'Oficina en edificio boutique con estacionamiento techado', dir:'Colonia Del Valle, San Pedro', precio:62000, size:150, tipo:'Oficina', txn:'Renta', fotos:5, status:'Nuevo',      starred:true },
+    { id:9,  fuente:'vivanuncios', codigo:'VV-2240', titulo:'Local en esquina con doble frente sobre avenida', dir:'Contry, Guadalupe', precio:null,  size:110, tipo:'Local',   txn:'Renta', fotos:2, status:'Descartado', starred:false },
+    { id:10, fuente:'inmuebles24', codigo:'I24-4408',titulo:'Oficina compacta lista para operar, internet incluido', dir:'Tecnológico, Monterrey', precio:34000, size:75,  tipo:'Oficina', txn:'Renta', fotos:3, status:'Nuevo',      starred:false },
+    { id:11, fuente:'lamudi',      codigo:'LM-3015', titulo:'Terreno plano para desarrollo comercial sobre vialidad', dir:'Santa Catarina, poniente', precio:180000,size:1200,tipo:'Terreno', txn:'Renta', fotos:2, status:'Nuevo',      starred:false },
+    { id:12, fuente:'easybroker',  codigo:'EB-6628', titulo:'Local comercial junto a paradero de alta circulación', dir:'Av. Lincoln, Cumbres', precio:26500, size:95,  tipo:'Local',   txn:'Renta', fotos:4, status:'Contactado', starred:false },
+  ];
+
+  state = {
+    fStatus:'Todos', fSource:'all', fStarred:false, search:'',
+    filtersOpen:false, priceMin:'', priceMax:'',
+    over:{}, // id -> {status, starred}
+  };
+
+  componentDidMount() { this.applyVars(); }
+  componentDidUpdate() { this.applyVars(); }
+  applyVars() {
+    const r = document.documentElement.style;
+    if (this.props.accent) { r.setProperty('--accent', this.props.accent); r.setProperty('--accent-soft', `color-mix(in oklab, ${this.props.accent} 16%, white)`); }
+    const theme = this.props.topbarTheme ?? 'dark';
+    if (theme === 'light') { r.setProperty('--topbar', '#FCFAF5'); r.setProperty('--topbar-text', '#221E18'); }
+    else { r.setProperty('--topbar', '#241F19'); r.setProperty('--topbar-text', '#F4F1EA'); }
+    const d = this.props.density ?? 'comfortable';
+    if (d === 'compact') { r.setProperty('--photo-h','164px'); r.setProperty('--card-pad','14px'); r.setProperty('--gap','14px'); }
+    else { r.setProperty('--photo-h','212px'); r.setProperty('--card-pad','18px'); r.setProperty('--gap','20px'); }
+  }
+
+  statusOf(d){ return this.state.over[d.id]?.status ?? d.status; }
+  starredOf(d){ const o=this.state.over[d.id]; return o && 'starred' in o ? o.starred : d.starred; }
+  fmt(n){ return n.toLocaleString('es-MX'); }
+  norm(s){ return (s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+
+  passesExcept(d, exclude){
+    const s=this.state;
+    if (exclude!=='status'  && s.fStatus!=='Todos' && this.statusOf(d)!==s.fStatus) return false;
+    if (exclude!=='source'  && s.fSource!=='all'   && d.fuente!==s.fSource) return false;
+    if (exclude!=='starred' && s.fStarred && !this.starredOf(d)) return false;
+    if (s.search){ const q=this.norm(s.search); if(!this.norm(d.dir).includes(q) && !this.norm(d.titulo).includes(q)) return false; }
+    if (s.priceMin!=='' && (d.precio??0) < Number(s.priceMin)) return false;
+    if (s.priceMax!=='' && (d.precio??Infinity) > Number(s.priceMax)) return false;
+    return true;
+  }
+
+  setStatus(id,val){ this.setState(s=>({ over:{...s.over,[id]:{...s.over[id],status:val}} })); }
+  toggleStar(id){ const cur=this.starredOf(this.DATA.find(d=>d.id===id)); this.setState(s=>({ over:{...s.over,[id]:{...s.over[id],starred:!cur}} })); }
+  setF(patch){ this.setState(patch); }
+
+  renderVals(){
+    const s=this.state;
+    const filtered=this.DATA.filter(d=>this.passesExcept(d,null));
+
+    // status pills
+    const baseForStatus=this.DATA.filter(d=>this.passesExcept(d,'status'));
+    const sCount=k=> k==='Todos'? baseForStatus.length : baseForStatus.filter(d=>this.statusOf(d)===k).length;
+    const mkStatus=(label,val)=>{
+      const active=s.fStatus===val;
+      const sc=val!=='Todos'?this.SC[val]:null;
+      return { label, count:sCount(val), weight:active?700:500,
+        bg: active? (sc?sc.ring:'var(--ink)') : 'transparent',
+        color: active? (sc?sc.c:'#fff') : 'var(--muted)',
+        border: active? (sc?sc.c:'var(--ink)') : 'transparent',
+        onClick:()=>this.setF({fStatus:val}) };
+    };
+    const statusPills=[mkStatus('Todos','Todos'),...this.STATUSES.map(st=>mkStatus(st,st))];
+
+    // source pills
+    const sources=[...new Set(this.DATA.map(d=>d.fuente))];
+    const mkSrc=(label,val)=>{
+      const active=s.fSource===val;
+      return { label, weight:active?700:500,
+        bg:active?'var(--ink)':'transparent', color:active?'#fff':'var(--muted)',
+        border:active?'var(--ink)':'transparent', onClick:()=>this.setF({fSource:val}) };
+    };
+    const sourcePills=[mkSrc('Todas','all'),...sources.map(f=>mkSrc(this.FUENTE[f]?.label??f,f))];
+
+    // stats
+    const sc2=k=>filtered.filter(d=>this.statusOf(d)===k).length;
+    const stats=[
+      { n:sc2('Nuevo'),      label:'nuevos',      color:'var(--s-nuevo)' },
+      { n:sc2('Revisado'),   label:'revisados',   color:'var(--s-revisado)' },
+      { n:sc2('Contactado'), label:'contactados', color:'var(--s-contactado)' },
+      { n:sc2('Rentado'),    label:'rentados',    color:'var(--s-rentado)' },
+      { n:filtered.filter(d=>this.starredOf(d)).length, label:'★ destacados', color:'var(--accent)' },
+    ];
+
+    // cards
+    const cards=filtered.map((d,i)=>{
+      const st=this.statusOf(d); const sc=this.SC[st]; const star=this.starredOf(d);
+      const cfg=this.FUENTE[d.fuente]||{label:d.fuente,color:'#ccc'};
+      const ppm=d.precio? `$${this.fmt(Math.round(d.precio/d.size))} / m²` : '';
+      return {
+        tone:this.TONES[i%this.TONES.length],
+        srcLabel:cfg.label, srcColor:cfg.color,
+        fotoLabel:`FOTO 1/${d.fotos}`,
+        sizeLabel:`${d.size} m²`,
+        priceMain: d.precio? `$${this.fmt(d.precio)}` : 'Sin precio',
+        priceSuffix: d.precio? 'MXN / mes' : '',
+        priceColor: d.precio? 'var(--ink)' : 'var(--faint)',
+        priceStyle: d.precio? 'normal' : 'italic',
+        ppm,
+        titulo:d.titulo, direccion:d.dir, tipo:d.tipo, transaccion:d.txn, codigo:d.codigo,
+        status:st, statusColor:sc.c, statusRing:sc.ring,
+        starGlyph: star?'★':'☆', starColor: star?'var(--accent)':'var(--faint)',
+        borderColor: star? 'var(--accent)' : 'var(--border)',
+        opacity: st==='Descartado'? .55 : 1,
+        href:'OfficeLab - Listing.dc.html',
+        onStar:()=>this.toggleStar(d.id),
+        onStatus:(e)=>this.setStatus(d.id,e.target.value),
+      };
+    });
+
+    const starOn=s.fStarred;
+    return {
+      search:s.search, onSearch:(e)=>this.setF({search:e.target.value}),
+      countNum:filtered.length, countTotal:this.DATA.length,
+      statuses:this.STATUSES,
+      statusPills, sourcePills, stats, cards,
+      onStar:()=>this.setF({fStarred:!s.fStarred}),
+      starWeight:starOn?700:500,
+      starBg:starOn?'#F8EFD8':'transparent', starColor:starOn?'#9A6A14':'var(--muted)', starBorder:starOn?'#D9A93B':'transparent',
+      filtersOpen:s.filtersOpen,
+      onToggleFilters:()=>this.setF({filtersOpen:!s.filtersOpen}),
+      filtBg:s.filtersOpen?'var(--accent-soft)':'transparent',
+      filtColor:s.filtersOpen?'var(--accent)':'var(--muted)',
+      filtBorder:s.filtersOpen?'var(--accent)':'var(--border-2)',
+      priceMin:s.priceMin, priceMax:s.priceMax,
+      onPriceMin:(e)=>this.setF({priceMin:e.target.value}),
+      onPriceMax:(e)=>this.setF({priceMax:e.target.value}),
+      onClearPrice:()=>this.setF({priceMin:'',priceMax:''}),
+    };
+  }
+}
+</script>
+</body>
+</html>

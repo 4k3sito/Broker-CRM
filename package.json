@@ -17,7 +17,9 @@
     "@types/node": "^25.6.1"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@supabase/supabase-js": "^2.49.4",
-    "apify-client": "^2.23.3"
+    "apify-client": "^2.23.3",
+    "headroom-ai": "^0.22.4"
   }
 }

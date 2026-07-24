@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clientes · OfficeScrapper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <a class="brand-group" href="index.html" aria-label="OfficeScrapper, propiedades">
+    <svg class="brand-mark" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="27" height="27" rx="6" stroke="var(--accent)" stroke-width="2.2"/>
+      <rect x="9" y="9" width="14" height="14" rx="2.5" fill="var(--accent)"/>
+      <rect x="13.5" y="13.5" width="5" height="5" rx="1" fill="var(--topbar)"/>
+    </svg>
+    <span class="brand-text">
+      <span class="brand">Office<span>Scrapper</span></span>
+      <span class="brand-sub">Monterrey · CRE Tracker</span>
+    </span>
+  </a>
+  <nav class="topbar-nav">
+    <a href="index.html">Propiedades</a>
+    <a href="clientes.html" class="active" aria-current="page">Clientes</a>
+  </nav>
+  <div class="topbar-right" style="margin-left:auto">
+    <span id="authBox">
+      <a class="btn-csv" href="login.html">Entrar</a>
+    </span>
+    <span id="userBox" hidden>
+      <span class="count-tag" id="userEmail"></span>
+      <button class="btn-csv" id="logout-btn">Salir</button>
+    </span>
+  </div>
+</header>
+
+<!-- FILTER BAR -->
+<nav class="filterbar" id="filterbar">
+  <div class="filter-group">
+    <span class="filter-group-label">Estado</span>
+    <button class="pill active" data-status="all" data-val="Todos">Todos</button>
+    <button class="pill" data-status="presentado" data-val="Presentado">Presentado</button>
+    <button class="pill" data-status="aprobado" data-val="Aprobado">Aprobado</button>
+    <button class="pill" data-status="rechazado" data-val="Rechazado">Rechazado</button>
+  </div>
+  <div class="filter-group" style="flex:1">
+    <input type="text" id="clientSearch" class="ficha-in" placeholder="Buscar cliente por nombre&#8230;" style="max-width:320px">
+  </div>
+  <div class="filter-group">
+    <button class="btn-csv" id="new-client-btn">&#43; Nuevo cliente</button>
+  </div>
+</nav>
+
+<main class="clientes-wrap" id="clientes">
+  <p class="empty">Cargando clientes&#8230;</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="clientes.js"></script>
+</body>
+</html>
