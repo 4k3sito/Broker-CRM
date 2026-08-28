@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Rescata el segundo precio de los anuncios de Pincali ofrecidos en renta Y venta.
 
-    python pincali_dual.py --dry-run --limit 5
-    python pincali_dual.py                     # todos los pendientes
+    python pincali_dual.py --fetch --out dual.jsonl     # necesita IP residencial
+    python pincali_dual.py --apply dual.jsonl           # necesita la base
     python pincali_dual.py --selfcheck
+
+Va en dos fases a propósito: **el AWS WAF de Pincali responde 202 con una página de
+desafío a las IPs de datacenter**, así que el VPS no puede leer las páginas de detalle;
+en cambio sólo el VPS ve la base. `--fetch` corre desde una IP residencial y deja un
+JSONL; `--apply` lo carga desde el servidor.
 
 El SERP no sirve para esto: su JSON-LD trae las dos ofertas sin decir cuál es cuál
 (`[{"price":3500},{"price":15}]`, idénticas salvo el número), y por eso la corrida de
@@ -20,6 +25,9 @@ import random
 import re
 import sys
 import time
+
+UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/131.0 Safari/537.36")
 
 # El bloque de precios del anuncio principal:
 #   <div class="digits">$3,500 MXN por m²</div>
@@ -85,60 +93,114 @@ def duales(ruta) -> set[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--fetch", action="store_true", help="bajar precios (IP residencial)")
+    ap.add_argument("--apply", metavar="JSONL", help="escribir a la base lo ya bajado")
     ap.add_argument("--jsonl", default="data/pincali.jsonl")
+    ap.add_argument("--out", default="data/pincali_dual.jsonl")
     ap.add_argument("--limit", type=int, default=0, help="0 = todos")
-    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--delay", type=float, default=1.0,
+                    help="segundos entre peticiones; el WAF de Pincali corta si se le apura")
     ap.add_argument("--selfcheck", action="store_true")
     a = ap.parse_args()
     if a.selfcheck:
         selfcheck()
         return 0
 
-    import psycopg
-    from curl_cffi import requests as cffi
+    if a.fetch:
+        return fetch(a)
+    if a.apply:
+        return aplicar(a.apply)
+    ap.error("indica --fetch o --apply")
+
+
+def fetch(a) -> int:
+    """Sin DB: sólo red. Reanudable — relee lo ya bajado y no lo repite."""
+    import json
+    import urllib.request
 
     ids = duales(a.jsonl)
-    print(f"anuncios con renta y venta en el crawl: {len(ids):,}")
+    print(f"anuncios con renta y venta: {len(ids):,}")
 
-    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        filas = conn.execute(
-            "SELECT listing_id, url, operation FROM listings "
-            "WHERE source = 'pincali' AND listing_id = ANY(%s) AND precio_alt IS NULL "
-            "ORDER BY listing_id" + (f" LIMIT {a.limit}" if a.limit else ""),
-            (list(ids),)).fetchall()
-        print(f"pendientes en la base: {len(filas):,}")
+    hechos: set[str] = set()
+    out = __import__("pathlib").Path(a.out)
+    if out.exists():
+        with out.open(encoding="utf-8") as f:
+            hechos = {json.loads(l)["listingId"] for l in f if l.strip()}
+        print(f"ya bajados: {len(hechos):,}")
 
-        ok = fallo = 0
-        for i, (lid, url, op_principal) in enumerate(filas, 1):
+    # La URL sale del propio JSONL: no hace falta la base para esta fase.
+    urls: dict[str, str] = {}
+    with open(a.jsonl, encoding="utf-8") as f:
+        for line in f:
             try:
-                r = cffi.get(url, impersonate=random.choice(
-                    ["chrome131", "chrome124", "chrome120"]), timeout=30)
-                p = precios(r.text or "")
+                d = json.loads(line)
+            except Exception:
+                continue
+            if str(d["listingId"]) in ids:
+                urls[str(d["listingId"])] = d["url"]
+
+    pend = [(k, v) for k, v in sorted(urls.items()) if k not in hechos]
+    if a.limit:
+        pend = pend[:a.limit]
+    print(f"por bajar: {len(pend):,}")
+
+    ok = fallo = 0
+    with out.open("a", encoding="utf-8") as fh:
+        for i, (lid, url) in enumerate(pend, 1):
+            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            try:
+                html = urllib.request.urlopen(req, timeout=40).read().decode("utf-8", "replace")
+                p = precios(html)
             except Exception as e:                       # noqa: BLE001
                 print(f"  {lid}: {type(e).__name__}")
                 fallo += 1
                 p = {}
-
-            if len(p) == 2:
+            if p:
                 ok += 1
-                otra = "rent" if op_principal == "sale" else "sale"
-                if a.dry_run:
-                    print(f"  {lid}  principal({op_principal})={p[op_principal]}  "
-                          f"alt({otra})={p[otra]}")
-                else:
-                    conn.execute(
-                        "UPDATE listings SET price = %s, price_is_per_m2 = %s, "
-                        "  precio_alt = %s, precio_alt_por_m2 = %s, operacion_alt = %s, "
-                        "  precio_m2_inferido = false "
-                        "WHERE source = 'pincali' AND listing_id = %s",
-                        (p[op_principal][0], p[op_principal][1],
-                         p[otra][0], p[otra][1], otra, lid))
+                fh.write(json.dumps({"listingId": lid, "precios": p}) + "\n")
+                fh.flush()
             if i % 50 == 0:
-                conn.commit()
-                print(f"  {i:,}/{len(filas):,}  resueltos {ok:,}  fallos {fallo:,}", flush=True)
-            time.sleep(random.uniform(0.5, 1.2))     # piso de cortesía
+                print(f"  {i:,}/{len(pend):,}  ok {ok:,}  fallos {fallo:,}", flush=True)
+            time.sleep(random.uniform(a.delay, a.delay * 1.6))   # el WAF castiga el ritmo fijo
+    print(f"\nbajados {ok:,}   fallos {fallo:,}  ->  {a.out}")
+    return 0
+
+
+def aplicar(ruta: str) -> int:
+    """Sin red: sólo base."""
+    import json
+
+    import psycopg
+
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn, open(ruta, encoding="utf-8") as f:
+        n = dos = 0
+        for line in f:
+            if not line.strip():
+                continue
+            d = json.loads(line)
+            p = {k: tuple(v) for k, v in d["precios"].items()}
+            fila = conn.execute(
+                "SELECT operation FROM listings WHERE source='pincali' AND listing_id=%s",
+                (d["listingId"],)).fetchone()
+            if not fila:
+                continue
+            principal = fila[0]
+            if principal not in p:
+                # El detalle no confirmó la operación con la que se guardó: no se toca.
+                continue
+            otra = "rent" if principal == "sale" else "sale"
+            conn.execute(
+                "UPDATE listings SET price=%s, price_is_per_m2=%s, precio_m2_inferido=false,"
+                " precio_alt=%s, precio_alt_por_m2=%s, operacion_alt=%s"
+                " WHERE source='pincali' AND listing_id=%s",
+                (p[principal][0], p[principal][1],
+                 p[otra][0] if otra in p else None,
+                 p[otra][1] if otra in p else None,
+                 otra if otra in p else None, d["listingId"]))
+            n += 1
+            dos += otra in p
         conn.commit()
-    print(f"\nresueltos {ok:,}   fallos {fallo:,}")
+    print(f"actualizados {n:,}   con dos precios {dos:,}")
     return 0
 
 

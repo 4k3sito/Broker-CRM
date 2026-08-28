@@ -58,8 +58,10 @@ function fmtPrice(monto, moneda, l) {
 // Un inmueble puede ofrecerse en renta Y venta. El segundo precio se muestra como
 // línea aparte para que el asesor vea las dos opciones sin abrir el anuncio.
 function altPriceHtml(alt) {
-  if (!alt || alt.monto == null) return '';
+  if (!alt?.op) return '';
   const etiqueta = alt.op === 'rent' ? 'También en renta' : 'También en venta';
+  // Se sabe que se ofrece en las dos, pero el precio aún no se ha rescatado.
+  if (alt.monto == null) return `<div class="price-alt">${etiqueta}</div>`;
   const monto = alt.porM2 && alt.total ? alt.total : alt.monto;
   const unidad = alt.porM2 && alt.total ? '' : (alt.porM2 ? '/m²' : '');
   const sufijo = alt.op === 'rent' ? '/mes' : '';
@@ -76,7 +78,7 @@ function adaptListing(l) {
     direccion: parseLocation(l.location) ?? l.neighborhood ?? null,
     precio:    l.price_numeric ?? null,
     porM2:     l.price_is_per_m2 ?? false,
-    alt:       l.precio_alt != null
+    alt:       l.operacion_alt
                  ? { monto: l.precio_alt, op: l.operacion_alt,
                      porM2: l.precio_alt_por_m2 ?? false, total: l.precio_alt_total }
                  : null,
