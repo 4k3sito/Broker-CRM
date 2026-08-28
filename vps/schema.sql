@@ -155,6 +155,19 @@ CREATE INDEX IF NOT EXISTS tarea_asignado_idx ON tarea (asignado_a);
 CREATE INDEX IF NOT EXISTS tarea_columna_idx  ON tarea (columna);
 CREATE INDEX IF NOT EXISTS tarea_listing_idx  ON tarea (listing_id);
 
+-- Hilo de comentarios de una tarea. Se borran con ella.
+CREATE TABLE IF NOT EXISTS tarea_comentario (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tarea_id   uuid NOT NULL REFERENCES tarea (id) ON DELETE CASCADE,
+  user_id    uuid NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,
+  texto      text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tarea_comentario_idx ON tarea_comentario (tarea_id, created_at);
+
+-- Adjuntos por URL, no por subida: no hay almacenamiento de archivos en el stack.
+ALTER TABLE tarea ADD COLUMN IF NOT EXISTS adjuntos text[] NOT NULL DEFAULT '{}';
+
 -- El tablero por persona muestra el rol debajo del nombre.
 ALTER TABLE usuario ADD COLUMN IF NOT EXISTS rol text;
 

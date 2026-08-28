@@ -799,7 +799,7 @@ def _delete(tabla: str, id_: str, user: dict) -> None:
 # Registrado en SECURITY.md §5 para que no parezca un descuido del filtro.
 
 TAREA_COLS = ("titulo", "tipo", "prioridad", "columna", "asignado_a",
-              "listing_id", "cliente_id", "descripcion", "vence_el")
+              "listing_id", "cliente_id", "descripcion", "vence_el", "adjuntos")
 
 TAREA_SELECT = """
   SELECT t.*, u.nombre AS asignado_nombre, u.email AS asignado_email,
@@ -857,6 +857,43 @@ def editar_tarea(tid: str, body: dict = Body(...), _: dict = Depends(current_use
         if not fila:
             raise HTTPException(404, "No existe esa tarea")
         return conn.execute(TAREA_SELECT + " WHERE t.id = %s", (tid,)).fetchone()
+
+
+@app.get("/api/tareas/{tid}/comentarios")
+def comentarios(tid: str, _: dict = Depends(current_user)) -> list[dict]:
+    with POOL.connection() as conn:
+        return conn.execute(
+            "SELECT c.id, c.texto, c.created_at, u.nombre AS autor, u.email AS autor_email "
+            "FROM tarea_comentario c JOIN usuario u ON u.id = c.user_id "
+            "WHERE c.tarea_id = %s ORDER BY c.created_at", (tid,)).fetchall()
+
+
+@app.post("/api/tareas/{tid}/comentarios", status_code=201)
+def comentar(tid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
+    texto = (body.get("texto") or "").strip()
+    if not texto:
+        raise HTTPException(422, "El comentario viene vacío")
+    with POOL.connection() as conn:
+        try:
+            fila = conn.execute(
+                "INSERT INTO tarea_comentario (tarea_id, user_id, texto) VALUES (%s, %s, %s) "
+                "RETURNING id", (tid, user["id"], texto)).fetchone()
+        except psycopg_errors.ForeignKeyViolation:
+            raise HTTPException(404, "No existe esa tarea") from None
+        return conn.execute(
+            "SELECT c.id, c.texto, c.created_at, u.nombre AS autor, u.email AS autor_email "
+            "FROM tarea_comentario c JOIN usuario u ON u.id = c.user_id WHERE c.id = %s",
+            (fila["id"],)).fetchone()
+
+
+@app.delete("/api/comentarios/{cid}", status_code=204)
+def borrar_comentario(cid: str, user: dict = Depends(current_user)) -> None:
+    """Un comentario sólo lo borra quien lo escribió: el tablero es compartido,
+    pero lo que alguien dijo no lo edita otro."""
+    with POOL.connection() as conn:
+        if not conn.execute("DELETE FROM tarea_comentario WHERE id = %s AND user_id = %s",
+                            (cid, user["id"])).rowcount:
+            raise HTTPException(404, "No existe o no es tuyo")
 
 
 @app.delete("/api/tareas/{tid}", status_code=204)

@@ -969,3 +969,125 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 
 @media (max-width: 1100px) { .kb { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 620px)  { .kb { grid-template-columns: 1fr; padding: 14px 16px 40px; } }
+
+/* ── Menú lateral (menu.js) ──────────────────────────────────────────────────
+   El cajón vive sobre la tinta, como la topbar, y usa el mismo vocabulario:
+   mono en mayúsculas para las etiquetas, cajas rectas, sin sombra. */
+.mn-btn {
+  display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.28); background: transparent; color: var(--topbar-text);
+}
+.mn-btn:hover { background: rgba(255,255,255,.12); }
+.mn { position: fixed; inset: 0; z-index: 80; }
+.mn-scrim { position: absolute; inset: 0; background: rgba(17,17,32,.45); }
+.mn-panel {
+  position: absolute; top: 0; left: 0; bottom: 0; width: min(310px, 86vw);
+  display: flex; flex-direction: column;
+  background: var(--topbar); color: var(--topbar-text);
+  border-right: 1px solid rgba(0,0,0,.35);
+}
+.mn-head { display: flex; align-items: center; gap: 12px; padding: 20px; }
+.mn-brand { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1; }
+.mn-brand strong { font-family: var(--font-display); font-size: 20px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.mn-brand strong i { font-style: italic; }
+.mn-brand small { margin-top: 5px; font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .2em; text-transform: uppercase; opacity: .45; }
+.mn-x {
+  width: 28px; height: 28px; flex-shrink: 0; cursor: pointer; font-size: 16px; line-height: 1;
+  border: 1px solid rgba(255,255,255,.22); background: transparent; color: var(--topbar-text);
+}
+.mn-x:hover { background: rgba(255,255,255,.12); }
+.mn-label {
+  padding: 14px 20px 9px; opacity: .35;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+}
+.mn-nav { display: flex; flex-direction: column; }
+.mn-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+  color: var(--topbar-text); text-decoration: none; border-left: 3px solid transparent;
+}
+.mn-item:hover { background: rgba(255,255,255,.07); color: var(--topbar-text); }
+.mn-item.active { background: rgba(255,255,255,.12); border-left-color: var(--paper); }
+.mn-item.soon { opacity: .4; cursor: default; }
+.mn-item.soon:hover { background: transparent; }
+.mn-txt { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.3; }
+.mn-txt strong { font-family: var(--font-ui); font-size: 13.5px; font-weight: 600; }
+.mn-txt small { margin-top: 2px; font-size: 11px; opacity: .45; }
+.mn-soon {
+  flex-shrink: 0; padding: 3px 6px; background: rgba(255,255,255,.09); opacity: .7;
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.mn-foot {
+  display: flex; align-items: center; gap: 11px; margin-top: auto; padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,.09);
+}
+.mn-ava {
+  display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0;
+  background: var(--paper); color: var(--topbar);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+}
+
+/* ── Editor markdown del panel de tarea ──────────────────────────────────── */
+.md-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.md-b {
+  min-width: 26px; height: 26px; padding: 0 7px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.md-b:hover { border-color: var(--accent); color: var(--accent); }
+.md-prev { margin-left: auto; }
+.md-b.on { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.md-out {
+  padding: 12px 13px; border: 1px solid var(--border-2); background: var(--bg);
+  font-size: 13.5px; line-height: 1.65; color: var(--ink);
+}
+.md-out h1, .md-out h2, .md-out h3 {
+  margin: 10px 0 6px; font-family: var(--font-display); font-weight: 500; line-height: 1.2;
+}
+.md-out h1 { font-size: 21px; } .md-out h2 { font-size: 18px; } .md-out h3 { font-size: 15px; }
+.md-out p { margin: 6px 0; }
+.md-out ul, .md-out ol { margin: 6px 0 6px 18px; }
+.md-out ul.md-chk { list-style: none; margin-left: 0; }
+.md-out code { padding: 1px 5px; background: var(--accent-soft); font-family: var(--font-mono); font-size: 11.5px; }
+.md-out a { color: var(--accent); }
+.md-out .listo { color: var(--faint); text-decoration: line-through; }
+.md-vacio { color: var(--faint); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
+.md-adj { min-height: 60px !important; }
+.tk-adj { display: flex; flex-direction: column; gap: 4px; margin-top: 7px; }
+.tk-adj a { color: var(--accent); font-family: var(--font-mono); font-size: 10.5px; word-break: break-all; }
+
+/* ── Comentarios ─────────────────────────────────────────────────────────── */
+.tk-com { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); }
+.tk-com-row { display: flex; gap: 10px; }
+.tk-com-row .tk-ava { margin-left: 0; }
+.tk-com-b { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tk-com-h { display: flex; align-items: baseline; gap: 8px; }
+.tk-com-h strong { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.tk-com-h small { font-family: var(--font-mono); font-size: 9px; color: var(--faint); }
+.tk-com-t { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.tk-com-new { display: flex; gap: 8px; }
+.tk-com-new input { flex: 1; }
+.tk-com-new .btn-solid { flex-shrink: 0; padding: 0 14px; height: auto; }
+
+/* ── Vista de persona y directorio ───────────────────────────────────────── */
+.tk-persona-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 26px;
+  padding: 18px 24px; border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.tk-persona-stats { display: flex; gap: 26px; margin-left: auto; }
+.tk-persona-head .tk-ava { width: 38px; height: 38px; font-size: 12px; margin-left: 0; }
+.tk-dir { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.tk-dir-card {
+  display: flex; align-items: center; gap: 11px; padding: 12px 14px; cursor: pointer; text-align: left;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.tk-dir-card:hover { border-color: var(--accent); }
+.tk-dir-card .tk-ava { margin-left: 0; width: 30px; height: 30px; }
+.tk-dir-n {
+  display: flex; flex-direction: column; align-items: flex-end; margin-left: auto;
+  font-family: var(--font-display); font-size: 22px; font-weight: 500; line-height: 1;
+  color: var(--ink); font-feature-settings: 'tnum';
+}
+.tk-dir-n small { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }

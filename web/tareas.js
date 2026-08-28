@@ -15,6 +15,8 @@ const TIPOS = ['Visita', 'Llamada', 'Fotos', 'Contrato', 'Documentos', 'Publicac
 
 let tareas = [], equipo = [], vista = 'tablero', prio = 'all', persona = null, q = '';
 let abierta = null;              // id de la tarea en el panel, o 'nueva'
+let coments = [];                // comentarios de la tarea abierta
+let previo = false;              // el editor de descripción muestra la vista previa
 let arrastrando = null;
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -48,6 +50,60 @@ function marcar(desc, indice, done) {
   return lineas.join('\n');
 }
 
+// ── Markdown ─────────────────────────────────────────────────────────────────
+// Lo justo para que la vista previa sirva: encabezados, negrita, cursiva, código,
+// enlaces, listas y el checklist. No es un parser de CommerMark y no pretende serlo.
+function mdInline(t) {
+  return esc(t)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+
+function mdHtml(src) {
+  const out = [];
+  let lista = null;
+  const cerrar = () => { if (lista) { out.push(`</${lista}>`); lista = null; } };
+  for (const linea of (src ?? '').split('\n')) {
+    const chk = linea.match(RE_CHK);
+    const h = linea.match(/^(#{1,3})\s+(.*)$/);
+    const li = linea.match(/^\s*[-*]\s+(.*)$/);
+    const ol = linea.match(/^\s*\d+\.\s+(.*)$/);
+    if (chk) {
+      if (lista !== 'ul') { cerrar(); out.push('<ul class="md-chk">'); lista = 'ul'; }
+      out.push(`<li>${chk[2].toLowerCase() === 'x' ? '☑' : '☐'} <span class="${chk[2].toLowerCase() === 'x' ? 'listo' : ''}">${mdInline(chk[4])}</span></li>`);
+    } else if (h) { cerrar(); out.push(`<h${h[1].length}>${mdInline(h[2])}</h${h[1].length}>`); }
+    else if (li) {
+      if (lista !== 'ul') { cerrar(); out.push('<ul>'); lista = 'ul'; }
+      out.push(`<li>${mdInline(li[1])}</li>`);
+    } else if (ol) {
+      if (lista !== 'ol') { cerrar(); out.push('<ol>'); lista = 'ol'; }
+      out.push(`<li>${mdInline(ol[1])}</li>`);
+    } else if (!linea.trim()) { cerrar(); }
+    else { cerrar(); out.push(`<p>${mdInline(linea)}</p>`); }
+  }
+  cerrar();
+  return out.join('') || '<p class="md-vacio">Sin descripción</p>';
+}
+
+// Envuelve la selección del textarea, que es lo que hace la barra del canvas.
+function envolver(ta, antes, despues = antes) {
+  const { selectionStart: a, selectionEnd: b, value: v } = ta;
+  ta.value = v.slice(0, a) + antes + (v.slice(a, b) || '') + despues + v.slice(b);
+  ta.focus();
+  ta.selectionStart = a + antes.length;
+  ta.selectionEnd = b + antes.length;
+}
+
+function prefijar(ta, marca) {
+  const { selectionStart: a, value: v } = ta;
+  const ini = v.lastIndexOf('\n', a - 1) + 1;
+  ta.value = v.slice(0, ini) + marca + v.slice(ini);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = a + marca.length;
+}
+
 // ── Datos ────────────────────────────────────────────────────────────────────
 async function cargar() {
   [tareas, equipo] = await Promise.all([API.get('/tareas'), API.get('/equipo')]);
@@ -75,6 +131,13 @@ function visibles() {
     if (q && !norm(`${t.titulo} ${t.listing_id ?? ''} ${t.cliente_nombre ?? ''}`).includes(norm(q))) return false;
     return true;
   });
+}
+
+async function abrirTarea(id) {
+  abierta = id; coments = []; previo = false;
+  render();
+  coments = await API.get(`/tareas/${id}/comentarios`).catch(() => []);
+  renderPanel();
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
@@ -117,7 +180,7 @@ function tarjeta(t) {
     art.classList.add('dragging');
   });
   art.addEventListener('dragend', () => { arrastrando = null; render(); });
-  art.addEventListener('click', () => { abierta = t.id; render(); });
+  art.addEventListener('click', () => abrirTarea(t.id));
   return art;
 }
 
@@ -159,6 +222,7 @@ function renderTablero(lista) {
 function renderEquipo(lista) {
   const wrap = document.createElement('div');
   wrap.className = 'tk-matrix';
+  wrap.appendChild(renderDirectorio());
   const tabla = document.createElement('table');
   tabla.innerHTML = `<thead><tr><th>Persona</th>${COLS.map(c => `<th>${c.label}</th>`).join('')}</tr></thead>`;
   const tbody = document.createElement('tbody');
@@ -188,6 +252,47 @@ function renderEquipo(lista) {
   tabla.appendChild(tbody);
   wrap.appendChild(tabla);
   return wrap;
+}
+
+function renderPersona(lista) {
+  const p = equipo.find(e => e.id === persona);
+  if (!p) return renderTablero(lista);
+  const mias = lista.filter(t => t.asignado_a === p.id);
+  const wrap = document.createElement('div');
+  const cab = document.createElement('div');
+  cab.className = 'tk-persona-head';
+  const st = (n, l, c) => `<div class="stat"><span class="stat-num" style="color:${c}">${n}</span><span class="stat-label">${l}</span></div>`;
+  cab.innerHTML = `
+    <div class="tk-persona">
+      <span class="tk-ava" style="background:${tono(p.id)}">${iniciales(p)}</span>
+      <span class="tk-persona-n"><strong>${esc(p.nombre ?? p.email)}</strong><span>${esc(p.rol ?? p.email)}</span></span>
+    </div>
+    <div class="tk-persona-stats">
+      ${st(mias.filter(t => t.columna !== 'completado').length, 'activas', 'var(--ink)')}
+      ${st(mias.filter(t => t.columna === 'encurso').length, 'en curso', 'var(--c-encurso)')}
+      ${st(mias.filter(t => t.columna === 'completado').length, 'completadas', 'var(--c-completado)')}
+      ${st(mias.length, 'en total', 'var(--muted)')}
+    </div>`;
+  wrap.appendChild(cab);
+  wrap.appendChild(renderTablero(mias));
+  return wrap;
+}
+
+function renderDirectorio() {
+  const dir = document.createElement('div');
+  dir.className = 'tk-dir';
+  dir.innerHTML = equipo.map(p => {
+    const suyas = tareas.filter(t => t.asignado_a === p.id);
+    const act = suyas.filter(t => t.columna !== 'completado').length;
+    return `<button class="tk-dir-card" data-id="${p.id}">
+      <span class="tk-ava" style="background:${tono(p.id)}">${iniciales(p)}</span>
+      <span class="tk-persona-n"><strong>${esc(p.nombre ?? p.email)}</strong><span>${esc(p.rol ?? '')}</span></span>
+      <span class="tk-dir-n">${act}<small>activas</small></span>
+    </button>`;
+  }).join('');
+  dir.querySelectorAll('.tk-dir-card').forEach(b =>
+    b.addEventListener('click', () => { persona = b.dataset.id; vista = 'persona'; render(); }));
+  return dir;
 }
 
 function renderStats(lista) {
@@ -238,12 +343,41 @@ function renderPanel() {
     <div><label for="f-listing">Inmueble (source:id)</label><input id="f-listing" value="${esc(t.listing_id ?? '')}" placeholder="pincali:EB-7741"></div>
     ${chk.length ? `<div><label>Checklist · ${chk.filter(c => c.done).length}/${chk.length}</label>
       <div class="tk-check">${chk.map(c => `<label><input type="checkbox" data-i="${c.i}"${c.done ? ' checked' : ''}><span class="${c.done ? 'listo' : ''}">${esc(c.texto)}</span></label>`).join('')}</div></div>` : ''}
-    <div><label for="f-desc">Descripción · markdown, <code>- [ ]</code> crea checklist</label>
-      <textarea id="f-desc" placeholder="- [ ] Primer paso&#10;- [ ] Segundo paso">${esc(t.descripcion ?? '')}</textarea></div>
+    <div>
+      <label>Descripción · markdown</label>
+      <div class="md-bar">
+        ${[['b','Negrita','**'],['i','Cursiva','*'],['`','Código','`']].map(([l,ti,m]) =>
+          `<button class="md-b" data-wrap="${m}" title="${ti}">${l}</button>`).join('')}
+        ${[['H','Encabezado','## '],['•','Lista','- '],['☐','Checklist','- [ ] '],['1.','Numerada','1. ']].map(([l,ti,m]) =>
+          `<button class="md-b" data-pre="${esc(m)}" title="${ti}">${l}</button>`).join('')}
+        <button class="md-b" data-link="1" title="Enlace">↗</button>
+        <button class="md-b md-prev${previo ? ' on' : ''}" id="mdPrev">${previo ? 'Editar' : 'Vista previa'}</button>
+      </div>
+      <textarea id="f-desc" ${previo ? 'hidden' : ''} placeholder="- [ ] Primer paso&#10;- [ ] Segundo paso">${esc(t.descripcion ?? '')}</textarea>
+      ${previo ? `<div class="md-out">${mdHtml(t.descripcion)}</div>` : ''}
+    </div>
+    <div><label for="f-adj">Adjuntos · una URL por línea</label>
+      <textarea id="f-adj" class="md-adj" placeholder="https://…">${esc((t.adjuntos ?? []).join('\n'))}</textarea>
+      ${(t.adjuntos ?? []).length ? `<div class="tk-adj">${t.adjuntos.map(u =>
+        `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.split('/').pop() || u)}</a>`).join('')}</div>` : ''}</div>
     <div class="tk-actions">
       <button class="btn-solid" id="tkSave">${nueva ? 'Crear tarea' : 'Guardar'}</button>
       ${nueva ? '' : '<button class="tk-del" id="tkDel">Borrar</button>'}
-    </div>`;
+    </div>
+    ${nueva ? '' : `<div class="tk-com">
+      <label>Comentarios · ${coments.length}</label>
+      ${coments.map(c => `<div class="tk-com-row">
+          <span class="tk-ava" style="background:${tono(c.autor_email)}">${iniciales({ nombre: c.autor, email: c.autor_email })}</span>
+          <span class="tk-com-b">
+            <span class="tk-com-h"><strong>${esc(c.autor ?? c.autor_email)}</strong><small>${(c.created_at ?? '').slice(0, 16).replace('T', ' ')}</small></span>
+            <span class="tk-com-t">${esc(c.texto)}</span>
+          </span>
+        </div>`).join('') || '<p class="md-vacio">Nadie ha comentado.</p>'}
+      <div class="tk-com-new">
+        <input id="f-com" placeholder="Escribe un comentario">
+        <button class="btn-solid" id="tkCom">Enviar</button>
+      </div>
+    </div>`}`;
 
   const val = id => document.getElementById(id).value.trim();
   const cuerpo = () => ({
@@ -251,6 +385,7 @@ function renderPanel() {
     columna: val('f-col'), asignado_a: val('f-asg') || null,
     listing_id: val('f-listing') || null, descripcion: document.getElementById('f-desc').value,
     vence_el: val('f-vence') || null,
+    adjuntos: document.getElementById('f-adj').value.split('\n').map(x => x.trim()).filter(Boolean),
   });
 
   document.getElementById('tkClose').addEventListener('click', () => { abierta = null; renderPanel(); });
@@ -271,6 +406,29 @@ function renderPanel() {
     abierta = null;
     render();
   });
+  side.querySelectorAll('.md-b[data-wrap]').forEach(b =>
+    b.addEventListener('click', () => envolver(document.getElementById('f-desc'), b.dataset.wrap)));
+  side.querySelectorAll('.md-b[data-pre]').forEach(b =>
+    b.addEventListener('click', () => prefijar(document.getElementById('f-desc'), b.dataset.pre)));
+  side.querySelector('.md-b[data-link]')?.addEventListener('click', () => {
+    const url = prompt('URL del enlace:');
+    if (url) envolver(document.getElementById('f-desc'), '[', `](${url})`);
+  });
+  document.getElementById('mdPrev').addEventListener('click', () => {
+    // Al alternar se conserva lo escrito: el textarea desaparece del DOM.
+    const ta = document.getElementById('f-desc');
+    if (ta && !nueva) tareas[tareas.findIndex(x => x.id === abierta)].descripcion = ta.value;
+    else if (ta) t.descripcion = ta.value;
+    previo = !previo;
+    renderPanel();
+  });
+  document.getElementById('tkCom')?.addEventListener('click', async () => {
+    const inp = document.getElementById('f-com');
+    if (!inp.value.trim()) return;
+    coments.push(await API.post(`/tareas/${abierta}/comentarios`, { texto: inp.value }));
+    renderPanel();
+  });
+
   // Marcar una casilla reescribe la línea del markdown, no un campo aparte.
   side.querySelectorAll('.tk-check input').forEach(cb =>
     cb.addEventListener('change', () => {
@@ -287,8 +445,13 @@ function render() {
 
   const vp = document.getElementById('viewPills');
   vp.innerHTML = '';
-  [['tablero', 'Tablero'], ['equipo', 'Equipo']].forEach(([k, l]) =>
-    vp.appendChild(pill(l, vista === k, () => { vista = k; render(); })));
+  [['tablero', 'Tablero'], ['equipo', 'Equipo'], ['persona', 'Persona']].forEach(([k, l]) =>
+    vp.appendChild(pill(l, vista === k, () => {
+      vista = k;
+      // La vista de una persona necesita una persona: si no hay, toma la primera.
+      if (k === 'persona' && !persona) persona = equipo[0]?.id ?? null;
+      render();
+    })));
 
   const pp = document.getElementById('prioPills');
   pp.innerHTML = '';
@@ -298,11 +461,11 @@ function render() {
     prio === p, () => { prio = p; render(); })));
 
   const pg = document.getElementById('personaGroup');
-  pg.hidden = vista !== 'tablero';
-  if (vista === 'tablero') {
+  pg.hidden = vista === 'equipo';
+  if (vista !== 'equipo') {
     const cont = document.getElementById('personaPills');
     cont.innerHTML = '';
-    cont.appendChild(pill('Todo el equipo', !persona, () => { persona = null; render(); }));
+    if (vista === 'tablero') cont.appendChild(pill('Todo el equipo', !persona, () => { persona = null; render(); }));
     equipo.forEach(p => cont.appendChild(pill(
       `${esc(p.nombre ?? p.email)}<span class="pill-count">${p.abiertas}</span>`,
       persona === p.id, () => { persona = p.id; render(); })));
@@ -311,13 +474,15 @@ function render() {
   renderStats(lista);
   const main = document.getElementById('vista');
   main.innerHTML = '';
-  main.appendChild(vista === 'equipo' ? renderEquipo(lista) : renderTablero(lista));
+  main.appendChild(vista === 'equipo' ? renderEquipo(lista)
+                 : vista === 'persona' ? renderPersona(lista)
+                 : renderTablero(lista));
   renderPanel();
 }
 
 // ── Arranque ─────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', e => { q = e.target.value; render(); });
-document.getElementById('nueva-btn').addEventListener('click', () => { abierta = 'nueva'; renderPanel(); });
+document.getElementById('nueva-btn').addEventListener('click', () => { abierta = 'nueva'; coments = []; previo = false; renderPanel(); });
 document.getElementById('scrim').addEventListener('click', () => { abierta = null; renderPanel(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && abierta) { abierta = null; renderPanel(); } });
 
