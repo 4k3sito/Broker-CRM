@@ -23,3 +23,6 @@ scrapers/.fixtures/
 cache/
 error_logs/
 *.dc.html
+
+# Credenciales de proxy en el servidor — nunca al repo
+scrapers/.env
