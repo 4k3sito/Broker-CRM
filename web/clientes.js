@@ -1,6 +1,3 @@
-const SUPABASE_URL = 'https://fbtyjwpeymnguetrcwzt.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_Ke4bAiGgcM6bMxaOk-u2Zw_S9AMSo1C';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const PROC_STATUS = ['presentado', 'aprobado', 'rechazado'];
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -11,45 +8,41 @@ let currentUser  = null;
 let clientes     = [];          // cada uno con .proceso[] embebido
 let filterStatus = 'all';
 let searchQ      = '';
-let authResolved = false;
-
-function redirectToLogin() {
-  window.location.replace('login.html');
-}
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
 async function loadClientes() {
-  clientes = [];
-  if (!currentUser) return;
-  const { data, error } = await db.from('cliente')
-    .select('id, nombre, contacto, empresa, requerimientos, notas, proceso(id, status, ficha(id, titulo))')
-    .order('created_at', { ascending: false });
-  if (error) { console.warn('Carga de clientes falló:', error.message); return; }
-  clientes = data ?? [];
+  clientes = await API.get('/clientes').catch(err => {
+    console.warn('Carga de clientes falló:', err.message);
+    return [];
+  });
 }
 
 async function createCliente(patch) {
-  const { data, error } = await db.from('cliente')
-    .insert({ user_id: currentUser.id, ...patch }).select('*, proceso(id, status, ficha(id, titulo))').single();
-  if (error) { alert('No se pudo crear el cliente: ' + error.message); return; }
-  clientes.unshift(data);
-  render();
+  try {
+    clientes.unshift(await API.post('/clientes', patch));
+    render();
+  } catch (err) {
+    alert('No se pudo crear el cliente: ' + err.message);
+  }
 }
 
 function saveCliente(id, field, value) {
   const c = clientes.find(x => x.id === id);
   if (c) c[field] = value;
-  db.from('cliente').update({ [field]: value, updated_at: new Date().toISOString() })
-    .eq('id', id).then(({ error }) => { if (error) console.warn('Cliente update failed:', error.message); });
+  API.patch(`/clientes/${id}`, { [field]: value })
+    .catch(err => console.warn('No se pudo guardar el cliente:', err.message));
 }
 
 async function deleteCliente(id) {
   if (!confirm('¿Eliminar este cliente y todos sus procesos?')) return;
-  const { error } = await db.from('cliente').delete().eq('id', id);
-  if (error) { alert('No se pudo eliminar: ' + error.message); return; }
-  clientes = clientes.filter(c => c.id !== id);
-  render();
+  try {
+    await API.del(`/clientes/${id}`);
+    clientes = clientes.filter(c => c.id !== id);
+    render();
+  } catch (err) {
+    alert('No se pudo eliminar: ' + err.message);
+  }
 }
 
 function setProcesoStatus(procId, status) {
@@ -57,8 +50,8 @@ function setProcesoStatus(procId, status) {
     const p = (c.proceso ?? []).find(x => x.id === procId);
     if (p) p.status = status;
   }
-  db.from('proceso').update({ status, updated_at: new Date().toISOString() })
-    .eq('id', procId).then(({ error }) => { if (error) console.warn('Proceso update failed:', error.message); });
+  API.patch(`/procesos/${procId}`, { status })
+    .catch(err => console.warn('No se pudo guardar el proceso:', err.message));
   render();
 }
 
@@ -163,31 +156,18 @@ document.getElementById('filterbar').addEventListener('click', e => {
 document.getElementById('clientSearch').addEventListener('input', e => { searchQ = e.target.value.trim(); render(); });
 document.getElementById('new-client-btn').addEventListener('click', openNewClient);
 
-document.getElementById('logout-btn').addEventListener('click', () => db.auth.signOut());
-
-db.auth.onAuthStateChange((_event, session) => {
-  currentUser = session?.user ?? null;
-  document.getElementById('authBox').hidden = !!currentUser;
-  document.getElementById('userBox').hidden = !currentUser;
-  if (currentUser) document.getElementById('userEmail').textContent = currentUser.email;
-  if (!currentUser && authResolved) {
-    redirectToLogin();
-    return;
-  }
-  // ponytail: setTimeout libera el lock de auth (mismo gotcha que app.js).
-  setTimeout(() => loadClientes().then(render), 0);
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await API.logout().catch(() => {});
+  location.replace('login.html');
 });
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
-db.auth.getSession().then(async ({ data, error }) => {
-  if (error) throw new Error(error.message);
-  authResolved = true;
-  currentUser = data.session?.user ?? null;
-  if (!currentUser) {
-    redirectToLogin();
-    return;
-  }
+API.me().then(async user => {
+  currentUser = user;
+  document.getElementById('authBox').hidden = true;
+  document.getElementById('userBox').hidden = false;
+  document.getElementById('userEmail').textContent = user.email;
   await loadClientes();
   render();
-}).catch(error => console.error('No se pudo validar la sesión:', error));
+}).catch(err => console.error('No se pudo validar la sesión:', err));

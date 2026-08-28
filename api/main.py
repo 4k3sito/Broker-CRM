@@ -321,6 +321,57 @@ def list_listings(
     return {"items": rows, "total": total, "page": page, "per_page": per_page}
 
 
+# Va ANTES de /api/listings/{listing_id}: esa ruta es :path y se tragaría "facets".
+@app.get("/api/listings/facets")
+def facets(
+    user: dict = Depends(current_user),
+    q: str | None = None, zona: str | None = None,
+    operacion: str | None = None, tipo: str | None = None,
+    fuente: list[str] | None = Query(None),
+    precio_min: float | None = None, precio_max: float | None = None,
+    m2_min: float | None = None, m2_max: float | None = None,
+    favoritos: bool = False, near: str | None = None, radio: int = 2000,
+) -> dict:
+    """Contadores para las píldoras de filtro. Deliberadamente ignora el filtro de
+    estado: las píldoras muestran a cuántos llegarías si cambiaras de estado."""
+    w, p = _filtros(locals())
+    where = ("WHERE " + " AND ".join(w)) if w else ""
+    rows = None
+    with POOL.connection() as conn:
+        rows = conn.execute(f"""
+            SELECT coalesce(ul.status, 'new') AS status, l.source,
+                   count(*) AS n, count(*) FILTER (WHERE ul.starred) AS destacados
+            FROM listings l
+            LEFT JOIN zona z ON z.id = l.zona_id
+            LEFT JOIN user_listing ul ON ul.listing_id = l.source || ':' || l.listing_id
+                                     AND ul.user_id = %s
+            {where}
+            GROUP BY GROUPING SETS ((coalesce(ul.status, 'new')), (l.source), ())
+        """, [user["id"], *p]).fetchall()
+    out = {"total": 0, "destacados": 0, "por_estado": {}, "por_fuente": {}}
+    for r in rows:
+        if r["status"] is None and r["source"] is None:      # la fila del gran total
+            out["total"], out["destacados"] = r["n"], r["destacados"]
+        elif r["source"] is None:
+            out["por_estado"][r["status"]] = r["n"]
+        else:
+            out["por_fuente"][r["source"]] = r["n"]
+    return out
+
+
+@app.get("/api/ubicaciones")
+def ubicaciones(q: str = Query(min_length=2), user: dict = Depends(current_user)) -> list[dict]:
+    """Autocompletado de direcciones. Sustituye al índice que el dashboard armaba
+    en memoria a partir de la tabla completa."""
+    with POOL.connection() as conn:
+        return conn.execute(
+            """SELECT coalesce(nullif(neighborhood, ''), location) AS text, count(*) AS count
+               FROM listings
+               WHERE norm LIKE %s AND coalesce(nullif(neighborhood, ''), location) IS NOT NULL
+               GROUP BY 1 ORDER BY count(*) DESC LIMIT 8""",
+            (f"%{norm_txt(q)}%",)).fetchall()
+
+
 @app.get("/api/listings/{listing_id:path}")
 def get_listing(listing_id: str, user: dict = Depends(current_user)) -> dict:
     with POOL.connection() as conn:

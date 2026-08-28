@@ -1,6 +1,3 @@
-const SUPABASE_URL = 'https://fbtyjwpeymnguetrcwzt.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_Ke4bAiGgcM6bMxaOk-u2Zw_S9AMSo1C';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const STATUSES = ['Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'];
 
 const STATUS_FROM_API = { new: 'Nuevo', reviewed: 'Revisado', contacted: 'Contactado', rented: 'Rentado', discarded: 'Descartado' };
@@ -35,17 +32,11 @@ let filterFuente  = 'all';
 let filterStarred = false;
 let searchQ       = '';
 let searchStreet  = '';
-let locationIndex = [];
 let priceMin      = '';
 let priceMax      = '';
 let filtersOpen   = false;
 let page          = 1;
-let authResolved  = false;
 const PAGE_SIZE   = 70;
-
-function redirectToLogin() {
-  window.location.replace('login.html');
-}
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
@@ -82,61 +73,55 @@ function adaptListing(l) {
   };
 }
 
-// Only the columns adaptListing() actually reads — the table also carries
-// description/features/price_raw/etc. that would otherwise bloat every fetch.
-const LISTING_COLUMNS = 'id,source,external_id,title,broker_name,location,neighborhood,' +
-  'price_numeric,currency,images,image,url,whatsapp,property_type,property_size_m2,transaction_type';
+let totalFiltrado = 0;
+let facetas = { total: 0, destacados: 0, por_estado: {}, por_fuente: {} };
 
-async function fetchAllListings() {
-  // PostgREST caps each request at 1000 rows; page through until exhausted.
-  const PAGE = 1000;
-  const all = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await db.from('listings').select(LISTING_COLUMNS)
-      .order('id').range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    all.push(...data);
-    if (data.length < PAGE) break;
-  }
-  return all;
+// Los filtros del tablero, tal como los espera la API. El filtrado ocurre en SQL:
+// antes se bajaba la tabla entera (~25 MB) y se filtraba en el navegador.
+function filtrosActuales(extra = {}) {
+  return API.qs({
+    q: searchStreet || searchQ,
+    estado: filterStatus !== 'Todos' ? STATUS_TO_API[filterStatus] : '',
+    fuente: filterFuente !== 'all' ? filterFuente : '',
+    favoritos: filterStarred,
+    precio_min: priceMin,
+    precio_max: priceMax,
+    ...extra,
+  });
+}
+
+async function cargarPagina() {
+  const [lista, f] = await Promise.all([
+    API.get(`/listings${filtrosActuales({ page, per_page: PAGE_SIZE })}`),
+    // Las facetas ignoran el filtro de estado a propósito: alimentan las píldoras.
+    API.get(`/listings/facets${API.qs({
+      q: searchStreet || searchQ,
+      fuente: filterFuente !== 'all' ? filterFuente : '',
+      favoritos: filterStarred,
+      precio_min: priceMin,
+      precio_max: priceMax,
+    })}`),
+  ]);
+  listings = lista.items.map(adaptListing);
+  listingsMap = Object.fromEntries(listings.map(l => [l.id, l]));
+  totalFiltrado = lista.total;
+  facetas = f;
 }
 
 // ── Per-user state ─────────────────────────────────────────────────────────────
 
-// Overlay this user's saved status/starred/notes onto the loaded listings.
-async function loadUserState() {
-  // reset to defaults (handles logout too)
-  for (const l of listings) { l.status = 'Nuevo'; l.starred = false; l.notes = ''; }
-  if (!currentUser) return;
-  const { data, error } = await db.from('user_listing')
-    .select('listing_id,status,starred,notes').eq('user_id', currentUser.id);
-  if (error) { console.warn('Carga de estado falló:', error.message); return; }
-  for (const r of data) {
-    const l = listingsMap[r.listing_id];
-    if (!l) continue;
-    l.status  = STATUS_FROM_API[r.status] ?? 'Nuevo';
-    l.starred = r.starred ?? false;
-    l.notes   = r.notes ?? '';
-  }
-}
-
 function setState(id, patch) {
   const l = listingsMap[id];
   if (!l) return;
-  if (!currentUser) { alert('Inicia sesión para guardar notas y favoritos.'); return; }
   if (patch.status  !== undefined) l.status  = patch.status;
   if (patch.starred !== undefined) l.starred = patch.starred;
   if (patch.notes   !== undefined) l.notes   = patch.notes;
 
-  // One row per (user, listing); upsert merges with what's already there.
-  db.from('user_listing').upsert({
-    user_id:    currentUser.id,
-    listing_id: id,
-    status:     STATUS_TO_API[l.status] ?? l.status,
-    starred:    l.starred,
-    notes:      l.notes,
-    updated_at: new Date().toISOString(),
-  }).then(({ error }) => { if (error) console.warn('Update failed:', error.message); });
+  API.put(`/listings/${encodeURIComponent(id)}/estado`, {
+    status:  STATUS_TO_API[l.status] ?? l.status,
+    starred: l.starred,
+    notes:   l.notes,
+  }).catch(err => console.warn('No se pudo guardar el estado:', err.message));
 }
 
 // ── Filters ──────────────────────────────────────────────────────────────────
@@ -151,23 +136,8 @@ function matchesText(haystack, query) {
 console.assert(matchesText('San Pedro Garza García', 'san pedro garcia'), 'matchesText: acentos/orden');
 console.assert(!matchesText('Centro, Monterrey', 'san pedro'), 'matchesText: no falso positivo');
 
-function passesExcept(l, exclude) {
-  if (exclude !== 'status'  && filterStatus !== 'Todos' && l.status !== filterStatus) return false;
-  if (exclude !== 'source'  && filterFuente !== 'all'   && l.fuente !== filterFuente) return false;
-  if (exclude !== 'starred' && filterStarred && !l.starred) return false;
-  if (searchStreet && !matchesText(l.direccion, searchStreet)) return false;
-  if (searchQ && !matchesText(l.direccion, searchQ) && !matchesText(l.titulo, searchQ)) return false;
-  if (priceMin !== '' && (l.precio?.monto ?? 0) < Number(priceMin)) return false;
-  if (priceMax !== '' && (l.precio?.monto ?? Infinity) > Number(priceMax)) return false;
-  return true;
-}
-
-function computeFiltered() {
-  return listings.filter(l => passesExcept(l, null));
-}
-
-function buildFuenteFilters(data) {
-  const fuentes = [...new Set(data.map(l => l.fuente))].sort();
+function buildFuenteFilters(porFuente) {
+  const fuentes = Object.keys(porFuente).sort();
   const group = document.getElementById('fuente-group');
   group.innerHTML =
     '<span class="filter-group-label">Fuente</span>' +
@@ -184,21 +154,15 @@ function escAttr(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function buildLocationIndex(data) {
-  const map = {};
-  data.forEach(l => {
-    const key = (l.direccion ?? '').trim();
-    if (key) map[key] = (map[key] || 0) + 1;
-  });
-  locationIndex = Object.entries(map)
-    .map(([text, count]) => ({ text, count }))
-    .sort((a, b) => b.count - a.count);
-}
+let sugerenciaPeticion = 0;
 
-function renderSuggestions(q) {
+async function renderSuggestions(q) {
   const box = document.getElementById('searchSuggestions');
   if (q.length < 2 || searchStreet) { box.classList.remove('open'); return; }
-  const matches = locationIndex.filter(s => matchesText(s.text, q)).slice(0, 8);
+  // Cada tecla dispara una petición; solo la última puede pintar.
+  const mia = ++sugerenciaPeticion;
+  const matches = await API.get(`/ubicaciones?q=${encodeURIComponent(q)}`).catch(() => []);
+  if (mia !== sugerenciaPeticion) return;
   if (!matches.length) { box.classList.remove('open'); return; }
   box.innerHTML =
     '<div class="suggestions-header"><span>Ubicaciones</span></div>' +
@@ -309,28 +273,23 @@ function renderCard(l, i) {
   </article>`;
 }
 
-function renderStats(filtered) {
-  const counts = {};
-  STATUSES.forEach(s => counts[s] = 0);
-  filtered.forEach(l => { if (counts[l.status] !== undefined) counts[l.status]++; });
-  const stars = filtered.filter(l => l.starred).length;
+function renderStats() {
+  const n = e => facetas.por_estado[STATUS_TO_API[e]] ?? 0;
   document.getElementById('statsBar').innerHTML = `
-    <div class="stat-item stat-main"><span class="stat-num">${filtered.length}</span><span class="stat-label">listados visibles</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-nuevo)">${counts['Nuevo']}</span><span class="stat-label">nuevos</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-revisado)">${counts['Revisado']}</span><span class="stat-label">revisados</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-contactado)">${counts['Contactado']}</span><span class="stat-label">contactados</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-rentado)">${counts['Rentado']}</span><span class="stat-label">rentados</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--accent)">${stars}</span><span class="stat-label">&#9733; destacados</span></div>
+    <div class="stat-item stat-main"><span class="stat-num">${totalFiltrado}</span><span class="stat-label">listados visibles</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--s-nuevo)">${n('Nuevo')}</span><span class="stat-label">nuevos</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--s-revisado)">${n('Revisado')}</span><span class="stat-label">revisados</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--s-contactado)">${n('Contactado')}</span><span class="stat-label">contactados</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--s-rentado)">${n('Rentado')}</span><span class="stat-label">rentados</span></div>
+    <div class="stat-item"><span class="stat-num" style="color:var(--accent)">${facetas.destacados}</span><span class="stat-label">&#9733; destacados</span></div>
   `;
 }
 
-// Faceted counts on the status pills: how many listings would match if only
-// the status filter changed (all other active filters still applied).
+// Cuántos listados habría si solo cambiara el filtro de estado (el resto sigue aplicado).
 function renderStatusCounts() {
-  const base = listings.filter(l => passesExcept(l, 'status'));
   document.querySelectorAll('.pill[data-group="status"]').forEach(pill => {
     const val = pill.dataset.val;
-    const n = val === 'Todos' ? base.length : base.filter(l => l.status === val).length;
+    const n = val === 'Todos' ? facetas.total : (facetas.por_estado[STATUS_TO_API[val]] ?? 0);
     pill.querySelector('.pill-count').textContent = n;
   });
 }
@@ -347,15 +306,30 @@ function renderPagination(totalPages) {
   document.getElementById('page-next')?.addEventListener('click', () => { page++; render(); window.scrollTo({ top: 0 }); });
 }
 
-function render() {
-  const filtered = computeFiltered();
-  document.getElementById('countNum').textContent   = filtered.length;
-  document.getElementById('countTotal').textContent = listings.length;
-  renderStats(filtered);
+let renderEnCurso = null;
+
+async function render() {
+  // Un clic rápido en varios filtros dispararía peticiones que llegan desordenadas;
+  // encadenarlas garantiza que la última en salir es la que se pinta.
+  renderEnCurso = (renderEnCurso ?? Promise.resolve()).then(_render).catch(err => {
+    console.error(err);
+    document.getElementById('grid').innerHTML =
+      `<p class="empty">No se pudo cargar los listados.<br>${err.message}</p>`;
+  });
+  return renderEnCurso;
+}
+
+async function _render() {
+  await cargarPagina();
+
+  document.getElementById('countNum').textContent   = totalFiltrado;
+  document.getElementById('countTotal').textContent = facetas.total;
+  renderStats();
   renderStatusCounts();
+  buildFuenteFilters(facetas.por_fuente);
 
   const grid = document.getElementById('grid');
-  if (!filtered.length) {
+  if (!listings.length) {
     grid.innerHTML = `<div class="empty">
       ${ICON_BUILDING}
       <p>Sin resultados para esta b&#250;squeda.</p>
@@ -364,13 +338,11 @@ function render() {
     return;
   }
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  if (page > totalPages) page = totalPages;
-  if (page < 1) page = 1;
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
+  if (page > totalPages) { page = totalPages; return _render(); }
   renderPagination(totalPages);
 
-  grid.innerHTML = pageItems.map(renderCard).join('');
+  grid.innerHTML = listings.map(renderCard).join('');
 
   grid.querySelectorAll('.card').forEach(card => {
     const id = card.dataset.id;
@@ -385,7 +357,7 @@ function render() {
       e.target.className = 'status-select s-' + e.target.value;
       const l = listingsMap[id];
       card.className = `card ${l.starred ? 'starred' : ''} status-${e.target.value.toLowerCase()}`;
-      renderStats(computeFiltered());
+      render();
     });
 
     card.querySelector('.notes-area').addEventListener('blur', e => {
@@ -397,7 +369,9 @@ function render() {
 // ── Export ───────────────────────────────────────────────────────────────────
 
 function exportCSV() {
-  const filtered = computeFiltered();
+  // ponytail: exporta la página visible. Si algún día hace falta el filtro completo,
+  // se agrega ?formato=csv a /api/listings y lo arma el servidor.
+  const filtered = listings;
   const header = ['ID', 'Fuente', 'Precio', 'Moneda', 'Título', 'Dirección', 'Estado', 'Destacado', 'Notas', 'URL', 'WhatsApp'];
   const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = filtered.map(l => [
@@ -474,46 +448,25 @@ document.getElementById('price-clear').addEventListener('click', () => {
 });
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
-document.getElementById('logout-btn').addEventListener('click', () => db.auth.signOut());
-
-// Single source of truth: react to whatever auth state Supabase reports.
-db.auth.onAuthStateChange((_event, session) => {
-  currentUser = session?.user ?? null;
-  document.getElementById('authBox').hidden = !!currentUser;
-  document.getElementById('userBox').hidden = !currentUser;
-  if (currentUser) document.getElementById('userEmail').textContent = currentUser.email;
-  if (!currentUser && authResolved) {
-    redirectToLogin();
-    return;
-  }
-  // ponytail: setTimeout libera el lock de auth; llamar db.from(...) aquí dentro
-  // deadlockea el cliente supabase-js (gotcha documentado).
-  if (listings.length) setTimeout(() => loadUserState().then(render), 0);
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await API.logout().catch(() => {});
+  location.replace('login.html');
 });
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
-db.auth.getSession()
-  .then(async ({ data, error }) => {
-    if (error) throw new Error(error.message);
-    authResolved = true;
-    currentUser = data.session?.user ?? null;
-    if (!currentUser) {
-      redirectToLogin();
-      return;
-    }
-
-    const raw = await fetchAllListings();
-    listings = raw.map(adaptListing);
-    listingsMap = Object.fromEntries(listings.map(l => [l.id, l]));
-    buildLocationIndex(listings);
-    buildFuenteFilters(listings);
-    await loadUserState();
-    render();
+API.me()
+  .then(async user => {
+    currentUser = user;
+    document.getElementById('authBox').hidden = true;
+    document.getElementById('userBox').hidden = false;
+    document.getElementById('userEmail').textContent = user.email;
+    await render();          // render() ya trae listados y facetas del servidor
   })
   .catch(err => {
+    // El 401 lo maneja api.js redirigiendo al login; aquí solo quedan fallos reales.
     console.error(err);
     document.getElementById('countNum').textContent = 'Error';
     document.getElementById('grid').innerHTML =
-      `<p class="empty">No se pudo cargar los listings desde Supabase.<br>Revisa la consola para m&#225;s detalles.</p>`;
+      `<p class="empty">No se pudo cargar los listados.<br>${err.message}</p>`;
   });

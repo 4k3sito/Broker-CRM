@@ -1,57 +1,55 @@
-const SUPABASE_URL = 'https://fbtyjwpeymnguetrcwzt.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_Ke4bAiGgcM6bMxaOk-u2Zw_S9AMSo1C';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
+// Cambio de contraseña. El endpoint exige la contraseña actual aunque ya haya
+// sesión: una cookie robada no debe bastar para apoderarse de la cuenta.
+const MIN_PASSWORD_LENGTH = 10;
 const form = document.getElementById('updateForm');
+const actualInput = document.getElementById('actual');
 const passwordInput = document.getElementById('password');
 const confirmationInput = document.getElementById('passwordConfirmation');
-const formError = document.getElementById('formError');
 const submitButton = document.getElementById('submitButton');
-let recoverySessionReady = false;
+const formError = document.getElementById('formError');
+const updateView = document.getElementById('updateView');
+const successView = document.getElementById('successView');
 
-db.auth.onAuthStateChange((event, session) => {
-  if (event === 'PASSWORD_RECOVERY' && session?.user) recoverySessionReady = true;
-});
+function showError(message) {
+  formError.textContent = message;
+  formError.hidden = false;
+}
 
-db.auth.getSession().then(({ data, error }) => {
-  if (error) console.warn('No se pudo validar el enlace de recuperación:', error.message);
-  if (data.session?.user) recoverySessionReady = true;
-});
+function setLoading(loading) {
+  submitButton.disabled = loading;
+  submitButton.querySelector('span').textContent = loading ? 'Guardando…' : 'Guardar contraseña';
+}
+
+// Sin sesión no hay nada que cambiar; api.js redirige al login en el 401.
+API.me().catch(() => {});
 
 form.addEventListener('submit', async event => {
   event.preventDefault();
   formError.hidden = true;
-  if (passwordInput.value.length < 8) {
-    formError.textContent = 'La contraseña debe tener al menos 8 caracteres.';
-    formError.hidden = false;
-    passwordInput.focus();
-    return;
+
+  if (passwordInput.value.length < MIN_PASSWORD_LENGTH) {
+    showError(`La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+    return passwordInput.focus();
   }
   if (passwordInput.value !== confirmationInput.value) {
-    formError.textContent = 'Las contraseñas no coinciden.';
-    formError.hidden = false;
-    confirmationInput.focus();
-    return;
-  }
-  if (!recoverySessionReady) {
-    formError.textContent = 'El enlace es inválido o venció. Solicita uno nuevo.';
-    formError.hidden = false;
-    return;
+    showError('Las contraseñas no coinciden.');
+    return confirmationInput.focus();
   }
 
-  submitButton.disabled = true;
-  submitButton.querySelector('span').textContent = 'Guardando…';
-  const { error } = await db.auth.updateUser({ password: passwordInput.value });
-  submitButton.disabled = false;
-  submitButton.querySelector('span').textContent = 'Guardar contraseña';
-
-  if (error) {
-    console.warn('No se pudo actualizar la contraseña:', error.message);
-    formError.textContent = 'No fue posible actualizar la contraseña. Solicita un enlace nuevo.';
-    formError.hidden = false;
-    return;
+  setLoading(true);
+  try {
+    const r = await API.post('/password', {
+      actual: actualInput.value,
+      nueva: passwordInput.value,
+    });
+    updateView.hidden = true;
+    successView.hidden = false;
+    if (r.sesiones_cerradas) {
+      successView.querySelector('p:last-of-type').textContent =
+        `Tu nueva contraseña se guardó. Se cerraron ${r.sesiones_cerradas} sesión(es) abiertas en otros dispositivos.`;
+    }
+  } catch (err) {
+    showError(err.message);
+    setLoading(false);
   }
-
-  document.getElementById('updateView').hidden = true;
-  document.getElementById('successView').hidden = false;
 });

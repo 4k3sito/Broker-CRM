@@ -64,33 +64,19 @@
           </button>
         </form>
 
-        <div class="auth-actions">
-          <button id="toggleMode" class="text-button" type="button">Crear una cuenta</button>
-          <button id="forgotPassword" class="text-button" type="button">Olvidé mi contraseña</button>
-        </div>
         <p class="access-note">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-          Tus credenciales se protegen con Supabase Auth.
+          Tu sesión se protege con una cookie httponly en nuestro servidor.
         </p>
       </div>
 
-      <div id="successView" class="success-view" hidden aria-live="polite">
-        <div class="success-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
-        </div>
-        <p class="eyebrow" id="successEyebrow">Cuenta creada</p>
-        <h2 id="successTitle">Revisa tu correo.</h2>
-        <p id="successMessage">Confirma tu correo para activar tu cuenta y entrar al CRM.</p>
-        <button id="tryAnotherEmail" class="text-button" type="button">Volver al acceso</button>
-      </div>
     </div>
 
     <p class="login-help">¿Necesitas acceso? Solicítalo con la persona administradora de tu equipo.</p>
   </section>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="auth-urls.js"></script>
+<script src="api.js"></script>
 <script src="login.js"></script>
 </body>
 </html>

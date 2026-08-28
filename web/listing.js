@@ -1,6 +1,3 @@
-const SUPABASE_URL = 'https://fbtyjwpeymnguetrcwzt.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_Ke4bAiGgcM6bMxaOk-u2Zw_S9AMSo1C';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const STATUSES = ['Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'];
 
 const STATUS_FROM_API = { new: 'Nuevo', reviewed: 'Revisado', contacted: 'Contactado', rented: 'Rentado', discarded: 'Descartado' };
@@ -28,15 +25,10 @@ let clientes   = [];   // clientes del asesor (para el selector de "agregar al s
 let procesos   = [];   // procesos de ESTA ficha, con cliente embebido
 let documentos = [];   // documentos de la propiedad (predial, planos…), colgados de la ficha
 let currentUser = null;
-let authResolved = false;
 
 const PROC_STATUS = ['presentado', 'aprobado', 'rechazado'];
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 const escAttr = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-
-function redirectToLogin() {
-  window.location.replace('login.html');
-}
 
 function parseLocation(loc) {
   if (loc == null) return null;
@@ -82,63 +74,62 @@ function adaptListing(l) {
 }
 
 function setState(patch) {
-  if (!currentUser) { alert('Inicia sesión para guardar notas y favoritos.'); return; }
   Object.assign(listing, patch);
-  db.from('user_listing').upsert({
-    user_id:    currentUser.id,
-    listing_id: listing.id,
-    status:     STATUS_TO_API[listing.status] ?? listing.status,
-    starred:    listing.starred,
-    notes:      listing.notes,
-    updated_at: new Date().toISOString(),
-  }).then(({ error }) => { if (error) console.warn('Update failed:', error.message); });
+  API.put(`/listings/${encodeURIComponent(listing.id)}/estado`, {
+    status:  STATUS_TO_API[listing.status] ?? listing.status,
+    starred: listing.starred,
+    notes:   listing.notes,
+  }).catch(err => console.warn('No se pudo guardar el estado:', err.message));
 }
 
 // ── Ficha técnica (propiedad en seguimiento del asesor) ──────────────────────
 
 async function loadFicha() {
-  ficha = null;
-  if (!currentUser) return;
-  const { data, error } = await db.from('ficha').select('*')
-    .eq('source_listing_id', listing.id).maybeSingle();
-  if (error) { console.warn('Carga de ficha falló:', error.message); return; }
-  ficha = data;
+  const fichas = await API.get(`/fichas?listing=${encodeURIComponent(listing.id)}`)
+    .catch(err => { console.warn('Carga de ficha falló:', err.message); return []; });
+  ficha = fichas[0] ?? null;
 }
 
 // Clientes del asesor + procesos de esta ficha (para la sección de seguimiento).
 async function loadSeguimiento() {
   clientes = [];
   procesos = [];
-  if (!currentUser || !ficha) return;
+  if (!ficha) return;
   const [cli, proc] = await Promise.all([
-    db.from('cliente').select('id, nombre').order('nombre'),
-    db.from('proceso').select('id, status, cliente_id, cliente(nombre)').eq('ficha_id', ficha.id),
+    API.get('/clientes').catch(() => []),
+    API.get(`/procesos?ficha_id=${ficha.id}`).catch(() => []),
   ]);
-  if (cli.error)  console.warn('Carga de clientes falló:', cli.error.message);   else clientes = cli.data ?? [];
-  if (proc.error) console.warn('Carga de procesos falló:', proc.error.message);  else procesos = proc.data ?? [];
+  clientes = cli.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  // La API devuelve cliente_nombre plano; el render espera cliente.nombre.
+  procesos = proc.map(p => ({ ...p, cliente: { nombre: p.cliente_nombre } }));
 }
 
 async function addProceso(clienteId) {
   if (!clienteId) return;
-  const { error } = await db.from('proceso')
-    .insert({ user_id: currentUser.id, cliente_id: clienteId, ficha_id: ficha.id });
-  if (error) { alert('No se pudo agregar al seguimiento: ' + error.message); return; }
-  await loadSeguimiento();
-  render();
+  try {
+    await API.post('/procesos', { cliente_id: clienteId, ficha_id: ficha.id });
+    await loadSeguimiento();
+    render();
+  } catch (err) {
+    alert('No se pudo agregar al seguimiento: ' + err.message);
+  }
 }
 
 function setProcesoStatus(procId, status) {
   const p = procesos.find(x => x.id === procId);
   if (p) p.status = status;
-  db.from('proceso').update({ status, updated_at: new Date().toISOString() })
-    .eq('id', procId).then(({ error }) => { if (error) console.warn('Proceso update failed:', error.message); });
+  API.patch(`/procesos/${procId}`, { status })
+    .catch(err => console.warn('No se pudo guardar el proceso:', err.message));
 }
 
 async function removeProceso(procId) {
-  const { error } = await db.from('proceso').delete().eq('id', procId);
-  if (error) { alert('No se pudo quitar del seguimiento: ' + error.message); return; }
-  procesos = procesos.filter(p => p.id !== procId);
-  render();
+  try {
+    await API.del(`/procesos/${procId}`);
+    procesos = procesos.filter(p => p.id !== procId);
+    render();
+  } catch (err) {
+    alert('No se pudo quitar del seguimiento: ' + err.message);
+  }
 }
 
 function seguimientoHtml() {
@@ -177,37 +168,41 @@ function seguimientoHtml() {
 
 // ── Documentos de la propiedad (predial, planos… colgados de la ficha) ───────
 async function loadDocumentos() {
-  documentos = [];
-  if (!currentUser || !ficha) return;
-  const { data, error } = await db.from('ficha_documento').select('*')
-    .eq('ficha_id', ficha.id).order('created_at');
-  if (error) { console.warn('Carga de documentos falló:', error.message); return; }
-  documentos = data ?? [];
+  documentos = ficha
+    ? await API.get(`/documentos?ficha_id=${ficha.id}`).catch(err => {
+        console.warn('Carga de documentos falló:', err.message);
+        return [];
+      })
+    : [];
 }
 
 async function addDocumento(label) {
   label = (label ?? '').trim();
   if (!label) return;
-  const { data, error } = await db.from('ficha_documento')
-    .insert({ user_id: currentUser.id, ficha_id: ficha.id, label }).select().single();
-  if (error) { alert('No se pudo agregar el documento: ' + error.message); return; }
-  documentos.push(data);
-  render();
+  try {
+    documentos.push(await API.post('/documentos', { ficha_id: ficha.id, label }));
+    render();
+  } catch (err) {
+    alert('No se pudo agregar el documento: ' + err.message);
+  }
 }
 
 function toggleDocumento(id, done) {
   const d = documentos.find(x => x.id === id);
   if (d) d.done = done;
-  db.from('ficha_documento').update({ done }).eq('id', id)
-    .then(({ error }) => { if (error) console.warn('Documento update failed:', error.message); });
+  API.patch(`/documentos/${id}`, { done })
+    .catch(err => console.warn('No se pudo guardar el documento:', err.message));
   render();
 }
 
 async function removeDocumento(id) {
-  const { error } = await db.from('ficha_documento').delete().eq('id', id);
-  if (error) { alert('No se pudo quitar el documento: ' + error.message); return; }
-  documentos = documentos.filter(x => x.id !== id);
-  render();
+  try {
+    await API.del(`/documentos/${id}`);
+    documentos = documentos.filter(x => x.id !== id);
+    render();
+  } catch (err) {
+    alert('No se pudo quitar el documento: ' + err.message);
+  }
 }
 
 function documentosHtml() {
@@ -230,19 +225,20 @@ function documentosHtml() {
 }
 
 async function createFicha() {
-  const { data, error } = await db.from('ficha').insert({
-    user_id:           currentUser.id,
-    source_listing_id: listing.id,
-    titulo:            listing.titulo,
-    precio:            listing.precio,
-    moneda:            listing.moneda,
-    tamano_m2:         listing.size,
-    fotos:             listing.fotos,
-  }).select().single();
-  if (error) { alert('No se pudo crear la ficha: ' + error.message); return; }
-  ficha = data;
-  await Promise.all([loadSeguimiento(), loadDocumentos()]);
-  render();
+  try {
+    ficha = await API.post('/fichas', {
+      source_listing_id: listing.id,
+      titulo:            listing.titulo,
+      precio:            listing.precio,
+      moneda:            listing.moneda,
+      tamano_m2:         listing.size,
+      fotos:             listing.fotos,
+    });
+    await Promise.all([loadSeguimiento(), loadDocumentos()]);
+    render();
+  } catch (err) {
+    alert('No se pudo crear la ficha: ' + err.message);
+  }
 }
 
 // Autosave por campo (mismo patrón que las notas). precio/tamaño → número o null.
@@ -251,9 +247,8 @@ function saveFicha(field, value) {
   const val = (field === 'precio' || field === 'tamano_m2')
     ? (value === '' ? null : Number(value)) : value;
   ficha[field] = val;
-  db.from('ficha').update({ [field]: val, updated_at: new Date().toISOString() })
-    .eq('id', ficha.id)
-    .then(({ error }) => { if (error) console.warn('Ficha update failed:', error.message); });
+  API.patch(`/fichas/${ficha.id}`, { [field]: val })
+    .catch(err => console.warn('No se pudo guardar la ficha:', err.message));
 }
 
 // Hoja imprimible → "Guardar como PDF" desde el diálogo del navegador.
@@ -432,66 +427,36 @@ function render() {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
-document.getElementById('logout-btn').addEventListener('click', () => db.auth.signOut());
-
-db.auth.onAuthStateChange((_event, session) => {
-  currentUser = session?.user ?? null;
-  document.getElementById('authBox').hidden = !!currentUser;
-  document.getElementById('userBox').hidden = !currentUser;
-  if (currentUser) document.getElementById('userEmail').textContent = currentUser.email;
-  if (!currentUser && authResolved) {
-    redirectToLogin();
-    return;
-  }
-  // ponytail: setTimeout libera el lock de auth (mismo gotcha que app.js).
-  if (listing) setTimeout(async () => {
-    await Promise.all([loadUserState(), loadFicha()]);
-    await Promise.all([loadSeguimiento(), loadDocumentos()]);
-    render();
-  }, 0);
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await API.logout().catch(() => {});
+  location.replace('login.html');
 });
-
-async function loadUserState() {
-  if (!listing) return;
-  listing.status = 'Nuevo'; listing.starred = false; listing.notes = '';
-  if (!currentUser) return;
-  const { data, error } = await db.from('user_listing')
-    .select('status,starred,notes').eq('user_id', currentUser.id).eq('listing_id', listing.id).maybeSingle();
-  if (error) { console.warn('Carga de estado falló:', error.message); return; }
-  if (data) {
-    listing.status  = STATUS_FROM_API[data.status] ?? 'Nuevo';
-    listing.starred = data.starred ?? false;
-    listing.notes   = data.notes ?? '';
-  }
-}
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 const id = new URLSearchParams(location.search).get('id');
 
-db.auth.getSession()
-  .then(async ({ data: sessionData, error: sessionError }) => {
-    if (sessionError) throw new Error(sessionError.message);
-    authResolved = true;
-    currentUser = sessionData.session?.user ?? null;
-    if (!currentUser) {
-      redirectToLogin();
-      return;
-    }
+API.me()
+  .then(async user => {
+    currentUser = user;
+    document.getElementById('authBox').hidden = true;
+    document.getElementById('userBox').hidden = false;
+    document.getElementById('userEmail').textContent = user.email;
 
     if (!id) {
-      document.getElementById('detail').innerHTML = `<p class="empty">Falta el identificador de la propiedad.</p>`;
+      document.getElementById('detail').innerHTML =
+        `<p class="empty">Falta el identificador de la propiedad.</p>`;
       return;
     }
 
-    const { data, error } = await db.from('listings').select('*').eq('id', id).single();
-    if (error) throw new Error(error.message);
-    listing = adaptListing(data);
-    await Promise.all([loadUserState(), loadFicha()]);
+    // El detalle ya trae el estado del usuario (status/starred/notes) resuelto.
+    listing = adaptListing(await API.get(`/listings/${encodeURIComponent(id)}`));
+    await loadFicha();
     await Promise.all([loadSeguimiento(), loadDocumentos()]);
     render();
   })
   .catch(err => {
     console.error(err);
-    document.getElementById('detail').innerHTML = `<p class="empty">No se pudo cargar esta propiedad.<br>Revisa la consola para m&#225;s detalles.</p>`;
+    document.getElementById('detail').innerHTML =
+      `<p class="empty">No se pudo cargar esta propiedad.<br>${err.message}</p>`;
   });
