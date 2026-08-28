@@ -19,6 +19,7 @@ import secrets
 import sys
 import threading
 import time
+import urllib.request
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
@@ -30,10 +31,13 @@ from pydantic import BaseModel, Field
 
 # ─────────────────────────────────────────────────────────────────── contraseñas
 # scrypt viene en la stdlib y OWASP lo acepta como KDF: no hace falta passlib ni
-# argon2-cffi. n=2^16 → ~64 MiB por verificación, que es justo el punto: encarece
-# el ataque por diccionario sin que un login honesto se note.
-SCRYPT_N, SCRYPT_R, SCRYPT_P, DKLEN = 2**16, 8, 1, 32
-MIN_PASSWORD = 10
+# argon2-cffi. n=2^17 es el mínimo que pide OWASP (r=8, p=1) → ~128 MiB por
+# verificación: encarece el ataque por diccionario sin que un login honesto se note.
+SCRYPT_N, SCRYPT_R, SCRYPT_P, DKLEN = 2**17, 8, 1, 32
+# NIST SP 800-63B Rev.4 (2025): 15 caracteres cuando la contraseña es el único
+# factor. Y prohíbe exigir mayúsculas/números/símbolos — la longitud es lo que
+# aporta entropía, las reglas de composición solo producen "Passw0rd!".
+MIN_PASSWORD = 15
 
 
 def _maxmem(n: int, r: int) -> int:
@@ -62,6 +66,40 @@ def verify_password(pw: str, stored: str) -> bool:
     except (ValueError, TypeError):
         return False
     return hmac.compare_digest(calc, expected)
+
+
+def necesita_rehash(stored: str) -> bool:
+    """El hash se guardó con parámetros más baratos que los de hoy. Subir el costo
+    no invalida nada: verify_password lee los parámetros del propio hash, así que
+    la migración ocurre sola en el siguiente login de cada quien."""
+    try:
+        algo, n, r, p, _, _ = stored.split("$")
+        return algo != "scrypt" or (int(n), int(r), int(p)) != (SCRYPT_N, SCRYPT_R, SCRYPT_P)
+    except ValueError:
+        return True
+
+
+# k-anonymity de Have I Been Pwned: viajan los 5 primeros hex del SHA-1 y vuelven
+# ~800 sufijos; la contraseña nunca sale de aquí, ni completa ni hasheada entera.
+HIBP_URL = "https://api.pwnedpasswords.com/range/"
+
+
+def password_filtrada(pw: str) -> bool:
+    """True si la contraseña aparece en alguna filtración conocida.
+
+    Falla abierto a propósito: si HIBP no responde, no se bloquea a nadie. Es un
+    filtro de calidad, no un control de acceso — que se caiga un tercero no debe
+    impedirle a un usuario recuperar su cuenta."""
+    sha1 = hashlib.sha1(pw.encode()).hexdigest().upper()   # noqa: S324 — lo exige la API
+    prefijo, sufijo = sha1[:5], sha1[5:]
+    try:
+        req = urllib.request.Request(HIBP_URL + prefijo,
+                                     headers={"User-Agent": "OfficeLab-auth"})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            cuerpo = r.read().decode("utf-8", "replace")
+    except Exception:                                       # noqa: BLE001
+        return False
+    return any(linea.split(":")[0] == sufijo for linea in cuerpo.splitlines())
 
 
 # Verificar contra esto cuando el correo no existe iguala el tiempo de respuesta:
@@ -146,6 +184,11 @@ def login(body: LoginIn, request: Request, response: Response) -> dict:
         ).fetchone()
         if not verify_password(body.password, row["password_hash"] if row else DUMMY_HASH) or not row:
             raise HTTPException(401, "Correo o contraseña incorrectos")
+        # Único momento en que existe la contraseña en claro: si el hash quedó con
+        # parámetros viejos, se re-escribe aquí. Subir el costo no obliga a resetear.
+        if necesita_rehash(row["password_hash"]):
+            conn.execute("UPDATE usuario SET password_hash = %s WHERE id = %s",
+                         (hash_password(body.password), row["id"]))
         token = secrets.token_urlsafe(32)
         conn.execute("DELETE FROM sesion WHERE expires_at < now()")   # barrido barato
         conn.execute("INSERT INTO sesion (token_hash, user_id, expires_at) "
@@ -197,6 +240,105 @@ def change_password(body: PasswordIn, request: Request,
         # la contraseña vieja se queda fuera, sin desloguear a quien la está cambiando.
         cerradas = conn.execute("DELETE FROM sesion WHERE user_id = %s AND token_hash <> %s",
                                 (user["id"], token_hash(session or ""))).rowcount
+    return {"ok": True, "sesiones_cerradas": cerradas}
+
+
+# ──────────────────────────────────────────────── recuperación de contraseña
+# Flujo de OWASP (Forgot Password Cheat Sheet), con una sola desviación: hoy el
+# link no se manda por correo, lo entrega el admin con `main.py resetlink`. No hay
+# dominio propio todavía, y sin SPF/DKIM alineados un correo transaccional acaba en
+# spam. Cuando lo haya, se enchufa el envío en `reset_solicitar` y nada más cambia.
+RESET_MINUTOS = 30
+BASE_URL = os.environ.get("BASE_URL", "http://31.220.56.100").rstrip("/")
+
+
+def _nuevo_reset(conn, user_id, origen: str | None) -> str:
+    """Emite un token de un solo uso y devuelve el token en claro — la única vez
+    que existe. En la tabla solo queda su sha256, igual que las sesiones."""
+    tok = secrets.token_urlsafe(32)                     # 256 bits, > los 128 que pide OWASP
+    conn.execute("INSERT INTO reset_token (token_hash, user_id, expires_at, solicitado_desde) "
+                 "VALUES (%s, %s, now() + %s, %s)",
+                 (token_hash(tok), user_id, timedelta(minutes=RESET_MINUTOS), origen))
+    return tok
+
+
+def _reset_link(tok: str) -> str:
+    return f"{BASE_URL}/update-password.html?t={tok}"
+
+
+def _usuario_por_token(conn, tok: str) -> dict:
+    """La fila del token si sirve. Un token gastado, vencido o inventado dan el
+    mismo 400: distinguirlos le diría al atacante qué tan cerca estuvo."""
+    row = conn.execute(
+        "SELECT user_id FROM reset_token "
+        "WHERE token_hash = %s AND used_at IS NULL AND expires_at > now()",
+        (token_hash(tok),)).fetchone()
+    if not row:
+        raise HTTPException(400, "El enlace ya no es válido. Solicita uno nuevo.")
+    return row
+
+
+def _validar_password(nueva: str) -> None:
+    if len(nueva) < MIN_PASSWORD:
+        raise HTTPException(400, f"La contraseña debe tener al menos {MIN_PASSWORD} caracteres")
+    if password_filtrada(nueva):
+        raise HTTPException(400, "Esa contraseña aparece en filtraciones públicas. Elige otra.")
+
+
+class ResetSolicitarIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+@app.post("/api/reset/solicitar")
+def reset_solicitar(body: ResetSolicitarIn, request: Request) -> dict:
+    """Siempre responde lo mismo, exista o no la cuenta: si la respuesta cambiara,
+    el formulario sería un oráculo de qué correos están registrados."""
+    rate_limit(request)
+    email = body.email.strip().lower()
+    origen = request.headers.get("x-forwarded-for") or (
+        request.client.host if request.client else None)
+    with POOL.connection() as conn:
+        conn.execute("DELETE FROM reset_token WHERE expires_at < now()")   # barrido barato
+        row = conn.execute("SELECT id FROM usuario WHERE email = %s", (email,)).fetchone()
+        if row:
+            tok = _nuevo_reset(conn, row["id"], origen)
+            # AQUÍ va enviar_correo(email, _reset_link(tok)) cuando haya dominio.
+            # Mientras tanto el link se saca con `main.py resetlink <correo>`.
+            print(f"[reset] solicitado para {email} desde {origen}", flush=True)
+            del tok
+    return {"ok": True}
+
+
+@app.get("/api/reset/validar")
+def reset_validar(t: str = Query(min_length=8, max_length=512)) -> dict:
+    """Para que la página avise que el enlace murió ANTES de que el usuario teclee
+    una contraseña nueva dos veces. No revela de quién es el token."""
+    with POOL.connection() as conn:
+        _usuario_por_token(conn, t)
+    return {"ok": True}
+
+
+class ResetConfirmarIn(BaseModel):
+    t: str = Field(min_length=8, max_length=512)
+    nueva: str = Field(min_length=MIN_PASSWORD, max_length=1024)
+
+
+@app.post("/api/reset/confirmar")
+def reset_confirmar(body: ResetConfirmarIn, request: Request) -> dict:
+    rate_limit(request)
+    _validar_password(body.nueva)
+    with POOL.connection() as conn:
+        user_id = _usuario_por_token(conn, body.t)["user_id"]
+        conn.execute("UPDATE usuario SET password_hash = %s WHERE id = %s",
+                     (hash_password(body.nueva), user_id))
+        # Un solo uso: se marca gastado y se anulan los demás tokens del usuario,
+        # para que pedir el reset tres veces no deje tres llaves vivas.
+        conn.execute("UPDATE reset_token SET used_at = now() "
+                     "WHERE user_id = %s AND used_at IS NULL", (user_id,))
+        # Recuperar la cuenta echa a TODOS: si alguien más entró con la contraseña
+        # vieja, el reset es justo el momento de sacarlo.
+        cerradas = conn.execute("DELETE FROM sesion WHERE user_id = %s",
+                                (user_id,)).rowcount
     return {"ok": True, "sesiones_cerradas": cerradas}
 
 
@@ -643,6 +785,22 @@ def selfcheck() -> None:
     assert len(w) == 5 and sum(x.count("%s") for x in w) == len(p), (w, p)
     assert p[0] == "%del%" and p[1] == "%valle%"      # cada palabra por separado
     assert "SRID=4326;POINT(-100.3 25.6)" in p
+
+    # Subir el costo del KDF no invalida los hashes viejos, solo los marca.
+    assert not necesita_rehash(h)
+    assert necesita_rehash("scrypt$65536$8$1$aa$bb"), "n viejo debe re-hashearse"
+    assert necesita_rehash("argon2id$v=19$m=47104$aa$bb")
+    assert necesita_rehash("basura")
+
+    # El link lleva el token en claro; en la tabla solo entra su sha256.
+    tok = "T0k3n-de-prueba"
+    assert _reset_link(tok).endswith(f"/update-password.html?t={tok}")
+    assert not _reset_link(tok).startswith("/"), "BASE_URL debe ser absoluta"
+
+    # HIBP: 'password' lleva décadas filtrada; una aleatoria de 32 hex no aparece.
+    # Si HIBP no responde ambas dan False y el assert no se ejecuta — falla abierto.
+    if password_filtrada("password"):
+        assert not password_filtrada(secrets.token_hex(16)), "falso positivo en HIBP"
     print("ok")
 
 
@@ -655,7 +813,7 @@ def _cli() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("selfcheck")
     sub.add_parser("lsusers")
-    for name in ("adduser", "passwd", "deluser"):
+    for name in ("adduser", "passwd", "deluser", "resetlink"):
         sub.add_parser(name).add_argument("email")
     sub.choices["adduser"].add_argument("--nombre")
     sub.choices["adduser"].add_argument("--generar", action="store_true",
@@ -672,6 +830,8 @@ def _cli() -> int:
             sys.exit(f"muy corta: mínimo {MIN_PASSWORD} caracteres")
         if pw != getpass.getpass("Repite: "):
             sys.exit("no coinciden")
+        if password_filtrada(pw):
+            sys.exit("esa contraseña aparece en filtraciones públicas: elige otra")
         return pw
 
     POOL.open(wait=True, timeout=15)
@@ -696,6 +856,15 @@ def _cli() -> int:
             conn.execute("DELETE FROM sesion WHERE user_id = "
                          "(SELECT id FROM usuario WHERE email = %s)", (a.email.strip().lower(),))
             print("contraseña actualizada; sesiones cerradas")
+        elif a.cmd == "resetlink":
+            email = a.email.strip().lower()
+            row = conn.execute("SELECT id FROM usuario WHERE email = %s", (email,)).fetchone()
+            if not row:
+                sys.exit("no existe ese correo")
+            # El CLI sí puede decir que el correo no existe: quien llega aquí ya
+            # tiene root en el VPS. El oráculo que importa tapar es el HTTP.
+            print(_reset_link(_nuevo_reset(conn, row["id"], "cli")))
+            print(f"vence en {RESET_MINUTOS} min · un solo uso · cambiarla cierra sus sesiones")
         elif a.cmd == "deluser":
             n = conn.execute("DELETE FROM usuario WHERE email = %s",
                              (a.email.strip().lower(),)).rowcount

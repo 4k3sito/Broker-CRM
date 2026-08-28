@@ -232,6 +232,20 @@ CREATE TABLE IF NOT EXISTS sesion (
 );
 CREATE INDEX IF NOT EXISTS sesion_user_idx ON sesion (user_id);
 
+-- Tokens de recuperación de contraseña. Mismo criterio que `sesion`: se guarda el
+-- sha256, no el token — quien lea la base no puede secuestrar un reset en vuelo.
+-- Un solo uso (`used_at`) y vida corta (30 min); OWASP pide ambas cosas.
+CREATE TABLE IF NOT EXISTS reset_token (
+  token_hash bytea PRIMARY KEY,
+  user_id    uuid NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  used_at    timestamptz,
+  -- Para el registro de auditoría: de dónde salió la solicitud.
+  solicitado_desde text
+);
+CREATE INDEX IF NOT EXISTS reset_token_user_idx ON reset_token (user_id);
+
 -- Ahora que existe `usuario`, el CRM puede colgar de él: borrar un asesor se lleva
 -- sus datos en vez de dejarlos huérfanos. En bloque porque ADD CONSTRAINT no tiene
 -- IF NOT EXISTS y este archivo debe poder correr dos veces.
