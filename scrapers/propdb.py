@@ -290,9 +290,13 @@ def main() -> int:
             patch = DATA / "ml_coords.validated.jsonl"
             if patch.exists() and "mercadolibre" in names:
                 patch_coords(conn, patch, "mercadolibre")
-            if conn.execute("SELECT to_regproc('asignar_zonas')").fetchone()[0]:
-                n = conn.execute("SELECT asignar_zonas()").fetchone()[0]
-                print(f"{'zonas asignadas':14} {n:>7,} listings")
+            # Post-proceso: sin esto una recarga deja zonas viejas y precios sin normalizar.
+            for fn, etiqueta in (("limpiar_precios", "precios a null"),
+                                 ("inferir_precio_m2", "precio por m2"),
+                                 ("asignar_zonas", "zonas asignadas")):
+                if conn.execute("SELECT to_regproc(%s)", (fn,)).fetchone()[0]:
+                    n = conn.execute(f"SELECT {fn}()").fetchone()[0]
+                    print(f"{etiqueta:14} {n:>7,}")
             conn.execute("ANALYZE listings")
         elif a.cmd == "search":
             search(conn, a)

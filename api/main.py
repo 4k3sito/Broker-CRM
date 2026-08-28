@@ -213,12 +213,14 @@ def health() -> dict:
 SELECT_LISTING = """
   l.source || ':' || l.listing_id AS id, l.source, l.listing_id AS external_id,
   l.title, l.agency_name AS broker_name, l.location, l.neighborhood,
-  l.price AS price_numeric, l.currency, l.images, l.image_url AS image, l.url,
-  l.agent_phone AS whatsapp, l.property_type, l.area_m2 AS property_size_m2,
+  -- numeric de Postgres llega a JSON como texto (Decimal): sin el cast, el tablero
+  -- deja de formatear miles y toda aritmética depende de la coerción de JS.
+  l.price::float8 AS price_numeric, l.currency, l.images, l.image_url AS image, l.url,
+  l.agent_phone AS whatsapp, l.property_type, l.area_m2::float8 AS property_size_m2,
   l.operation AS transaction_type, l.maps_url, z.nombre AS zona,
   l.price_is_per_m2, l.precio_m2_inferido,
   -- Cuando el precio es por m², el total es lo que el asesor necesita ver y filtrar.
-  CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 END AS precio_total,
+  CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN (l.price * l.area_m2)::float8 END AS precio_total,
   ul.status, coalesce(ul.starred, false) AS starred, coalesce(ul.notes, '') AS notes
 """
 ORDENES = {

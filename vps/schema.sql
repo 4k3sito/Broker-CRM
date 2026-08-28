@@ -177,12 +177,27 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS precio_m2_inferido boolean NOT NUL
 
 -- Un precio total por debajo de estos pisos es imposible: son precios por m² mal leídos.
 -- Umbrales calibrados contra los 11,797 casos que Pincali sí marcó (ver MIGRATION.md).
+-- Varios portales publican 0 o 1 como "precio a consultar". Dejarlo como número real
+-- pone anuncios de $0 al frente del orden "más barato", que es el que más se usa.
+CREATE OR REPLACE FUNCTION limpiar_precios() RETURNS bigint AS $$
+  WITH m AS (
+    UPDATE listings SET price = NULL
+    -- 0 y 1 son el "precio a consultar" de varios portales. Y un total menor a $50
+    -- sin superficie para interpretarlo como $/m² no se puede recuperar: mostrar "$3"
+    -- es peor que decir "sin precio".
+    WHERE price <= 1
+       OR (price < 50 AND price_is_per_m2 IS NOT TRUE
+           AND coalesce(area_m2, 0) = 0)
+    RETURNING 1)
+  SELECT count(*) FROM m;
+$$ LANGUAGE sql;
+
 CREATE OR REPLACE FUNCTION inferir_precio_m2() RETURNS bigint AS $$
   WITH m AS (
     UPDATE listings SET price_is_per_m2 = true, precio_m2_inferido = true
     WHERE price_is_per_m2 IS NOT TRUE
       AND price > 0 AND area_m2 > 0
-      AND price BETWEEN 50 AND 200000
+      AND price BETWEEN 0.5 AND 200000
       AND ((operation = 'sale' AND area_m2 > 100 AND price / area_m2 < 20)
         OR (operation = 'rent' AND area_m2 >  50 AND price / area_m2 < 1))
     RETURNING 1)

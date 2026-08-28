@@ -319,3 +319,59 @@ Corre por IP, así que **`COOKIE_SECURE=0`**: la cookie de sesión viaja sin cif
 emite certificados para direcciones IP. En cuanto haya dominio: apuntar un registro A a
 31.220.56.100, cambiar `:80` por el dominio en el `Caddyfile` (Caddy saca el certificado solo) y
 poner `COOKIE_SECURE=1`. **Hasta entonces esto es un entorno de prueba, no para uso diario.**
+
+
+## Precios por m² (2026-08-28)
+
+Reportado: `terreno-en-venta-en-la-providencia-tepatitlan-jalisco` aparecía en **$700**
+cuando son **$700 por m²** sobre 10,744 m² — 7.5 MDP.
+
+**No estaba mal recolectado.** El scraper de Pincali lo detectó bien y guardó
+`price_is_per_m2 = true`. El dato nunca salía de la base: la API no seleccionaba esa
+columna y `adaptListing()` no la leía. Era un bug de presentación, y afectaba a los
+**12,496 listings de pincali** que traen la bandera.
+
+**El filtro de precio estaba igual de mal.** Ese terreno respondía a "hasta $30,000",
+así que cualquier búsqueda barata se llenaba de terrenos multimillonarios. Filtrado y
+ordenamiento ahora usan `price * area_m2` cuando la bandera está puesta.
+
+### Lo que se arregló
+
+| | |
+|---|---|
+| API expone `price_is_per_m2` y `precio_total` | el total calculado es lo que se muestra y se filtra |
+| `fmtPrice()` muestra el total y, en chico, el unitario | `$7,520,800 MXN` con nota `$700/m²` |
+| `/mes` solo en renta | antes se pegaba a **todo**, incluidas las ventas |
+| `price::float8` en la API | `numeric` llegaba a JSON como texto y el tablero no formateaba miles |
+
+### Detección en las otras fuentes
+
+Vivanuncios y lamudi **también** publican precios por m² y nunca marcan la bandera.
+`inferir_precio_m2()` los detecta, con umbrales calibrados contra los 11,797 casos que
+Pincali sí marcó: un total por debajo de 20 MXN/m² en venta, o 1 en renta mensual, no
+puede ser un precio total. Resultado: **4,727 + 338 = 5,065 marcados**.
+
+La inferencia se guarda en `precio_m2_inferido`, columna aparte, para distinguir lo
+deducido de lo que vino del portal y poder revertirlo.
+
+| fuente | del portal | inferidos |
+|---|---|---|
+| pincali | 12,496 | 732 |
+| lamudi | 0 | 2,089 |
+| vivanuncios | 0 | 1,556 |
+| mercadolibre | 0 | 224 |
+| inmuebles24 | 0 | 125 |
+
+Al muestrear los "falsos positivos" contra la verdad de Pincali resultaron ser en su
+mayoría **detecciones correctas que el propio scraper omitió** (un terreno industrial de
+50,000 m² a "$2,200", uno de 1.4 millones de m² a "$200"), así que la precisión medida
+de 93% está subestimada.
+
+`limpiar_precios()` pone en NULL los 0 y 1 —el "precio a consultar" de varios portales,
+que ponía anuncios de $0 al frente del orden "más barato"— y los totales menores a $50
+sin superficie, que no se pueden interpretar. **488 en total.**
+
+Ambas funciones corren después de cada `propdb.py load`, junto con `asignar_zonas()`.
+
+**Cola larga sin resolver:** unas decenas con `area_m2 = 1` (superficie basura en origen)
+siguen mostrando precios de $3–$11. No hay dato con qué corregirlas.
