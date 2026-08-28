@@ -120,7 +120,10 @@ def load(conn: psycopg.Connection, files: list[Path]) -> None:
         source = f.name.split(".")[0]
         bad = 0
         with conn.cursor() as cur:
-            cur.execute("CREATE TEMP TABLE stage (LIKE listings) ON COMMIT DROP")
+            # INCLUDING DEFAULTS: `LIKE` copia el NOT NULL pero NO el DEFAULT, así que
+            # una columna como precio_m2_inferido (NOT NULL DEFAULT false) llegaba
+            # NULL al COPY y reventaba la carga entera.
+            cur.execute("CREATE TEMP TABLE stage (LIKE listings INCLUDING DEFAULTS) ON COMMIT DROP")
             with cur.copy(f"COPY stage ({', '.join(COLS)}) FROM STDIN") as cp:
                 for line in f.open(encoding="utf-8"):
                     try:
