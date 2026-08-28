@@ -91,6 +91,23 @@ grep -o '#[0-9A-Fa-f]\{6\}' hermes.css | sort -u      # solo los del :root
 grep -l "OfficeScrapper\|#241F19\|Newsreader" *.html  # no debe salir nada
 ```
 
-Y que ninguna clase del HTML/JS se quede sin regla: extraer las clases de cada par
-`pagina.html` + `pagina.js` y restarle las definidas en `hermes.css`. Lo que sobre,
-o se estiliza o se borra del marcado.
+Y que ninguna clase del HTML/JS se quede sin regla:
+
+```bash
+python3 - <<'PY'
+import re, pathlib
+uso = lambda *fs: {c for f in fs for m in re.findall(r'class="([^"]*)"',
+                   pathlib.Path(f).read_text(encoding='utf-8')) for c in m.split()}
+css = pathlib.Path('hermes.css').read_text(encoding='utf-8')
+tiene = set(re.findall(r'\.([a-z][a-z0-9-]*)', css))
+for n, fs in {'index':('index.html','app.js'), 'clientes':('clientes.html','clientes.js'),
+              'listing':('listing.html','listing.js'), 'login':('login.html','login.js')}.items():
+    falta = [c for c in sorted(uso(*fs) - tiene) if not c.startswith(('status-','s-'))]
+    print(n, falta or 'OK')
+PY
+```
+
+Lo que salga, o se estiliza o se borra del marcado. **Ojo con dos trampas que ya
+costaron un despliegue roto:** una clase con guiones dobles (`.login-brand--mobile`)
+no la encuentra un filtro que busque `.login-brand`, y una marca partida por el
+marcado (`Office<span>Scrapper</span>`) no la encuentra un grep de la palabra entera.

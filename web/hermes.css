@@ -811,3 +811,19 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .cli-in:focus { border-color:var(--accent); }
 .cliente-nombre.cli-in { height:auto; padding:2px 6px; border-color:transparent; background:transparent; }
 .cliente-nombre.cli-in:focus { border-color:var(--accent); background:var(--surface); }
+
+/* Se quedaron fuera del traslado: el filtro que separó las reglas de la ficha
+   exigía un guión en el nombre, y estas dos no lo llevan. */
+.btn-pdf {
+  flex-shrink: 0; height: 34px; padding: 0 14px; cursor: pointer;
+  border: 1px solid var(--border-2); background: var(--surface); color: var(--ink);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
+  transition: border-color .15s, color .15s;
+}
+.btn-pdf:hover { border-color: var(--accent); color: var(--accent); }
+
+.tarea { display: flex; align-items: center; gap: 8px; }
+.tarea label { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
+.tarea input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--s-rentado); cursor: pointer; flex-shrink: 0; }
+.detail-gallery { min-width: 0; }
