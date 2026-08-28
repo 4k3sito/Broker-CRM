@@ -791,6 +791,81 @@ def _delete(tabla: str, id_: str, user: dict) -> None:
             raise HTTPException(404, "No existe o no es tuyo")
 
 
+# ────────────────────────────────────────────────────────────────────── tareas
+#
+# A diferencia del resto del CRM, las tareas **no se aíslan por usuario**: son un
+# tablero de equipo, y el diseño muestra a todo el equipo con su carga. `user_id`
+# solo registra quién la creó; cualquiera del equipo ve, mueve y reasigna.
+# Registrado en SECURITY.md §5 para que no parezca un descuido del filtro.
+
+TAREA_COLS = ("titulo", "tipo", "prioridad", "columna", "asignado_a",
+              "listing_id", "cliente_id", "descripcion", "vence_el")
+
+TAREA_SELECT = """
+  SELECT t.*, u.nombre AS asignado_nombre, u.email AS asignado_email,
+         c.nombre AS cliente_nombre, l.title AS listing_titulo
+  FROM tarea t
+  LEFT JOIN usuario u ON u.id = t.asignado_a
+  LEFT JOIN cliente c ON c.id = t.cliente_id
+  LEFT JOIN listings l ON l.source || ':' || l.listing_id = t.listing_id
+"""
+
+
+@app.get("/api/equipo")
+def equipo(_: dict = Depends(current_user)) -> list[dict]:
+    """Las personas a las que se puede asignar. Sin password_hash, obviamente."""
+    with POOL.connection() as conn:
+        return conn.execute(
+            "SELECT u.id, u.nombre, u.email, u.rol, "
+            "  count(t.id) FILTER (WHERE t.columna <> 'completado') AS abiertas "
+            "FROM usuario u LEFT JOIN tarea t ON t.asignado_a = u.id "
+            "GROUP BY u.id ORDER BY u.nombre NULLS LAST, u.email").fetchall()
+
+
+@app.get("/api/tareas")
+def tareas(listing: str | None = None, asignado: str | None = None,
+           _: dict = Depends(current_user)) -> list[dict]:
+    w, p = [], []
+    if listing:
+        w.append("t.listing_id = %s"); p.append(listing)
+    if asignado:
+        w.append("t.asignado_a = %s"); p.append(asignado)
+    q = TAREA_SELECT + (" WHERE " + " AND ".join(w) if w else "")
+    with POOL.connection() as conn:
+        return conn.execute(q + " ORDER BY t.created_at DESC", p).fetchall()
+
+
+@app.post("/api/tareas", status_code=201)
+def crear_tarea(body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
+    if not (body.get("titulo") or "").strip():
+        raise HTTPException(422, "El título es obligatorio")
+    with POOL.connection() as conn:
+        fila = _insert(conn, "tarea", body, TAREA_COLS, user["id"])
+        return conn.execute(TAREA_SELECT + " WHERE t.id = %s", (fila["id"],)).fetchone()
+
+
+@app.patch("/api/tareas/{tid}")
+def editar_tarea(tid: str, body: dict = Body(...), _: dict = Depends(current_user)) -> dict:
+    campos = {k: v for k, v in body.items() if k in TAREA_COLS}
+    if not campos:
+        raise HTTPException(422, f"nada que actualizar; permitidos: {', '.join(TAREA_COLS)}")
+    sets = ", ".join(f"{k} = %s" for k in campos) + ", updated_at = now()"
+    with POOL.connection() as conn:
+        # Sin `AND user_id = %s`: el tablero es del equipo, no de quien la creó.
+        fila = conn.execute(f"UPDATE tarea SET {sets} WHERE id = %s RETURNING id",
+                            [*campos.values(), tid]).fetchone()
+        if not fila:
+            raise HTTPException(404, "No existe esa tarea")
+        return conn.execute(TAREA_SELECT + " WHERE t.id = %s", (tid,)).fetchone()
+
+
+@app.delete("/api/tareas/{tid}", status_code=204)
+def borrar_tarea(tid: str, _: dict = Depends(current_user)) -> None:
+    with POOL.connection() as conn:
+        if not conn.execute("DELETE FROM tarea WHERE id = %s", (tid,)).rowcount:
+            raise HTTPException(404, "No existe esa tarea")
+
+
 # ───────────────────────────────────────────────────────────────────────── cli
 def selfcheck() -> None:
     h = hash_password("contrasena-larga")

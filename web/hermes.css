@@ -827,3 +827,145 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .tarea label { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
 .tarea input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--s-rentado); cursor: pointer; flex-shrink: 0; }
 .detail-gallery { min-width: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAREAS — tareas.html
+   Traducido de `OfficeLab - Panel.dc.html` (Claude Design). El canvas venía en
+   la paleta terracota y con radios y sombras; aquí se re-tematiza a Hermes y se
+   quitan las dos cosas, que el sistema no usa. La jerarquía la dan el filete de
+   prioridad a la izquierda de cada tarjeta y el peso tipográfico.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --p-alta:#A83B22; --p-media:#A85F14; --p-baja:#6B7D6E;
+  --r-alta:rgba(168,59,34,.10); --r-media:rgba(168,95,20,.10); --r-baja:rgba(107,125,110,.10);
+  --c-pendiente:#83808C; --c-asignado:#2B3FC4; --c-encurso:#A85F14; --c-completado:#1F6F4A;
+}
+
+/* ── Tablero ─────────────────────────────────────────────────────────────── */
+.kb { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; padding: 18px 24px 56px; align-items: start; }
+.kb-col { display: flex; flex-direction: column; min-width: 0; background: var(--surface); border: 1px solid var(--border); }
+.kb-col.over { border-color: var(--accent); background: var(--accent-soft); }
+.kb-head {
+  display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink);
+}
+.kb-dot { width: 8px; height: 8px; flex-shrink: 0; }
+.kb-head .kb-n { margin-left: auto; color: var(--faint); font-weight: 400; }
+.kb-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-height: 90px; }
+.kb-empty {
+  padding: 18px 4px; text-align: center; color: var(--faint);
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+}
+
+/* ── Tarjeta de tarea ────────────────────────────────────────────────────── */
+.tk {
+  display: flex; flex-direction: column; gap: 9px; padding: 12px 13px; cursor: grab;
+  background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--border-2);
+}
+.tk:hover { border-color: var(--border-2); }
+.tk.dragging { opacity: .45; }
+.tk.p-alta { border-left-color: var(--p-alta); }
+.tk.p-media { border-left-color: var(--p-media); }
+.tk.p-baja { border-left-color: var(--p-baja); }
+.tk-top { display: flex; align-items: baseline; gap: 8px; }
+.tk-tipo {
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+}
+.tk-prio {
+  margin-left: auto; padding: 2px 7px;
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+}
+.tk-prio.p-alta { color: var(--p-alta); background: var(--r-alta); }
+.tk-prio.p-media { color: var(--p-media); background: var(--r-media); }
+.tk-prio.p-baja { color: var(--p-baja); background: var(--r-baja); }
+.tk-titulo { font-size: 13.5px; font-weight: 600; line-height: 1.35; color: var(--ink); }
+.tk-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint);
+}
+.tk-cod { color: var(--accent); }
+.tk-foot { display: flex; align-items: center; gap: 8px; }
+.tk-chk {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em; color: var(--muted);
+}
+.tk-vence.tarde { color: var(--p-alta); font-weight: 700; }
+
+/* Avatar: iniciales sobre un tono derivado del id, sin foto ni emoji. */
+.tk-ava {
+  display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0;
+  margin-left: auto; color: var(--paper);
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: .02em;
+}
+.tk-ava.sin { background: transparent; border: 1px dashed var(--border-2); color: var(--faint); }
+
+/* ── Vista de equipo: matriz persona × columna ───────────────────────────── */
+.tk-matrix { padding: 18px 24px 56px; overflow-x: auto; }
+.tk-matrix table { width: 100%; border-collapse: collapse; min-width: 860px; }
+.tk-matrix th, .tk-matrix td { border: 1px solid var(--border); vertical-align: top; }
+.tk-matrix th {
+  padding: 11px 14px; background: var(--surface); text-align: left;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink);
+}
+.tk-matrix td { padding: 10px; background: var(--surface); }
+.tk-matrix td.over { background: var(--accent-soft); }
+.tk-cell { display: flex; flex-direction: column; gap: 8px; min-height: 56px; }
+.tk-persona { display: flex; align-items: center; gap: 10px; }
+.tk-persona .tk-ava { margin-left: 0; width: 28px; height: 28px; }
+.tk-persona-n { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tk-persona-n strong { font-family: var(--font-ui); font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.tk-persona-n span { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .12em; color: var(--faint); }
+
+/* ── Panel lateral ───────────────────────────────────────────────────────── */
+.tk-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(17,17,32,.35); }
+.tk-side {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 61; width: min(440px, 100vw);
+  display: flex; flex-direction: column; gap: 16px; padding: 22px; overflow-y: auto;
+  background: var(--surface); border-left: 1px solid var(--border-2);
+}
+.tk-side h2 {
+  font-family: var(--font-display); font-size: 26px; font-weight: 500;
+  line-height: 1.15; color: var(--ink);
+}
+.tk-side label {
+  display: block; margin-bottom: 7px; color: var(--faint);
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+}
+.tk-side input, .tk-side select, .tk-side textarea {
+  width: 100%; padding: 9px 11px; border: 1px solid var(--border-2);
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-ui); font-size: 13.5px; outline: none;
+}
+.tk-side textarea { min-height: 150px; resize: vertical; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.7; }
+.tk-side input:focus, .tk-side select:focus, .tk-side textarea:focus { border-color: var(--accent); }
+.tk-side-head { display: flex; align-items: flex-start; gap: 12px; }
+.tk-close {
+  flex-shrink: 0; width: 28px; height: 28px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  font-size: 15px; line-height: 1;
+}
+.tk-close:hover { border-color: var(--p-alta); color: var(--p-alta); }
+.tk-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tk-actions { display: flex; gap: 8px; margin-top: 4px; }
+.tk-actions .btn-solid { flex: 1; }
+.tk-del { border: 1px solid var(--border-2); background: transparent; color: var(--muted); cursor: pointer; padding: 0 14px; }
+.tk-del:hover { border-color: var(--p-alta); color: var(--p-alta); }
+
+/* Checklist en markdown: se dibuja desde `- [ ]` / `- [x]` de la descripción. */
+.tk-check { display: flex; flex-direction: column; gap: 7px; }
+.tk-check label {
+  display: flex; align-items: flex-start; gap: 9px; margin: 0; cursor: pointer;
+  font-family: var(--font-ui); font-size: 13px; font-weight: 400;
+  letter-spacing: 0; text-transform: none; color: var(--ink);
+}
+.tk-check input { width: 15px; height: 15px; margin-top: 1px; flex-shrink: 0; accent-color: var(--c-completado); }
+.tk-check .listo { color: var(--faint); text-decoration: line-through; }
+
+@media (max-width: 1100px) { .kb { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 620px)  { .kb { grid-template-columns: 1fr; padding: 14px 16px 40px; } }

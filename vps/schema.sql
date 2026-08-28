@@ -124,6 +124,40 @@ CREATE TABLE IF NOT EXISTS ficha_documento (
 );
 CREATE INDEX IF NOT EXISTS ficha_documento_ficha_idx ON ficha_documento (ficha_id);
 
+-- ────────────────────────────────────────────────────────────────────── tareas
+--
+-- Tablero de trabajo del equipo. Una tarea puede colgar de un inmueble, de un
+-- cliente, de ambos o de ninguno — por eso las dos referencias son opcionales.
+--
+-- El checklist NO tiene tabla propia: vive como markdown dentro de `descripcion`
+-- (`- [ ]` / `- [x]`), que es como lo escribe el diseño. Una tabla aparte para
+-- marcar tres casillas sería más esquema del que el problema pide.
+
+CREATE TABLE IF NOT EXISTS tarea (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES usuario (id) ON DELETE CASCADE,   -- quien la creó
+  asignado_a  uuid REFERENCES usuario (id) ON DELETE SET NULL,           -- sin asignar = pendiente
+  titulo      text NOT NULL,
+  tipo        text,                       -- Visita, Fotos, Contrato, Llamada…
+  prioridad   text NOT NULL DEFAULT 'media' CHECK (prioridad IN ('alta','media','baja')),
+  columna     text NOT NULL DEFAULT 'pendiente'
+              CHECK (columna IN ('pendiente','asignado','encurso','completado')),
+  -- "source:listing_id", igual que el resto del CRM. Sin FK a listings: recargar
+  -- el inventario no debe borrar el trabajo del equipo.
+  listing_id  text,
+  cliente_id  uuid REFERENCES cliente (id) ON DELETE SET NULL,
+  descripcion text NOT NULL DEFAULT '',
+  vence_el    date,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tarea_asignado_idx ON tarea (asignado_a);
+CREATE INDEX IF NOT EXISTS tarea_columna_idx  ON tarea (columna);
+CREATE INDEX IF NOT EXISTS tarea_listing_idx  ON tarea (listing_id);
+
+-- El tablero por persona muestra el rol debajo del nombre.
+ALTER TABLE usuario ADD COLUMN IF NOT EXISTS rol text;
+
 -- ─────────────────────────────────────────────────────────── zonas geográficas
 
 -- Polígonos para filtrar por zona. Se llenan con vps/zonas.py (OSM/Nominatim).
