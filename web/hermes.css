@@ -576,6 +576,7 @@ button, input, textarea, select { font: inherit; }
   display: flex; align-items: center; gap: 8px; color: var(--muted);
   font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
 }
+.back-link { text-decoration: none; }
 .detail-crumb a { color: var(--muted); text-decoration: none; }
 .detail-crumb a:hover { color: var(--ink); }
 .detail-crumb strong { color: var(--ink); font-weight: 700; }

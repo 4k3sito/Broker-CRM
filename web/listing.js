@@ -306,12 +306,12 @@ function printFicha() {
 
 function fichaSectionHtml() {
   if (!currentUser) {
-    return `<div class="detail-section"><h2>Ficha t&#233;cnica</h2>
-      <p class="ficha-hint">Inicia sesi&#243;n para crear tu ficha t&#233;cnica de esta propiedad.</p></div>`;
+    return `<div class="detail-section"><h2>Ficha del asesor</h2>
+      <p class="ficha-hint">Inicia sesi&#243;n para crear tu ficha de esta propiedad.</p></div>`;
   }
   if (!ficha) {
-    return `<div class="detail-section"><h2>Ficha t&#233;cnica</h2>
-      <button class="btn-csv" id="ficha-create">&#43; Crear ficha t&#233;cnica</button></div>`;
+    return `<div class="detail-section"><h2>Ficha del asesor</h2>
+      <button class="btn-csv" id="ficha-create">&#43; Crear ficha del asesor</button></div>`;
   }
   const fotos = ficha.fotos ?? [];
   return `<div class="detail-section">
@@ -394,9 +394,9 @@ function render() {
       <div class="detail-gallery">${galleryHtml}</div>
       <div class="detail-heading">
         <div class="card-tags">
-          ${l.tipo ? `<span class="tag-tipo">${l.tipo}</span>` : ''}
-          <span class="tag-txn">${l.transaccion}</span>
-          ${l.codigo ? `<span class="tag-code">${l.codigo}</span>` : ''}
+          ${l.tipo ? `<span class="tag tag-tipo">${l.tipo}</span>` : ''}
+          <span class="tag tag-txn">${l.transaccion}</span>
+          ${l.codigo ? `<span class="tag tag-cod">${l.codigo}</span>` : ''}
         </div>
         ${l.titulo ? `<h1 class="detail-title">${l.titulo}</h1>` : ''}
         ${l.direccion ? `<div class="detail-location">${ICON_PIN}${l.direccion}</div>` : ''}
