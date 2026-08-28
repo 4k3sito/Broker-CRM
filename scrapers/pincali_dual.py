@@ -26,8 +26,7 @@ import re
 import sys
 import time
 
-UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/131.0 Safari/537.36")
+BASE_REFERER = "https://www.pincali.com/"
 
 # El bloque de precios del anuncio principal:
 #   <div class="digits">$3,500 MXN por m²</div>
@@ -114,9 +113,20 @@ def main() -> int:
 
 
 def fetch(a) -> int:
-    """Sin DB: sólo red. Reanudable — relee lo ya bajado y no lo repite."""
+    """Sin DB: sólo red. Reanudable — relee lo ya bajado y no lo repite.
+
+    Usa la misma maquinaria que el scraper del SERP: el AWS WAF de Pincali
+    responde **405 con una página de desafío** a un `urllib.request` pelón, y lo
+    hace sin levantar excepción, así que la primera versión recorrió las 1,481
+    fichas "sin fallos" y rescató 12. El token lo mintea Chrome headful y
+    `fetch()` lo reinstala y lo renueva solo."""
     import json
-    import urllib.request
+
+    from pincali_scraper import WafToken, ensure_display
+    from pincali_scraper import fetch as waf_fetch
+    from stealth_scraper import Scraper
+
+    ensure_display()                 # el mint necesita display; re-exec bajo Xvfb
 
     ids = duales(a.jsonl)
     print(f"anuncios con renta y venta: {len(ids):,}")
@@ -144,13 +154,20 @@ def fetch(a) -> int:
         pend = pend[:a.limit]
     print(f"por bajar: {len(pend):,}")
 
-    ok = fallo = 0
+    sc, token = Scraper(), WafToken()
+    ok = fallo = vacias = 0
     with out.open("a", encoding="utf-8") as fh:
         for i, (lid, url) in enumerate(pend, 1):
-            req = urllib.request.Request(url, headers={"User-Agent": UA})
             try:
-                html = urllib.request.urlopen(req, timeout=40).read().decode("utf-8", "replace")
+                html = waf_fetch(sc, token, url, referer=BASE_REFERER)
                 p = precios(html)
+                # Una ficha real siempre trae el bloque de precios. Si no está, lo
+                # que llegó es el desafío del WAF disfrazado de 200: hay que verlo.
+                if not p:
+                    vacias += 1
+                    if vacias in (5, 25, 100):
+                        print(f"  aviso: {vacias} páginas sin precios — ¿WAF o cambió el marcado?",
+                              flush=True)
             except Exception as e:                       # noqa: BLE001
                 print(f"  {lid}: {type(e).__name__}")
                 fallo += 1
@@ -162,7 +179,7 @@ def fetch(a) -> int:
             if i % 50 == 0:
                 print(f"  {i:,}/{len(pend):,}  ok {ok:,}  fallos {fallo:,}", flush=True)
             time.sleep(random.uniform(a.delay, a.delay * 1.6))   # el WAF castiga el ritmo fijo
-    print(f"\nbajados {ok:,}   fallos {fallo:,}  ->  {a.out}")
+    print(f"\nbajados {ok:,}   sin precios {vacias:,}   fallos {fallo:,}  ->  {a.out}")
     return 0
 
 
