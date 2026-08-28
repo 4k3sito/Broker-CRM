@@ -26,12 +26,39 @@ import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from pathlib import Path
 
 import psycopg
 from curl_cffi import requests as cffi
 
 IMPERSONATE = ["chrome131", "chrome124", "chrome120"]
+
+
+def _apify_pw() -> str | None:
+    """La contraseña del proxy vive en scrapers/.env, igual que para stealth_scraper."""
+    try:
+        for line in (Path(__file__).parent / ".env").read_text().splitlines():
+            k, _, v = line.partition("=")
+            if k.strip() == "PASSWORD" and v.strip():
+                return v.strip().strip('"')
+    except OSError:
+        pass
+    return None
+
+
+def proxy_para(sesion: str) -> dict | None:
+    """Sesión pegajosa por hilo: sin `session-`, Apify rota la IP en cada petición y
+    le entrega al portal una IP distinta a media conversación. Un proxy residencial
+    solo NO alcanza: inmuebles24 y lamudi siguen dando 403/401 salvo que curl_cffi
+    imite además la huella TLS de Chrome — filtran por JA4, no solo por IP."""
+    if raw := os.environ.get("PROXIES", "").strip():
+        p = random.choice([x.strip() for x in raw.split(",") if x.strip()])
+        return {"http": p, "https": p}
+    if not (pw := _apify_pw()):
+        return None
+    pais = os.environ.get("PROXY_COUNTRY", "MX")
+    p = f"http://groups-RESIDENTIAL,country-{pais},session-{sesion}:{pw}@proxy.apify.com:8000"
+    return {"http": p, "https": p}
 
 # 200 + una de estas frases = el anuncio ya no existe, aunque el portal no dé 404.
 MUERTO = re.compile(
@@ -43,6 +70,22 @@ MUERTO = re.compile(
     r"|property (is )?no longer"
     r"|page not found|404 not found)",
     re.I)
+
+# Cómo revisar cada portal, medido contra GET completo sobre la misma muestra:
+#   head   — 1.6 KB. inmuebles24 y vivanuncios coincidieron 22/22 con el GET.
+#   stream — 13 KB. Se lee el estado y se corta antes del cuerpo completo (27x menos
+#            que el GET). Obligatorio en lamudi: responde 200 a HEAD aunque el GET
+#            dé 404, así que HEAD daría por vivos todos los caídos.
+#   get    — 425 KB. Sólo para los portales que no necesitan proxy (no cuesta tráfico
+#            pagado) y donde la baja se anuncia en el cuerpo con 200, como MercadoLibre.
+MODO_POR_FUENTE = {
+    "inmuebles24": "head",
+    "vivanuncios": "head",
+    "lamudi": "stream",
+    "pincali": "get",
+    "mercadolibre": "get",
+}
+PRIMER_TROZO = 16384          # suficiente para el <title> y el aviso de baja
 
 # Tope de peticiones simultáneas por dominio: castigar a un portal invita al bloqueo.
 POR_DOMINIO = 4
@@ -82,14 +125,33 @@ def clasificar(status: int | None, cuerpo: str) -> tuple[bool | None, str]:
     return True, "ok"
 
 
-def revisar(url: str, proxies: dict | None, timeout: int = 20) -> tuple[bool | None, str, int | None]:
+def revisar(url: str, proxies: dict | None, modo: str = "stream",
+            timeout: int = 25) -> tuple[bool | None, str, int | None, int]:
+    """(activo, motivo, status, bytes). `modo=head` gasta ~1 KB en vez de ~425 KB,
+    a cambio de no ver el cuerpo: detecta el 404/410 pero no la página que responde
+    200 diciendo "ya no disponible"."""
     try:
+        if modo == "head":
+            r = cffi.head(url, impersonate=random.choice(IMPERSONATE), timeout=timeout,
+                          proxies=proxies, allow_redirects=True)
+            return (*clasificar(r.status_code, ""), r.status_code, len(r.content or b""))
+
+        if modo == "stream":
+            r = cffi.get(url, impersonate=random.choice(IMPERSONATE), timeout=timeout,
+                         proxies=proxies, allow_redirects=True, stream=True)
+            trozo = b""
+            for c in r.iter_content():
+                trozo += c
+                break                            # un trozo basta; el resto no se baja
+            r.close()
+            return (*clasificar(r.status_code, trozo[:PRIMER_TROZO].decode("utf-8", "replace")),
+                    r.status_code, len(trozo))
+
         r = cffi.get(url, impersonate=random.choice(IMPERSONATE), timeout=timeout,
                      proxies=proxies, allow_redirects=True)
-        activo, motivo = clasificar(r.status_code, r.text or "")
-        return activo, motivo, r.status_code
+        return (*clasificar(r.status_code, r.text or ""), r.status_code, len(r.content or b""))
     except Exception as e:                       # noqa: BLE001 — cualquier fallo de red
-        return None, f"error_{type(e).__name__}", None
+        return None, f"error_{type(e).__name__}", None, 0
 
 
 # ─────────────────────────────────────────────────────────────────────────── db
@@ -138,6 +200,9 @@ def selfcheck() -> None:
         assert clasificar(200, t)[0] is False, t
     lim = Limitador(2)
     assert lim.para("a.com") is lim.para("a.com") and lim.para("a.com") is not lim.para("b.com")
+    # lamudi NO puede ir por head: contesta 200 a HEAD aunque el GET dé 404.
+    assert MODO_POR_FUENTE["lamudi"] == "stream"
+    assert set(MODO_POR_FUENTE.values()) <= {"head", "stream", "get"}
     print("ok")
 
 
@@ -148,6 +213,8 @@ def main() -> int:
     ap.add_argument("--source")
     ap.add_argument("--limit", type=int, default=1_000_000)
     ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--modo", choices=["auto", "get", "head", "stream"], default="auto",
+                    help="auto: el modo medido para cada portal (ver MODO_POR_FUENTE)")
     ap.add_argument("--recheck-days", type=int, default=30,
                     help="no volver a revisar lo visto hace menos de N días")
     ap.add_argument("--status", action="store_true")
@@ -159,10 +226,7 @@ def main() -> int:
         return 0
 
     dsn = os.environ.get("DATABASE_URL", "")
-    proxies = None
-    if px := os.environ.get("PROXIES", "").strip():
-        p = random.choice([x.strip() for x in px.split(",") if x.strip()])
-        proxies = {"http": p, "https": p}
+    usa_proxy = bool(os.environ.get("PROXIES", "").strip() or _apify_pw())
 
     with psycopg.connect(dsn) as conn:
         if a.status:
@@ -190,7 +254,8 @@ def main() -> int:
             return 0
         print(f"por revisar: {len(trabajo):,}"
               + ("  (muestra, no se escribe)" if a.sample else "")
-              + (f"  vía proxy" if proxies else "  sin proxy (IP del servidor)"))
+              + (f"  modo={a.modo}")
+              + ("  vía proxy residencial" if usa_proxy else "  sin proxy (IP del servidor)"))
 
         lim = Limitador()
         cuenta: Counter = Counter()
@@ -199,11 +264,17 @@ def main() -> int:
         lote_lock = threading.Lock()
         t0 = time.time()
 
+        bytes_totales = [0]
+
         def tarea(item):
             source, lid, url = item
             with lim.para(dominio(url)):
                 time.sleep(random.uniform(*PAUSA))
-                activo, motivo, status = revisar(url, proxies)
+                # Una sesión por dominio+hilo mantiene la IP estable durante el chequeo.
+                px = proxy_para(f"{source}{threading.get_ident() % 1000}")
+                modo = MODO_POR_FUENTE.get(source, "stream") if a.modo == "auto" else a.modo
+                activo, motivo, status, n = revisar(url, px, modo)
+            bytes_totales[0] += n
             cuenta[motivo] += 1
             por_fuente.setdefault(source, Counter())[motivo] += 1
             if activo is not None and not a.sample:
@@ -215,7 +286,8 @@ def main() -> int:
             hechos = sum(cuenta.values())
             if hechos % 100 == 0:
                 v = hechos / max(time.time() - t0, 1)
-                print(f"  {hechos:,}/{len(trabajo):,}  {v:.1f}/s  {dict(cuenta.most_common(4))}",
+                print(f"  {hechos:,}/{len(trabajo):,}  {v:.1f}/s  "
+                      f"{bytes_totales[0]/1e6:.0f} MB  {dict(cuenta.most_common(4))}",
                       flush=True)
 
         with ThreadPoolExecutor(a.workers) as ex:
@@ -223,6 +295,9 @@ def main() -> int:
         if lote:
             guardar(conn, lote)
 
+    hechos = sum(cuenta.values())
+    print(f"\ntráfico: {bytes_totales[0]/1e6:.1f} MB en {hechos:,} peticiones "
+          f"({bytes_totales[0]/max(hechos,1)/1024:.1f} KB c/u)")
     print(f"\n{'motivo':24} {'n':>7}")
     for m, n in cuenta.most_common():
         print(f"  {m:22} {n:>7,}")
