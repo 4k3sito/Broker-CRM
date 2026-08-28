@@ -346,6 +346,102 @@ function render() {
   const ppm    = l.porM2 ? '' :
     ((l.precio && l.size) ? `$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / m²` : '');
 
+  // Galería del canvas: foto de 380px sobre tinta, con los badges encima y una
+  // fila de miniaturas debajo. Sin foto queda la trama de plano, nunca un gris.
+  const galleryHtml = `
+    <div class="detail-photo${l.fotos.length ? '' : ' detail-photo-empty'}">
+      ${l.fotos.length ? `<img id="mainPhoto" src="${l.fotos[0]}" alt="">` : ICON_BUILDING}
+      <span class="badge-src ${badge}">${blabel}</span>
+      ${l.size ? `<span class="badge-size">${Math.round(l.size).toLocaleString('es-MX')} M²</span>` : ''}
+    </div>
+    ${l.fotos.length > 1 ? `<div class="detail-thumbs">${l.fotos.slice(0, 4).map((f, i) =>
+      `<button class="thumb ${i === 0 ? 'active' : ''}" data-i="${i}"><img src="${f}" alt=""></button>`).join('')}</div>` : ''}`;
+
+  const sufijo = l.transaccion === 'Renta' ? 'MXN / mes' : 'MXN';
+  const priceHtml = p
+    ? `<div class="detail-price">$${p.n}<span class="currency">${sufijo}</span></div>` +
+      (p.nota ? `<div class="card-ppm">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</div>` : '') +
+      altPriceHtml(l.alt)
+    : `<div class="detail-price"><span class="no-price">Sin precio</span></div>`;
+
+  const statusOptions = STATUSES.map(st =>
+    `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`).join('');
+
+  // Ficha técnica: el canvas la quiere como cifras, no como lista de pares.
+  const facts = [
+    l.size ? ['Superficie', `${l.size} m²`] : null,
+    l.tipo ? ['Tipo', l.tipo] : null,
+    l.transaccion ? ['Operación', l.transaccion] : null,
+    l.codigo ? ['Código', l.codigo] : null,
+  ].filter(Boolean);
+  const factsHtml = facts.length
+    ? `<div class="detail-panel">
+         <div class="detail-panel-label">Ficha técnica</div>
+         <dl class="detail-facts">${facts.map(([label, value]) =>
+           `<div><dt>${label}</dt><dd>${escAttr(String(value))}</dd></div>`).join('')}</dl>
+       </div>`
+    : '';
+
+  document.title = (l.titulo ?? 'Propiedad') + ' · OfficeLab';
+
+  document.getElementById('detail').innerHTML = `
+    <article class="detail-content">
+      <nav class="detail-crumb" aria-label="Ruta">
+        <a href="index.html">Propiedades</a><span>/</span><strong>${escAttr(l.codigo ?? l.id)}</strong>
+      </nav>
+      <div class="detail-gallery">${galleryHtml}</div>
+      <div class="detail-heading">
+        <div class="card-tags">
+          ${l.tipo ? `<span class="tag-tipo">${l.tipo}</span>` : ''}
+          <span class="tag-txn">${l.transaccion}</span>
+          ${l.codigo ? `<span class="tag-code">${l.codigo}</span>` : ''}
+        </div>
+        ${l.titulo ? `<h1 class="detail-title">${l.titulo}</h1>` : ''}
+        ${l.direccion ? `<div class="detail-location">${ICON_PIN}${l.direccion}</div>` : ''}
+      </div>
+      ${factsHtml}
+      ${l.descripcion ? `<div class="detail-panel"><div class="detail-panel-label">Descripción</div><p>${l.descripcion}</p></div>` : ''}
+      ${l.features.length ? `<div class="detail-panel"><div class="detail-panel-label">Características</div><ul class="detail-features">${l.features.map(f => `<li>${f}</li>`).join('')}</ul></div>` : ''}
+      ${fichaSectionHtml()}
+      ${ficha ? documentosHtml() : ''}
+      ${ficha ? seguimientoHtml() : ''}
+    </article>
+    <aside class="detail-sidebar">
+      <div class="detail-sidebar-card">
+        ${priceHtml}
+        <div class="detail-sidebar-divider"></div>
+        <div class="card-status-row">
+          <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
+          <select class="status-select s-${l.status}" id="detailStatus">${statusOptions}</select>
+        </div>
+        <button class="btn-star-wide ${l.starred ? 'on' : ''}" id="detailStar">
+          ${l.starred ? '&#9733; Destacado' : '&#9734; Marcar destacado'}
+        </button>
+        <div class="detail-links">
+          ${l.url      ? `<a href="${l.url}" class="btn-solid" target="_blank" rel="noopener">Anuncio original ${ICON_EXTERNAL}</a>` : ''}
+          ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="btn-outline" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
+          ${l.mapsUrl  ? `<a href="${l.mapsUrl}" class="btn-outline" target="_blank" rel="noopener">Ver mapa ${ICON_EXTERNAL}</a>` : ''}
+        </div>
+      </div>
+      <div class="detail-sidebar-card">
+        <div class="detail-panel-label">Notas internas</div>
+        <textarea class="notes-area" id="detailNotes" placeholder="AGREGAR NOTAS DE SEGUIMIENTO…">${l.notes}</textarea>
+      </div>
+    </aside>
+  `;
+
+  document.querySelectorAll('.thumb').forEach((t, i) => t.classList.toggle('active', i === idx));
+}
+
+function render() {
+  const l      = listing;
+  const cfg    = FUENTE_CONFIG[l.fuente];
+  const badge  = cfg?.badge  ?? 'other';
+  const blabel = (cfg?.label ?? l.fuente).toUpperCase();
+  const p      = fmtPrice(l.precio, l.moneda, l);
+  const ppm    = l.porM2 ? '' :
+    ((l.precio && l.size) ? `$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / m²` : '');
+
   const galleryHtml = l.fotos.length
     ? `<div class="detail-photo"><img id="mainPhoto" src="${l.fotos[0]}" alt="foto"></div>
        ${l.fotos.length > 1 ? `<div class="detail-thumbs">${l.fotos.map((f, i) =>
