@@ -76,18 +76,41 @@ def to_row(source: str, d: dict) -> tuple:
 
 # --------------------------------------------------------------------------- load
 
+# Un inmueble ofrecido en renta Y venta llega como dos líneas con el mismo
+# listing_id. Sigue siendo UNA propiedad, así que se guarda en una fila: la más
+# reciente manda y la otra oferta se conserva en las columnas *_alt en vez de
+# tirarse. Antes el DISTINCT ON se quedaba con una y la segunda se perdía en la
+# carga — 980 anuncios de Pincali con sólo la mitad de su precio.
+ALT = ["operacion_alt", "precio_alt", "precio_alt_por_m2"]
+
 UPSERT = """
-INSERT INTO listings ({cols})
-SELECT DISTINCT ON (source, listing_id) {cols} FROM stage
-ORDER BY source, listing_id, observed_at DESC NULLS LAST
+WITH r AS (
+  SELECT *, row_number() OVER (PARTITION BY source, listing_id
+                               ORDER BY observed_at DESC NULLS LAST) AS rn
+  FROM stage
+),
+alt AS (
+  SELECT DISTINCT ON (s.source, s.listing_id)
+         s.source, s.listing_id, s.operation, s.price, s.price_is_per_m2
+  FROM r s JOIN r p USING (source, listing_id)
+  WHERE p.rn = 1 AND s.rn > 1 AND s.operation IS DISTINCT FROM p.operation
+  ORDER BY s.source, s.listing_id, s.rn
+)
+INSERT INTO listings ({cols}, {alt_cols})
+SELECT {r_cols}, a.operation, a.price, a.price_is_per_m2
+FROM r LEFT JOIN alt a USING (source, listing_id)
+WHERE r.rn = 1
 ON CONFLICT (source, listing_id) DO UPDATE SET {sets}
 """.format(
     cols=", ".join(COLS),
-    # geom con COALESCE: un re-scrape sin coords no debe borrar las que ya teníamos
+    alt_cols=", ".join(ALT),
+    r_cols=", ".join("r." + c for c in COLS),
+    # COALESCE en geom y en las *_alt: una carga parcial (un solo --only, un delta
+    # que solo trajo una operación) no debe borrar coordenadas ni la segunda oferta.
     sets=", ".join(
-        "geom = COALESCE(EXCLUDED.geom, listings.geom)" if c == "geom"
+        f"{c} = COALESCE(EXCLUDED.{c}, listings.{c})" if c == "geom" or c in ALT
         else f"{c} = EXCLUDED.{c}"
-        for c in COLS if c not in ("source", "listing_id")
+        for c in [*COLS, *ALT] if c not in ("source", "listing_id")
     ),
 )
 
@@ -231,6 +254,12 @@ def selfcheck() -> None:
                          "price": "", "areaM2": ""})
     for c in ("listed_at", "observed_at", "price", "area_m2"):
         assert r2[COLS.index(c)] is None, c
+
+    # El colapso de la fila dual conserva la segunda oferta; antes la tiraba.
+    assert "{" not in UPSERT, "quedaron placeholders sin formatear"
+    for c in ALT:
+        assert f", {c}" in UPSERT and f"COALESCE(EXCLUDED.{c}" in UPSERT, c
+    assert UPSERT.count("r." + COLS[0]) == 1
 
     ns = argparse.Namespace(zone="Del Valle", city=None, op="rent", type=None, source=None,
                             min_price=None, max_price=40000, min_area=None, max_area=None,
