@@ -643,3 +643,6 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   .detail-links { grid-template-columns: 1fr; }
   .detail-links .btn-csv, .detail-links .btn-outline { grid-column: 1 / -1; }
 }
+
+/* Precio unitario del que se calculó el total (portales que publican $/m²). */
+.price-note { display:block; font-size:.72rem; font-weight:500; opacity:.7; margin-top:2px; }

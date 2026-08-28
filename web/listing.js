@@ -41,11 +41,18 @@ function parseLocation(loc) {
   return (v && typeof v === 'object') ? (v.name ?? null) : null;
 }
 
-function fmtPrice(monto, moneda) {
+// Ver app.js: "$700" en varios portales significa "$700 por m²". Se muestra el total
+// y, en chico, el unitario del que salió.
+function fmtPrice(monto, moneda, l) {
   if (monto == null) return null;
-  const n = monto.toLocaleString('es-MX');
   const curr = moneda === 'MN' ? 'MXN' : (moneda ?? '');
-  return { n, curr };
+  if (l?.porM2) {
+    const unit = `$${monto.toLocaleString('es-MX')}/m²`;
+    return l.precioTotal
+      ? { n: Math.round(l.precioTotal).toLocaleString('es-MX'), curr, nota: unit }
+      : { n: monto.toLocaleString('es-MX'), curr, nota: 'por m²', parcial: true };
+  }
+  return { n: monto.toLocaleString('es-MX'), curr };
 }
 
 function adaptListing(l) {
@@ -56,6 +63,8 @@ function adaptListing(l) {
     titulo:    l.title ?? l.broker_name ?? null,
     direccion: parseLocation(l.location) ?? l.neighborhood ?? null,
     precio:    l.price_numeric ?? null,
+    porM2:     l.price_is_per_m2 ?? false,
+    precioTotal: l.precio_total ?? null,
     moneda:    l.currency ?? 'MXN',
     fotos:     (l.images?.length ? l.images : (l.image ? [l.image] : [])),
     url:       l.url ?? null,
@@ -315,8 +324,9 @@ function render() {
   const cfg    = FUENTE_CONFIG[l.fuente];
   const badge  = cfg?.badge  ?? 'other';
   const blabel = (cfg?.label ?? l.fuente).toUpperCase();
-  const p      = fmtPrice(l.precio, l.moneda);
-  const ppm    = (l.precio && l.size) ? `$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / m²` : '';
+  const p      = fmtPrice(l.precio, l.moneda, l);
+  const ppm    = l.porM2 ? '' :
+    ((l.precio && l.size) ? `$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / m²` : '');
 
   const galleryHtml = l.fotos.length
     ? `<div class="detail-photo"><img id="mainPhoto" src="${l.fotos[0]}" alt="foto"></div>
@@ -324,8 +334,10 @@ function render() {
           `<img class="thumb ${i === 0 ? 'active' : ''}" src="${f}" data-i="${i}">`).join('')}</div>` : ''}`
     : `<div class="detail-photo detail-photo-empty">${ICON_BUILDING}</div>`;
 
+  const sufijo = l.transaccion === 'Renta' ? '/mes' : '';
   const priceHtml = p
-    ? `<div class="detail-price">$${p.n}<span class="currency">${p.curr}/mes</span></div>`
+    ? `<div class="detail-price">$${p.n}<span class="currency">${p.curr}${sufijo}</span>` +
+      (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</span>` : '') + `</div>`
     : `<div class="detail-price"><span class="no-price">Sin precio</span></div>`;
 
   const statusOptions = STATUSES.map(st =>

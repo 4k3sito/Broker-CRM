@@ -61,6 +61,8 @@ function adaptListing(l) {
     precio:   l.price_numeric != null
                 ? { monto: l.price_numeric, moneda: l.currency ?? 'MXN' }
                 : null,
+    porM2:    l.price_is_per_m2 ?? false,
+    precioTotal: l.precio_total ?? null,
     fotos:    (l.images?.length ? l.images : (l.image ? [l.image] : [])),
     url:      l.url ?? null,
     whatsapp: l.whatsapp ?? null,
@@ -201,11 +203,19 @@ function clearStreetFilter() {
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 
-function fmtPrice(precio) {
+// Varios portales publican "$700" queriendo decir "$700 por m²". Mostrar ese número
+// como total convierte un terreno de 7.5 MDP en uno de $700: se muestra el total
+// calculado y, en chico, el precio unitario del que salió.
+function fmtPrice(precio, l) {
   if (!precio || precio.monto == null) return null;
-  const n    = precio.monto.toLocaleString('es-MX');
   const curr = precio.moneda === 'MN' ? 'MXN' : (precio.moneda ?? '');
-  return { n, curr };
+  if (l?.porM2) {
+    const unit = `$${precio.monto.toLocaleString('es-MX')}/m²`;
+    return l.precioTotal
+      ? { n: Math.round(l.precioTotal).toLocaleString('es-MX'), curr, nota: unit }
+      : { n: precio.monto.toLocaleString('es-MX'), curr, nota: 'por m²', parcial: true };
+  }
+  return { n: precio.monto.toLocaleString('es-MX'), curr };
 }
 
 const ICON_EXTERNAL = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
@@ -217,17 +227,24 @@ function renderCard(l, i) {
   const cfg    = FUENTE_CONFIG[l.fuente];
   const badge  = cfg?.badge  ?? 'other';
   const blabel = (cfg?.label ?? l.fuente).toUpperCase();
-  const p      = fmtPrice(l.precio);
+  const p      = fmtPrice(l.precio, l);
   const photo  = l.fotos?.[0] ?? null;
-  const ppm    = (l.precio?.monto && l.size) ? `$${Math.round(l.precio.monto / l.size).toLocaleString('es-MX')} / m²` : '';
+  // Si el precio ya es por m², repetirlo aquí sería decir dos veces lo mismo.
+  const ppm    = l.porM2 ? '' :
+    ((l.precio?.monto && l.size) ? `$${Math.round(l.precio.monto / l.size).toLocaleString('es-MX')} / m²` : '');
 
   const imgHtml = photo
     ? `<img src="${photo}" alt="foto" loading="lazy">`
     : `<div class="card-img-placeholder" style="background:${TONES[i % TONES.length]}">${ICON_BUILDING}</div>`;
   const detailHref = `listing.html?id=${l.id}`;
 
+  // "/mes" solo en renta: pegárselo a una venta convierte un terreno de 7 MDP en
+  // una mensualidad imposible.
+  const sufijo = l.transaccion === 'Renta' ? '/mes' : '';
   const priceHtml = p
-    ? `<div class="card-price">$${p.n}<span class="currency">${p.curr}/mes</span></div>`
+    ? `<div class="card-price">$${p.n}<span class="currency">${p.curr}${sufijo}</span>` +
+      (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</span>` : '') +
+      `</div>`
     : `<div class="card-price"><span class="no-price">Sin precio</span></div>`;
 
   const statusOptions = STATUSES.map(st =>

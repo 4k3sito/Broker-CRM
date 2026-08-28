@@ -168,6 +168,27 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS http_status  int;
 CREATE INDEX IF NOT EXISTS listings_por_revisar_idx ON listings (revisado_at NULLS FIRST)
   WHERE activo IS NOT false;
 
+-- Precio por m² vs precio total. Varios portales publican "$700" queriendo decir
+-- "$700 por m²"; mostrarlo como total convierte un terreno de 7.5 MDP en uno de $700.
+-- Pincali marca `priceIsPerM2` pero se le escapan casos, y vivanuncios/lamudi no lo
+-- marcan nunca. `precio_m2_inferido` distingue lo deducido de lo que vino del portal,
+-- para poder auditarlo o revertirlo sin tocar el dato original.
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS precio_m2_inferido boolean NOT NULL DEFAULT false;
+
+-- Un precio total por debajo de estos pisos es imposible: son precios por m² mal leídos.
+-- Umbrales calibrados contra los 11,797 casos que Pincali sí marcó (ver MIGRATION.md).
+CREATE OR REPLACE FUNCTION inferir_precio_m2() RETURNS bigint AS $$
+  WITH m AS (
+    UPDATE listings SET price_is_per_m2 = true, precio_m2_inferido = true
+    WHERE price_is_per_m2 IS NOT TRUE
+      AND price > 0 AND area_m2 > 0
+      AND price BETWEEN 50 AND 200000
+      AND ((operation = 'sale' AND area_m2 > 100 AND price / area_m2 < 20)
+        OR (operation = 'rent' AND area_m2 >  50 AND price / area_m2 < 1))
+    RETURNING 1)
+  SELECT count(*) FROM m;
+$$ LANGUAGE sql;
+
 -- ────────────────────────────────────────────────────────────── auth (Fase 2a)
 
 CREATE TABLE IF NOT EXISTS usuario (

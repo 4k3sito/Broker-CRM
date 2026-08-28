@@ -216,12 +216,17 @@ SELECT_LISTING = """
   l.price AS price_numeric, l.currency, l.images, l.image_url AS image, l.url,
   l.agent_phone AS whatsapp, l.property_type, l.area_m2 AS property_size_m2,
   l.operation AS transaction_type, l.maps_url, z.nombre AS zona,
+  l.price_is_per_m2, l.precio_m2_inferido,
+  -- Cuando el precio es por m², el total es lo que el asesor necesita ver y filtrar.
+  CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 END AS precio_total,
   ul.status, coalesce(ul.starred, false) AS starred, coalesce(ul.notes, '') AS notes
 """
 ORDENES = {
     "recientes": "l.observed_at DESC NULLS LAST",
-    "precio_asc": "l.price ASC NULLS LAST",
-    "precio_desc": "l.price DESC NULLS LAST",
+    "precio_asc": "(CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 "
+                  "ELSE l.price END) ASC NULLS LAST",
+    "precio_desc": "(CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 "
+                   "ELSE l.price END) DESC NULLS LAST",
     "m2_desc": "l.area_m2 DESC NULLS LAST",
 }
 
@@ -247,11 +252,15 @@ def _filtros(a: dict) -> tuple[list[str], list]:
     if a.get("fuente"):
         w.append("l.source = ANY(%s)")
         p.append(a["fuente"])
+    # Filtrar por el precio EFECTIVO: un terreno a $700/m² con 10,744 m² cuesta 7.5 MDP
+    # y no debe aparecer en "hasta $30,000".
+    efectivo = ("CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 "
+                "THEN l.price * l.area_m2 ELSE l.price END")
     if a.get("precio_min") is not None:
-        w.append("l.price >= %s")
+        w.append(f"{efectivo} >= %s")
         p.append(a["precio_min"])
     if a.get("precio_max") is not None:
-        w.append("l.price > 0 AND l.price <= %s")
+        w.append(f"l.price > 0 AND {efectivo} <= %s")
         p.append(a["precio_max"])
     if a.get("m2_min") is not None:
         w.append("l.area_m2 >= %s")
