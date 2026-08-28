@@ -15,20 +15,24 @@ const FUENTE_CONFIG = {
 
 const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
 
+// Tramas de plano para las tarjetas sin foto: van sobre tinta, nunca gris plano.
 const TONES = [
-  'linear-gradient(135deg,#A9B6B0,#C8C2B2)',
-  'linear-gradient(135deg,#B7AE9E,#9FA9A6)',
-  'linear-gradient(135deg,#9CABB4,#BEB6A6)',
-  'linear-gradient(135deg,#BDB1A0,#A6AD99)',
-  'linear-gradient(135deg,#A4B0AE,#C5BBA8)',
-  'linear-gradient(135deg,#B0A898,#98A7A4)',
+  { img:'radial-gradient(circle at 35% 30%, rgba(239,237,230,.95) 0 1px, transparent 1.4px)', size:'7px 7px' },
+  { img:'radial-gradient(circle at 50% 50%, rgba(239,237,230,.85) 0 1.2px, transparent 1.6px)', size:'10px 10px' },
+  { img:'repeating-linear-gradient(45deg, rgba(239,237,230,.55) 0 1px, transparent 1px 6px)', size:'auto' },
+  { img:'radial-gradient(circle at 20% 70%, rgba(239,237,230,.9) 0 1px, transparent 1.5px)', size:'5px 5px' },
+  { img:'repeating-linear-gradient(-30deg, rgba(239,237,230,.45) 0 2px, transparent 2px 9px)', size:'auto' },
+  { img:'radial-gradient(circle at 60% 40%, rgba(239,237,230,.8) 0 1.6px, transparent 2px)', size:'13px 13px' },
 ];
+const ICON_BUILDING_LG = `<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 21V7l9-4 9 4v14"/><polyline points="9 22 9 12 15 12 15 22"/><path d="M3 7h18"/></svg>`;
+
 
 let listings      = [];
 let listingsMap   = {};
 let currentUser   = null;
 let filterStatus  = 'Todos';
 let filterFuente  = 'all';
+let filterZona    = 'all';   // municipio, del catálogo /api/zonas
 let filterStarred = false;
 let searchQ       = '';
 let searchStreet  = '';
@@ -89,6 +93,7 @@ function filtrosActuales(extra = {}) {
     q: searchStreet || searchQ,
     estado: filterStatus !== 'Todos' ? STATUS_TO_API[filterStatus] : '',
     fuente: filterFuente !== 'all' ? filterFuente : '',
+    zona: filterZona !== 'all' ? filterZona : '',
     favoritos: filterStarred,
     precio_min: priceMin,
     precio_max: priceMax,
@@ -103,6 +108,7 @@ async function cargarPagina() {
     API.get(`/listings/facets${API.qs({
       q: searchStreet || searchQ,
       fuente: filterFuente !== 'all' ? filterFuente : '',
+    zona: filterZona !== 'all' ? filterZona : '',
       favoritos: filterStarred,
       precio_min: priceMin,
       precio_max: priceMax,
@@ -142,15 +148,29 @@ function matchesText(haystack, query) {
 console.assert(matchesText('San Pedro Garza García', 'san pedro garcia'), 'matchesText: acentos/orden');
 console.assert(!matchesText('Centro, Monterrey', 'san pedro'), 'matchesText: no falso positivo');
 
+// Las ciudades salen del catálogo de zonas, no del inventario cargado: con 2,475
+// municipios, derivarlas de la página visible daría una lista distinta en cada filtro.
+async function buildCiudadFilters() {
+  const zonas = await API.get('/zonas').catch(() => []);
+  const group = document.getElementById('ciudad-group');
+  if (!zonas.length) { group.innerHTML = ''; return; }
+  group.innerHTML =
+    '<span class="filter-group-label">Ciudad</span>' +
+    `<button class="pill${filterZona === 'all' ? ' active' : ''}" data-group="zona" data-val="all">Todo México</button>` +
+    zonas.slice(0, 12).map(z =>
+      `<button class="pill${filterZona === z.norm ? ' active' : ''}" data-group="zona" data-val="${escAttr(z.norm)}">` +
+      `${escAttr(z.nombre)}<span class="pill-count">${z.listings.toLocaleString('es-MX')}</span></button>`).join('');
+}
+
 function buildFuenteFilters(porFuente) {
   const fuentes = Object.keys(porFuente).sort();
   const group = document.getElementById('fuente-group');
   group.innerHTML =
     '<span class="filter-group-label">Fuente</span>' +
-    '<button class="pill active" data-group="source" data-fuente="all" data-val="Todas las fuentes">Todas las fuentes</button>' +
+    `<button class="pill${filterFuente === 'all' ? ' active' : ''}" data-group="source" data-fuente="all" data-val="Todas">Todas</button>` +
     fuentes.map(f => {
       const label = FUENTE_CONFIG[f]?.label ?? f;
-      return `<button class="pill" data-group="source" data-fuente="${f}" data-val="${label}">${label}</button>`;
+      return `<button class="pill${filterFuente === f ? ' active' : ''}" data-group="source" data-fuente="${f}" data-val="${label}">${label}</button>`;
     }).join('');
 }
 
@@ -243,81 +263,77 @@ const ICON_PIN = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" st
 
 function renderCard(l, i) {
   const cfg    = FUENTE_CONFIG[l.fuente];
-  const badge  = cfg?.badge  ?? 'other';
   const blabel = (cfg?.label ?? l.fuente).toUpperCase();
   const p      = fmtPrice(l.precio, l);
   const photo  = l.fotos?.[0] ?? null;
   // Si el precio ya es por m², repetirlo aquí sería decir dos veces lo mismo.
   const ppm    = l.porM2 ? '' :
-    ((l.precio?.monto && l.size) ? `$${Math.round(l.precio.monto / l.size).toLocaleString('es-MX')} / m²` : '');
+    ((l.precio?.monto && l.size) ? `$${Math.round(l.precio.monto / l.size).toLocaleString('es-MX')} / M²` : '');
+  const detalle = `listing.html?id=${encodeURIComponent(l.id)}`;
 
+  // Sin foto: trama de plano sobre tinta. Cada tarjeta toma una del set para que
+  // una rejilla sin fotos no se vea como un bloque plano repetido.
   const imgHtml = photo
-    ? `<img src="${photo}" alt="foto" loading="lazy">`
-    : `<div class="card-img-placeholder" style="background:${TONES[i % TONES.length]}">${ICON_BUILDING}</div>`;
-  const detailHref = `listing.html?id=${l.id}`;
+    ? `<img src="${photo}" alt="" loading="lazy">`
+    : `<div class="card-img-blueprint" style="background-image:${TONES[i % TONES.length].img};background-size:${TONES[i % TONES.length].size}"></div>
+       <div class="card-img-icon">${ICON_BUILDING_LG}</div>`;
 
-  // "/mes" solo en renta: pegárselo a una venta convierte un terreno de 7 MDP en
-  // una mensualidad imposible.
-  const sufijo = l.transaccion === 'Renta' ? '/mes' : '';
+  const sufijo = l.transaccion === 'Renta' ? 'MXN / mes' : 'MXN';
   const priceHtml = p
-    ? `<div class="card-price">$${p.n}<span class="currency">${p.curr}${sufijo}</span>` +
-      (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</span>` : '') +
-      `</div>` + altPriceHtml(l.alt)
-    : `<div class="card-price"><span class="no-price">Sin precio</span></div>`;
+    ? `<div class="card-price"><strong>$${p.n}</strong><span class="currency">${sufijo}</span></div>` +
+      (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</span>` : '')
+    : `<div class="card-price"><strong class="no-price">Sin precio</strong></div>`;
 
-  const statusOptions = STATUSES.map(st =>
-    `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`
-  ).join('');
+  const opciones = STATUSES.map(st =>
+    `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`).join('');
 
-  return `<article class="card ${l.starred ? 'starred' : ''} status-${l.status.toLowerCase()}" data-id="${l.id}">
+  return `<article class="card ${l.starred ? 'starred' : ''} status-${l.status.toLowerCase()}" data-id="${escAttr(l.id)}">
     <div class="card-img">
-      <a class="card-photo-link" href="${detailHref}">${imgHtml}</a>
-      <span class="badge-src ${badge}">${blabel}</span>
-      <span class="badge-fotos">FOTO 1/${l.fotos.length || 1}</span>
-      ${l.size ? `<span class="badge-size">${l.size} m²</span>` : ''}
-      <button class="btn-star ${l.starred ? 'on' : 'off'}" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">
-        ${l.starred ? '&#9733;' : '&#9734;'}
-      </button>
+      ${imgHtml}
+      <span class="badge badge-src">${blabel}</span>
+      ${l.fotos?.length ? `<span class="badge badge-foto">FOTO 1/${l.fotos.length}</span>` : ''}
+      ${l.size ? `<span class="badge badge-size">${Math.round(l.size).toLocaleString('es-MX')} M²</span>` : ''}
+      <button class="btn-star" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">${l.starred ? '&#9733;' : '&#9734;'}</button>
     </div>
     <div class="card-body">
       <div class="card-top">
-        <div>
+        <div style="min-width:0">
           ${priceHtml}
           ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
+          ${altPriceHtml(l.alt)}
         </div>
-        <div class="card-links">
-          ${l.url      ? `<a href="${l.url}" class="card-link" target="_blank" rel="noopener">Ver ${ICON_EXTERNAL}</a>`
-            : (l.fuente === 'easybroker' && l.codigo ? `<span class="card-link" title="Búscalo en EasyBroker por este código">ID ${l.codigo}</span>` : '')}
-          ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="card-link wa" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
-        </div>
+        <a class="card-ver" href="${detalle}">Ver ${ICON_EXTERNAL}</a>
       </div>
-      ${l.titulo    ? `<a class="card-title" href="${detailHref}">${l.titulo}</a>`       : ''}
-      ${l.direccion ? `<div class="card-location">${ICON_PIN}${l.direccion}</div>` : ''}
+      ${l.titulo ? `<div class="card-title">${escAttr(l.titulo)}</div>` : ''}
+      ${l.direccion ? `<div class="card-dir">${ICON_PIN}${escAttr(l.direccion)}</div>` : ''}
       <div class="card-tags">
-        ${l.tipo ? `<span class="tag-tipo">${l.tipo}</span>` : ''}
-        <span class="tag-txn">${l.transaccion}</span>
-        ${l.codigo ? `<span class="tag-code">${l.codigo}</span>` : ''}
+        ${l.tipo ? `<span class="tag tag-tipo">${escAttr(l.tipo)}</span>` : ''}
+        <span class="tag tag-txn">${l.transaccion}</span>
+        ${l.codigo ? `<span class="tag tag-cod">${escAttr(l.codigo)}</span>` : ''}
       </div>
-      <div class="card-divider"></div>
-      <div class="card-status-row">
+      <div class="card-sep"></div>
+      <div class="card-status">
         <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
-        <select class="status-select s-${l.status}">${statusOptions}</select>
+        <select class="status-select s-${l.status}">${opciones}</select>
       </div>
-      <textarea class="notes-area" placeholder="Agregar notas&#8230;">${l.notes}</textarea>
+      <textarea class="notes-area" placeholder="AGREGAR NOTAS…">${escAttr(l.notes)}</textarea>
     </div>
   </article>`;
 }
 
 function renderStats() {
   const n = e => facetas.por_estado[STATUS_TO_API[e]] ?? 0;
-  document.getElementById('statsBar').innerHTML = `
-    <div class="stat-item stat-main"><span class="stat-num">${totalFiltrado}</span><span class="stat-label">listados visibles</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-nuevo)">${n('Nuevo')}</span><span class="stat-label">nuevos</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-revisado)">${n('Revisado')}</span><span class="stat-label">revisados</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-contactado)">${n('Contactado')}</span><span class="stat-label">contactados</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--s-rentado)">${n('Rentado')}</span><span class="stat-label">rentados</span></div>
-    <div class="stat-item"><span class="stat-num" style="color:var(--accent)">${facetas.destacados}</span><span class="stat-label">&#9733; destacados</span></div>
-  `;
+  const celda = (num, label, color) =>
+    `<div class="stat"><span class="stat-num" style="color:${color}">${num.toLocaleString('es-MX')}</span>` +
+    `<span class="stat-label">${label}</span></div>`;
+  document.getElementById('statsBar').innerHTML =
+    `<div class="stat stat-main"><span class="stat-num">${totalFiltrado.toLocaleString('es-MX')}</span>` +
+    `<span class="stat-label">Propiedades visibles</span></div>` +
+    celda(n('Nuevo'),      'nuevos',      'var(--s-nuevo)') +
+    celda(n('Revisado'),   'revisados',   'var(--s-revisado)') +
+    celda(n('Contactado'), 'contactados', 'var(--s-contactado)') +
+    celda(n('Rentado'),    'rentados',    'var(--s-rentado)') +
+    celda(facetas.destacados, '★ destacados', 'var(--accent)');
 }
 
 // Cuántos listados habría si solo cambiara el filtro de estado (el resto sigue aplicado).
@@ -439,6 +455,10 @@ document.getElementById('filterbar').addEventListener('click', e => {
     document.querySelectorAll('.pill[data-group="source"]').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
     filterFuente = pill.dataset.fuente;
+  } else if (group === 'zona') {
+    document.querySelectorAll('.pill[data-group="zona"]').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    filterZona = pill.dataset.val;
   }
   page = 1;
   render();
@@ -496,6 +516,7 @@ API.me()
     document.getElementById('authBox').hidden = true;
     document.getElementById('userBox').hidden = false;
     document.getElementById('userEmail').textContent = user.email;
+    await buildCiudadFilters();
     await render();          // render() ya trae listados y facetas del servidor
   })
   .catch(err => {
