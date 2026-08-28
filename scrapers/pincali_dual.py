@@ -21,9 +21,15 @@ import re
 import sys
 import time
 
-# "En Venta $3,500 MXN por m²" / "En Renta $15 MXN"
+# El bloque de precios del anuncio principal:
+#   <div class="digits">$3,500 MXN por m²</div>
+#   <div class="operation-type">En Venta</div>
+# El precio va ANTES de su etiqueta. Anclarse a estas dos clases evita las tarjetas
+# de "anuncios relacionados" que hay más abajo, que usan otro marcado y otros precios.
 PATRON = re.compile(
-    r"En\s+(Venta|Renta)\s*\$?\s*([\d,]+(?:\.\d+)?)\s*(MXN|USD)?\s*(por\s*m²|/\s*m2)?",
+    r'<div[^>]*class="[^"]*\bdigits\b[^"]*"[^>]*>\s*\$?\s*([\d,]+(?:\.\d+)?)\s*'
+    r'(?:MXN|USD)?\s*(por\s*m²|/\s*m2)?\s*</div>\s*'
+    r'<div[^>]*class="[^"]*\boperation-type\b[^"]*"[^>]*>\s*En\s+(Venta|Renta)\s*</div>',
     re.I)
 OP = {"venta": "sale", "renta": "rent"}
 
@@ -32,28 +38,31 @@ def precios(html: str) -> dict[str, tuple[float, bool]]:
     """{'sale': (3500.0, True), 'rent': (15.0, True)} — precio y si es por m²."""
     out: dict[str, tuple[float, bool]] = {}
     for m in PATRON.finditer(html):
-        op = OP.get(m.group(1).lower())
+        op = OP.get(m.group(3).lower())
         if not op or op in out:                     # la primera aparición manda
             continue
         try:
-            out[op] = (float(m.group(2).replace(",", "")), bool(m.group(4)))
+            out[op] = (float(m.group(1).replace(",", "")), bool(m.group(2)))
         except ValueError:
             continue
     return out
 
 
 def selfcheck() -> None:
-    html = ("<div>En Venta $3,500 MXN por m²</div>"
-            "<div>En Renta $15 MXN por m²</div>")
-    p = precios(html)
+    def bloque(monto, etiqueta, m2=True):
+        u = " por m²" if m2 else ""
+        return (f'<div class="price"><div class="digits">${monto} MXN{u}</div>'
+                f'<div class="operation-type">En {etiqueta}</div></div>')
+
+    p = precios(bloque("3,500", "Venta") + bloque("15", "Renta"))
     assert p == {"sale": (3500.0, True), "rent": (15.0, True)}, p
-    # Sin "por m²" => precio total
-    assert precios("En Venta $1,250,000 MXN")["sale"] == (1250000.0, False)
-    # Sólo una operación: no inventar la otra
-    assert set(precios("En Renta $8,000 MXN")) == {"rent"}
+    assert precios(bloque("1,250,000", "Venta", m2=False))["sale"] == (1250000.0, False)
+    assert set(precios(bloque("8,000", "Renta"))) == {"rent"}
     assert precios("<p>sin precios</p>") == {}
-    # Se queda con la primera mención, no con un pie de página repetido
-    assert precios("En Venta $100 MXN En Venta $999 MXN")["sale"][0] == 100.0
+    # Las tarjetas de anuncios relacionados usan otro marcado: no deben contarse.
+    relacionado = '<div class="price">$998 MXN por m²<span>En Venta</span></div>'
+    assert precios(relacionado) == {}, "no debe leer los anuncios relacionados"
+    assert precios(bloque("100", "Venta") + relacionado)["sale"][0] == 100.0
     print("ok")
 
 
