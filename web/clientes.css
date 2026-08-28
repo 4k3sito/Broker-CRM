@@ -1,0 +1,207 @@
+/* OfficeLab · Clientes — estética "Hermes Tinta".
+   Hoja autocontenida a propósito: esta página no carga style.css porque el diseño
+   cambia la paleta entera (tinta sobre crema), la tipografía y quita los bordes
+   redondeados. Mezclar ambas produciría una página a medio reskin. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:#201333; --paper:#EFEDE6;
+  --bg:#EFEDE6; --surface:#FFFFFF; --ink:#111120; --muted:#5B4A75; --faint:#9C93AD;
+  --border:rgba(32,19,51,.22); --border-2:rgba(32,19,51,.42);
+  --accent:#201333; --accent-soft:rgba(32,19,51,.10);
+  --topbar:#201333; --topbar-text:#EFEDE6;
+  --s-presentado:#2B3FC4; --s-aprobado:#1F6F4A; --s-rechazado:#A83B22;
+  --r-presentado:rgba(43,63,196,.10); --r-aprobado:rgba(31,111,74,.10); --r-rechazado:rgba(168,59,34,.10);
+  --font-ui:'Hanken Grotesk',system-ui,sans-serif;
+  --font-display:'Bodoni Moda',Didot,Georgia,serif;
+  --font-mono:'Space Mono',monospace;
+}
+
+body {
+  min-height:100vh; background:var(--bg); color:var(--ink);
+  font-family:var(--font-ui); -webkit-font-smoothing:antialiased;
+}
+::-webkit-scrollbar { width:9px; height:9px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border-2); }
+input::placeholder, textarea::placeholder { color:var(--faint); }
+a { color:var(--accent); }
+a:hover { color:var(--ink); }
+
+/* ── Topbar ─────────────────────────────────────────────────────────────── */
+.topbar {
+  position:sticky; top:0; z-index:50; background:var(--topbar); color:var(--topbar-text);
+  display:flex; align-items:center; gap:22px; padding:0 24px; height:70px;
+  border-bottom:1px solid rgba(0,0,0,.25);
+}
+.brand-group { display:flex; align-items:center; gap:12px; flex-shrink:0; text-decoration:none; color:var(--topbar-text); }
+.brand-mark { display:block; }
+.brand-text { display:flex; flex-direction:column; line-height:1; }
+.brand {
+  font-family:var(--font-display); font-size:23px; font-weight:500;
+  letter-spacing:.04em; text-transform:uppercase;
+}
+.brand i { font-style:italic; }
+.brand-sub {
+  font-family:var(--font-mono); font-size:9px; letter-spacing:.22em;
+  opacity:.6; text-transform:uppercase; margin-top:5px;
+}
+.topbar-nav {
+  display:flex; align-items:center; flex-shrink:0;
+  border-left:1px solid rgba(255,255,255,.22); border-right:1px solid rgba(255,255,255,.22);
+}
+.topbar-nav a {
+  font-family:var(--font-mono); font-size:10.5px; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--topbar-text); opacity:.62; text-decoration:none;
+  padding:0 16px; height:70px; display:inline-flex; align-items:center;
+}
+.topbar-nav a:hover { opacity:1; }
+.topbar-nav a.active { opacity:1; background:rgba(255,255,255,.12); }
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:14px; flex-shrink:0; }
+.count-tag { font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; opacity:.7; white-space:nowrap; }
+.count-tag strong { font-weight:700; }
+.btn-ghost {
+  display:inline-flex; align-items:center; background:transparent;
+  border:1px solid rgba(255,255,255,.45); color:var(--topbar-text);
+  font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:.12em;
+  text-transform:uppercase; padding:0 16px; height:36px; cursor:pointer; text-decoration:none;
+}
+.btn-ghost:hover { background:rgba(255,255,255,.12); color:var(--topbar-text); }
+
+/* ── Barra de filtros ───────────────────────────────────────────────────── */
+.filterbar {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:0 24px; display:flex; align-items:center; overflow-x:auto;
+}
+.filter-group {
+  display:flex; align-items:center; gap:6px;
+  padding:12px 18px 12px 0; margin-right:18px;
+  border-right:1px solid var(--border); flex-shrink:0;
+}
+.filter-group-label {
+  font-family:var(--font-mono); font-size:9.5px; font-weight:700; color:var(--faint);
+  text-transform:uppercase; letter-spacing:.18em; margin-right:8px; white-space:nowrap;
+}
+.pill {
+  display:inline-flex; align-items:center; gap:7px;
+  font-family:var(--font-mono); font-size:10.5px; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; white-space:nowrap; height:30px; padding:0 12px;
+  border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer;
+}
+.pill:hover { border-color:var(--border-2); color:var(--ink); }
+.pill.active { background:var(--accent); color:var(--paper); border-color:var(--accent); }
+.pill-count { opacity:.6; font-weight:400; }
+.filter-search { flex:1; min-width:180px; padding:12px 18px 12px 0; }
+.filter-search input {
+  width:100%; max-width:320px; height:30px; padding:0 11px;
+  border:1px solid var(--border-2); font-family:var(--font-mono); font-size:10.5px;
+  letter-spacing:.08em; color:var(--ink); background:transparent; outline:none;
+}
+.filter-search input:focus { border-color:var(--accent); }
+.filter-action { padding:12px 0; flex-shrink:0; }
+.btn-solid {
+  display:inline-flex; align-items:center; gap:8px; height:30px; padding:0 14px;
+  border:none; background:var(--accent); color:var(--paper); font-family:var(--font-mono);
+  font-size:10.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; cursor:pointer;
+}
+.btn-solid:hover { opacity:.88; }
+
+/* ── Resumen global ─────────────────────────────────────────────────────── */
+.statsbar { display:flex; align-items:stretch; padding:22px 24px 8px; flex-wrap:wrap; }
+.stat { display:flex; flex-direction:column; padding-right:26px; }
+.stat-main { margin-right:26px; border-right:1px solid var(--border); }
+.stat-num {
+  font-family:var(--font-display); font-weight:500; line-height:1;
+  font-size:28px; font-feature-settings:'tnum';
+}
+.stat-main .stat-num { font-size:38px; }
+.stat-label {
+  font-family:var(--font-mono); font-size:9.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin-top:10px;
+}
+.stat-main .stat-label { margin-top:9px; }
+
+/* ── Rejilla de clientes ────────────────────────────────────────────────── */
+.clientes-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr));
+  gap:18px; padding:18px 24px 56px;
+}
+.cliente-card { background:var(--surface); border:1px solid var(--border); display:flex; flex-direction:column; }
+.cliente-head { display:flex; align-items:center; gap:10px; padding:16px 18px; border-bottom:1px solid var(--border); }
+.cliente-nombre {
+  flex:1; min-width:0; border:none; background:transparent; padding:0; outline:none;
+  font-family:var(--font-display); font-size:24px; font-weight:500; color:var(--ink);
+}
+.cliente-nombre:focus { border-bottom:1px solid var(--accent); }
+.cliente-del {
+  width:28px; height:28px; flex-shrink:0; border:1px solid var(--border);
+  background:transparent; color:var(--faint); font-size:16px; line-height:1; cursor:pointer;
+}
+.cliente-del:hover { border-color:var(--s-rechazado); color:var(--s-rechazado); }
+
+.cliente-field { display:flex; align-items:center; gap:12px; padding:0 18px; border-bottom:1px solid var(--border); }
+.cliente-field span {
+  font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--faint); width:96px; flex-shrink:0;
+}
+.cliente-field input {
+  flex:1; min-width:0; height:38px; border:none; background:transparent;
+  font-family:var(--font-ui); font-size:13px; color:var(--ink); outline:none; padding:0;
+}
+
+.cliente-warn {
+  display:flex; align-items:center; gap:9px; padding:11px 18px;
+  background:var(--r-rechazado); color:var(--s-rechazado);
+  font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; border-bottom:1px solid var(--border);
+}
+.cliente-warn svg { flex-shrink:0; }
+
+.cliente-stats { display:flex; align-items:stretch; border-bottom:1px solid var(--border); }
+.cliente-stats > div {
+  flex:1; padding:14px 12px; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; gap:6px;
+}
+.cliente-stats > div:last-child { border-right:none; }
+.cliente-stats strong {
+  font-family:var(--font-display); font-size:22px; font-weight:500; line-height:1;
+  font-feature-settings:'tnum';
+}
+.cliente-stats span {
+  font-family:var(--font-mono); font-size:8.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted);
+}
+
+.cliente-procs { padding:14px 18px 16px; display:flex; flex-direction:column; gap:9px; flex:1; }
+.cliente-procs-label { display:flex; align-items:center; gap:8px; }
+.cliente-procs-label > span:first-child {
+  font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--faint);
+}
+.proc-count {
+  font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.06em;
+  padding:2px 7px; background:var(--accent-soft); color:var(--accent);
+}
+.proc-row { display:flex; align-items:center; gap:10px; padding-top:9px; border-top:1px solid var(--border); }
+.proc-ficha {
+  flex:1; min-width:0; font-size:12.5px; color:var(--ink); line-height:1.4;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.proc-status {
+  flex-shrink:0; height:30px; padding:0 9px; font-family:var(--font-mono);
+  font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  cursor:pointer; outline:none; -webkit-appearance:none; appearance:none;
+}
+.proc-status option { color:var(--ink); background:#fff; font-weight:500; }
+.status-presentado { border:1px solid var(--s-presentado); color:var(--s-presentado); background:var(--r-presentado); }
+.status-aprobado   { border:1px solid var(--s-aprobado);   color:var(--s-aprobado);   background:var(--r-aprobado); }
+.status-rechazado  { border:1px solid var(--s-rechazado);  color:var(--s-rechazado);  background:var(--r-rechazado); }
+
+.proc-empty {
+  font-family:var(--font-mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--faint); padding-top:9px; border-top:1px solid var(--border); line-height:1.7;
+}
+.empty {
+  padding:64px 24px; text-align:center; color:var(--muted);
+  font-family:var(--font-mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+}

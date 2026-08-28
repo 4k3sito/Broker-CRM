@@ -57,52 +57,117 @@ function setProcesoStatus(procId, status) {
 
 // ── Render ───────────────────────────────────────────────────────────────────
 
+const PROC_COLOR = { presentado: 'var(--s-presentado)', aprobado: 'var(--s-aprobado)',
+                     rechazado: 'var(--s-rechazado)' };
+const ICON_WARN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+
+// Un cliente pasa el filtro de estado si alguno de sus procesos está en ese estado.
+function pasaFiltro(c) {
+  if (searchQ && !norm(c.nombre).includes(norm(searchQ))) return false;
+  if (filterStatus !== 'all' && !(c.proceso ?? []).some(p => p.status === filterStatus)) return false;
+  return true;
+}
+
+function cuenta(procs, estado) {
+  return procs.filter(p => p.status === estado).length;
+}
+
+// aprobados / (aprobados + rechazados). Sin decisiones todavía no hay tasa que dar.
+function tasaAceptacion(aprob, rech) {
+  const decididos = aprob + rech;
+  return decididos ? Math.round((aprob / decididos) * 100) + '%' : '—';
+}
+
+function statCell(n, label, color) {
+  return `<div class="stat"><span class="stat-num" style="color:${color}">${n}</span>` +
+         `<span class="stat-label">${label}</span></div>`;
+}
+
+function renderStatsGlobal(filtrados) {
+  const procs = filtrados.flatMap(c => c.proceso ?? []);
+  const aprob = cuenta(procs, 'aprobado');
+  const rech  = cuenta(procs, 'rechazado');
+  const pend  = cuenta(procs, 'presentado');
+  const box = document.getElementById('statsbar');
+  box.hidden = false;
+  box.innerHTML =
+    `<div class="stat stat-main"><span class="stat-num">${filtrados.length}</span>` +
+    `<span class="stat-label">Clientes activos</span></div>` +
+    statCell(procs.length, 'propuestas', 'var(--ink)') +
+    statCell(pend,  'pendientes', PROC_COLOR.presentado) +
+    statCell(aprob, 'aprobadas',  PROC_COLOR.aprobado) +
+    statCell(rech,  'rechazadas', PROC_COLOR.rechazado) +
+    statCell(tasaAceptacion(aprob, rech), 'aceptación', 'var(--accent)');
+}
+
+// Los contadores de las píldoras cuentan clientes, no procesos: dicen a cuántos
+// llegarías si cambiaras de estado, con la búsqueda ya aplicada.
+function renderPillCounts() {
+  const base = clientes.filter(c => !searchQ || norm(c.nombre).includes(norm(searchQ)));
+  document.querySelectorAll('.pill-count[data-count]').forEach(el => {
+    const k = el.dataset.count;
+    el.textContent = k === 'all'
+      ? base.length
+      : base.filter(c => (c.proceso ?? []).some(p => p.status === k)).length;
+  });
+}
+
 function procesoRow(p) {
   const titulo = p.ficha?.titulo ?? '(propiedad sin título)';
-  const opts = PROC_STATUS.map(s => `<option value="${s}"${s === p.status ? ' selected' : ''}>${cap(s)}</option>`).join('');
+  const opts = PROC_STATUS.map(s =>
+    `<option value="${s}"${s === p.status ? ' selected' : ''}>${cap(s)}</option>`).join('');
   return `<div class="proc-row">
-    <span class="proc-ficha">${escAttr(titulo)}</span>
+    <span class="proc-ficha" title="${escAttr(titulo)}">${escAttr(titulo)}</span>
     <select class="proc-status status-${p.status}" data-proc="${p.id}">${opts}</select>
+  </div>`;
+}
+
+function campoRow(c, campo, label, placeholder) {
+  return `<div class="cliente-field">
+    <span>${label}</span>
+    <input class="cli-in" data-f="${campo}" placeholder="${placeholder}" value="${escAttr(c[campo])}">
   </div>`;
 }
 
 function clienteStats(c) {
   const procs = c.proceso ?? [];
-  const aprob = procs.filter(p => p.status === 'aprobado').length;
-  const rech  = procs.filter(p => p.status === 'rechazado').length;
-  const pend  = procs.filter(p => p.status === 'presentado').length;
-  const decididos = aprob + rech;
-  const tasa = decididos ? Math.round((aprob / decididos) * 100) + '%' : '—';
+  const a = cuenta(procs, 'aprobado');
+  const r = cuenta(procs, 'rechazado');
+  const p = cuenta(procs, 'presentado');
+  const celda = (n, label, color) =>
+    `<div><strong style="color:${color}">${n}</strong><span>${label}</span></div>`;
   return `<div class="cliente-stats">
-    <div><strong>${procs.length}</strong><span>propuestas</span></div>
-    <div><strong style="color:var(--s-rentado)">${aprob}</strong><span>aprob.</span></div>
-    <div><strong style="color:#B5542F">${rech}</strong><span>rech.</span></div>
-    <div><strong style="color:var(--s-nuevo)">${pend}</strong><span>pend.</span></div>
-    <div class="stat-tasa"><strong>${tasa}</strong><span>aceptación</span></div>
+    ${celda(procs.length, 'propuestas', 'var(--ink)')}
+    ${celda(a, 'aprob.', PROC_COLOR.aprobado)}
+    ${celda(r, 'rech.',  PROC_COLOR.rechazado)}
+    ${celda(p, 'pend.',  PROC_COLOR.presentado)}
+    ${celda(tasaAceptacion(a, r), 'aceptación', 'var(--accent)')}
   </div>`;
 }
 
 function clienteCard(c) {
-  const total = (c.proceso ?? []).length;
-  const procs = (c.proceso ?? []).filter(p => filterStatus === 'all' || p.status === filterStatus);
-  const reminder = total === 0
-    ? `<div class="cliente-warn">&#9888; Sin propuestas presentadas — recuérdale ofrecerle una propiedad.</div>` : '';
+  const todos = c.proceso ?? [];
+  const procs = todos.filter(p => filterStatus === 'all' || p.status === filterStatus);
+  const aviso = todos.length === 0
+    ? `<div class="cliente-warn">${ICON_WARN}Sin propuestas presentadas</div>` : '';
   return `<article class="cliente-card" data-id="${c.id}">
     <div class="cliente-head">
       <input class="cliente-nombre cli-in" data-f="nombre" value="${escAttr(c.nombre)}">
       <button class="cliente-del" title="Eliminar cliente">&times;</button>
     </div>
-    <div class="cliente-fields">
-      <input class="cli-in" data-f="contacto" placeholder="Contacto (tel / correo)" value="${escAttr(c.contacto)}">
-      <input class="cli-in" data-f="empresa" placeholder="Empresa" value="${escAttr(c.empresa)}">
-      <input class="cli-in" data-f="requerimientos" placeholder="Qué busca / requerimientos" value="${escAttr(c.requerimientos)}">
-    </div>
-    ${reminder}
+    ${campoRow(c, 'contacto', 'Contacto', 'Teléfono o correo')}
+    ${campoRow(c, 'empresa', 'Empresa', 'Empresa')}
+    ${campoRow(c, 'requerimientos', 'Qué busca', 'Requerimientos')}
+    ${aviso}
     ${clienteStats(c)}
     <div class="cliente-procs">
-      <div class="cliente-procs-label">Procesos <span class="proc-count">${total}</span></div>
+      <div class="cliente-procs-label">
+        <span>Procesos</span><span class="proc-count">${todos.length}</span>
+      </div>
       ${procs.length ? procs.map(procesoRow).join('')
-        : `<p class="ficha-hint">${total ? 'Sin procesos con este estatus.' : 'Aún sin propiedades. Agrégalo desde una propiedad.'}</p>`}
+        : `<div class="proc-empty">${todos.length
+             ? 'Sin procesos con este estatus'
+             : 'Aún sin propiedades — agrégalas desde una propiedad'}</div>`}
     </div>
   </article>`;
 }
@@ -113,16 +178,21 @@ function render() {
     main.innerHTML = `<p class="empty">Inicia sesión para ver y administrar tus clientes.</p>`;
     return;
   }
-  const filtered = clientes.filter(c => {
-    if (searchQ && !norm(c.nombre).includes(norm(searchQ))) return false;
-    if (filterStatus !== 'all' && !(c.proceso ?? []).some(p => p.status === filterStatus)) return false;
-    return true;
-  });
-  if (!filtered.length) {
-    main.innerHTML = `<p class="empty">${clientes.length ? 'Sin clientes para este filtro.' : 'Aún no tienes clientes. Crea el primero con “＋ Nuevo cliente”.'}</p>`;
+  const filtrados = clientes.filter(pasaFiltro);
+
+  document.getElementById('countTag').hidden = false;
+  document.getElementById('countNum').textContent   = filtrados.length;
+  document.getElementById('countTotal').textContent = clientes.length;
+  renderPillCounts();
+  renderStatsGlobal(filtrados);
+
+  if (!filtrados.length) {
+    main.innerHTML = `<p class="empty">${clientes.length
+      ? 'Sin clientes para este filtro'
+      : 'Aún no tienes clientes — crea el primero con “+ Nuevo cliente”'}</p>`;
     return;
   }
-  main.innerHTML = `<div class="clientes-grid">${filtered.map(clienteCard).join('')}</div>`;
+  main.innerHTML = `<div class="clientes-grid">${filtrados.map(clienteCard).join('')}</div>`;
 
   main.querySelectorAll('.cliente-card').forEach(card => {
     const id = card.dataset.id;
