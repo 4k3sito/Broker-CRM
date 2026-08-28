@@ -4,7 +4,7 @@
   "private": true,
   "description": "Dashboard estático de listings comerciales (Monterrey, MX)",
   "scripts": {
-    "dev": "npx serve . --listen 3000"
+    "dev": "npx serve web --listen 3000"
   },
   "license": "ISC"
 }

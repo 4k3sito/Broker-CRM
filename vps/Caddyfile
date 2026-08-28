@@ -1,0 +1,19 @@
+# Sirve el dashboard y hace de puerta a la API. La raíz es web/, nunca el repo:
+# con root en el repo, /vps/.env quedaría descargable desde internet.
+:80 {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv/site
+		file_server
+	}
+
+	log {
+		output file /var/log/caddy/access.log
+		format console
+	}
+}

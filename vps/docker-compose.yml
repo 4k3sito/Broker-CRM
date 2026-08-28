@@ -1,4 +1,4 @@
-# Fases 1-2a: base + API de auth. caddy/cron se agregan en sus fases (ver MIGRATION.md).
+# Fases 1-3: base, API y sitio. El cron de scrapers llega en la Fase 4 (ver MIGRATION.md).
 #   cp .env.example .env && $EDITOR .env
 #   docker compose up -d && docker compose logs -f db
 name: officelab   # si no, docker nombra el proyecto como la carpeta ('vps')
@@ -41,5 +41,22 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../web:/srv/site:ro          # solo el frontend: el resto del repo no se sirve
+      - caddy_data:/data             # certificados, cuando haya dominio
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on: [api]
+    ports:
+      - "80:80"
+      - "443:443"
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
+  caddy_logs:
