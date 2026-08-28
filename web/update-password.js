@@ -35,7 +35,7 @@ function mostrarVencido() {
 if (token) {
   actualField.remove();                    // en modo token no hay contraseña que confirmar
   document.getElementById('updateEyebrow').textContent = 'Recuperar contraseña';
-  document.getElementById('update-title').textContent = 'Elige tu contraseña nueva.';
+  document.getElementById('update-title').innerHTML = 'Elige tu<br>contraseña nueva';
   document.getElementById('updateDescription').textContent =
     `Mínimo ${MIN_PASSWORD_LENGTH} caracteres. Al guardarla se cerrarán todas las sesiones abiertas de tu cuenta.`;
   document.getElementById('successLink').href = 'login.html';
