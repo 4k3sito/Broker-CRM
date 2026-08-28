@@ -395,204 +395,170 @@ button, input, textarea, select { font: inherit; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ACCESO Y CONTRASEÑAS — login.html, reset-request.html, update-password.html
-   Venían de login.css con la paleta terracota. Los nombres de token son los
-   mismos, así que al mudarse aquí toman la tinta de Hermes sin tocar el HTML.
+   Traducido de `OfficeLab - Login.dc.html` (Claude Design, proyecto "Hermes
+   Agent aesthetic"). El canvas escribe todo en atributos style=; aquí vive como
+   clases porque la CSP no permite estilos de documento y porque las tres
+   páginas comparten la misma composición.
    ═══════════════════════════════════════════════════════════════════════════ */
 .login-shell {
-  display: grid;
-  min-height: 100vh;
-  grid-template-columns: 1fr 1fr;
-  background: var(--bg);
-} 
+  display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh;
+  background: var(--bg); color: var(--ink);
+}
 
+/* Panel de marca. Dos tramas superpuestas sobre la tinta: puntos de 14px y
+   rayas de 4px — es lo que le da el aire de papel técnico impreso. */
 .login-intro {
-  position: relative;
-  display: flex;
-  min-height: 100vh;
-  flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
-  padding: 44px;
-  color: var(--topbar-text);
-  background-color: var(--topbar);
-  background-image:
-    repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0, rgba(255,255,255,.025) 1px, transparent 1px, transparent 34px),
-    repeating-linear-gradient(45deg, rgba(255,255,255,.025) 0, rgba(255,255,255,.025) 1px, transparent 1px, transparent 34px);
-} 
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 44px; background: var(--blue); color: var(--paper);
+}
+.login-intro::before, .login-intro::after { content: ''; position: absolute; inset: 0; }
+.login-intro::before {
+  background-image: radial-gradient(circle at 50% 50%, rgba(239,237,230,.35) 0 1px, transparent 1.6px);
+  background-size: 14px 14px; opacity: .5;
+}
+.login-intro::after {
+  background-image: repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0,rgba(0,0,0,.16) 1px,transparent 1px,transparent 4px);
+}
+.login-intro > * { position: relative; z-index: 1; }
 
-.login-brand {
-  display: flex;
-  width: fit-content;
-  align-items: center;
-  gap: 12px;
-  color: inherit;
-  text-decoration: none;
-} 
-
-.brand-lockup { display: flex; flex-direction: column; line-height: 1; } 
-
-.brand-lockup strong { color: inherit; font-size: 21px; font-weight: 700; letter-spacing: -.3px; } 
-
+.login-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--paper); }
+.login-brand .brand-mark { width: 32px; height: 32px; flex: 0 0 auto; display: block; }
+.brand-lockup { display: flex; flex-direction: column; line-height: 1; }
+.brand-lockup strong {
+  font-family: var(--font-display); font-size: 24px; font-weight: 500;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.brand-lockup strong i { font-style: italic; }
 .brand-lockup small {
-  margin-top: 4px; white-space: nowrap;
-  color: rgba(239,237,230,.42);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-} 
+  margin-top: 5px; white-space: nowrap; opacity: .6;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .22em; text-transform: uppercase;
+}
 
-.intro-copy { max-width: 440px; } 
+.intro-copy { max-width: 460px; }
+.intro-kicker {
+  margin-bottom: 20px; opacity: .65;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .24em; text-transform: uppercase;
+}
+.intro-copy h1 {
+  font-family: var(--font-display); font-size: 46px; font-weight: 500;
+  line-height: 1.08; letter-spacing: .01em; text-transform: uppercase;
+}
+.intro-text {
+  margin-top: 24px; opacity: .7;
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.9;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.intro-footer {
+  opacity: .45;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+}
 
-.intro-copy h1,
+/* Columna del formulario */
+.login-main { display: flex; align-items: center; justify-content: center; padding: 44px; }
+.login-card { display: flex; flex-direction: column; gap: 26px; width: 100%; max-width: 380px; }
 .login-card h2 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 500;
-} 
-
-.intro-copy h1 { color: var(--topbar-text); font-size: 34px; line-height: 1.28; } 
-
-.intro-text { margin: 16px 0 0; color: rgba(239,237,230,.55); font-size: 14.5px; line-height: 1.6; } 
-
-.intro-footer { margin: 0; color: rgba(239,237,230,.35); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .05em; } 
-
-.login-main {
-  position: relative;
-  display: flex;
-  min-height: 100vh;
-  align-items: center;
-  justify-content: center;
-  padding: 44px;
-  background: var(--bg);
-} 
-
-.login-brand .brand-mark { width: 32px; height: 32px; flex: 0 0 auto; }
-.login-brand--mobile { display: none; color: var(--ink); }
-.login-brand--mobile .brand-lockup small { color: var(--faint); } 
-
-.login-card { width: 100%; max-width: 380px; } 
-
+  font-family: var(--font-display); font-size: 34px; font-weight: 500;
+  line-height: 1.1; text-transform: uppercase; color: var(--ink);
+}
+.login-description {
+  margin-top: 14px; color: var(--muted);
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+}
+/* El canvas no lleva eyebrow en el login; se conserva para las otras dos
+   páginas, que sí necesitan nombrar en qué paso está el usuario. */
 .eyebrow {
-  margin: 0 0 8px;
-  color: var(--faint);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  line-height: 1.2;
-  text-transform: uppercase;
-} 
+  margin-bottom: 10px; color: var(--faint);
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+}
 
-.login-card h2 { color: var(--ink); font-size: 29px; line-height: 1.2; } 
-
-.login-description { margin: 8px 0 26px; color: var(--muted); font-size: 14px; line-height: 1.6; } 
-
-.login-card form { display: grid; gap: 8px; } 
-
-.login-card label {
-  color: var(--faint);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-} 
-
-.email-input { position: relative; } 
-
-.email-input svg {
-  position: absolute;
-  top: 50%;
-  left: 14px;
-  width: 16px;
-  height: 16px;
-  color: var(--faint);
-  pointer-events: none;
-  transform: translateY(-50%);
-} 
-
-.email-input input {
-  width: 100%;
-  height: 46px;
-  padding: 0 14px 0 42px;
-  border: 1.5px solid var(--border-2);
-  outline: none;
-  color: var(--ink);
-  background: var(--surface);
-  font-size: 14px;
+.login-fields { display: flex; flex-direction: column; gap: 16px; }
+.field-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; }
+.login-card label, .field-head span {
+  display: block; color: var(--faint);
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+}
+.login-card label { margin-bottom: 9px; }
+.field-head label { margin-bottom: 0; }
+.login-card input {
+  width: 100%; height: 46px; padding: 0 14px;
+  border: 1px solid var(--border-2); background: var(--surface); color: var(--ink);
+  font-family: var(--font-mono); font-size: 13px; outline: none;
   transition: border-color .15s;
-} 
+}
+.login-card input:focus { border-color: var(--accent); }
+.login-card input::placeholder { color: var(--faint); }
 
-.email-input input::placeholder { color: var(--faint); } 
-
-.email-input input:focus { border-color: var(--accent); } 
-
-.field-error { margin: 2px 0 0; color: var(--accent); font-size: 12px; line-height: 1.45; } 
+/* El error del canvas: caja sólida, no una línea de texto suelta. */
+.field-error {
+  display: flex; align-items: center; gap: 9px; padding: 12px 13px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.field-error::before {
+  content: '!'; flex-shrink: 0;
+  display: grid; place-items: center; width: 14px; height: 14px;
+  border: 2px solid currentColor; font-size: 9px; line-height: 1;
+}
 
 .submit-button {
-  display: inline-flex;
-  width: 100%;
-  height: 46px;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  margin-top: 8px;
-  border: 0;
-  color: var(--surface);
-  background: var(--accent);
-  cursor: pointer;
-  font-size: 14.5px;
-  font-weight: 700;
-  transition: filter .15s;
-} 
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; height: 46px; border: none;
+  background: var(--accent); color: var(--paper);
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase; cursor: pointer;
+}
+.submit-button:hover:not(:disabled) { background: var(--ink); }
+.submit-button:disabled { opacity: .55; cursor: default; }
 
-.submit-button:hover { filter: brightness(1.06); } 
+.login-sep { display: flex; align-items: center; gap: 12px; }
+.login-sep::before, .login-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.login-sep span {
+  color: var(--faint);
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
+}
 
-.submit-button:disabled { cursor: wait; opacity: .72; } 
+.login-foot {
+  text-align: center; color: var(--muted);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+}
+.text-button {
+  color: var(--accent); font-family: var(--font-mono); font-size: 9.5px;
+  font-weight: 700; letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
+}
+.text-button:hover { color: var(--ink); text-decoration: underline; }
+.login-foot .text-button { font-size: inherit; letter-spacing: inherit; }
 
-.submit-button svg { width: 16px; height: 16px; } 
+/* Vista de confirmación: misma retícula que el formulario. */
+.success-view { display: flex; flex-direction: column; gap: 18px; }
+.success-icon {
+  display: grid; place-items: center; width: 44px; height: 44px;
+  border: 1px solid var(--border-2); color: var(--accent);
+}
+.success-view h2 {
+  font-family: var(--font-display); font-size: 30px; font-weight: 500;
+  line-height: 1.1; text-transform: uppercase;
+}
+.success-view p {
+  color: var(--muted);
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.9; letter-spacing: .06em;
+}
 
-.submit-button:focus-visible, .text-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; } 
-
-.access-note { display: flex; align-items: center; gap: 8px; margin: 20px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; } 
-
-.access-note svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--faint); } 
-
-.success-view { padding: 2px 0; } 
-
-.success-icon { display: grid; width: 45px; height: 45px; margin-bottom: 22px; place-items: center; color: var(--accent); background: var(--accent-soft); } 
-
-.success-icon svg { width: 23px; height: 23px; } 
-
-.success-view > p:not(.eyebrow) { margin: 10px 0 22px; color: var(--muted); font-size: 14px; line-height: 1.6; } 
-
-.text-button { padding: 0; border: 0; color: var(--accent); background: none; cursor: pointer; font-family: var(--font-ui); font-size: 13px; font-weight: 600; } 
-
-.text-button:hover { text-decoration: underline; } 
-
-.auth-actions { display: flex; justify-content: space-between; gap: 16px; margin-top: 16px; } 
-
-.login-help { position: absolute; bottom: 38px; width: min(calc(100% - 88px), 380px); margin: 0; color: var(--faint); font-size: 12px; line-height: 1.5; text-align: center; } 
-
-@media (max-width: 760px) {
-  .login-shell { display: block; }
-  .login-intro { display: none; }
-  .login-main { min-height: 100vh; padding: 126px 30px 86px; }
-  .login-brand--mobile { position: absolute; top: 30px; left: 30px; display: flex; }
-} 
-
+@media (max-width: 860px) {
+  .login-shell { grid-template-columns: 1fr; }
+  .login-intro { padding: 30px; min-height: 0; gap: 26px; }
+  .intro-copy h1 { font-size: 32px; }
+  .intro-text { font-size: 10.5px; line-height: 1.8; }
+  .login-main { padding: 34px 26px 54px; }
+}
 @media (max-width: 420px) {
-  .login-main { padding: 118px 22px 82px; }
-  .login-brand--mobile { top: 25px; left: 22px; }
-  .login-brand--mobile .brand-mark { width: 29px; height: 29px; }
-  .brand-lockup strong { font-size: 19px; }
-  .login-help { bottom: 24px; width: calc(100% - 44px); }
-  .auth-actions { align-items: flex-start; flex-direction: column; gap: 8px; }
-} 
-
-/* Enlace de recuperación bajo el formulario de acceso. */
-.forgot-line { margin: 14px 0 0; text-align: center; }
+  .login-intro { padding: 24px; }
+  .intro-copy h1 { font-size: 27px; }
+  .login-card h2 { font-size: 27px; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FICHA DE PROPIEDAD — listing.html
