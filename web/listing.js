@@ -288,7 +288,7 @@ function printFicha() {
   document.getElementById('ficha-print').innerHTML = `
     <div class="print-sheet">
       <div class="print-head">
-        <div class="print-brand">Office<span>Scrapper</span></div>
+        <div class="print-brand">Office<i>Lab</i></div>
         <div class="print-tag">Ficha t&#233;cnica</div>
       </div>
       <h1>${escAttr(f.titulo || 'Propiedad')}</h1>
@@ -343,8 +343,6 @@ function render() {
   const badge  = cfg?.badge  ?? 'other';
   const blabel = (cfg?.label ?? l.fuente).toUpperCase();
   const p      = fmtPrice(l.precio, l.moneda, l);
-  const ppm    = l.porM2 ? '' :
-    ((l.precio && l.size) ? `$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / m²` : '');
 
   // Galería del canvas: foto de 380px sobre tinta, con los badges encima y una
   // fila de miniaturas debajo. Sin foto queda la trama de plano, nunca un gris.
@@ -364,10 +362,14 @@ function render() {
       altPriceHtml(l.alt)
     : `<div class="detail-price"><span class="no-price">Sin precio</span></div>`;
 
+  // Si el precio ya viene por m², repetir el unitario aquí sería decirlo dos veces.
+  const ppmHtml = (!l.porM2 && l.precio && l.size)
+    ? `<div class="card-ppm">$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / M²</div>` : '';
+
   const statusOptions = STATUSES.map(st =>
     `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`).join('');
 
-  // Ficha técnica: el canvas la quiere como cifras, no como lista de pares.
+  // Ficha técnica: el canvas la quiere como cifras en Bodoni, no como lista de pares.
   const facts = [
     l.size ? ['Superficie', `${l.size} m²`] : null,
     l.tipo ? ['Tipo', l.tipo] : null,
@@ -409,6 +411,7 @@ function render() {
     <aside class="detail-sidebar">
       <div class="detail-sidebar-card">
         ${priceHtml}
+        ${ppmHtml}
         <div class="detail-sidebar-divider"></div>
         <div class="card-status-row">
           <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
@@ -420,99 +423,11 @@ function render() {
         <div class="detail-links">
           ${l.url      ? `<a href="${l.url}" class="btn-solid" target="_blank" rel="noopener">Anuncio original ${ICON_EXTERNAL}</a>` : ''}
           ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="btn-outline" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
-          ${l.mapsUrl  ? `<a href="${l.mapsUrl}" class="btn-outline" target="_blank" rel="noopener">Ver mapa ${ICON_EXTERNAL}</a>` : ''}
         </div>
       </div>
       <div class="detail-sidebar-card">
         <div class="detail-panel-label">Notas internas</div>
         <textarea class="notes-area" id="detailNotes" placeholder="AGREGAR NOTAS DE SEGUIMIENTO…">${l.notes}</textarea>
-      </div>
-    </aside>
-  `;
-
-  document.querySelectorAll('.thumb').forEach((t, i) => t.classList.toggle('active', i === idx));
-}
-
-function render() {
-  const l      = listing;
-  const cfg    = FUENTE_CONFIG[l.fuente];
-  const badge  = cfg?.badge  ?? 'other';
-  const blabel = (cfg?.label ?? l.fuente).toUpperCase();
-  const p      = fmtPrice(l.precio, l.moneda, l);
-  const ppm    = l.porM2 ? '' :
-    ((l.precio && l.size) ? `$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / m²` : '');
-
-  const galleryHtml = l.fotos.length
-    ? `<div class="detail-photo"><img id="mainPhoto" src="${l.fotos[0]}" alt="foto"></div>
-       ${l.fotos.length > 1 ? `<div class="detail-thumbs">${l.fotos.map((f, i) =>
-          `<img class="thumb ${i === 0 ? 'active' : ''}" src="${f}" data-i="${i}">`).join('')}</div>` : ''}`
-    : `<div class="detail-photo detail-photo-empty">${ICON_BUILDING}</div>`;
-
-  const sufijo = l.transaccion === 'Renta' ? '/mes' : '';
-  const priceHtml = p
-    ? `<div class="detail-price">$${p.n}<span class="currency">${p.curr}${sufijo}</span>` +
-      (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</span>` : '') +
-      `</div>` + altPriceHtml(l.alt)
-    : `<div class="detail-price"><span class="no-price">Sin precio</span></div>`;
-
-  const statusOptions = STATUSES.map(st =>
-    `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`).join('');
-  const facts = [
-    l.size ? ['Superficie', `${l.size} m²`] : null,
-    l.tipo ? ['Tipo', l.tipo] : null,
-    l.transaccion ? ['Operación', l.transaccion] : null,
-    l.codigo ? ['Código', l.codigo] : null,
-  ].filter(Boolean);
-  const factsHtml = facts.length ? `<dl class="detail-facts">${facts.map(([label, value]) =>
-    `<div><dt>${label}</dt><dd>${escAttr(String(value))}</dd></div>`).join('')}</dl>` : '';
-
-  document.title = (l.titulo ?? 'Propiedad') + ' · OfficeScrapper';
-
-  document.getElementById('detail').innerHTML = `
-    <article class="detail-content">
-      <div class="detail-gallery">${galleryHtml}</div>
-      <div class="detail-heading">
-        <span class="badge-src ${badge} detail-source">${blabel}</span>
-        <p class="detail-kicker">Ficha de propiedad</p>
-        ${l.titulo ? `<h1 class="detail-title">${l.titulo}</h1>` : ''}
-        ${l.direccion ? `<div class="card-location detail-location">${ICON_PIN}${l.direccion}</div>` : ''}
-        <div class="card-tags">
-          ${l.tipo ? `<span class="tag-tipo">${l.tipo}</span>` : ''}
-          <span class="tag-txn">${l.transaccion}</span>
-          ${l.codigo ? `<span class="tag-code">${l.codigo}</span>` : ''}
-        </div>
-      </div>
-      ${factsHtml}
-      ${l.descripcion ? `<div class="detail-section"><h2>Descripción</h2><p>${l.descripcion}</p></div>` : ''}
-      ${l.features.length ? `<div class="detail-section"><h2>Características</h2><ul class="detail-features">${l.features.map(f => `<li>${f}</li>`).join('')}</ul></div>` : ''}
-      ${fichaSectionHtml()}
-      ${ficha ? documentosHtml() : ''}
-      ${ficha ? seguimientoHtml() : ''}
-    </article>
-    <aside class="detail-sidebar">
-      <div class="detail-sidebar-card">
-        <div class="detail-sidebar-head">
-          <span class="detail-sidebar-label">Renta mensual</span>
-          <button class="btn-star ${l.starred ? 'on' : 'off'}" id="detailStar" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">
-            ${l.starred ? '&#9733;' : '&#9734;'}
-          </button>
-        </div>
-        ${priceHtml}
-        ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
-        <div class="detail-links">
-          ${l.url      ? `<a href="${l.url}" class="btn-outline" target="_blank" rel="noopener">Ver en ${blabel} ${ICON_EXTERNAL}</a>` : ''}
-          ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="btn-csv" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
-          ${l.mapsUrl  ? `<a href="${l.mapsUrl}" class="btn-outline" target="_blank" rel="noopener">Ver mapa ${ICON_EXTERNAL}</a>` : ''}
-        </div>
-        <div class="detail-sidebar-divider"></div>
-        <section class="detail-tracking" aria-labelledby="tracking-title">
-          <h2 id="tracking-title">Seguimiento</h2>
-          <div class="card-status-row">
-            <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
-            <select class="status-select s-${l.status}" id="detailStatus">${statusOptions}</select>
-          </div>
-          <textarea class="notes-area" id="detailNotes" placeholder="Agregar notas de seguimiento…">${l.notes}</textarea>
-        </section>
       </div>
     </aside>
   `;
