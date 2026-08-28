@@ -68,6 +68,12 @@ def verify_password(pw: str, stored: str) -> bool:
     return hmac.compare_digest(calc, expected)
 
 
+def generar_pw() -> str:
+    """22 caracteres, ~128 bits. Una contraseña que nadie va a memorizar es justo
+    lo que se quiere de una generada: se guarda en el gestor y se cambia si molesta."""
+    return secrets.token_urlsafe(16)
+
+
 def necesita_rehash(stored: str) -> bool:
     """El hash se guardó con parámetros más baratos que los de hoy. Subir el costo
     no invalida nada: verify_password lee los parámetros del propio hash, así que
@@ -804,6 +810,9 @@ def selfcheck() -> None:
     # Con varios saltos manda el primero: el cliente, no los proxies que siguen.
     assert ip_cliente(_Req({"x-forwarded-for": "203.0.113.9, 10.0.0.2"})) == "203.0.113.9"
     assert ip_cliente(_Req({})) == "?"
+
+    # Una contraseña generada tiene que pasar la política que exigimos a las demás.
+    assert len(generar_pw()) >= MIN_PASSWORD and generar_pw() != generar_pw()
     assert norm_txt("Ciénega DE Flores") == "cienega de flores"
     w, p = _filtros({"q": "del valle", "operacion": "rent", "precio_max": 50000,
                      "near": "25.6,-100.3", "radio": 2000})
@@ -841,8 +850,9 @@ def _cli() -> int:
     for name in ("adduser", "passwd", "deluser", "resetlink"):
         sub.add_parser(name).add_argument("email")
     sub.choices["adduser"].add_argument("--nombre")
-    sub.choices["adduser"].add_argument("--generar", action="store_true",
-                                        help="genera la contraseña y la imprime una sola vez")
+    for c in ("adduser", "passwd"):
+        sub.choices[c].add_argument("--generar", action="store_true",
+                                    help="genera la contraseña y la imprime una sola vez")
     a = ap.parse_args()
 
     if a.cmd == "selfcheck":
@@ -866,21 +876,32 @@ def _cli() -> int:
                 print(f"{u['email']:<32} {u['nombre'] or '—':<20} {u['created_at']:%Y-%m-%d}")
         elif a.cmd == "adduser":
             email = a.email.strip().lower()
-            pw = secrets.token_urlsafe(12) if a.generar else ask()   # ~96 bits
+            pw = generar_pw() if a.generar else ask()
             conn.execute("INSERT INTO usuario (email, password_hash, nombre) VALUES (%s, %s, %s)",
                          (email, hash_password(pw), a.nombre))
             print(f"creado: {email}")
             if a.generar:
                 print(f"contraseña: {pw}    <- se muestra una sola vez")
         elif a.cmd == "passwd":
+            email = a.email.strip().lower()
+            pw = generar_pw() if a.generar else ask()
             n = conn.execute("UPDATE usuario SET password_hash = %s WHERE email = %s",
-                             (hash_password(ask()), a.email.strip().lower())).rowcount
+                             (hash_password(pw), email)).rowcount
             if not n:
                 sys.exit("no existe ese correo")
             # Cambiar la contraseña cierra las sesiones abiertas: es el punto de hacerlo.
-            conn.execute("DELETE FROM sesion WHERE user_id = "
-                         "(SELECT id FROM usuario WHERE email = %s)", (a.email.strip().lower(),))
-            print("contraseña actualizada; sesiones cerradas")
+            # Y quema los tokens de recuperación vivos: si no, un link emitido antes
+            # seguiría sirviendo para deshacer este cambio.
+            cerradas = conn.execute(
+                "DELETE FROM sesion WHERE user_id = "
+                "(SELECT id FROM usuario WHERE email = %s)", (email,)).rowcount
+            quemados = conn.execute(
+                "UPDATE reset_token SET used_at = now() WHERE used_at IS NULL AND user_id = "
+                "(SELECT id FROM usuario WHERE email = %s)", (email,)).rowcount
+            if a.generar:
+                print(f"contraseña: {pw}    <- se muestra una sola vez")
+            print(f"actualizada; {cerradas} sesión(es) cerradas, "
+                  f"{quemados} enlace(s) de recuperación anulados")
         elif a.cmd == "resetlink":
             email = a.email.strip().lower()
             row = conn.execute("SELECT id FROM usuario WHERE email = %s", (email,)).fetchone()
