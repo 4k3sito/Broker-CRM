@@ -1,78 +1,96 @@
 # OfficeLab — Sistema de Diseño
 
-Guía de referencia para cualquier agente/diseñador que agregue páginas o componentes a OfficeLab (tracker de inmuebles comerciales — Monterrey). Mantener consistencia visual en todo lo nuevo.
+Guía para cualquiera que agregue páginas o componentes. **Hay un solo CSS
+(`web/hermes.css`) y un solo sistema**: si algo nuevo necesita su propia hoja de
+estilos, casi siempre es señal de que se está reinventando un componente que ya existe.
 
-Referencia viva: `OfficeLab.dc.html` (dashboard), `OfficeLab - Listing.dc.html` (detalle), `OfficeLab - Login.dc.html` (acceso).
+> Hasta el 2026-08-28 convivían dos sistemas —este y un "Blueprint editorial" en
+> terracota— repartidos en `style.css` y `login.css`. Se unificaron; esos archivos
+> ya no existen. Si encuentras `#B5542F`, `#F4F1EA` o `Newsreader` en algún lado, es
+> un resto del sistema viejo y hay que traducirlo.
 
 ## 1. Concepto
 
-**"Blueprint editorial"** — un tracker de bienes raíces con la calidez de un estudio de arquitectura, no el look genérico de SaaS azul/navy. Papel cálido, tinta carbón, un solo acento terracota. Precios en serif editorial; códigos/metadata técnica en monoespaciada — como planos y fichas técnicas.
+**"Hermes Tinta"** — inventario comercial con aire de casa editorial, no de SaaS.
+Papel hueso, tinta violeta casi negra, un solo acento que es la misma tinta. Sin
+esquinas redondeadas y **sin una sola sombra**: la jerarquía la dan el peso
+tipográfico, el borde fino y el espacio en blanco. Cifras en Bodoni; metadata
+técnica en monoespaciada, como una ficha de catálogo.
 
 ## 2. Color
 
-Definir siempre como CSS custom properties en `:root`, nunca hardcodear hex en componentes.
+Siempre como custom properties en `:root`. Nunca escribir un hex en un componente.
 
 | Token | Valor | Uso |
 |---|---|---|
-| `--bg` | `#F4F1EA` | Fondo de página (papel cálido) |
-| `--surface` | `#FCFAF5` | Tarjetas, inputs, paneles |
-| `--ink` | `#221E18` | Texto principal |
-| `--muted` | `#7C7468` | Texto secundario |
-| `--faint` | `#A89F90` | Texto terciario / placeholders |
-| `--border` | `#E6DFD3` | Bordes sutiles |
-| `--border-2` | `#D8D0C2` | Bordes de inputs |
-| `--accent` | `#B5542F` | Acento único (terracota/clay) — precios destacados, CTAs, estrellas |
-| `--accent-soft` | `#F1E1D7` | Fondos suaves del acento (badges) |
-| `--topbar` | `#241F19` | Barra superior (carbón cálido) |
-| `--topbar-text` | `#F4F1EA` | Texto sobre topbar |
+| `--bg` / `--paper` | `#EFEDE6` | Fondo de página |
+| `--surface` | `#FFFFFF` | Tarjetas, inputs, paneles |
+| `--ink` | `#111120` | Texto principal |
+| `--muted` | `#5B4A75` | Texto secundario |
+| `--faint` | `#9C93AD` | Terciario / placeholders |
+| `--border` | `rgba(32,19,51,.22)` | Bordes sutiles |
+| `--border-2` | `rgba(32,19,51,.42)` | Bordes de input |
+| `--accent` / `--blue` / `--topbar` | `#201333` | Acento único, topbar, fondo de foto vacía |
+| `--accent-soft` | `rgba(32,19,51,.10)` | Fondos suaves del acento |
 
-**Colores de estado** (workflow de seguimiento — no cambian, son semánticos):
-- Nuevo `#3F6DB5` (azul) · Revisado `#7E5BC2` (violeta) · Contactado `#C07A2B` (ámbar) · Rentado `#3E8F63` (verde) · Descartado `#9A9088` (gris)
-- Cada estado tiene un "ring" claro a juego para fondos (ej. `#E6EDF7` para Nuevo).
+**Estados de seguimiento** (semánticos, no decorativos): Nuevo `#2B3FC4` · Revisado
+`#6B3FB5` · Contactado `#A85F14` · Rentado `#1F6F4A` · Descartado `#83808C`. Cada uno
+con su `--r-*` al 10% para fondos.
+**Estados del proceso comercial:** Presentado `#2B3FC4` · Aprobado `#1F6F4A` · Rechazado `#A83B22`.
 
-**Regla de acento:** un solo color de acento en toda la app (tweakable vía prop `accent`). No introducir un segundo acento — usar los colores de estado solo para status, nunca para CTAs genéricos.
+**Regla de acento:** uno solo en toda la app. Los colores de estado son para estado,
+nunca para un CTA.
 
 ## 3. Tipografía
 
-Tres familias, cada una con un trabajo específico — nunca intercambiarlas:
+Tres familias, cada una con un trabajo. No intercambiarlas.
 
-1. **Newsreader** (serif, `font-display`) — precios, cifras grandes de stats, números destacados. Siempre `font-feature-settings:'tnum'` en cifras. Peso 500, tamaños 24–32px en stats, 27px en precio de tarjeta.
-2. **Hanken Grotesk** (`font-ui`) — todo el resto de la interfaz: labels, botones, inputs, párrafos, nav.
-3. **Space Mono** (`font-mono`) — metadata técnica: códigos de listado, $/m², conteos, badges de fuente, subtítulo del logo. Usualmente en mayúsculas con `letter-spacing`.
+1. **Bodoni Moda** (`--font-display`) — cifras y nombres propios: precios, números de
+   stats, wordmark, títulos de ficha y de cliente. `font-feature-settings:'tnum'` en cifras.
+2. **Hanken Grotesk** (`--font-ui`) — todo lo demás: párrafos, labels, inputs, navegación.
+3. **Space Mono** (`--font-mono`) — metadata técnica: códigos, $/m², conteos, badges de
+   fuente, eyebrows, pills de filtro. Casi siempre en mayúsculas con `letter-spacing`.
 
-Cargar con `<link>` de Google Fonts en `<helmet>`, nunca `@import`.
+Cargar con un `<link>` de Google Fonts idéntico en todas las páginas (Bodoni Moda +
+Hanken Grotesk + Space Mono). Es lo único externo que la CSP permite.
 
-## 4. Layout y componentes
+## 4. Reglas duras
 
-- **Topbar** (66px, fondo `--topbar`): logo (ícono blueprint + wordmark "Office**Lab**" con acento en "Lab") + subtítulo mono + buscador + contador + CTA de exportar + botón "Entrar".
-- **Barra de filtros**: pills de Estado (con conteo), pills de Fuente, toggle de Destacados (★), toggle de panel de precio. Pill activo = fondo del "ring" de su color + borde a juego; inactivo = transparente.
-- **Stats**: fila de números grandes en serif con label debajo, separados por borde vertical sutil.
-- **Tarjeta de listado**: foto (proporción fija, gradiente placeholder + ícono edificio), badges superpuestos (fuente, contador de fotos, tamaño m², estrella), luego precio (serif) + $/m² (mono, acento) + título (2 líneas clamp) + dirección + tags (tipo/transacción/código) + separador + selector de estado (borde y fondo = color del estado) + notas.
-- **Radios**: 9–11px pills/badges, 14px inputs/botones grandes, 14px tarjetas.
-- **Sombras**: mínimas — `0 1px 2px rgba(34,30,24,.04)` en tarjetas. Nunca sombras dramáticas ni glassmorphism pesado.
-- **Bordes**: 1.5px es el grosor estándar de interacción (inputs, pills, tarjetas).
+- **Sin `border-radius`.** Cero. Cajas rectas en todo.
+- **Sin `box-shadow`.** La separación es borde y espacio.
+- **Sin `<style>` ni `onclick=` en el HTML.** La CSP tiene `script-src 'self'` sin
+  escape justo porque hoy no hay ninguno; un script inline rompería una página entera.
+- El único `style=` aceptable es el color de estado que `app.js` pinta por tarjeta
+  (y está anotado como deuda en `SECURITY.md`, H4).
+- `theme-color` = `#201333` en todas las páginas.
+- Wordmark: `Office<i>Lab</i>`, subtítulo `CRM Inmobiliario · México`.
 
-## 5. Patrones de interacción
+## 5. Páginas y lo que comparten
 
-- Todo control interactivo (pill, botón, select) cambia de estado con color, nunca solo con negrita.
-- Los badges de estado usan SIEMPRE el par color/ring semántico de la tabla de arriba — no reinventar colores por página.
-- Placeholders de foto: gradiente diagonal cálido (paleta de grises/verdes/arena) + patrón de líneas diagonales sutil + ícono de edificio centrado — nunca gris plano ni imagen falsa.
-- Evitar animaciones de entrada tipo `@keyframes` con `opacity:0` inicial en listas server-rendered/streamed — puede quedar atascado en el frame inicial. Si se anima, usar un enfoque que garantice el estado final (ej. clases post-mount), no depender de que la animación "termine" para ver contenido.
+| Página | Estructura |
+|---|---|
+| `index.html` | topbar + filtros + stats + rejilla de tarjetas |
+| `clientes.html` | topbar + rejilla de tarjetas de cliente |
+| `listing.html` | topbar + ficha a dos columnas (contenido + sidebar) |
+| `login.html`, `reset-request.html`, `update-password.html` | `login-shell`: dos mitades — intro de marca a la izquierda, tarjeta de formulario a la derecha |
 
-## 6. Páginas del sistema
+Las páginas de acceso comparten `login-shell` / `login-card` / `email-input` /
+`submit-button` / `success-view` / `eyebrow` / `field-error`. Una página de
+formulario nueva se arma con esas piezas, no con clases propias.
 
-| Página | Archivo | Propósito |
-|---|---|---|
-| Dashboard | `OfficeLab.dc.html` | Grid de listados, filtros, stats |
-| Detalle de listado | `OfficeLab - Listing.dc.html` | Vista completa de un inmueble |
-| Login | `OfficeLab - Login.dc.html` | Acceso a la cuenta |
+`listing.html` reutiliza 29 clases del tablero (topbar, badges, tags, notas,
+selector de estado) y sólo aporta las suyas con prefijo `detail-`, `ficha-`,
+`proc-`, `tarea-`, `doc-` y `print-`.
 
-Toda página nueva **reutiliza los mismos tokens de color/tipografía** de esta guía (copiar el bloque `:root` completo) y el mismo topbar cuando aplique, para que la app se sienta como un solo producto.
+## 6. Cómo verificar que no rompiste el sistema
 
-## 7. Qué NO hacer
+```bash
+cd web
+grep -c "border-radius\|box-shadow" hermes.css        # tiene que dar 0
+grep -o '#[0-9A-Fa-f]\{6\}' hermes.css | sort -u      # solo los del :root
+grep -l "OfficeScrapper\|#241F19\|Newsreader" *.html  # no debe salir nada
+```
 
-- No usar azul navy genérico de SaaS ni gradientes saturados de fondo.
-- No usar emoji (no es parte de la marca).
-- No mezclar más de un acento de color.
-- No usar Inter/Roboto/Arial — ya tenemos el trío tipográfico definido.
-- No añadir sombras pesadas, glassmorphism, ni bordes redondeados exagerados (>14px) en tarjetas/paneles.
+Y que ninguna clase del HTML/JS se quede sin regla: extraer las clases de cada par
+`pagina.html` + `pagina.js` y restarle las definidas en `hermes.css`. Lo que sobre,
+o se estiliza o se borra del marcado.
