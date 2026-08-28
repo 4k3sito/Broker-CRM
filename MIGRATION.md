@@ -273,3 +273,49 @@ Con el inventario nacional completo (363k) el modelo viejo era inviable; éste n
    coalesce(EXCLUDED.status, …)` no servía porque `EXCLUDED` ya traía el `coalesce(%s,'new')` del
    INSERT: mandar solo `starred` borraba el `contacted` guardado. En el UPDATE ahora van los
    parámetros crudos.
+
+
+## Fase 3: el dashboard sobre nuestra API (2026-08-27)
+
+**En vivo en http://31.220.56.100** — sirve Caddy, con la API detrás en `/api/*`.
+
+### `web/`, y por qué
+
+El frontend se movió a `web/` y Caddy monta **solo esa carpeta**. Con la raíz del repo como
+`root`, `http://31.220.56.100/vps/.env` habría entregado la contraseña de la base a cualquiera.
+Verificado desde fuera: `/vps/.env`, `/scrapers/propdb.py`, `/.git/config` y `/CLAUDE.md` dan 404.
+
+### Qué cambió en el JS
+
+- **`web/api.js`** sustituye al cliente de `supabase-js` que estaba duplicado en las 6 páginas,
+  junto con la key del proyecto hardcodeada. `fetch` con `credentials: 'same-origin'`: la cookie
+  de sesión viaja sola y **el token nunca es visible desde JavaScript**. Un 401 manda al login.
+- **`app.js` dejó de cargar la tabla completa.** El filtrado es SQL; la página pide solo lo que
+  muestra. Dos endpoints cubren lo que eso quitó: `/listings/facets` para los contadores de las
+  píldoras y `/ubicaciones` para el autocompletado, que antes era un índice en memoria armado con
+  todas las direcciones.
+- **`render()` es asíncrono y encadena sus llamadas.** Sin eso, hacer clic rápido en varios filtros
+  dispara peticiones que regresan desordenadas y pinta la respuesta equivocada.
+- **`reset-password` se borró**: mandaba un correo y ya no hay SMTP. **`update-password` pasó a ser
+  el cambio de contraseña** para usuarios con sesión, pidiendo la actual — una cookie robada no debe
+  bastar para apoderarse de la cuenta. `auth-urls.js` se fue con ellos: existía para darle a Supabase
+  URLs absolutas de redirección, y ahora todo es del mismo origen.
+
+Mientras tanto, las contraseñas se cambian también por CLI:
+`docker compose exec -it api python main.py passwd <correo>`.
+
+### Un cambio de comportamiento
+
+Los contadores de las píldoras de estado y la barra de estadísticas ahora vienen de
+`/listings/facets`, que **ignora a propósito el filtro de estado**: muestran a cuántos llegarías si
+cambiaras de estado. Antes, con un estado seleccionado, la barra mostraba ceros en los demás.
+
+`exportCSV()` exporta la página visible, no el filtro completo (marcado con `ponytail:`); bajar
+6,709 filas para un CSV sería volver al problema que la fase eliminó.
+
+### Pendiente: TLS
+
+Corre por IP, así que **`COOKIE_SECURE=0`**: la cookie de sesión viaja sin cifrar. Let's Encrypt no
+emite certificados para direcciones IP. En cuanto haya dominio: apuntar un registro A a
+31.220.56.100, cambiar `:80` por el dominio en el `Caddyfile` (Caddy saca el certificado solo) y
+poner `COOKIE_SECURE=1`. **Hasta entonces esto es un entorno de prueba, no para uso diario.**
