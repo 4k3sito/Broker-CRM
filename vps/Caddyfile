@@ -3,7 +3,29 @@
 :80 {
 	encode gzip
 
+	# Cabeceras de seguridad. Se aplican a todo, incluida la API.
+	header {
+		# El tablero no carga scripts de terceros y no tiene ni un <script> inline
+		# ni un onclick=, así que script-src puede ser estricto de verdad.
+		# 'unsafe-inline' en style-src sí hace falta: app.js pinta el color de
+		# estado con atributos style= en cada tarjeta.
+		# img-src abierto a https: porque las fotos vienen de los cinco portales.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+		X-Content-Type-Options "nosniff"
+		# frame-ancestors ya lo cubre en navegadores actuales; esto es para los viejos.
+		X-Frame-Options "DENY"
+		# El token de recuperación viaja en la URL: sin esto se filtraría en el
+		# Referer al cargar las fuentes de Google desde update-password.html?t=…
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+		# No anunciar el stack: no es una defensa, pero tampoco hay que regalarlo.
+		-Server
+		-X-Powered-By
+	}
+
 	handle /api/* {
+		# Las respuestas de la API son por usuario: que no las guarde ningún caché.
+		header Cache-Control "no-store"
 		reverse_proxy api:8000
 	}
 
@@ -17,3 +39,9 @@
 		format console
 	}
 }
+
+# Cuando haya dominio, esto reemplaza al bloque `:80` de arriba y Caddy saca el
+# certificado solo. Falta además: COOKIE_SECURE=1 en vps/.env, BASE_URL con el
+# dominio, y añadir a la cabecera
+#   Strict-Transport-Security "max-age=31536000; includeSubDomains"
+# que hoy sería mentira: sin TLS, el navegador no podría volver a entrar.

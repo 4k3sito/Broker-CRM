@@ -139,11 +139,29 @@ _ATTEMPTS_LOCK = threading.Lock()
 MAX_ATTEMPTS, WINDOW_S = 10, 300
 
 
+def ip_cliente(request: Request) -> str:
+    """La IP del visitante, no la del proxy.
+
+    Detrás de Caddy `request.client.host` es SIEMPRE la IP del contenedor, así que
+    usarla hacía que el límite de intentos fuera uno solo para todo el mundo: diez
+    intentos fallidos de cualquiera dejaban a todos los demás fuera cinco minutos,
+    y a la vez un atacante no encontraba ningún límite propio.
+
+    Se toma el PRIMER valor de X-Forwarded-For (el cliente; lo que sigue son los
+    proxies). Es confiable solo porque nada llega a la API sin pasar por Caddy —
+    la API escucha en 127.0.0.1. Si algún día se expone directo, esto se vuelve
+    falsificable y hay que cambiarlo por la lista de proxies de confianza.
+    """
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()[:64]
+    return request.client.host if request.client else "?"
+
+
 def rate_limit(request: Request) -> None:
     # ponytail: contador en memoria de un solo proceso. Si algún día corre con varios
     # workers, esto se mueve a una tabla o a Redis — hoy sería complejidad sin uso.
-    # Detrás de Caddy hay que leer X-Forwarded-For (Fase 3), no request.client.
-    ip = request.client.host if request.client else "?"
+    ip = ip_cliente(request)
     now = time.monotonic()
     with _ATTEMPTS_LOCK:
         if len(_ATTEMPTS) > 10_000:      # techo de memoria contra IPs rotativas
@@ -295,8 +313,7 @@ def reset_solicitar(body: ResetSolicitarIn, request: Request) -> dict:
     el formulario sería un oráculo de qué correos están registrados."""
     rate_limit(request)
     email = body.email.strip().lower()
-    origen = request.headers.get("x-forwarded-for") or (
-        request.client.host if request.client else None)
+    origen = ip_cliente(request)
     with POOL.connection() as conn:
         conn.execute("DELETE FROM reset_token WHERE expires_at < now()")   # barrido barato
         row = conn.execute("SELECT id FROM usuario WHERE email = %s", (email,)).fetchone()
@@ -779,6 +796,14 @@ def selfcheck() -> None:
     assert not verify_password("x", "scrypt$abc$8$1$aa$bb")      # n no numérico
     assert not verify_password("x", "bcrypt$1$8$1$aa$bb")        # otro algoritmo
     assert len(token_hash("a")) == 32 and token_hash("a") != token_hash("b")
+
+    # El límite de intentos cuenta por visitante, no por la IP del proxy.
+    class _Req:                                   # lo mínimo que lee ip_cliente
+        def __init__(self, h): self.headers, self.client = h, None
+    assert ip_cliente(_Req({"x-forwarded-for": "203.0.113.9"})) == "203.0.113.9"
+    # Con varios saltos manda el primero: el cliente, no los proxies que siguen.
+    assert ip_cliente(_Req({"x-forwarded-for": "203.0.113.9, 10.0.0.2"})) == "203.0.113.9"
+    assert ip_cliente(_Req({})) == "?"
     assert norm_txt("Ciénega DE Flores") == "cienega de flores"
     w, p = _filtros({"q": "del valle", "operacion": "rent", "precio_max": 50000,
                      "near": "25.6,-100.3", "radio": 2000})
