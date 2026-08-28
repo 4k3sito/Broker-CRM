@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Carga polígonos de zonas geográficas en la tabla `zona`. Idempotente por osm_id.
 
-    python zonas.py --estado "Nuevo León"      # los 51 municipios
+    python zonas.py                            # los ~2,469 municipios de México
+    python zonas.py --estado "Nuevo León"      # solo un estado
     python zonas.py --dry-run                  # los baja y los describe, no escribe
     python zonas.py --selfcheck                # asserts, sin red ni DB
 
@@ -30,6 +31,7 @@ MIRRORS = ("https://overpass-api.de/api/interpreter",
 NOMINATIM = "https://nominatim.openstreetmap.org/lookup"
 BATCH = 50            # tope de osm_ids por request de Nominatim
 ADMIN_MUNICIPIO = 6   # en México: 4=estado, 6=municipio
+MEXICO_REL = 114686   # relación OSM del país
 
 
 def norm(s: str | None) -> str:
@@ -65,24 +67,41 @@ def estado_rel(nombre: str) -> tuple[int, str]:
 
 
 def municipios(rel_id: int) -> list[dict]:
-    # map_to_area convierte la relación del estado en área consultable; sin esto
-    # el filtro (area.x) no encuentra nada.
-    return overpass(f'[out:json][timeout:180];rel({rel_id});map_to_area->.e;'
+    # map_to_area convierte la relación en área consultable; sin esto el filtro
+    # (area.x) no encuentra nada.
+    return overpass(f'[out:json][timeout:600];rel({rel_id});map_to_area->.e;'
                     f'relation["admin_level"="{ADMIN_MUNICIPIO}"]'
                     f'["boundary"="administrative"](area.e);out ids tags;')
 
 
-def geometrias(ids: list[int]) -> dict[int, dict]:
-    """GeoJSON por osm_id. Nominatim pide máximo 1 request/segundo."""
-    out: dict[int, dict] = {}
+def estado_de(display_name: str) -> str | None:
+    """Nominatim devuelve "Monterrey, Nuevo León, México": el estado es el
+    penúltimo componente. Evita 32 consultas extra a Overpass."""
+    partes = [x.strip() for x in (display_name or "").split(",")]
+    return partes[-2] if len(partes) >= 2 else None
+
+
+def geometrias(ids: list[int]) -> dict[int, tuple[dict, str | None]]:
+    """GeoJSON y estado por osm_id. Nominatim pide máximo 1 request/segundo."""
+    out: dict[int, tuple[dict, str | None]] = {}
     for i in range(0, len(ids), BATCH):
         lote = ids[i:i + BATCH]
         url = (f"{NOMINATIM}?format=geojson&polygon_geojson=1&osm_ids="
                + ",".join(f"R{x}" for x in lote))
-        for f in _get(url, timeout=180)["features"]:
+        for intento in range(3):
+            try:
+                feats = _get(url, timeout=180)["features"]
+                break
+            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
+                print(f"  lote {i // BATCH + 1}: {e}; reintentando…")
+                time.sleep(5 * (intento + 1))
+        else:
+            print(f"  lote {i // BATCH + 1} se rindió; sus municipios quedan sin geometría")
+            continue
+        for f in feats:
             p = f["properties"]
             if (oid := p.get("osm_id")) and f.get("geometry"):
-                out[oid] = f["geometry"]
+                out[oid] = (f["geometry"], estado_de(p.get("display_name")))
         print(f"  geometrías {len(out)}/{len(ids)}")
         time.sleep(1.1)
     return out
@@ -94,6 +113,9 @@ def selfcheck() -> None:
     assert norm(None) == ""
     assert ADMIN_MUNICIPIO == 6, "en México el municipio es admin_level=6, no 8"
     assert BATCH <= 50, "Nominatim rechaza más de 50 osm_ids por lookup"
+    assert estado_de("Monterrey, Nuevo León, México") == "Nuevo León"
+    assert estado_de("Mexicali, Baja California, México") == "Baja California"
+    assert estado_de("") is None
     print("ok")
 
 
@@ -102,12 +124,11 @@ def main() -> int:
         selfcheck()
         return 0
     dry = "--dry-run" in sys.argv
-    estado = "Nuevo León"
     if "--estado" in sys.argv:
-        estado = sys.argv[sys.argv.index("--estado") + 1]
-
-    rel, nombre_estado = estado_rel(estado)
-    print(f"{nombre_estado}: relación OSM {rel}")
+        rel, ambito = estado_rel(sys.argv[sys.argv.index("--estado") + 1])
+    else:
+        rel, ambito = MEXICO_REL, "México"
+    print(f"{ambito}: relación OSM {rel}")
     muns = municipios(rel)
     print(f"municipios encontrados: {len(muns)}")
     ids = [m["id"] for m in muns]
@@ -115,12 +136,12 @@ def main() -> int:
 
     geoms = geometrias(ids)
     if faltan := [nombres[i] for i in ids if i not in geoms]:
-        print(f"  ⚠ sin geometría: {', '.join(faltan)}")
+        print(f"  ⚠ sin geometría: {len(faltan)} ({', '.join(faltan[:6])}…)")
 
     if dry:
         for i in ids[:10]:
             g = geoms.get(i)
-            print(f"  {nombres[i]:28} {g['type'] if g else '—'}")
+            print(f"  {nombres[i]:28} {g[0]['type'] if g else '—':14} {g[1] if g else ''}")
         print("\n--dry-run: no se escribió nada")
         return 0
 
@@ -129,8 +150,9 @@ def main() -> int:
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         n = 0
         for i in ids:
-            if not (g := geoms.get(i)):
+            if not (par := geoms.get(i)):
                 continue
+            g, estado_nombre = par
             # ST_Multi normaliza: Nominatim devuelve Polygon o MultiPolygon según el caso
             # y la columna está declarada MultiPolygon.
             n += conn.execute(
@@ -140,7 +162,7 @@ def main() -> int:
                    ON CONFLICT (osm_id) DO UPDATE SET
                      nombre = EXCLUDED.nombre, estado = EXCLUDED.estado,
                      norm = EXCLUDED.norm, geom = EXCLUDED.geom""",
-                (nombres[i], nombre_estado, i, norm(nombres[i]), json.dumps(g))).rowcount
+                (nombres[i], estado_nombre, i, norm(nombres[i]), json.dumps(g))).rowcount
         asignadas = conn.execute("SELECT asignar_zonas()").fetchone()[0]
         conn.commit()
         print(f"\nzona: {n} municipios cargados")

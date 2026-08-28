@@ -51,15 +51,25 @@ def wkt(coords: dict | None) -> str | None:
     return f"SRID=4326;POINT({lng} {lat})"
 
 
+def vacio_a_null(v):
+    """Los scrapers escriben "" cuando no hay dato (Listing usa str = "" por defecto).
+    COPY no puede parsear "" en una columna timestamptz o numérica: tiene que ser NULL."""
+    return None if v == "" else v
+
+
 def to_row(source: str, d: dict) -> tuple:
     return (
         source, str(d["listingId"]), d["url"], d.get("title"), d.get("imageUrl"),
-        d.get("operation"), d.get("price"), d.get("currency"), d.get("propertyType"),
-        d.get("areaM2"), d.get("plotAreaM2"), d.get("builtAreaM2"),
-        d.get("bedrooms"), d.get("bathrooms"), d.get("location"), d.get("city"),
+        d.get("operation"), vacio_a_null(d.get("price")), d.get("currency"),
+        d.get("propertyType"),
+        vacio_a_null(d.get("areaM2")), vacio_a_null(d.get("plotAreaM2")),
+        vacio_a_null(d.get("builtAreaM2")),
+        vacio_a_null(d.get("bedrooms")), vacio_a_null(d.get("bathrooms")),
+        d.get("location"), d.get("city"),
         d.get("province"), d.get("agencyName"), d.get("agentPhone"), d.get("description"),
-        wkt(d.get("coordinates")), d.get("listedAt"), d.get("observedAt"),
-        d.get("priceIsPerM2"),
+        wkt(d.get("coordinates")),
+        vacio_a_null(d.get("listedAt")), vacio_a_null(d.get("observedAt")),
+        vacio_a_null(d.get("priceIsPerM2")),
         norm(d.get("location"), d.get("city"), d.get("province"), d.get("title")),
     )
 
@@ -215,6 +225,13 @@ def selfcheck() -> None:
     assert r[COLS.index("norm")] == "polanco cdmx"
     assert r[COLS.index("geom")] == "SRID=4326;POINT(-99.1 19.4)"
 
+    # "" en una columna con tipo revienta el COPY; tiene que llegar como NULL.
+    assert vacio_a_null("") is None and vacio_a_null(0) == 0 and vacio_a_null("x") == "x"
+    r2 = to_row("viva", {"listingId": 1, "url": "u", "listedAt": "", "observedAt": "",
+                         "price": "", "areaM2": ""})
+    for c in ("listed_at", "observed_at", "price", "area_m2"):
+        assert r2[COLS.index(c)] is None, c
+
     ns = argparse.Namespace(zone="Del Valle", city=None, op="rent", type=None, source=None,
                             min_price=None, max_price=40000, min_area=None, max_area=None,
                             bedrooms=None, since=None, near="19.4,-99.1", radius=2000, limit=20)
@@ -273,6 +290,9 @@ def main() -> int:
             patch = DATA / "ml_coords.validated.jsonl"
             if patch.exists() and "mercadolibre" in names:
                 patch_coords(conn, patch, "mercadolibre")
+            if conn.execute("SELECT to_regproc('asignar_zonas')").fetchone()[0]:
+                n = conn.execute("SELECT asignar_zonas()").fetchone()[0]
+                print(f"{'zonas asignadas':14} {n:>7,} listings")
             conn.execute("ANALYZE listings")
         elif a.cmd == "search":
             search(conn, a)
