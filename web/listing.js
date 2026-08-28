@@ -55,6 +55,18 @@ function fmtPrice(monto, moneda, l) {
   return { n: monto.toLocaleString('es-MX'), curr };
 }
 
+// Un inmueble puede ofrecerse en renta Y venta. El segundo precio se muestra como
+// línea aparte para que el asesor vea las dos opciones sin abrir el anuncio.
+function altPriceHtml(alt) {
+  if (!alt || alt.monto == null) return '';
+  const etiqueta = alt.op === 'rent' ? 'También en renta' : 'También en venta';
+  const monto = alt.porM2 && alt.total ? alt.total : alt.monto;
+  const unidad = alt.porM2 && alt.total ? '' : (alt.porM2 ? '/m²' : '');
+  const sufijo = alt.op === 'rent' ? '/mes' : '';
+  const nota = alt.porM2 && alt.total ? ` ($${alt.monto.toLocaleString('es-MX')}/m²)` : '';
+  return `<div class="price-alt">${etiqueta}: <strong>$${Math.round(monto).toLocaleString('es-MX')}${unidad}${sufijo}</strong>${nota}</div>`;
+}
+
 function adaptListing(l) {
   return {
     id:        l.id,
@@ -64,6 +76,10 @@ function adaptListing(l) {
     direccion: parseLocation(l.location) ?? l.neighborhood ?? null,
     precio:    l.price_numeric ?? null,
     porM2:     l.price_is_per_m2 ?? false,
+    alt:       l.precio_alt != null
+                 ? { monto: l.precio_alt, op: l.operacion_alt,
+                     porM2: l.precio_alt_por_m2 ?? false, total: l.precio_alt_total }
+                 : null,
     precioTotal: l.precio_total ?? null,
     moneda:    l.currency ?? 'MXN',
     fotos:     (l.images?.length ? l.images : (l.image ? [l.image] : [])),
@@ -337,7 +353,8 @@ function render() {
   const sufijo = l.transaccion === 'Renta' ? '/mes' : '';
   const priceHtml = p
     ? `<div class="detail-price">$${p.n}<span class="currency">${p.curr}${sufijo}</span>` +
-      (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</span>` : '') + `</div>`
+      (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</span>` : '') +
+      `</div>` + altPriceHtml(l.alt)
     : `<div class="detail-price"><span class="no-price">Sin precio</span></div>`;
 
   const statusOptions = STATUSES.map(st =>

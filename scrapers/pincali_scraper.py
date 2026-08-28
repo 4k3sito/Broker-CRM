@@ -351,6 +351,17 @@ def _listed_at(raw: str) -> str:
         return ""
 
 
+def _match_offer(offers: list[dict], price_text: str) -> dict:
+    """The offer whose price matches the card. Falls back to the only/first one."""
+    if len(offers) < 2:
+        return offers[0] if offers else {}
+    shown = _num(price_text)
+    if shown is None:
+        return offers[0]
+    # The card rounds ("$798" for 798.6), so the closest offer wins, not an exact ==.
+    return min(offers, key=lambda o: abs((_price(o.get("price")) or 0) - shown))
+
+
 def parse_serp(html: str, operation: str):
     """Yield one PincaliListing per card, in the page's own (sorted) order.
 
@@ -368,12 +379,18 @@ def parse_serp(html: str, operation: str):
         obj = ld.get(href, {})
         offers = obj.get("offers") or []
         # `offers` is a list, a bare object, or an empty list ("Consulte precio").
-        offer = (offers[0] if isinstance(offers, list) and offers
-                 else offers if isinstance(offers, dict) else {})
+        offers = offers if isinstance(offers, list) else [offers] if isinstance(offers, dict) else []
         addr = obj.get("address") or {}
 
         price_node = card.css_first(".price")
         price_text = price_node.text(separator=" ", strip=True) if price_node else ""
+        # A listing offered for rent AND sale carries two offers, and nothing in the
+        # JSON-LD says which is which — they differ only by the number. Taking
+        # offers[0] gave the sale price to the rent crawl too (EB-VU7128: $3,500/m²
+        # for sale, $15/m² for rent, both stored as 3,500). The card belongs to the
+        # SERP we asked for, so its number is the one that matches this operation;
+        # the offer is then matched to it to keep the JSON-LD's decimals.
+        offer = _match_offer(offers, price_text)
         feats = [f.text(strip=True) for f in card.css(".features div")]
         prop_type = obj.get("category") or (feats[0] if feats else "")
         area = _num((obj.get("floorSize") or {}).get("value"))

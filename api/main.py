@@ -219,6 +219,10 @@ SELECT_LISTING = """
   l.agent_phone AS whatsapp, l.property_type, l.area_m2::float8 AS property_size_m2,
   l.operation AS transaction_type, l.maps_url, z.nombre AS zona,
   l.price_is_per_m2, l.precio_m2_inferido,
+  -- Segundo precio: el inmueble se ofrece en renta Y venta a la vez.
+  l.precio_alt::float8, l.operacion_alt, l.precio_alt_por_m2,
+  CASE WHEN l.precio_alt_por_m2 AND l.area_m2 > 0
+       THEN (l.precio_alt * l.area_m2)::float8 END AS precio_alt_total,
   -- Cuando el precio es por m², el total es lo que el asesor necesita ver y filtrar.
   CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN (l.price * l.area_m2)::float8 END AS precio_total,
   ul.status, coalesce(ul.starred, false) AS starred, coalesce(ul.notes, '') AS notes

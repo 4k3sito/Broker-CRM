@@ -646,3 +646,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 
 /* Precio unitario del que se calculó el total (portales que publican $/m²). */
 .price-note { display:block; font-size:.72rem; font-weight:500; opacity:.7; margin-top:2px; }
+
+/* Segundo precio: inmuebles ofrecidos en renta y venta a la vez. */
+.price-alt { margin-top:4px; font-size:.8rem; opacity:.85; }
+.price-alt strong { font-weight:650; }

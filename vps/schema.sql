@@ -204,6 +204,14 @@ CREATE OR REPLACE FUNCTION inferir_precio_m2() RETURNS bigint AS $$
   SELECT count(*) FROM m;
 $$ LANGUAGE sql;
 
+-- Un inmueble ofrecido en renta Y venta a la vez. La llave (source, listing_id) lo
+-- mantiene como UNA fila —es una sola propiedad—, con el segundo precio aquí.
+-- `operation`/`price` siguen siendo el par principal (el que se filtra y ordena).
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS precio_alt          numeric;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS operacion_alt       text
+  CHECK (operacion_alt IN ('rent','sale'));
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS precio_alt_por_m2   boolean;
+
 -- ────────────────────────────────────────────────────────────── auth (Fase 2a)
 
 CREATE TABLE IF NOT EXISTS usuario (

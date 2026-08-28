@@ -62,6 +62,10 @@ function adaptListing(l) {
                 ? { monto: l.price_numeric, moneda: l.currency ?? 'MXN' }
                 : null,
     porM2:    l.price_is_per_m2 ?? false,
+    alt:      l.precio_alt != null
+                ? { monto: l.precio_alt, op: l.operacion_alt,
+                    porM2: l.precio_alt_por_m2 ?? false, total: l.precio_alt_total }
+                : null,
     precioTotal: l.precio_total ?? null,
     fotos:    (l.images?.length ? l.images : (l.image ? [l.image] : [])),
     url:      l.url ?? null,
@@ -218,6 +222,18 @@ function fmtPrice(precio, l) {
   return { n: precio.monto.toLocaleString('es-MX'), curr };
 }
 
+// Un inmueble puede ofrecerse en renta Y venta. El segundo precio se muestra como
+// línea aparte para que el asesor vea las dos opciones sin abrir el anuncio.
+function altPriceHtml(alt) {
+  if (!alt || alt.monto == null) return '';
+  const etiqueta = alt.op === 'rent' ? 'También en renta' : 'También en venta';
+  const monto = alt.porM2 && alt.total ? alt.total : alt.monto;
+  const unidad = alt.porM2 && alt.total ? '' : (alt.porM2 ? '/m²' : '');
+  const sufijo = alt.op === 'rent' ? '/mes' : '';
+  const nota = alt.porM2 && alt.total ? ` ($${alt.monto.toLocaleString('es-MX')}/m²)` : '';
+  return `<div class="price-alt">${etiqueta}: <strong>$${Math.round(monto).toLocaleString('es-MX')}${unidad}${sufijo}</strong>${nota}</div>`;
+}
+
 const ICON_EXTERNAL = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 const ICON_BUILDING = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21V7l9-4 9 4v14"/><polyline points="9 22 9 12 15 12 15 22"/><path d="M3 7h18"/></svg>`;
 
@@ -244,7 +260,7 @@ function renderCard(l, i) {
   const priceHtml = p
     ? `<div class="card-price">$${p.n}<span class="currency">${p.curr}${sufijo}</span>` +
       (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</span>` : '') +
-      `</div>`
+      `</div>` + altPriceHtml(l.alt)
     : `<div class="card-price"><span class="no-price">Sin precio</span></div>`;
 
   const statusOptions = STATUSES.map(st =>
