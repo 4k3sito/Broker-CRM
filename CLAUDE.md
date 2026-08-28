@@ -35,6 +35,13 @@ Two pieces, deliberately decoupled — they meet only at the Supabase `listings`
 the one the dashboard reads.** Pointing `DATABASE_URL` at Supabase does not work as-is —
 see "Data model" below before wiring the two halves together.
 
+## Seguridad
+
+`SECURITY.md` es el registro vivo: modelo de auth, superficie expuesta, hallazgos
+abiertos y lo ya resuelto, con fechas. **Se actualiza en el mismo commit** que
+cualquier cambio a auth, sesiones, la API, Caddy o el despliegue — y cada vez que
+se encuentre algo nuevo sobre el sitio en producción.
+
 ## Commands
 
 ```bash
