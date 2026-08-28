@@ -467,6 +467,7 @@ button, input, textarea, select { font: inherit; }
   background: var(--bg);
 } 
 
+.login-brand .brand-mark { width: 32px; height: 32px; flex: 0 0 auto; }
 .login-brand--mobile { display: none; color: var(--ink); }
 .login-brand--mobile .brand-lockup small { color: var(--faint); } 
 
