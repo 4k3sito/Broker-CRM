@@ -1,25 +1,10 @@
 {
-  "name": "officescrapper",
+  "name": "officelab",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "Dashboard estático de listings comerciales (Monterrey, MX)",
   "scripts": {
-    "scrape:eb": "node scripts/fetch-easybroker.js",
-    "scrape:apify": "node scripts/fetch-apify.js",
-    "scrape:all": "npm run scrape:eb && npm run scrape:apify",
     "dev": "npx serve . --listen 3000"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "devDependencies": {
-    "@types/node": "^25.6.1"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.110.0",
-    "@supabase/supabase-js": "^2.49.4",
-    "apify-client": "^2.23.3",
-    "headroom-ai": "^0.22.4"
-  }
+  "license": "ISC"
 }

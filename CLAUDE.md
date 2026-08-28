@@ -12,43 +12,46 @@ and shows them in a static dashboard with per-listing tracking state (`Nuevo` / 
 - Live dashboard: https://4k3sito.github.io (GitHub Pages, served from `main` root)
 - UI language and all user-facing strings: **Spanish**. Default city: Monterrey. Currency: MXN.
 
-## Current architecture (important — the README describes more than actually exists)
+## Current architecture
 
-The dashboard is the only piece that's currently live end-to-end:
+Two pieces, deliberately decoupled — they meet only at the Supabase `listings` table:
 
-- **`index.html` + `app.js` + `style.css`** — a fully static, no-build dashboard. `app.js`
-  talks directly to Supabase via `@supabase/supabase-js` (loaded from CDN in `index.html`)
-  using a hardcoded **publishable** key. Auth is Supabase magic-link (`signInWithOtp`),
-  driven by `db.auth.onAuthStateChange` in `app.js`.
-- Deploy = commit + push to `main`; GitHub Pages serves the repo root directly (no CI build
-  step). Wait ~1 min after push and hard-refresh to see changes live.
+- **Dashboard (`index.html` + `app.js` + `style.css`, plus `listing.*`, `clientes.*`,
+  `login.*`, `reset-password.*`, `update-password.*`)** — fully static, no build.
+  `app.js` talks to Supabase via `@supabase/supabase-js` (CDN, hardcoded **publishable**
+  key). Auth is Supabase magic-link, driven by `db.auth.onAuthStateChange`.
+  Deploy = commit + push to `main`; Pages serves the repo root. Wait ~1 min, hard-refresh.
+- **`scrapers/`** — five nationwide Python scrapers (Inmuebles24, Lamudi, Vivanuncios,
+  MercadoLibre, Pincali) sharing `stealth_scraper.py` (curl_cffi/camoufox transport),
+  `scrape_utils.py` (logging + Ctrl-C-safe run guard) and `navent_serp.py` (SERP data layer
+  shared by the two Navent portals; ML and Pincali reuse its `Listing`/wire meter).
+  `ml_geo.py` back-fills MercadoLibre coordinates. `propdb.py` loads the JSONL into PostGIS.
+  Read `scrapers/SCRAPING_PLAYBOOK.md` §11 before writing a sixth scraper.
 
-**The Python scraper pipeline is currently broken/absent.** `scrape_all.py` imports from a
-`scrapers/` package (`scrapers.inmuebles24`, `.lamudi`, `.propiedadesmx`, `.easybroker`,
-`.normalize`, `.db_writer`) that was deleted in commit `ad09ad1` ("gitignore upgrade and
-deleted scrapers"). Don't assume these modules exist — check before referencing or building
-on top of them. If asked to revive scraping, it needs to be rebuilt, not just invoked.
+**Everything served by Pages is public.** Never commit `scrapers/data/` (run output) or
+`scrapers/.fixtures/` (saved third-party HTML) — both are gitignored, both stay on disk.
 
-**`api/`** (FastAPI + SQLAlchemy + Postgres, run via `docker-compose up --build`) is an
-alternate local backend for querying listings. It is **not** used by the production
-dashboard — the dashboard talks to Supabase directly.
-
-**Dead/legacy, don't build on these:**
-- `package.json` scripts `scrape:eb` / `scrape:apify` point at `scripts/fetch-easybroker.js`
-  and `scripts/fetch-apify.js`, but `scripts/` does not exist in the repo. These are broken.
-- `.next/` is a committed leftover from a reverted Next.js rewrite (see commit `b1d184b` /
-  its revert `6040c2b`). It's not part of the live app — ignore it when navigating the repo.
+⚠️ **`propdb.py` creates its own table also named `listings`, with a different schema than
+the one the dashboard reads.** Pointing `DATABASE_URL` at Supabase does not work as-is —
+see "Data model" below before wiring the two halves together.
 
 ## Commands
 
 ```bash
 npm run dev             # serves repo root at http://localhost:3000 (dashboard playground)
-docker-compose up --build   # optional local Postgres (:5433) + FastAPI (:8000), see api/main.py
+
+cd scrapers
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python inmuebles24_scraper.py --survey              # size the job first
+.venv/bin/python inmuebles24_scraper.py --out data/inmuebles24.jsonl
+.venv/bin/python inmuebles24_scraper.py --audit               # coverage check after
+.venv/bin/python pincali_scraper.py --status                  # health of a run in flight
 ```
 
-There is no build step, linter, or test suite currently wired up for the dashboard or the
-Python side (the scraper tests referenced in README.md no longer exist — they lived in the
-now-deleted `scrapers/` package).
+Every scraper supports `--survey`, `--selfcheck` (offline, parses `.fixtures/`), `--audit`,
+and resume via `<out>.done`. **`--selfcheck` is the test suite** — run it after touching any
+parser; it fails when selectors drift. `propdb.py selfcheck` covers the loader, no DB needed.
+The dashboard has no test suite.
 
 **Local verification:** `npm run dev` may already be running on `localhost:3000` — check
 before starting a second instance. That server reflects the working tree live, so it's the
@@ -80,6 +83,31 @@ unique constraint. A listing available for both rent and sale is still one row (
 wins when present). `status`, `starred`, and `notes` are user-owned fields — any future
 upsert/scraper logic must never overwrite them on re-scrape. `location` may be plain text or
 a JSON object (`{name: ...}`); `app.js`'s `parseLocation()` normalizes it.
+
+### The two `listings` tables (read before merging the halves)
+
+The dashboard's Supabase table and the table `propdb.py` creates share a name and nothing
+else. `propdb.py init` against Supabase is a no-op on the table (`CREATE TABLE IF NOT
+EXISTS`), and `propdb.py load` then fails at `COPY stage (source, listing_id, …)` because
+those columns don't exist. It errors out — it does not corrupt the dashboard's data — but
+the load simply won't run.
+
+| dashboard (Supabase) | propdb (PostGIS) |
+|---|---|
+| `external_id` | `listing_id` |
+| `price_numeric` | `price` |
+| `property_size_m2` | `area_m2` |
+| `transaction_type` | `operation` (`rent`/`sale`) |
+| `broker_name` | `agency_name` |
+| `whatsapp` | `agent_phone` |
+| `image` / `images` | `image_url` |
+| `neighborhood` / `location` | `location` / `city` / `province` |
+| — | `geom`, `norm`, `plot_area_m2`, `built_area_m2`, `price_is_per_m2`, `listed_at`, `observed_at` |
+
+Scale matters too: the scrapers hold **~363k listings nationwide, ~32k in Nuevo León**,
+while `fetchAllListings()` pages through *every* row at 1000/request. Loading the full set
+into the dashboard as-is would mean ~360 round trips and a dead browser. Filter to Monterrey
+commercial (`Terreno*`/`Local*`) server-side before it ever reaches `app.js`.
 
 ## graphify
 

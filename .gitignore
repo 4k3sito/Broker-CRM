@@ -1,20 +1,25 @@
-
-# Claude Code (memoria local, no debe subirse)
-# Playwright
-# Variables de entorno (API keys)
-.claude/
+# Secretos
 .env
-.venv
-/blob-report/
-/playwright-report/
-/playwright/.auth/
-/playwright/.cache/
-/test-results/
-__pycache__/
-node_modules/
 .env.local
-docker-compose.override.yml
-AGENTS.md
+
+# Entornos / dependencias
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+
+# Herramientas locales (viven fuera del repo)
+.claude/
 .agents/
-.github/
+AGENTS.md
 graphify-out/
+
+# Scrapers: salida de corridas y fixtures de terceros — nunca al repo público
+scrapers/data/
+scrapers/.fixtures/
+
+# Restos de builds/experimentos
+.next/
+cache/
+error_logs/
+*.dc.html
