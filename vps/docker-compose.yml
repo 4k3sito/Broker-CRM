@@ -1,0 +1,45 @@
+# Fases 1-2a: base + API de auth. caddy/cron se agregan en sus fases (ver MIGRATION.md).
+#   cp .env.example .env && $EDITOR .env
+#   docker compose up -d && docker compose logs -f db
+name: officelab   # si no, docker nombra el proyecto como la carpeta ('vps')
+
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Solo corre en un volumen vacío. Para aplicar cambios a una DB ya viva:
+      # `python propdb.py init`, que ejecuta este mismo archivo.
+      - ./schema.sql:/docker-entrypoint-initdb.d/20-schema.sql:ro
+    # Nunca expuesto a internet: el acceso remoto es por túnel SSH
+    #   ssh -L 5432:localhost:5432 usuario@vps
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ../api
+    restart: unless-stopped
+    environment:
+      # Dentro de la red de compose el host es `db`, no 127.0.0.1: el DATABASE_URL
+      # del .env apunta al host y es para propdb.py, no para este contenedor.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      COOKIE_SECURE: ${COOKIE_SECURE:-1}
+    depends_on:
+      db:
+        condition: service_healthy
+    # Igual que la base: nunca directo a internet. Caddy la publica en la Fase 3.
+    ports:
+      - "127.0.0.1:8000:8000"
+
+volumes:
+  pgdata:
