@@ -116,8 +116,10 @@ async function cargarPagina() {
   ]);
   listings = lista.items.map(adaptListing);
   listingsMap = Object.fromEntries(listings.map(l => [l.id, l]));
-  totalFiltrado = lista.total;
-  facetas = f;
+  totalFiltrado = lista.total ?? listings.length;
+  // Los valores por defecto evitan que una respuesta incompleta de facetas tumbe
+  // el render entero: peor un contador en cero que una página en blanco.
+  facetas = { total: 0, destacados: 0, por_estado: {}, por_fuente: {}, ...(f ?? {}) };
 }
 
 // ── Per-user state ─────────────────────────────────────────────────────────────
