@@ -72,6 +72,7 @@ Hanken Grotesk + Space Mono). Es lo único externo que la CSP permite.
 | `index.html` | topbar + filtros + stats + rejilla de tarjetas |
 | `clientes.html` | topbar + rejilla de tarjetas de cliente |
 | `listing.html` | topbar + ficha a dos columnas (contenido + sidebar) |
+| `tareas.html` | topbar + filtros + tablero kanban / matriz de equipo + panel lateral |
 | `login.html`, `reset-request.html`, `update-password.html` | `login-shell`: dos mitades — intro de marca a la izquierda, tarjeta de formulario a la derecha |
 
 Las páginas de acceso comparten `login-shell` / `login-card` / `email-input` /
@@ -101,7 +102,8 @@ uso = lambda *fs: {c for f in fs for m in re.findall(r'class="([^"]*)"',
 css = pathlib.Path('hermes.css').read_text(encoding='utf-8')
 tiene = set(re.findall(r'\.([a-z][a-z0-9-]*)', css))
 for n, fs in {'index':('index.html','app.js'), 'clientes':('clientes.html','clientes.js'),
-              'listing':('listing.html','listing.js'), 'login':('login.html','login.js')}.items():
+              'listing':('listing.html','listing.js'), 'login':('login.html','login.js'),
+              'tareas':('tareas.html','tareas.js')}.items():
     falta = [c for c in sorted(uso(*fs) - tiene) if not c.startswith(('status-','s-'))]
     print(n, falta or 'OK')
 PY

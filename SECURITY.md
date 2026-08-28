@@ -91,6 +91,12 @@ escribir `user_id` ni `id`.
 Verificado con dos cuentas: A no ve, no edita (404) ni borra (404) los datos de B, y
 B no puede colgar un proceso de una ficha ajena (404).
 
+**Excepción deliberada: las tareas.** `tarea` NO se filtra por `user_id` — es un tablero
+de equipo, y el diseño muestra la carga de todas las personas. Cualquiera con sesión ve,
+mueve, reasigna y borra cualquier tarea; `user_id` sólo registra quién la creó. Está
+escrito así en `api/main.py` para que no se lea como un filtro olvidado. Si algún día
+hacen falta equipos separados, esto es lo primero que hay que cambiar.
+
 ## 6. Superficie expuesta — medido el 2026-08-28
 
 ```
