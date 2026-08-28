@@ -158,6 +158,16 @@ CREATE OR REPLACE FUNCTION asignar_zonas() RETURNS bigint AS $$
   SELECT count(*) FROM m;
 $$ LANGUAGE sql;
 
+-- Validación de vigencia (scrapers/liveness.py): ¿el anuncio sigue publicado?
+-- activo NULL = nunca revisado. Se separa de observed_at, que dice cuándo lo vio
+-- el scraper, no si hoy sigue en pie.
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS activo       boolean;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS revisado_at  timestamptz;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS http_status  int;
+-- Parcial: la consulta que importa es "qué falta revisar", no el índice completo.
+CREATE INDEX IF NOT EXISTS listings_por_revisar_idx ON listings (revisado_at NULLS FIRST)
+  WHERE activo IS NOT false;
+
 -- ────────────────────────────────────────────────────────────── auth (Fase 2a)
 
 CREATE TABLE IF NOT EXISTS usuario (
