@@ -433,11 +433,9 @@ button, input, textarea, select { font: inherit; }
 
 .brand-lockup strong { color: inherit; font-size: 21px; font-weight: 700; letter-spacing: -.3px; } 
 
-.brand-lockup strong span { color: var(--accent); } 
-
 .brand-lockup small {
-  margin-top: 4px;
-  color: rgba(244,241,234,.42);
+  margin-top: 4px; white-space: nowrap;
+  color: rgba(239,237,230,.42);
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: .14em;
@@ -455,9 +453,9 @@ button, input, textarea, select { font: inherit; }
 
 .intro-copy h1 { color: var(--topbar-text); font-size: 34px; line-height: 1.28; } 
 
-.intro-text { margin: 16px 0 0; color: rgba(244,241,234,.55); font-size: 14.5px; line-height: 1.6; } 
+.intro-text { margin: 16px 0 0; color: rgba(239,237,230,.55); font-size: 14.5px; line-height: 1.6; } 
 
-.intro-footer { margin: 0; color: rgba(244,241,234,.35); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .05em; } 
+.intro-footer { margin: 0; color: rgba(239,237,230,.35); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .05em; } 
 
 .login-main {
   position: relative;
@@ -469,6 +467,7 @@ button, input, textarea, select { font: inherit; }
   background: var(--bg);
 } 
 
+.login-brand--mobile { display: none; color: var(--ink); }
 .login-brand--mobile .brand-lockup small { color: var(--faint); } 
 
 .login-card { width: 100%; max-width: 380px; } 
@@ -601,7 +600,7 @@ button, input, textarea, select { font: inherit; }
    ═══════════════════════════════════════════════════════════════════════════ */
 .btn-outline {
   background: transparent; border: 1.5px solid rgba(255,255,255,.18);
-  color: rgba(244,241,234,.85);
+  color: rgba(239,237,230,.85);
   font-family: var(--font-ui); font-size: 13px; font-weight: 500;
   padding: 0 16px; height: 36px; cursor: pointer; transition: border-color .15s;
 } 
@@ -877,6 +876,16 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   .detail-links { grid-template-columns: 1fr; }
   .detail-links .btn-csv, .detail-links .btn-outline { grid-column: 1 / -1; }
 }
+
+/* Botón secundario sobre el panel oscuro de la ficha. Se quedó fuera del
+   traslado de style.css y dejaba los enlaces del anuncio sin estilo. */
+.btn-outline {
+  background: transparent; border: 1.5px solid rgba(255,255,255,.18);
+  color: rgba(239,237,230,.85);
+  font-family: var(--font-ui); font-size: 13px; font-weight: 500;
+  padding: 0 16px; height: 36px; cursor: pointer; transition: border-color .15s;
+}
+.btn-outline:hover { border-color: rgba(255,255,255,.4); }
 
 /* Documentos de la ficha: el marcado existía sin una sola regla que lo pintara. */
 .doc-input {
