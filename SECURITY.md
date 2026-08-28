@@ -184,6 +184,7 @@ No queda rastro de logins exitosos ni de cambios de contraseña. `reset_token` g
 
 | Fecha | Qué | Detalle |
 |---|---|---|
+| 2026-08-28 | Los enlaces de recuperación mueren con el cambio de contraseña | `passwd` cerraba las sesiones pero dejaba vivos los `reset_token`: un link emitido minutos antes seguía sirviendo, y servía justo para **deshacer** el cambio que acababa de hacer el admin. Ahora los marca usados y reporta cuántos. |
 | 2026-08-28 | Límite de intentos por visitante | Detrás de Caddy `request.client.host` es siempre el contenedor: el límite era **un cubo compartido**. Diez fallos de cualquiera dejaban a todos fuera 5 min, y un atacante no encontraba límite propio. Ahora lee el primer salto de `X-Forwarded-For` — confiable sólo porque la API escucha en 127.0.0.1 y nada la alcanza sin pasar por Caddy. |
 | 2026-08-28 | Cabeceras de seguridad | Caddy no mandaba ninguna. Ver §6. |
 | 2026-08-28 | scrypt N=2^16 → 2^17 | Estaba a la mitad del mínimo de OWASP. Migración sin resets: el login re-hashea. |
@@ -198,8 +199,11 @@ No queda rastro de logins exitosos ni de cambios de contraseña. `reset_token` g
 
 - **Nunca commitear** `scrapers/data/`, `scrapers/.fixtures/`, `scrapers/.env` ni
   `vps/.env`. Todos gitignored; los dos últimos llevan credenciales.
-- **Alta de usuario:** `main.py adduser <correo> --generar` — la contraseña se imprime
-  una sola vez y es aleatoria. Nunca elegir contraseñas por el usuario.
+- **Alta de usuario:** `main.py adduser <correo> --generar` — 22 caracteres aleatorios
+  (~128 bits), impresos una sola vez. Nunca elegir contraseñas por el usuario.
+- **Contraseña administrativa:** `main.py passwd <correo> --generar`. Cierra las sesiones
+  del usuario **y** anula sus enlaces de recuperación vivos. Preferir siempre `resetlink`,
+  que deja que el dueño elija la suya: si el admin la genera, el admin la conoció.
 - **Reset:** `main.py resetlink <correo>`. Entregar por un canal que el destinatario
   controle. El link vence en 30 minutos.
 - **Baja:** `main.py deluser <correo>` — arrastra su CRM en cascada.
