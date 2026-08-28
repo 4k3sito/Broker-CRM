@@ -126,11 +126,21 @@ ordena por ese total**, no por el unitario.
 Un anuncio en renta y venta llega como dos líneas con el mismo `listing_id`. `propdb.py`
 las colapsa en una fila y guarda la segunda en las columnas `*_alt`.
 
-**El segundo precio todavía no es correcto.** El SERP de Pincali muestra el mismo número
-en las dos operaciones, así que `_match_offer()` en `pincali_scraper.py` no puede
-separarlos — medido: 0 de 1,481 duales traen precios distintos. El dato sólo está en la
-página de detalle, que es lo que baja `scrapers/pincali_dual.py --fetch` (necesita **IP
-residencial**; el VPS recibe 202 del WAF) y aplica `--apply` desde el VPS.
+**El SERP no basta para el segundo precio.** Muestra el mismo número en las dos
+operaciones, así que `_match_offer()` en `pincali_scraper.py` no puede separarlos —
+medido: 0 de 1,481 duales traían precios distintos. El dato sólo está en la página de
+detalle. Por eso el backfill es obligatorio después de cada re-scrape:
+
+```bash
+.venv/bin/python pincali_dual.py --fetch --out data/pincali_dual.jsonl   # IP residencial
+# scp al VPS y allá:
+.venv/bin/python pincali_dual.py --apply data/pincali_dual.jsonl
+```
+
+`--fetch` va por el token WAF (Chrome headful): con `urllib` pelón el WAF responde 405 y
+una página de desafío **sin levantar excepción**, y la corrida reporta "0 fallos" mientras
+rescata el 1%. Corrido el 2026-08-28: 1,463 de 1,481 bajadas, 1,451 con precios distintos,
+1,478 filas con `precio_alt`. Tarda ~1 h por los cooldowns del WAF.
 
 ## Escala
 
