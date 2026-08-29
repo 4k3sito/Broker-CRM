@@ -553,6 +553,96 @@ def survey(states, min_gap=5.0) -> None:
         print(f"  ✖ {bad} shard(s) failed to resolve — fix before crawling")
 
 
+_LOG_LINE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\w+) +(.*)$")
+
+
+def _crawl_pids() -> list[int]:
+    """The running crawl, read straight off /proc — no `pgrep -f`, whose pattern
+    matches the watcher's own command line and waits on itself forever."""
+    pids = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().decode().split("\0")
+        except OSError:
+            continue                       # process exited between listing and read
+        if (any("mercadolibre_scraper.py" in a for a in argv[1:])
+                and "python" in argv[0] and "--status" not in argv):
+            pids.append(int(entry.name))
+    return pids
+
+
+def status(out_path, states=None, categories=None, stall_after: float = 600.0,
+           _pids=None) -> int:
+    """One-shot health read of a run in flight: no network, no loop.
+
+    Exit code is the contract, so a cron watcher can poll this instead of
+    sleeping blind — **0** healthy (running, or finished with every query
+    done), **1** something needs a look, **2** not running and not finished.
+
+        until .venv/bin/python mercadolibre_scraper.py --status; do sleep 300; done
+    """
+    out, now = Path(out_path), datetime.now()
+    log_path = out.with_name(out.name + ".log")
+    if not log_path.exists():
+        print(f"✖ no run found at {out_path}")
+        return 2
+
+    rows = sum(1 for _ in out.open(encoding="utf-8")) if out.exists() else 0
+    pids = _crawl_pids() if _pids is None else _pids
+    lines = [m.groups() for m in
+             (_LOG_LINE.match(l) for l in log_path.read_text(encoding="utf-8").splitlines())
+             if m]
+    # Health is about *this* run: <out>.log is appended across restarts, so the
+    # errors of a run you already fixed would otherwise be reported forever.
+    starts = [i for i, (_, _, msg) in enumerate(lines) if msg.startswith("run start")]
+    lines = lines[starts[-1]:] if starts else lines
+    stamps = [datetime.strptime(t, "%Y-%m-%d %H:%M:%S") for t, _, _ in lines]
+    idle = (now - stamps[-1]).total_seconds() if stamps else 0.0
+    errors = [msg for _, lvl, msg in lines if lvl == "ERROR"]
+    incomplete = [msg for _, lvl, msg in lines if lvl == "WARNING" and "incomplete" in msg]
+    short = [msg for _, lvl, msg in lines if lvl == "WARNING" and "yielded" in msg]
+
+    done = _load_done(out.with_name(out.name + ".done"))
+    searches = [(c, o) for c, o in SEARCHES if not categories or c in categories]
+    planned = [f"{c}/{s}" for c, _ in searches for s in (states or STATES)]
+    complete = [q for q in planned if done.get(q) == _COMPLETE]
+    pending = [q for q in planned if done.get(q) != _COMPLETE]
+
+    # Rate from *this run's* completions only — queries checkpointed by an
+    # earlier run tell you nothing about how fast the current process is going.
+    newly_complete = sum(1 for _, lvl, msg in lines if lvl == "INFO" and ": complete" in msg)
+    elapsed = (stamps[-1] - stamps[0]).total_seconds() if len(stamps) > 1 else 0.0
+    per_query = elapsed / newly_complete if newly_complete else 0.0
+    eta = f"{per_query * len(pending) / 3600:.1f} h" if per_query else "n/a"
+
+    state = "RUNNING" if pids else ("FINISHED" if not pending else "NOT RUNNING")
+    print(f"{state:<12} pid={pids or '-'}  {rows:,} rows  "
+          f"{len(complete)}/{len(planned)} queries complete")
+    print(f"  last log entry {idle:.0f}s ago  ·  {newly_complete} queries done this run  ·  "
+          f"ETA {eta}")
+    print(f"  errors {len(errors)}  ·  incomplete queries {len(incomplete)}  ·  "
+          f"short-of-advertised {len(short)}")
+    if lines:
+        print(f"  → {lines[-1][2][:110]}")
+
+    bad = []
+    if pids and idle > stall_after:
+        bad.append(f"stalled: nothing logged in {idle / 60:.0f} min")
+    if incomplete:
+        bad.append(f"{len(incomplete)} query(s) stopped early: {incomplete[-1][:70]}")
+    if not pids and pending:
+        bad.append(f"not running, {len(pending)} query(s) unfinished — resume with "
+                   f"the same --out, the checkpoint picks up")
+    for line in bad:
+        print(f"  ✖ {line}")
+    if bad:
+        return 1
+    print("  ✔ healthy" if pids else "  ✔ complete")
+    return 0
+
+
 def audit(path, expected=32) -> None:
     """Coverage audit, offline. Buckets rows by the province the site itself
     reported, so a shard that silently resolved elsewhere shows up."""
@@ -636,12 +726,17 @@ def main() -> None:
     ap.add_argument("--paginate", action="store_true",
                     help="drain unsplittable price points with _Desde_ "
                          "(robots Disallows it; off by default)")
+    ap.add_argument("--status", action="store_true",
+                    help="one-shot health read of a run in flight; exit 0 healthy, "
+                         "1 needs a look, 2 not running and unfinished")
     ap.add_argument("--survey", action="store_true")
     ap.add_argument("--audit", metavar="JSONL", nargs="?", const="data/mercadolibre.jsonl")
     ap.add_argument("--selfcheck", action="store_true")
     args = ap.parse_args()
 
-    if args.selfcheck:
+    if args.status:
+        sys.exit(status(args.out, args.states, args.categories))
+    elif args.selfcheck:
         _selfcheck()
     elif args.audit:
         audit(args.audit)
