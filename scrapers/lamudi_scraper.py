@@ -30,6 +30,7 @@ import random
 import re
 import sys
 import time
+from collections import Counter
 from urllib.parse import quote, urlparse
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -475,6 +476,128 @@ def crawl(states, searches, enrich, out_path, max_pages):
                     logger.warning("%s: incomplete (stopped early)", query)
 
 
+# --------------------------------------------------------------------------- #
+# status / audit — dev tooling ported from inmuebles24_scraper.py /
+# pincali_scraper.py so a cron watcher has the same two checks on every source.
+# --------------------------------------------------------------------------- #
+_LOG_LINE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\w+) +(.*)$")
+
+
+def _crawl_pids() -> list[int]:
+    """The running crawl, read straight off /proc — no `pgrep -f`, whose pattern
+    matches the watcher's own command line and waits on itself forever."""
+    pids = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().decode().split("\0")
+        except OSError:
+            continue                       # process exited between listing and read
+        if (any("lamudi_scraper.py" in a for a in argv[1:])
+                and "python" in argv[0] and "--status" not in argv):
+            pids.append(int(entry.name))
+    return pids
+
+
+def status(out_path, states=STATES, stall_after: float = 600.0, _pids=None) -> int:
+    """One-shot health read of a run in flight: no network, no loop.
+
+    Exit code is the contract, so a cron watcher can poll this instead of
+    sleeping blind — **0** healthy (running, or finished with every query
+    done), **1** something needs a look, **2** not running and not finished.
+
+        until .venv/bin/python lamudi_scraper.py --status; do sleep 300; done
+
+    Unlike Pincali there is no WAF token to mint, so the only failure shapes
+    are a stalled log and a query that stopped short of an empty page."""
+    out, now = Path(out_path), datetime.now()
+    log_path = out.with_name(out.name + ".log")
+    if not log_path.exists():
+        print(f"✖ no run found at {out_path}")
+        return 2
+
+    rows = sum(1 for _ in out.open(encoding="utf-8")) if out.exists() else 0
+    pids = _crawl_pids() if _pids is None else _pids
+    lines = [m.groups() for m in
+             (_LOG_LINE.match(l) for l in log_path.read_text(encoding="utf-8").splitlines())
+             if m]
+    # Health is about *this* run: <out>.log is appended across restarts, so the
+    # errors of a run you already fixed would otherwise be reported forever.
+    starts = [i for i, (_, _, msg) in enumerate(lines) if msg.startswith("run start")]
+    lines = lines[starts[-1]:] if starts else lines
+    stamps = [datetime.strptime(t, "%Y-%m-%d %H:%M:%S") for t, _, _ in lines]
+    idle = (now - stamps[-1]).total_seconds() if stamps else 0.0
+    errors = [msg for _, lvl, msg in lines if lvl == "ERROR"]
+    incomplete = [msg for _, lvl, msg in lines if lvl == "WARNING" and "incomplete" in msg]
+
+    done = _load_done(out.with_name(out.name + ".done"))
+    planned = [f"{s}/{c}/{o}" for s in states for c, o in SEARCHES]
+    complete = [q for q in planned if q in done]
+    pending = [q for q in planned if q not in done]
+
+    # Rate from *this run's* completions only — queries checkpointed by an
+    # earlier run tell you nothing about how fast the current process is going.
+    newly_complete = sum(1 for _, lvl, msg in lines if lvl == "INFO" and msg.endswith(": complete"))
+    elapsed = (stamps[-1] - stamps[0]).total_seconds() if len(stamps) > 1 else 0.0
+    per_query = elapsed / newly_complete if newly_complete else 0.0
+    eta = f"{per_query * len(pending) / 3600:.1f} h" if per_query else "n/a"
+
+    state = "RUNNING" if pids else ("FINISHED" if not pending else "NOT RUNNING")
+    print(f"{state:<12} pid={pids or '-'}  {rows:,} rows  "
+          f"{len(complete)}/{len(planned)} queries complete")
+    print(f"  last log entry {idle:.0f}s ago  ·  {newly_complete} queries done this run  ·  "
+          f"ETA {eta}")
+    print(f"  errors {len(errors)}  ·  incomplete queries {len(incomplete)}")
+    if lines:
+        print(f"  → {lines[-1][2][:110]}")
+
+    bad = []
+    if pids and idle > stall_after:
+        bad.append(f"stalled: nothing logged in {idle / 60:.0f} min")
+    if incomplete:
+        bad.append(f"{len(incomplete)} query(s) stopped early: {incomplete[-1][:70]}")
+    if not pids and pending:
+        bad.append(f"not running, {len(pending)} query(s) unfinished — resume with "
+                   f"the same --out, the checkpoint picks up")
+    for line in bad:
+        print(f"  ✖ {line}")
+    if bad:
+        return 1
+    print("  ✔ healthy" if pids else "  ✔ complete")
+    return 0
+
+
+def audit(path, expected=32) -> None:
+    """Coverage audit, offline. Lamudi's card never labels a field "province" —
+    `location` is free text like "Col. X, Municipio, Estado", comma-joined — so
+    this buckets by the last segment, the closest thing the site gives us to a
+    state. Unlike inmuebles24's PROVINCE_LABEL map, there's no verified slug ->
+    display-name table for this one yet, so treat a thin bucket as "look at it",
+    not as proof the state failed — it may just render under another name."""
+    rows = [json.loads(l) for l in Path(path).open(encoding="utf-8") if l.strip()]
+    if not rows:
+        sys.exit(f"{path} is empty")
+    ids = {r["listingId"] for r in rows}
+    by_loc = Counter((r.get("location", "").rsplit(",", 1)[-1].strip() or "(missing)") for r in rows)
+    print(f"\n{len(rows):,} rows, {len(ids):,} unique ids "
+          f"({len(rows) - len(ids):,} duplicate lines)\n")
+    for loc, n in sorted(by_loc.items(), key=lambda kv: -kv[1])[:40]:
+        print(f"  {loc:34s} {n:>7,}")
+    if len(by_loc) > 40:
+        print(f"  … {len(by_loc) - 40} more location tails")
+    print(f"\n{len(by_loc)} distinct location tails from {expected} states crawled — "
+          f"eyeball for anything suspiciously small or absent")
+    ops = Counter(r.get("operation") for r in rows)
+    types = Counter(r.get("propertyType") for r in rows)
+    filled = {k: sum(1 for r in rows if r.get(k)) for k in
+              ("price", "coordinates", "agentPhone", "description", "listedAt", "areaM2", "photos")}
+    print(f"\noperations: {dict(ops)}")
+    print(f"top types:  {dict(types.most_common(6))}")
+    print("field fill: " + ", ".join(f"{k}={v / max(len(rows), 1) * 100:.0f}%"
+                                     for k, v in filled.items()))
+
+
 def _load_seen(out: Path) -> set[str]:
     if not out.exists():
         return set()
@@ -583,6 +706,10 @@ def main() -> None:
     ap.add_argument("--max-pages", type=int, default=200)
     ap.add_argument("--no-enrich", dest="enrich", action="store_false",
                     help="SERP only; skips detail-page fields (phone, photos, areas, condition)")
+    ap.add_argument("--status", action="store_true",
+                    help="one-shot health read of a run in flight; exit 0 healthy, "
+                         "1 needs a look, 2 not running and unfinished")
+    ap.add_argument("--audit", metavar="JSONL", nargs="?", const="data/lamudi.jsonl")
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--reenrich", metavar="SERP_JSONL",
                     help="enrich an existing SERP-only JSONL instead of crawling")
@@ -590,8 +717,13 @@ def main() -> None:
                     help="only keep these propertyType values (e.g. 'Local Comercial' Terreno)")
     args = ap.parse_args()
 
+    if args.status:
+        sys.exit(status(args.out, args.states))
     if args.selfcheck:
         _selfcheck()
+        return
+    if args.audit:
+        audit(args.audit, len(args.states))
         return
     if args.reenrich:
         reenrich(args.reenrich, args.out, set(args.types) if args.types else None)
