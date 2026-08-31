@@ -131,8 +131,13 @@ def _solve_challenge(scraper: Scraper, url: str, html: str) -> bool:
         f"&token={quote(token)}&answer={answer}&powNonce={nonce}"
         f"&duration={round(time.time() - started, 1)}"
     )
-    scraper.sess.get(verify, impersonate=scraper._imp, referer=url, timeout=40,
-                     proxies={"http": scraper._proxy, "https": scraper._proxy} if scraper._proxy else None)
+    # Route through Scraper.get, not a raw session call: it's the one place with
+    # retry/backoff/rotate for curl_cffi transport errors (curl 56 "connection
+    # closed abruptly" among them). A bare scraper.sess.get() here has no retry
+    # at all and raises curl_cffi's own exception type, which crawl()'s
+    # `except RuntimeError` below never catches — one dropped TCP connection on
+    # this one URL used to kill the entire 96-query run.
+    scraper.get(verify, referer=url)
     return True
 
 
