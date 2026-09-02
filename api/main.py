@@ -577,6 +577,71 @@ def zonas() -> list[dict]:
                GROUP BY z.nombre, z.norm ORDER BY count(l.*) DESC""").fetchall()
 
 
+# Fuentes con scraper propio en scrapers/. Lo que aparezca en la tabla y no aquí es
+# inventario huérfano: entró alguna vez y ya nadie lo refresca.
+SCRAPERS = {
+    "inmuebles24":  "Inmuebles24",
+    "lamudi":       "Lamudi",
+    "vivanuncios":  "Vivanuncios",
+    "mercadolibre": "MercadoLibre",
+    "pincali":      "Pincali",
+}
+
+
+def _partir_scrapers(rows: list[dict]) -> dict:
+    """Separa el resultado del GROUPING SETS: `dia` nulo es el resumen de la fuente,
+    lo demás son las cargas por día. Pura a propósito — así el selfcheck la prueba
+    sin base de datos."""
+    fuentes, cargas = [], []
+    for r in rows:
+        r = dict(r)
+        dia = r.pop("dia")
+        if dia is None:
+            r["label"] = SCRAPERS.get(r["source"], r["source"])
+            r["huerfana"] = r["source"] not in SCRAPERS
+            fuentes.append(r)
+        else:
+            cargas.append({"dia": str(dia), "source": r["source"], "n": r["total"]})
+    # Las huérfanas al final; dentro de cada grupo, la fuente más grande primero.
+    fuentes.sort(key=lambda f: (f["huerfana"], -f["total"]))
+    cargas.sort(key=lambda c: (c["dia"], c["source"]), reverse=True)
+    return {"fuentes": fuentes, "cargas": cargas}
+
+
+@app.get("/api/scrapers")
+def scrapers(user: dict = Depends(current_user)) -> dict:
+    """Salud del inventario por fuente, leída de `listings`.
+
+    No hay orquestador en el VPS: los scrapers corren en la máquina del asesor
+    —hace falta IP residencial— y suben el JSONL con `propdb.py`. Lo que esta
+    página puede saber es el *resultado* de cada corrida, no una corrida en vuelo;
+    para eso está `<scraper>.py --status` en la terminal.
+
+    ponytail: un escaneo secuencial de la tabla entera (~430k filas, ~1 s). Sirve
+    porque es una página de consulta ocasional; si se vuelve un panel que se
+    refresca solo, materializar esto en una tabla por día.
+    """
+    with POOL.connection() as conn:
+        rows = conn.execute("""
+            SELECT source, date_trunc('day', observed_at)::date AS dia,
+                   count(*)                                        AS total,
+                   count(*) FILTER (WHERE activo)                  AS activos,
+                   count(*) FILTER (WHERE activo IS FALSE)         AS caidos,
+                   count(*) FILTER (WHERE revisado_at IS NULL)     AS sin_revisar,
+                   count(*) FILTER (WHERE price IS NOT NULL)       AS con_precio,
+                   count(*) FILTER (WHERE area_m2 IS NOT NULL)     AS con_area,
+                   count(*) FILTER (WHERE geom IS NOT NULL)        AS con_geo,
+                   count(*) FILTER (WHERE zona_id IS NOT NULL)     AS con_zona,
+                   count(*) FILTER (WHERE image_url IS NOT NULL)   AS con_foto,
+                   count(*) FILTER (WHERE precio_alt IS NOT NULL)  AS dual,
+                   max(observed_at)                                AS ultima_carga
+            FROM listings
+            GROUP BY GROUPING SETS
+                     ((source), (source, date_trunc('day', observed_at)::date))
+        """).fetchall()
+    return _partir_scrapers(rows)
+
+
 class EstadoIn(BaseModel):
     status: str | None = Field(None, pattern="^(new|reviewed|contacted|rented|discarded)$")
     starred: bool | None = None
@@ -931,6 +996,18 @@ def selfcheck() -> None:
     assert len(w) == 5 and sum(x.count("%s") for x in w) == len(p), (w, p)
     assert p[0] == "%del%" and p[1] == "%valle%"      # cada palabra por separado
     assert "SRID=4326;POINT(-100.3 25.6)" in p
+
+    # El GROUPING SETS de /api/scrapers: la fila sin día es el resumen de la fuente.
+    part = _partir_scrapers([
+        {"source": "pincali", "dia": None, "total": 10},
+        {"source": "pincali", "dia": "2026-08-28", "total": 7},
+        {"source": "propiedadesmx", "dia": None, "total": 99},
+    ])
+    assert [f["source"] for f in part["fuentes"]] == ["pincali", "propiedadesmx"], \
+        "la fuente huérfana va al final aunque tenga más filas"
+    assert part["fuentes"][0]["label"] == "Pincali" and not part["fuentes"][0]["huerfana"]
+    assert part["fuentes"][1]["huerfana"], "propiedadesmx no tiene scraper"
+    assert part["cargas"] == [{"dia": "2026-08-28", "source": "pincali", "n": 7}]
 
     # Subir el costo del KDF no invalida los hashes viejos, solo los marca.
     assert not necesita_rehash(h)

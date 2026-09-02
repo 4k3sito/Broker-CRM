@@ -36,11 +36,16 @@ crea un inode nuevo y el contenedor sigue leyendo el viejo. Hay que
 Tres piezas que se encuentran en la tabla `listings` de PostGIS:
 
 - **`web/`** — frontend estático, sin build ni framework. `index.html` (tablero),
-  `listing.html` (ficha), `clientes.html` (CRM), `login.html`, `reset-request.html`,
+  `listing.html` (ficha), `clientes.html` (CRM), `tareas.html` (tablero del equipo),
+  `scrapers.html` (salud del inventario por fuente), `login.html`, `reset-request.html`,
   `update-password.html`. `api.js` es la capa de datos (`fetch` contra `/api/*`,
-  `credentials: 'same-origin'`); **una sola hoja de estilos, `hermes.css`**.
+  `credentials: 'same-origin'`); **una sola hoja de estilos, `hermes.css`**; `menu.js`
+  inyecta el cajón de navegación y `theme.js` el tema claro/oscuro — ninguna página
+  repite ese marcado.
 - **`api/main.py`** — FastAPI. Auth propia (scrypt de la stdlib + sesiones opacas en la
-  DB), endpoints de listings/zonas/CRM, y un CLI: `selfcheck`, `lsusers`, `adduser`,
+  DB), endpoints de listings/zonas/CRM/tareas, `GET /api/scrapers` (agregados de
+  `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers, porque las
+  corridas pasan en la máquina del asesor), y un CLI: `selfcheck`, `lsusers`, `adduser`,
   `passwd`, `resetlink`, `deluser`. `python main.py selfcheck` corre sin base de datos.
 - **`scrapers/`** — cinco scrapers nacionales (Inmuebles24, Lamudi, Vivanuncios,
   MercadoLibre, Pincali) sobre `stealth_scraper.py` (curl_cffi/camoufox),

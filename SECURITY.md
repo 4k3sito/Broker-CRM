@@ -124,9 +124,22 @@ Cache-Control: no-store          (sólo /api/*)
 ```
 
 `script-src 'self'` sin `unsafe-inline` es posible porque el tablero **no tiene ni un
-`<script>` inline ni un `onclick=`**. `Referrer-Policy: no-referrer` importa ahora que
+`<script>` inline ni un `onclick=`**. Por eso el tema oscuro vive en `web/theme.js`
+—un archivo propio cargado sin `defer` en el `<head>`— y no en el `<script>` de dos
+líneas que sería lo normal para evitar el parpadeo: la CSP no lo permitiría. `Referrer-Policy: no-referrer` importa ahora que
 el token de recuperación viaja en la query string: sin él, se filtraría en el `Referer`
 al pedir las fuentes a Google.
+
+---
+
+### Endpoints (2026-09-01)
+
+`GET /api/scrapers` se suma a la lista. Como todo lo demás salvo `/api/health` y el
+flujo de recuperación, exige sesión (`Depends(current_user)`), no toma un solo
+parámetro del cliente y sólo devuelve **agregados** de `listings` —conteos, coberturas
+y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individual. No
+expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
+seguimiento de un asesor no se filtra a otro.
 
 ---
 

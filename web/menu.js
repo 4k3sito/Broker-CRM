@@ -11,6 +11,8 @@
       d: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8' },
     { href: 'tareas.html',   label: 'Tareas',      hint: 'Tablero del equipo',
       d: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11' },
+    { href: 'scrapers.html', label: 'Scrapers',    hint: 'Salud del inventario',
+      d: 'M4 4h16v6H4zM4 14h16v6H4M8 7h.01M8 17h.01' },
     { href: '',              label: 'Reportes',    hint: 'Actividad y cierre', soon: true,
       d: 'M3 3v18h18M7 16V9m5 7V5m5 11v-4' },
   ];

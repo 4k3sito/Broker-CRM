@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="hermes.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
@@ -24,19 +25,16 @@
       <span class="brand-sub">CRM Inmobiliario · México</span>
     </span>
   </a>
-  <nav class="topbar-nav">
-    <a href="index.html" class="active" aria-current="page">Propiedades</a>
-    <a href="clientes.html">Clientes</a>
-    <a href="tareas.html">Tareas</a>
-  </nav>
   <div class="topbar-right">
-    <a class="btn-ghost back-link" href="index.html">&#8592; Volver</a>
+    <a class="btn-ghost back-link" href="index.html">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver al tablero
+    </a>
     <span id="authBox">
-      <a class="btn-csv" href="login.html">Entrar</a>
+      <a class="btn-ghost" href="login.html">Entrar</a>
     </span>
     <span id="userBox" hidden>
-      <span class="count-tag" id="userEmail"></span>
-      <button class="btn-csv" id="logout-btn">Salir</button>
+      <button class="btn-ghost" id="logout-btn">Salir</button>
     </span>
   </div>
 </header>

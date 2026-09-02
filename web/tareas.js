@@ -143,11 +143,14 @@ async function abrirTarea(id) {
 // ── Render ───────────────────────────────────────────────────────────────────
 function pill(txt, activo, onClick, extra = '') {
   const b = document.createElement('button');
-  b.className = `pill${activo ? ' active' : ''}${extra}`;
+  b.className = `pill-line${activo ? ' active' : ''}${extra}`;
   b.innerHTML = txt;
   b.addEventListener('click', onClick);
   return b;
 }
+
+const ICON_CHK = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>`;
+const ICON_COD = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l9-4 9 4v14"/></svg>`;
 
 function tarjeta(t) {
   const p = equipo.find(e => e.id === t.asignado_a);
@@ -160,17 +163,20 @@ function tarjeta(t) {
   art.draggable = true;
   art.innerHTML = `
     <div class="tk-top">
-      <span class="tk-tipo">${esc(t.tipo ?? 'Tarea')}</span>
       <span class="tk-prio p-${t.prioridad}">${t.prioridad}</span>
+      <span class="tk-tipo">${esc(t.tipo ?? 'Tarea')}</span>
     </div>
     <div class="tk-titulo">${esc(t.titulo)}</div>
-    <div class="tk-meta">
-      ${t.listing_id ? `<span class="tk-cod">${esc(t.listing_id)}</span>` : ''}
-      ${t.cliente_nombre ? `<span>${esc(t.cliente_nombre)}</span>` : ''}
+    ${t.listing_id || t.cliente_nombre || t.vence_el ? `<div class="tk-meta">
+      ${t.listing_id ? `<span class="tk-cod">${ICON_COD}${esc(t.listing_id)}</span>` : ''}
+      ${t.cliente_nombre ? `<span class="tk-cod">${esc(t.cliente_nombre)}</span>` : ''}
       ${t.vence_el ? `<span class="tk-vence${tarde ? ' tarde' : ''}">${t.vence_el}</span>` : ''}
-    </div>
+    </div>` : ''}
+    <div class="tk-sep"></div>
     <div class="tk-foot">
-      ${chk.length ? `<span class="tk-chk">${hechas}/${chk.length}</span>` : ''}
+      <span class="tk-marks">
+        ${chk.length ? `<span class="tk-chk${hechas === chk.length ? ' full' : ''}">${ICON_CHK}${hechas}/${chk.length}</span>` : ''}
+      </span>
       <span class="tk-ava${p ? '' : ' sin'}" ${p ? `style="background:${tono(p.id)}"` : ''}
             title="${esc(p?.nombre ?? p?.email ?? 'Sin asignar')}">${p ? iniciales(p) : '—'}</span>
     </div>`;
@@ -202,11 +208,12 @@ function renderTablero(lista) {
     const items = lista.filter(t => t.columna === col.key);
     const div = document.createElement('div');
     div.className = 'kb-col';
-    div.innerHTML = `<div class="kb-head"><span class="kb-dot" style="background:var(--c-${col.key})"></span>${col.label}<span class="kb-n">${items.length}</span></div>`;
+    div.innerHTML = `<div class="kb-head"><span class="kb-dot" style="background:var(--c-${col.key})"></span>` +
+                     `<span>${col.label}</span><span class="kb-n">${items.length}</span></div>`;
     const cont = document.createElement('div');
     cont.className = 'kb-list';
     items.forEach(t => cont.appendChild(tarjeta(t)));
-    if (!items.length) cont.innerHTML = '<div class="kb-empty">Vacío</div>';
+    if (!items.length) cont.innerHTML = '<div class="kb-empty">Suelta tareas aquí</div>';
     div.appendChild(cont);
     // Soltar en la columna mueve la tarea; sin asignado, "asignado" no tiene sentido.
     zonaSoltar(div, id => {
@@ -295,15 +302,31 @@ function renderDirectorio() {
   return dir;
 }
 
-function renderStats(lista) {
-  const n = k => lista.filter(t => t.columna === k).length;
-  const celda = (num, label, color) =>
-    `<div class="stat"><span class="stat-num" style="color:${color}">${num}</span><span class="stat-label">${label}</span></div>`;
-  document.getElementById('statsBar').innerHTML =
-    `<div class="stat stat-main"><span class="stat-num">${lista.length}</span><span class="stat-label">Tareas visibles</span></div>` +
-    COLS.map(c => celda(n(c.key), c.label, `var(--c-${c.key})`)).join('') +
-    celda(lista.filter(t => t.prioridad === 'alta' && t.columna !== 'completado').length,
-          'alta prioridad', 'var(--p-alta)');
+// El panel derecho fijo del mock. Muestra el equipo mientras no haya una tarea
+// abierta; cuando la hay, `renderPanel` lo reemplaza por el detalle.
+function renderEquipoAside() {
+  const aside = document.getElementById('aside');
+  if (abierta) return;                       // el detalle manda sobre el resumen
+  aside.innerHTML = `
+    <div class="tk-aside-head">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Equipo
+      <button class="tk-todo" id="verTodo">Ver todo</button>
+    </div>
+    ${equipo.map(p => `
+      <div class="tk-mini" data-persona="${esc(p.id)}">
+        <span class="tk-ava" style="background:${tono(p.id)}">${iniciales(p)}</span>
+        <span class="tk-mini-n"><strong>${esc(p.nombre ?? p.email)}</strong><small>${esc(p.rol ?? '')}</small></span>
+        <span class="tk-mini-k"><b>${p.abiertas ?? 0}</b><span>activas</span></span>
+        <span class="tk-mini-k"><b>${p.hechas ?? 0}</b><span>hechas</span></span>
+      </div>`).join('') || '<div class="tk-aside-body"><p class="proc-empty">Sin equipo todavía.</p></div>'}`;
+  aside.querySelector('#verTodo')?.addEventListener('click', () => { vista = 'equipo'; render(); });
+  aside.querySelectorAll('.tk-mini').forEach(el => el.addEventListener('click', () => {
+    vista = 'persona'; persona = el.dataset.persona; render();
+  }));
+  // Soltar una tarjeta sobre una persona la asigna, como en el mock.
+  aside.querySelectorAll('.tk-mini').forEach(el =>
+    zonaSoltar(el, id => guardar(id, { asignado_a: el.dataset.persona })));
 }
 
 function opciones(lista, sel, valor = x => x, texto = x => x) {
@@ -311,10 +334,8 @@ function opciones(lista, sel, valor = x => x, texto = x => x) {
 }
 
 function renderPanel() {
-  const side = document.getElementById('side');
-  const scrim = document.getElementById('scrim');
-  if (!abierta) { side.hidden = scrim.hidden = true; return; }
-  side.hidden = scrim.hidden = false;
+  const side = document.getElementById('aside');
+  if (!abierta) return renderEquipoAside();
 
   const nueva = abierta === 'nueva';
   const t = nueva
@@ -325,10 +346,12 @@ function renderPanel() {
 
   const chk = checklist(t.descripcion);
   side.innerHTML = `
-    <div class="tk-side-head">
-      <h2>${nueva ? 'Nueva tarea' : esc(t.titulo)}</h2>
-      <button class="tk-close" id="tkClose" title="Cerrar">&times;</button>
+    <div class="tk-aside-head">
+      ${nueva ? 'Nueva tarea' : 'Detalle'}
+      <button class="tk-x" id="tkClose" title="Cerrar">&times;</button>
     </div>
+    <div class="tk-aside-body">
+    ${nueva ? '' : `<h2>${esc(t.titulo)}</h2>`}
     <div><label for="f-titulo">Título</label><input id="f-titulo" value="${esc(t.titulo)}" placeholder="Qué hay que hacer"></div>
     <div class="tk-row">
       <div><label for="f-tipo">Tipo</label><select id="f-tipo">${opciones(TIPOS, t.tipo)}</select></div>
@@ -377,7 +400,8 @@ function renderPanel() {
         <input id="f-com" placeholder="Escribe un comentario">
         <button class="btn-solid" id="tkCom">Enviar</button>
       </div>
-    </div>`}`;
+    </div>`}
+    </div>`;
 
   const val = id => document.getElementById(id).value.trim();
   const cuerpo = () => ({
@@ -471,25 +495,23 @@ function render() {
       persona === p.id, () => { persona = p.id; render(); })));
   }
 
-  renderStats(lista);
   const main = document.getElementById('vista');
   main.innerHTML = '';
   main.appendChild(vista === 'equipo' ? renderEquipo(lista)
                  : vista === 'persona' ? renderPersona(lista)
                  : renderTablero(lista));
+  renderEquipoAside();
   renderPanel();
 }
 
 // ── Arranque ─────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', e => { q = e.target.value; render(); });
 document.getElementById('nueva-btn').addEventListener('click', () => { abierta = 'nueva'; coments = []; previo = false; renderPanel(); });
-document.getElementById('scrim').addEventListener('click', () => { abierta = null; renderPanel(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && abierta) { abierta = null; renderPanel(); } });
 
 API.me().then(u => {
   document.getElementById('authBox').hidden = true;
   document.getElementById('userBox').hidden = false;
-  document.getElementById('userEmail').textContent = u.email;
   document.getElementById('logout-btn').addEventListener('click', async () => {
     await API.logout();
     location.href = 'login.html';

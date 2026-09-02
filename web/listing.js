@@ -97,6 +97,7 @@ function adaptListing(l) {
     descripcion: l.description ?? null,
     features:    l.features ?? [],
     brokerName:  l.broker_name ?? null,
+    zona:        l.zona ?? null,
   };
 }
 
@@ -182,7 +183,7 @@ function seguimientoHtml() {
         <option value="">Agregar cliente al seguimiento&#8230;</option>
         ${disponibles.map(c => `<option value="${c.id}">${escAttr(c.nombre)}</option>`).join('')}
       </select>
-      <button class="btn-csv" id="proc-add-btn">Agregar</button>
+      <button class="btn-solid" id="proc-add-btn">Agregar</button>
     </div>`;
   }
 
@@ -311,7 +312,7 @@ function fichaSectionHtml() {
   }
   if (!ficha) {
     return `<div class="detail-section"><h2>Ficha del asesor</h2>
-      <button class="btn-csv" id="ficha-create">&#43; Crear ficha del asesor</button></div>`;
+      <button class="btn-clear" id="ficha-create">&#43; Crear ficha del asesor</button></div>`;
   }
   const fotos = ficha.fotos ?? [];
   return `<div class="detail-section">
@@ -350,30 +351,43 @@ function render() {
     <div class="detail-photo${l.fotos.length ? '' : ' detail-photo-empty'}">
       ${l.fotos.length ? `<img id="mainPhoto" src="${l.fotos[0]}" alt="">` : ICON_BUILDING}
       <span class="badge-src ${badge}">${blabel}</span>
-      ${l.size ? `<span class="badge-size">${Math.round(l.size).toLocaleString('es-MX')} M²</span>` : ''}
+      ${l.size ? `<span class="badge-size">${Math.round(l.size).toLocaleString('es-MX')} m&#178;</span>` : ''}
     </div>
     ${l.fotos.length > 1 ? `<div class="detail-thumbs">${l.fotos.slice(0, 4).map((f, i) =>
       `<button class="thumb ${i === 0 ? 'active' : ''}" data-i="${i}"><img src="${f}" alt=""></button>`).join('')}</div>` : ''}`;
 
   const sufijo = l.transaccion === 'Renta' ? 'MXN / mes' : 'MXN';
+  // La estrella comparte renglón con el precio (mock): un solo bloque de cabecera
+  // en la barra lateral, en vez de un botón ancho que competía con el CTA.
+  const starBtn = `<button class="detail-star ${l.starred ? 'on' : ''}" id="detailStar"
+      title="${l.starred ? 'Quitar destacado' : 'Marcar destacado'}" aria-pressed="${l.starred}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="${l.starred ? 'currentColor' : 'none'}"
+           stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+        <polygon points="12 2.6 15.1 9 22 10 17 14.9 18.2 21.8 12 18.5 5.8 21.8 7 14.9 2 10 8.9 9"/>
+      </svg></button>`;
   const priceHtml = p
-    ? `<div class="detail-price">$${p.n}<span class="currency">${sufijo}</span></div>` +
+    ? `<div class="detail-price">$${p.n}<span class="currency">${sufijo}</span>${starBtn}</div>` +
       (p.nota ? `<div class="card-ppm">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</div>` : '') +
       altPriceHtml(l.alt)
-    : `<div class="detail-price"><span class="no-price">Sin precio</span></div>`;
+    : `<div class="detail-price"><span class="no-price">Sin precio</span>${starBtn}</div>`;
 
   // Si el precio ya viene por m², repetir el unitario aquí sería decirlo dos veces.
   const ppmHtml = (!l.porM2 && l.precio && l.size)
-    ? `<div class="card-ppm">$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / M²</div>` : '';
+    ? `<div class="card-ppm">$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / m²</div>` : '';
 
   const statusOptions = STATUSES.map(st =>
     `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`).join('');
 
   // Ficha técnica: el canvas la quiere como cifras en Bodoni, no como lista de pares.
+  // Sólo lo que el esquema guarda de verdad. El mock pinta además Frente, Fondo,
+  // Estacionamiento, Baños y Antigüedad: ninguna de esas columnas existe hoy, y
+  // una ficha con celdas vacías miente peor que una ficha corta.
   const facts = [
-    l.size ? ['Superficie', `${l.size} m²`] : null,
+    l.size ? ['Superficie', `${Math.round(l.size).toLocaleString('es-MX')} m²`] : null,
     l.tipo ? ['Tipo', l.tipo] : null,
     l.transaccion ? ['Operación', l.transaccion] : null,
+    l.zona ? ['Municipio', l.zona] : null,
+    l.fuente ? ['Fuente', FUENTE_CONFIG[l.fuente]?.label ?? l.fuente] : null,
     l.codigo ? ['Código', l.codigo] : null,
   ].filter(Boolean);
   const factsHtml = facts.length
@@ -389,7 +403,7 @@ function render() {
   document.getElementById('detail').innerHTML = `
     <article class="detail-content">
       <nav class="detail-crumb" aria-label="Ruta">
-        <a href="index.html">Propiedades</a><span>/</span><strong>${escAttr(l.codigo ?? l.id)}</strong>
+        <a href="index.html">Listados</a><span>/</span><strong>${escAttr(l.codigo ?? l.id)}</strong>
       </nav>
       <div class="detail-gallery">${galleryHtml}</div>
       <div class="detail-heading">
@@ -417,11 +431,8 @@ function render() {
           <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
           <select class="status-select s-${l.status}" id="detailStatus">${statusOptions}</select>
         </div>
-        <button class="btn-star-wide ${l.starred ? 'on' : ''}" id="detailStar">
-          ${l.starred ? '&#9733; Destacado' : '&#9734; Marcar destacado'}
-        </button>
         <div class="detail-links">
-          ${l.url      ? `<a href="${l.url}" class="btn-solid" target="_blank" rel="noopener">Anuncio original ${ICON_EXTERNAL}</a>` : ''}
+          ${l.url      ? `<a href="${l.url}" class="btn-solid" target="_blank" rel="noopener">Ver anuncio original ${ICON_EXTERNAL}</a>` : ''}
           ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="btn-outline" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
         </div>
       </div>
@@ -483,7 +494,6 @@ API.me()
     currentUser = user;
     document.getElementById('authBox').hidden = true;
     document.getElementById('userBox').hidden = false;
-    document.getElementById('userEmail').textContent = user.email;
 
     if (!id) {
       document.getElementById('detail').innerHTML =

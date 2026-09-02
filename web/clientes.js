@@ -83,25 +83,20 @@ function statCell(n, label, color) {
          `<span class="stat-label">${label}</span></div>`;
 }
 
+// Los KPI del encabezado. Cuatro cifras Bodoni separadas por filete, a la derecha
+// del título — no la fila de stats a lo ancho que tenía antes.
 function renderStatsGlobal(filtrados) {
   const procs = filtrados.flatMap(c => c.proceso ?? []);
-  const aprob = cuenta(procs, 'aprobado');
-  const rech  = cuenta(procs, 'rechazado');
-  const pend  = cuenta(procs, 'presentado');
-  const box = document.getElementById('statsbar');
-  box.hidden = false;
-  box.innerHTML =
-    `<div class="stat stat-main"><span class="stat-num">${filtrados.length}</span>` +
-    `<span class="stat-label">Clientes activos</span></div>` +
-    statCell(procs.length, 'propuestas', 'var(--ink)') +
-    statCell(pend,  'pendientes', PROC_COLOR.presentado) +
-    statCell(aprob, 'aprobadas',  PROC_COLOR.aprobado) +
-    statCell(rech,  'rechazadas', PROC_COLOR.rechazado) +
-    statCell(tasaAceptacion(aprob, rech), 'aceptación', 'var(--accent)');
+  const kpi = (n, label, color) =>
+    `<div class="pg-kpi"><span class="pg-kpi-n" style="color:${color}">${n}</span>` +
+    `<span class="pg-kpi-l">${label}</span></div>`;
+  document.getElementById('kpis').innerHTML =
+    kpi(filtrados.length, 'clientes', 'var(--ink)') +
+    kpi(cuenta(procs, 'presentado'), 'en proceso', PROC_COLOR.presentado) +
+    kpi(cuenta(procs, 'aprobado'),   'aprobados',  PROC_COLOR.aprobado) +
+    kpi(cuenta(procs, 'rechazado'),  'rechazados', PROC_COLOR.rechazado);
 }
 
-// Los contadores de las píldoras cuentan clientes, no procesos: dicen a cuántos
-// llegarías si cambiaras de estado, con la búsqueda ya aplicada.
 function renderPillCounts() {
   const base = clientes.filter(c => !searchQ || norm(c.nombre).includes(norm(searchQ)));
   document.querySelectorAll('.pill-count[data-count]').forEach(el => {
@@ -129,41 +124,49 @@ function campoRow(c, campo, label, placeholder) {
   </div>`;
 }
 
-function clienteStats(c) {
-  const procs = c.proceso ?? [];
-  const a = cuenta(procs, 'aprobado');
-  const r = cuenta(procs, 'rechazado');
-  const p = cuenta(procs, 'presentado');
-  const celda = (n, label, color) =>
-    `<div><strong style="color:${color}">${n}</strong><span>${label}</span></div>`;
-  return `<div class="cliente-stats">
-    ${celda(procs.length, 'propuestas', 'var(--ink)')}
-    ${celda(a, 'aprob.', PROC_COLOR.aprobado)}
-    ${celda(r, 'rech.',  PROC_COLOR.rechazado)}
-    ${celda(p, 'pend.',  PROC_COLOR.presentado)}
-    ${celda(tasaAceptacion(a, r), 'aceptación', 'var(--accent)')}
+// Etapa del cliente: la del proceso más avanzado que tenga. No hay columna
+// `etapa` en la base — el mock la pinta como dato propio, aquí se deriva.
+function etapaDe(c) {
+  const st = (c.proceso ?? []).map(p => p.status);
+  if (st.includes('aprobado')) return 'aprobado';
+  if (st.includes('presentado')) return 'presentado';
+  if (st.includes('rechazado')) return 'rechazado';
+  return null;
+}
+
+// Iniciales para el avatar: dos palabras como mucho, sin emoji ni foto.
+const iniciales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+function campoRow(c, campo, label, placeholder) {
+  return `<div class="cliente-field">
+    <span>${label}</span>
+    <input class="cli-in" data-f="${campo}" placeholder="${placeholder}" value="${escAttr(c[campo])}">
   </div>`;
 }
 
 function clienteCard(c) {
   const todos = c.proceso ?? [];
   const procs = todos.filter(p => filterStatus === 'all' || p.status === filterStatus);
-  const aviso = todos.length === 0
-    ? `<div class="cliente-warn">${ICON_WARN}Sin propuestas presentadas</div>` : '';
+  const etapa = etapaDe(c);
+  const pend = cuenta(todos, 'presentado');
   return `<article class="cliente-card" data-id="${c.id}">
     <div class="cliente-head">
-      <input class="cliente-nombre cli-in" data-f="nombre" value="${escAttr(c.nombre)}">
+      <span class="cliente-ava">${escAttr(iniciales(c.nombre))}</span>
+      <div class="cliente-id">
+        <input class="cliente-nombre cli-in" data-f="nombre" value="${escAttr(c.nombre)}">
+        <input class="cliente-sub cli-in" data-f="empresa" placeholder="Empresa" value="${escAttr(c.empresa)}">
+      </div>
+      ${etapa ? `<span class="cliente-etapa status-${etapa}">${cap(etapa)}</span>` : ''}
       <button class="cliente-del" title="Eliminar cliente">&times;</button>
     </div>
     ${campoRow(c, 'contacto', 'Contacto', 'Teléfono o correo')}
-    ${campoRow(c, 'empresa', 'Empresa', 'Empresa')}
     ${campoRow(c, 'requerimientos', 'Qué busca', 'Requerimientos')}
-    ${aviso}
-    ${clienteStats(c)}
+    <div class="card-sep"></div>
+    <div class="cliente-foot">
+      <span class="cliente-chip">${todos.length} ${todos.length === 1 ? 'inmueble' : 'inmuebles'}</span>
+      <span class="cliente-pend${pend ? '' : ' cero'}">${pend ? `${pend} pendiente${pend === 1 ? '' : 's'}` : 'sin pendientes'}</span>
+    </div>
     <div class="cliente-procs">
-      <div class="cliente-procs-label">
-        <span>Procesos</span><span class="proc-count">${todos.length}</span>
-      </div>
       ${procs.length ? procs.map(procesoRow).join('')
         : `<div class="proc-empty">${todos.length
              ? 'Sin procesos con este estatus'
@@ -173,9 +176,9 @@ function clienteCard(c) {
 }
 
 function render() {
-  const main = document.getElementById('clientes');
+  const main = document.getElementById('clientesBody');
   if (!currentUser) {
-    main.innerHTML = `<p class="empty">Inicia sesión para ver y administrar tus clientes.</p>`;
+    main.innerHTML = `<p class="pg-empty">Inicia sesión para ver y administrar tus clientes.</p>`;
     return;
   }
   const filtrados = clientes.filter(pasaFiltro);
@@ -187,8 +190,8 @@ function render() {
   renderStatsGlobal(filtrados);
 
   if (!filtrados.length) {
-    main.innerHTML = `<p class="empty">${clientes.length
-      ? 'Sin clientes para este filtro'
+    main.innerHTML = `<p class="pg-empty">${clientes.length
+      ? 'Ningún cliente coincide con la búsqueda.'
       : 'Aún no tienes clientes — crea el primero con “+ Nuevo cliente”'}</p>`;
     return;
   }
@@ -216,9 +219,9 @@ function openNewClient() {
 // ── Events ───────────────────────────────────────────────────────────────────
 
 document.getElementById('filterbar').addEventListener('click', e => {
-  const pill = e.target.closest('.pill');
+  const pill = e.target.closest('.pill-line');
   if (!pill) return;
-  document.querySelectorAll('.pill[data-status]').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.pill-line[data-status]').forEach(p => p.classList.remove('active'));
   pill.classList.add('active');
   filterStatus = pill.dataset.status;
   render();
@@ -237,7 +240,6 @@ API.me().then(async user => {
   currentUser = user;
   document.getElementById('authBox').hidden = true;
   document.getElementById('userBox').hidden = false;
-  document.getElementById('userEmail').textContent = user.email;
   await loadClientes();
   render();
 }).catch(err => console.error('No se pudo validar la sesión:', err));

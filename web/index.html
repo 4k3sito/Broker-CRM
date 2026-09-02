@@ -3,15 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Propiedades · OfficeLab</title>
+<meta name="theme-color" content="#201333">
+<title>Propiedades &#183; OfficeLab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="hermes.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
-<!-- TOPBAR -->
 <header class="topbar">
   <a class="brand-group" href="index.html" aria-label="OfficeLab, propiedades">
     <svg class="brand-mark" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -24,80 +25,78 @@
       <span class="brand-sub">CRM Inmobiliario &#183; M&#233;xico</span>
     </span>
   </a>
-  <nav class="topbar-nav">
-    <a href="index.html" class="active" aria-current="page">Propiedades</a>
-    <a href="clientes.html">Clientes</a>
-    <a href="tareas.html">Tareas</a>
-  </nav>
+
   <div class="topbar-search">
     <div class="search-box">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <span class="street-chip" id="searchChip" style="display:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <span class="street-chip" id="searchChip" hidden>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         <span id="searchChipText"></span>
         <span class="street-chip-close" id="searchChipClose">&times;</span>
       </span>
-      <input type="text" id="searchInput" placeholder="BUSCAR DIRECCI&#211;N O T&#205;TULO">
+      <input type="text" id="searchInput" placeholder="Buscar por direcci&#243;n o t&#237;tulo&#8230;">
     </div>
     <div class="search-suggestions" id="searchSuggestions"></div>
   </div>
+
+  <nav class="topbar-nav">
+    <a href="index.html" class="active" aria-current="page">Inmuebles</a>
+    <a href="clientes.html">Clientes</a>
+    <a href="tareas.html">Tareas</a>
+    <a href="scrapers.html">Scrapers</a>
+  </nav>
+
   <div class="topbar-right">
+    <span class="topbar-rule" aria-hidden="true">/\-_=+|&lt;&#183;~:*-/</span>
     <span class="count-tag"><strong id="countNum">0</strong> / <span id="countTotal">0</span></span>
-    <button class="btn-csv" id="export-btn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      CSV
-    </button>
     <span id="authBox">
       <a class="btn-ghost" href="login.html">Entrar</a>
     </span>
     <span id="userBox" hidden>
-      <span class="count-tag" id="userEmail"></span>
       <button class="btn-ghost" id="logout-btn">Salir</button>
     </span>
   </div>
 </header>
 
-<!-- FILTER BAR -->
-<nav class="filterbar" id="filterbar">
-  <div class="filter-group">
-    <span class="filter-group-label">Estado</span>
-    <button class="pill active" data-group="status" data-val="Todos">Todos<span class="pill-count"></span></button>
-    <button class="pill" data-group="status" data-val="Nuevo">Nuevo<span class="pill-count"></span></button>
-    <button class="pill" data-group="status" data-val="Revisado">Revisado<span class="pill-count"></span></button>
-    <button class="pill" data-group="status" data-val="Contactado">Contactado<span class="pill-count"></span></button>
-    <button class="pill" data-group="status" data-val="Rentado">Rentado<span class="pill-count"></span></button>
-    <button class="pill" data-group="status" data-val="Descartado">Descartado<span class="pill-count"></span></button>
+<!-- Sentencia editable: un token por filtro, la paleta los agrega. -->
+<div class="qbar" id="qbar">
+  <div class="qbar-box" id="qbarBox">
+    <span class="qbar-label">Mostrar</span>
+    <span id="tokens"></span>
+    <button class="qbar-add" id="qbar-add">+ filtro <span class="qbar-kbd">&#8984;K</span></button>
+    <button class="qbar-clear" id="qbar-clear" hidden>Limpiar</button>
   </div>
-  <div class="filter-group" id="ciudad-group"></div>
-  <div class="filter-group" id="fuente-group"></div>
-  <div class="filter-group">
-    <button class="pill" data-group="starred" data-val="Destacados">&#9733; Destacados</button>
-    <button class="pill pill-dashed" id="price-toggle">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 7V3M20 21v-5M20 11V3M2 14h4M10 7h4M18 13h4"/></svg>
-      Precio
-    </button>
-  </div>
-</nav>
+  <div class="qbar-sentence" id="qbarSentence"></div>
 
-<!-- ADVANCED PANEL -->
-<div class="price-panel" id="advPanel" hidden>
-  <div>
-    <label>Precio (MXN)</label>
-    <div class="price-inputs">
-      <input type="number" id="priceMin" placeholder="M&#205;N">
-      <span style="color:var(--faint)">&mdash;</span>
-      <input type="number" id="priceMax" placeholder="M&#193;X">
-    </div>
+  <div class="qpop qpop-pal" id="palette" hidden>
+    <input class="qpop-in" id="palInput" placeholder="Buscar filtro: precio, radio, colonia, fuente&#8230;">
+    <div id="palList"></div>
   </div>
-  <button class="btn-clear" id="price-clear">Limpiar</button>
+
+  <div class="qpop qpop-ed" id="editor" hidden></div>
 </div>
 
-<!-- STATS BAR -->
+<div class="statebar" id="statebar">
+  <span class="statebar-label">Estado</span>
+  <span id="statusPills"></span>
+  <span class="statebar-sep"></span>
+  <button class="pill" id="pill-starred" data-group="starred">
+    <span class="pill-dot" style="background:var(--accent)"></span>Destacados<span class="pill-count" id="starredCount">0</span>
+  </button>
+  <button class="btn-clear" id="export-btn">Exportar CSV</button>
+</div>
+
 <div class="statsbar" id="statsBar"></div>
 
-<!-- GRID -->
 <main class="grid" id="grid"></main>
 <div class="pagination" id="pagination"></div>
+
+<footer class="appfoot">
+  <span>OFFICELAB v0.4</span><span>&#183;</span>
+  <span id="footFuentes">&#8212;</span><span>&#183;</span>
+  <span id="footCount">0 RESULTADOS</span>
+  <span class="appfoot-rule" aria-hidden="true">=+|&lt;&#183;~:*</span>
+</footer>
 
 <script src="api.js"></script>
 <script src="menu.js"></script>
