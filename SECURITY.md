@@ -6,7 +6,7 @@ contra el sitio en producción y qué sigue abierto.
 **Se actualiza en el mismo commit que el cambio.** Si tocas auth, sesiones, la API,
 Caddy o el despliegue y este archivo no cambia, el cambio está incompleto.
 
-- Última revisión completa: **2026-08-28**
+- Última revisión completa: **2026-08-28** (adición del cron de scrapers: 2026-09-10)
 - Sitio en producción: `http://31.220.56.100` (VPS propio, sin dominio todavía)
 - Alcance: cuentas de asesores, CRM (clientes, fichas, procesos) e inventario scrapeado
 
@@ -226,6 +226,12 @@ No queda rastro de logins exitosos ni de cambios de contraseña. `reset_token` g
 - **Reset:** `main.py resetlink <correo>`. Entregar por un canal que el destinatario
   controle. El link vence en 30 minutos.
 - **Baja:** `main.py deluser <correo>` — arrastra su CRM en cascada.
+- **Cron de scrapers (2026-09-10):** corre como **root** desde el crontab del host y lee
+  `scrapers/.env` (credenciales del proxy residencial) y `vps/.env` (`DATABASE_URL`). No
+  abre puertos ni toca auth, pero hereda H1: quien entre por SSH como root se lleva ambas.
+  El script (`vps/cron.sh`) valida el nombre de la fuente contra una lista blanca antes de
+  borrar nada — el `rm` del JSONL es lo único destructivo que hace.
+
 - **Cambios de esquema:** `vps/schema.sql` está montado como bind mount **de archivo**.
   `git pull` crea un inode nuevo y el contenedor sigue leyendo el viejo. Hay que
   `docker compose cp schema.sql db:/tmp/` y correr `psql -f` desde ahí. Los mounts de

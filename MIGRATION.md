@@ -68,10 +68,42 @@ Cada fase se entrega y se verifica sola. No se empieza la siguiente hasta que la
 - **Fase 2b — Datos.** Endpoints de listings, zonas y CRM. ✅ *entregada y verificada*
 - **Fase 3 — Frontend.** Cambiar los 6 JS de `supabase-js` a `fetch` contra la API (`credentials: 'same-origin'`), y `COOKIE_SECURE=1` en cuanto haya HTTPS. Caddy sirve
   la raíz del repo. Dominio + TLS. `adaptListing()` puede desaparecer si la API ya devuelve el shape final.
-- **Fase 4 — Cron.** Imagen de scrapers (patchright + xvfb para Pincali), `PROXIES` residencial,
-  systemd timer → `scrape → propdb load`. Alerta si una fuente cae.
+- **Fase 4 — Cron.** `vps/cron.sh` + crontab de root: una fuente por noche, `scrape → propdb load`.
+  ✅ *entregada y verificada el 2026-09-10* — ver abajo.
 - **Fase 5 — Corte.** Apagar Pages y borrar el proyecto de Supabase. *(La migración de datos ya
   se hizo por adelantado — ver abajo; falta solo el corte.)*
+
+## Fase 4: el cron de scrapers (2026-09-10)
+
+Ni imagen de Docker ni systemd timer: el venv de `scrapers/` ya estaba en el VPS con el
+proxy residencial configurado, así que la fase entera es un script y seis líneas de
+crontab. `vps/cron.sh <fuente>` hace el ciclo completo de una fuente:
+
+```
+07:00 UTC (01:00 Monterrey)   lun inmuebles24 · mar lamudi · mié vivanuncios
+                              jue mercadolibre · vie pincali · sáb liveness
+```
+
+- **Una sola corrida a la vez** (`flock` no bloqueante). Dos scrapers en paralelo se
+  pelean los 2 vCPU y el ancho del proxy, que se paga por GB. Si una se pasa de la noche,
+  la siguiente se salta y lo deja escrito en su log.
+- **Tope duro de 6 h** (`timeout`, ajustable con `TL=`). Lamudi, la más lenta, tardó ~5 h.
+  Aunque el tope la corte, lo que alcanzó a escribir se carga: el upsert es idempotente.
+- **Barrido fresco:** se borran `data/<fuente>.jsonl` y su `.done` antes de empezar. El
+  `.done` es el checkpoint de reanudación — sin borrarlo el scraper cree que ya terminó
+  y baja cero. El JSONL es scratch; lo bueno ya vive en Postgres.
+- **Logs** en `scrapers/logs/<fuente>-<fecha>.log`, se borran solos a los 30 días.
+- `vps/cron.sh selfcheck` verifica el entorno (venv, `.env`, `DATABASE_URL`, los cinco
+  scripts) sin red ni base. Es lo que hay que correr después de tocar el script.
+
+**Costo:** cada barrido nacional mueve 430–690 MB por el proxy residencial (lo mide el
+propio scraper), ~2.5 GB a la semana. Para bajarlo, `inmuebles24_scraper.py` acepta
+`--days 7` (sólo lo publicado en la semana); las otras cuatro fuentes no tienen delta.
+
+**Fuera del cron a propósito:** `pincali_dual.py --fetch`. El WAF de Pincali responde 202
+con un desafío a las IPs de datacenter y necesita Chrome headful — sigue siendo manual
+desde una IP residencial, y `--apply` desde el VPS. Y la alerta de "una fuente cayó" no
+existe: `scrapers.html` ya muestra la salud por fuente y nadie ha pedido que suene.
 
 ## Migración de datos: hecha (2026-08-27)
 
