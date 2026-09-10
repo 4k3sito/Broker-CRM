@@ -22,6 +22,8 @@ Idioma de la interfaz y de todos los textos al usuario: **español**. Moneda: MX
 VPS  /srv/officelab            el repo, en vps-migration
      vps/docker-compose.yml    caddy (:80/:443) + api (:8000) + db (postgis, :5432)
                                api y db sólo en 127.0.0.1; Caddy es el único camino
+     vps/cron.sh               un scraper por noche (crontab de root), logs en
+                               scrapers/logs/<fuente>-<fecha>.log
 ```
 
 **Desplegar el frontend** = `git push` + `git pull` en el VPS. Caddy monta `../web` como
@@ -44,13 +46,14 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   repite ese marcado.
 - **`api/main.py`** — FastAPI. Auth propia (scrypt de la stdlib + sesiones opacas en la
   DB), endpoints de listings/zonas/CRM/tareas, `GET /api/scrapers` (agregados de
-  `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers, porque las
-  corridas pasan en la máquina del asesor), y un CLI: `selfcheck`, `lsusers`, `adduser`,
+  `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers), y un CLI: `selfcheck`, `lsusers`, `adduser`,
   `passwd`, `resetlink`, `deluser`. `python main.py selfcheck` corre sin base de datos.
 - **`scrapers/`** — cinco scrapers nacionales (Inmuebles24, Lamudi, Vivanuncios,
   MercadoLibre, Pincali) sobre `stealth_scraper.py` (curl_cffi/camoufox),
   `scrape_utils.py` y `navent_serp.py`. `propdb.py` carga los JSONL a PostGIS.
   Lee `scrapers/SCRAPING_PLAYBOOK.md` §11 antes de escribir un sexto scraper.
+  **Corren solos en el VPS**: `vps/cron.sh <fuente>` + el crontab de root, una fuente por
+  noche a las 07:00 UTC (lun→vie) y `liveness` el sábado. Ver MIGRATION.md "Fase 4".
 
 **Nunca commitear** `scrapers/data/`, `scrapers/.fixtures/`, `scrapers/.env` ni `vps/.env`.
 
@@ -86,6 +89,12 @@ cd scrapers && python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python pincali_scraper.py --status     # salud de una corrida en vuelo
 .venv/bin/python pincali_scraper.py --selfcheck  # ESTE es el test suite
 .venv/bin/python propdb.py selfcheck             # el del cargador, sin DB
+
+# Cron (en el VPS)
+ssh officelab 'crontab -l'                       # el calendario de la semana
+ssh officelab '/srv/officelab/vps/cron.sh selfcheck'
+ssh officelab 'tail -3 /srv/officelab/scrapers/logs/lamudi-*.log'
+ssh officelab 'TL=600 /srv/officelab/vps/cron.sh lamudi'   # forzar una corrida corta
 ```
 
 `--selfcheck` **es la suite de pruebas** de los scrapers: córrelo después de tocar
