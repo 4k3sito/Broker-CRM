@@ -100,6 +100,36 @@ crontab. `vps/cron.sh <fuente>` hace el ciclo completo de una fuente:
 propio scraper), ~2.5 GB a la semana. Para bajarlo, `inmuebles24_scraper.py` acepta
 `--days 7` (sólo lo publicado en la semana); las otras cuatro fuentes no tienen delta.
 
+### El control de calidad (`scrapers/qa.py`)
+
+Corre al final de cada corrida y sólo habla cuando algo salió mal. Dos capas, y el
+modelo va en la de en medio:
+
+1. **Números, sin modelo.** ¿Se cargó algo *hoy*? ¿Cayó a la mitad contra la corrida
+   anterior? ¿Menos de la mitad de las filas traen precio? Para saber que cero filas es
+   un desastre no hace falta un LLM. La primera pregunta es la que se veía sana sin
+   querer: si el portal bloquea la corrida entera no se escribe ninguna fila y las de la
+   semana pasada siguen ahí — por eso se compara la **fecha** de la última carga, no
+   sólo el conteo.
+2. **Hermes, para el criterio.** Recibe el `--audit` de la fuente, los números de las
+   dos últimas corridas y el final del log, y contesta `VEREDICTO` + `MOTIVO`. Es la
+   capa que el playbook §8 pide hacer con el ojo —*"a shard with zero rows carrying its
+   own name did not fail, it silently scraped somewhere else"*— y que nadie iba a hacer
+   un martes a las 3 de la mañana. Se queda el peor de los dos veredictos.
+
+**El aviso es una tarjeta en el tablero del equipo** (`tarea`, tipo `Scraper`, sin
+asignar, alta si es ROTO). Si la fuente sigue rota la semana siguiente **comenta la
+tarjeta abierta en vez de crear otra**: cinco tarjetas iguales es como se aprende a
+ignorar un tablero. Si se recupera, también lo comenta. Sin Telegram ni correo: el
+canal es el que el equipo ya abre.
+
+Hermes ya estaba instalado en el VPS y autenticado contra DeepSeek; el costo por
+corrida es despreciable al lado de los ~500 MB de proxy que cuesta el barrido. Se le
+llama con `-t memory --ignore-rules` **por seguridad, no por ahorro** — ver H6 en
+`SECURITY.md`: su modo `-z` trae shell de root por defecto y el insumo lleva texto
+escrito por terceros. `--ignore-rules` además evita que se auto-inyecte el `AGENTS.md`
+de julio, que describe un sistema que ya no existe.
+
 **Fuera del cron a propósito:** `pincali_dual.py --fetch`. El WAF de Pincali responde 202
 con un desafío a las IPs de datacenter y necesita Chrome headful — sigue siendo manual
 desde una IP residencial, y `--apply` desde el VPS. Y la alerta de "una fuente cayó" no

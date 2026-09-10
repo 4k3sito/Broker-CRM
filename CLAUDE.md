@@ -54,6 +54,9 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   Lee `scrapers/SCRAPING_PLAYBOOK.md` §11 antes de escribir un sexto scraper.
   **Corren solos en el VPS**: `vps/cron.sh <fuente>` + el crontab de root, una fuente por
   noche a las 07:00 UTC (lun→vie) y `liveness` el sábado. Ver MIGRATION.md "Fase 4".
+  `qa.py <fuente>` cierra cada corrida: números primero (sin modelo) y `hermes` para el
+  criterio; si algo salió mal deja una tarjeta en el tablero de tareas. **Hermes se llama
+  siempre con `-t memory`** — sin eso trae shell de root (H6 en SECURITY.md).
 
 **Nunca commitear** `scrapers/data/`, `scrapers/.fixtures/`, `scrapers/.env` ni `vps/.env`.
 
@@ -95,6 +98,8 @@ ssh officelab 'crontab -l'                       # el calendario de la semana
 ssh officelab '/srv/officelab/vps/cron.sh selfcheck'
 ssh officelab 'tail -3 /srv/officelab/scrapers/logs/lamudi-*.log'
 ssh officelab 'TL=600 /srv/officelab/vps/cron.sh lamudi'   # forzar una corrida corta
+.venv/bin/python qa.py lamudi --dry              # el veredicto, sin tocar el tablero
+.venv/bin/python qa.py --selfcheck               # el del control de calidad, sin DB
 ```
 
 `--selfcheck` **es la suite de pruebas** de los scrapers: córrelo después de tocar

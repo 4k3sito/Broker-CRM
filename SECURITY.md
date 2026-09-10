@@ -6,7 +6,7 @@ contra el sitio en producción y qué sigue abierto.
 **Se actualiza en el mismo commit que el cambio.** Si tocas auth, sesiones, la API,
 Caddy o el despliegue y este archivo no cambia, el cambio está incompleto.
 
-- Última revisión completa: **2026-08-28** (adición del cron de scrapers: 2026-09-10)
+- Última revisión completa: **2026-08-28** (cron de scrapers y su control de calidad: 2026-09-10)
 - Sitio en producción: `http://31.220.56.100` (VPS propio, sin dominio todavía)
 - Alcance: cuentas de asesores, CRM (clientes, fichas, procesos) e inventario scrapeado
 
@@ -191,6 +191,26 @@ CSP tiene que permitir estilos inline. Reduce la protección contra XSS inyectad
 datos de scraping (títulos, direcciones).
 
 **Arreglo:** cambiar esos `style=` por clases CSS por estado y quitar `unsafe-inline`.
+
+### H6 — El agente de IA del VPS trae shell de root por defecto · **medio**
+
+`hermes` (Nous Research, `/usr/local/bin/hermes`) está instalado como root con los
+toolsets `terminal`, `file`, `code_execution`, `browser` y `computer_use` **habilitados**,
+y su modo de una sola pregunta (`-z`) los usa sin pedir aprobación. Medido el 2026-09-10:
+`hermes --cli -z "corre el comando id"` devolvió `uid=0(root)`. `-t ""` **no** los apaga.
+
+Por qué importa aquí: lo que `qa.py` le da a leer incluye texto que escribieron los
+portales (los `location` de los anuncios). Sin restringir, la cadena es
+anuncio ajeno → JSONL → auditoría → prompt → shell de root.
+
+**Mitigado en el uso del pipeline, no en la instalación.** `qa.py` llama a hermes con
+`-t memory` (lista blanca — verificado: el mismo prompt contesta "SIN-HERRAMIENTAS")
+y sanea el texto con `limpiar()` antes de armar el prompt. Cualquier *otro* uso de
+hermes en el VPS —interactivo, o un script nuevo— vuelve a estar expuesto.
+
+**Arreglo de raíz:** `hermes tools disable terminal file code_execution` en el VPS, o
+un perfil aparte (`hermes profile create`) sin esas herramientas. No se hizo porque la
+instalación es del usuario y apagarlas le cambia su propio uso interactivo del agente.
 
 ### H5 — Sin registro de auditoría · **bajo**
 
