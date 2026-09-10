@@ -58,6 +58,9 @@ else
     else
         echo "sin datos: el portal bloqueó la corrida entera"; rc=1
     fi
+    # Control de calidad: revisa lo que quedó y, si algo huele mal, deja una tarjeta en
+    # el tablero del equipo. Nunca tumba la corrida — avisar no es parte del trabajo.
+    .venv/bin/python qa.py "$f" || echo "qa: no se pudo revisar la corrida"
     echo "=== $(date -Is) fin $f scrape rc=$rs load rc=$rc"
 fi
 
