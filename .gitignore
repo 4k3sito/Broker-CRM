@@ -17,6 +17,9 @@ graphify-out/
 # Scrapers: salida de corridas y fixtures de terceros — nunca al repo público
 scrapers/data/
 scrapers/.fixtures/
+scrapers/logs/
+scrapers/*.log
+scrapers/.cron.lock
 
 # Restos de builds/experimentos
 .next/
