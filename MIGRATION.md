@@ -97,8 +97,20 @@ crontab. `vps/cron.sh <fuente>` hace el ciclo completo de una fuente:
   scripts) sin red ni base. Es lo que hay que correr después de tocar el script.
 
 **Costo:** cada barrido nacional mueve 430–690 MB por el proxy residencial (lo mide el
-propio scraper), ~2.5 GB a la semana. Para bajarlo, `inmuebles24_scraper.py` acepta
-`--days 7` (sólo lo publicado en la semana); las otras cuatro fuentes no tienen delta.
+propio scraper), salvo Pincali que son ~95 MB (2,462 páginas × 39 KB, medido el
+2026-09-11): ~2.6 GB a la semana. Para bajarlo, `inmuebles24_scraper.py` acepta
+`--days 7` y `pincali_scraper.py` acepta `--since <fecha>` (delta por fecha de alta,
+~120 páginas ≈ 4.7 MB, medido); las otras tres no tienen delta. Se corren completos a
+propósito: el delta no refresca el precio de un anuncio que nadie republica.
+
+**Pincali salía sin proxy y por eso el cron nunca funcionó en el VPS** (2026-09-11).
+`crawl()` forzaba `_pool=[None]` creyendo que el token del WAF estaba atado a la IP que
+lo minteaba. La prueba A/B — mismo token, misma URL, mismo minuto — dice que no: directo
+202, por proxy residencial 200. Desde la IP de datacenter el WAF desafía el 100% de las
+páginas para siempre, así que la corrida del 11-sep minteó 41 tokens en 2.5 h y bajó
+cero. Ahora sale por el proxy como las otras cuatro y `_require_proxy()` mata la corrida
+en el primer segundo si `scrapers/.env` se queda sin `PASSWORD` (`PINCALI_DIRECTO=1` la
+fuerza directa, que es lo correcto desde una IP residencial).
 
 ### El control de calidad (`scrapers/qa.py`)
 

@@ -4,8 +4,9 @@ renta + venta, nacional.
 Single phase, no detail crawl. Every SERP card carries **its own coordinates**
 (`data-lat` / `data-long` / `data-exact-location`) next to a `ld+json`
 `RealEstateListing` with price, floor size, type, city, region and `datePosted`.
-42 cards per page at ~69 KB gzipped = **1.64 KB/listing**, the cheapest of the
-five corpora in this repo — and the only one where the SERP gives coordinates.
+42 cards per page at ~38 KB gzipped = **0.93 KB/listing** (measured 2026-09-11),
+the cheapest of the five corpora in this repo — and the only one where the SERP
+gives coordinates. A full national sweep is 2,462 pages ≈ 95 MB of proxy.
 
 Getting in — the part that is not curl_cffi:
 
@@ -14,9 +15,12 @@ Getting in — the part that is not curl_cffi:
     token for **exactly 300 s** (measured: 178 requests over 299.3 s, then 202).
     Headless Chrome — including `--headless=new` — never gets a token, so the
     mint runs headful under Xvfb (this module re-execs itself under `xvfb-run`
-    when `DISPLAY` is unset). The token is bound to the minting IP, so the sweep
-    runs direct: proxying it would need the browser to mint through the same
-    exit IP, which is not wired up.
+    when `DISPLAY` is unset). The token is **not** bound to the minting IP —
+    measured 2026-09-11: one token, one minute, one URL, and the VPS got 202
+    direct while an Apify residential exit got 200 with that same token. So the
+    browser mints wherever it runs and the sweep leaves through the proxy, which
+    it must: AWS WAF challenges this datacenter IP forever, and the 2.5 h run
+    that believed the binding fetched 0 of 2,462 pages.
 
     Refreshing that token needs `_install`, not `cookies.set`: the server sets
     an `aws-waf-token` of its own, and with two in the jar neither one can be
@@ -88,7 +92,9 @@ PAGE_CAP = 100            # ?page=101 is a hard 404 → 4,200 listings per query
 TOKEN_TTL = 280.0         # the WAF token dies at 300 s; refresh with margin
 # 0 = re-mint and retry at once (the ordinary expired token). A challenge that
 # survives a *fresh* token means something we cannot fix by minting harder, so
-# wait it out in minutes rather than burn the query in fifteen seconds.
+# wait it out in minutes rather than burn the query in fifteen seconds. All four
+# together are 13 min, and a blocked exit IP pays them once per query for nothing
+# — hence the proxy guard below, not a longer ladder here.
 _COOLDOWN = (0, 90, 300, 420)
 # robots.txt asks for 1 s; 1.5 s buys margin without inventing a limit nobody
 # published. Two nationwide attempts died at the 300 s token boundary and looked
@@ -187,6 +193,22 @@ class WafToken:
                            self._minted - started, self.mints)
 
 
+def _require_proxy(scraper: Scraper) -> None:
+    """Refuse to sweep from a bare datacenter IP: AWS WAF challenges it forever.
+
+    The 2026-09-11 cron run burned 2.5 h, minted 41 tokens and fetched nothing
+    because `.env` was never the problem — the code asked for a direct pool. An
+    empty pool is the same failure with a different cause (missing `PASSWORD` in
+    `scrapers/.env`), so it dies here instead of at 07:00 on a Friday.
+    Set `PINCALI_DIRECTO=1` to sweep direct anyway — from a residential IP, which
+    is where this scraper was born, direct works fine and costs no proxy GB."""
+    if os.environ.get("PINCALI_DIRECTO") or any(scraper._pool):
+        return
+    sys.exit("pincali necesita el proxy residencial: scrapers/.env sin PASSWORD "
+             "(o PROXIES vacío). Directo, el WAF desafía el 100% de las páginas. "
+             "PINCALI_DIRECTO=1 para forzar la salida directa de todos modos.")
+
+
 def ensure_display() -> None:
     """Re-exec under Xvfb when there is no display: the mint needs headful
     Chrome, and forgetting the wrapper otherwise fails 20 minutes in."""
@@ -223,15 +245,19 @@ def fetch(scraper: Scraper, token: WafToken, url: str, referer: str = "") -> str
 
     A stale token comes back as HTTP **202** carrying the challenge page — not a
     4xx, so `Scraper.get` sees a perfectly good response. Re-mint and retry;
-    rotating the proxy/TLS identity would not help and would invalidate the
-    token's IP binding.
+    rotating the proxy/TLS identity would not help, and the rotation hands back
+    an empty cookie jar — the token is the only thing that clears the gate.
 
     A challenge that survives a *fresh* token is a different animal: the IP is in
     a rate-based penalty box, where minting faster only adds load. Measured on
     the first nationwide run — ~230 requests inside one 5-minute window, then
     every new token rejected for several minutes. So back off in minutes, not
     seconds, and keep the query alive across it; aborting instead cost 9 of 10
-    queries in under two minutes."""
+    queries in under two minutes.
+
+    Survive *every* cooldown starting from the run's first page and it is neither:
+    the exit IP is simply not allowed. `_require_proxy` is what keeps that case
+    from reaching here."""
     for attempt in range(len(_COOLDOWN) + 1):
         _install(scraper, token.value)
         resp = scraper.get(url, headers={"Referer": referer} if referer else None)
@@ -530,9 +556,10 @@ def crawl(out_path, min_gap=MIN_GAP, only=None, since="") -> None:
     done = _load_done(ckpt)
     logger = setup_logging(out)
     token = WafToken(logger)
-    # Direct connection on purpose: the WAF token is bound to the IP that minted
-    # it, and the browser mints locally.
-    scraper = Scraper(min_gap=min_gap, _pool=[None])
+    # Por el proxy, como las otras cuatro fuentes: el token no está atado a la
+    # IP que lo minteó y la IP del VPS está desafiada de forma permanente.
+    scraper = Scraper(min_gap=min_gap)
+    _require_proxy(scraper)
     targets = [s for s in SEARCHES if not only or s[0] in only]
     stats = {"added": 0, "queries": 0, "errors": 0, "short": 0,
              "capped": 0, "advertised": 0}
@@ -653,7 +680,8 @@ def survey(min_gap=MIN_GAP) -> None:
     the check is that the rows come back labelled with the type we asked for."""
     ensure_display()
     token = WafToken()
-    scraper = Scraper(min_gap=min_gap, _pool=[None])
+    scraper = Scraper(min_gap=min_gap)
+    _require_proxy(scraper)
     grand = bad = 0
     print(f"{'query':<38} {'listings':>9}  {'site label':<26} pages")
     for slug, type_id, type_label, operation in SEARCHES:
@@ -950,6 +978,19 @@ def _selfcheck() -> None:
     _install(sc, "second")
     jarred = {c.value for c in sc.sess.cookies.jar if c.name == "aws-waf-token"}
     assert jarred == {"second"}, f"stale WAF token survived the refresh: {jarred}"
+
+    # El guardia del proxy. Salir directo desde el VPS es 202 en el 100% de las
+    # páginas: la corrida del 2026-09-11 gastó 2.5 h para bajar cero.
+    _vacio = type("S", (), {"_pool": [None]})()
+    try:
+        _require_proxy(_vacio)
+        raise AssertionError("una piscina sin proxy debe matar la corrida")
+    except SystemExit as exc:
+        assert "proxy" in str(exc), exc
+    assert _require_proxy(type("S", (), {"_pool": ["http://x"]})()) is None
+    os.environ["PINCALI_DIRECTO"] = "1"
+    assert _require_proxy(_vacio) is None, "PINCALI_DIRECTO debe forzar la directa"
+    del os.environ["PINCALI_DIRECTO"]
 
     # Dedupe key. On the id alone, a property offered both ways loses its rental
     # side silently — the renta query just yields 81% and nothing errors.

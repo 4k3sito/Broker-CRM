@@ -277,9 +277,19 @@ Three details that cost an hour each if you assume them:
   `raise_for_status()` and parses as "0 listings" — which reads as *query
   exhausted*, the most expensive silent failure there is. Detect it by status
   *and* by body (`gokuProps`, `awsWafCookieDomainList`).
-- **The token is bound to the IP that minted it.** So either run direct, or mint
-  through the same sticky proxy exit you sweep with. Rotating identity on a
-  challenge — the reflex from §3 — throws away the very thing that got you in.
+- **The token is *not* bound to the IP that minted it — measure before you design
+  around it.** This repo assumed it was, swept Pincali direct for that reason, and
+  lost every nightly run the moment the crawl moved from a home IP to a VPS.
+  Measured 2026-09-11 with one token, one URL, one minute: direct from the
+  datacenter IP → 202, that same token through a residential exit → 200. The A/B
+  is four lines and settles it; the assumption cost two weeks of stale data.
+  What you must *not* do is rotate identity **on a challenge** (the reflex from
+  §3): the rotation hands back an empty jar, and the token is the only thing that
+  clears the gate.
+- **A datacenter IP stays challenged no matter how fresh the token.** It is not a
+  penalty box that a cooldown outlasts — 41 tokens over 2.5 h cleared zero pages.
+  If fresh tokens bounce from the *first* page of a run, stop blaming the pace and
+  test another exit IP.
 
 **Then make sure the refresh actually replaces the cookie.** This one cost two
 nationwide runs. The server sets an `aws-waf-token` of its own on every
