@@ -71,25 +71,54 @@ MUERTO = re.compile(
     r"|page not found|404 not found)",
     re.I)
 
+# MercadoLibre no siempre dice "finalizada" en la parte de la página que se descarga:
+# el estado real viaja como campo estructurado del JSON embebido, ~25 KB adentro. Sin
+# esto, una publicación cerrada pasa por viva y llega al cliente como una parrilla de
+# "propiedades similares" en vez de la ficha. Es un campo, no prosa: buscarlo en toda
+# la ventana descargada no arriesga el falso positivo que obliga a capar MUERTO.
+CERRADO = re.compile(r'"item_status":"(closed|paused|under_review)"')
+
 # Cómo revisar cada portal, medido contra GET completo sobre la misma muestra:
 #   head   — 1.6 KB. inmuebles24 y vivanuncios coincidieron 22/22 con el GET.
 #   stream — 13 KB. Se lee el estado y se corta antes del cuerpo completo (27x menos
 #            que el GET). Obligatorio en lamudi: responde 200 a HEAD aunque el GET
 #            dé 404, así que HEAD daría por vivos todos los caídos.
-#   get    — 425 KB. Sólo para los portales que no necesitan proxy (no cuesta tráfico
-#            pagado) y donde la baja se anuncia en el cuerpo con 200, como MercadoLibre.
+#   get    — 425 KB. La página entera. Ya no lo usa nadie salvo pincali, cuyo desafío
+#            del WAF hay que leer completo para distinguirlo de una ficha.
+# MercadoLibre pasó de get a stream tras medirlo: 50 de 50 URLs dieron el mismo
+# veredicto con 10x menos tráfico (28 MB → 2.8 MB).
 MODO_POR_FUENTE = {
     "inmuebles24": "head",
     "vivanuncios": "head",
     "lamudi": "stream",
     "pincali": "get",
-    "mercadolibre": "get",
+    "mercadolibre": "stream",
 }
-PRIMER_TROZO = 16384          # suficiente para el <title> y el aviso de baja
+PRIMER_TROZO = 49152          # el JSON de estado de MercadoLibre vive cerca del byte 25k;
+                              # 16 KB se quedaban cortos y lo daban por vivo.
+
+# Sin proxy residencial las peticiones salen por la IP de quien corre esto — la de casa
+# o la del VPS. A escala eso la quema con los portales y no hay a dónde rotar. Sólo se
+# permite para calibrar, y arriba de este tope hay que pedirlo a mano con --sin-proxy.
+LIMITE_SIN_PROXY = 200
 
 # Tope de peticiones simultáneas por dominio: castigar a un portal invita al bloqueo.
 POR_DOMINIO = 4
 PAUSA = (0.4, 1.2)          # jitter entre peticiones del mismo hilo
+
+
+def exigir_proxy(pendientes: int, usa_proxy: bool, permitido: bool) -> None:
+    """Falla antes de la primera petición, no a los 20 minutos. `proxy_para()` devuelve
+    None sin quejarse cuando falta scrapers/.env, y una corrida grande se va entera por
+    la IP de casa sin que nadie se entere hasta que el portal la bloquea."""
+    if usa_proxy or permitido or pendientes <= LIMITE_SIN_PROXY:
+        return
+    raise SystemExit(
+        f"{pendientes:,} peticiones sin proxy saldrían por esta IP (el tope es "
+        f"{LIMITE_SIN_PROXY:,}).\n"
+        "  · pon PASSWORD=<clave del proxy Apify> en scrapers/.env, o PROXIES=... en el entorno\n"
+        f"  · o --sample {LIMITE_SIN_PROXY} para calibrar\n"
+        "  · --sin-proxy si de verdad quieres quemar esta IP")
 
 
 def dominio(url: str) -> str:
@@ -118,10 +147,14 @@ def clasificar(status: int | None, cuerpo: str) -> tuple[bool | None, str]:
     if status in (401, 403, 429) or status >= 500:
         # Bloqueo o caída del portal, no del anuncio.
         return None, f"bloqueo_{status}"
-    if status >= 300:
+    # Sólo 200 prueba que la ficha existe: el WAF de AWS que protege pincali contesta
+    # 202 con una página de desafío de 2 KB, y darla por viva deja inventario muerto.
+    if status != 200:
         return None, f"http_{status}"
     if cuerpo and MUERTO.search(cuerpo[:20000]):
         return False, "texto_no_disponible"
+    if cuerpo and (m := CERRADO.search(cuerpo)):
+        return False, f"item_{m.group(1)}"
     return True, "ok"
 
 
@@ -142,7 +175,8 @@ def revisar(url: str, proxies: dict | None, modo: str = "stream",
             trozo = b""
             for c in r.iter_content():
                 trozo += c
-                break                            # un trozo basta; el resto no se baja
+                if len(trozo) >= PRIMER_TROZO:   # el resto de la página no se baja
+                    break
             r.close()
             return (*clasificar(r.status_code, trozo[:PRIMER_TROZO].decode("utf-8", "replace")),
                     r.status_code, len(trozo))
@@ -194,14 +228,37 @@ def selfcheck() -> None:
     for s in (403, 429, 503, 500):
         assert clasificar(s, "")[0] is None, s
     assert clasificar(None, "")[0] is None
+    # 202 = desafío del WAF (x-amzn-waf-action: challenge), no es la ficha.
+    assert clasificar(202, "")[0] is None
+    assert clasificar(301, "")[0] is None
     # 200 con página de baja
     for t in ("Esta propiedad ya no está disponible",
               "La publicación finalizada", "Page Not Found"):
         assert clasificar(200, t)[0] is False, t
+    # MercadoLibre: el estado va en el JSON embebido, más allá del cap de MUERTO.
+    lejos = "x" * 25000
+    assert clasificar(200, lejos + '"item_status":"closed"') == (False, "item_closed")
+    assert clasificar(200, lejos + '"item_status":"paused"')[0] is False
+    assert clasificar(200, lejos + '"item_status":"active"')[0] is True
+    # La ventana descargada tiene que llegar a ese campo.
+    assert PRIMER_TROZO > 26000, "el JSON de estado de MercadoLibre vive cerca del byte 25k"
+    # La corrida grande sin proxy tiene que morir antes de la primera petición.
+    exigir_proxy(10_000, usa_proxy=True, permitido=False)          # con proxy: pasa
+    exigir_proxy(10_000, usa_proxy=False, permitido=True)          # a mano: pasa
+    exigir_proxy(LIMITE_SIN_PROXY, usa_proxy=False, permitido=False)   # calibración: pasa
+    try:
+        exigir_proxy(LIMITE_SIN_PROXY + 1, usa_proxy=False, permitido=False)
+        raise AssertionError("una corrida grande sin proxy debe abortar")
+    except SystemExit:
+        pass
+
     lim = Limitador(2)
     assert lim.para("a.com") is lim.para("a.com") and lim.para("a.com") is not lim.para("b.com")
     # lamudi NO puede ir por head: contesta 200 a HEAD aunque el GET dé 404.
     assert MODO_POR_FUENTE["lamudi"] == "stream"
+    # MercadoLibre anuncia la baja con 200 hacia el byte 17k: head no la vería
+    # y la ventana de stream tiene que pasar de ahí.
+    assert MODO_POR_FUENTE["mercadolibre"] == "stream" and PRIMER_TROZO > 20000
     assert set(MODO_POR_FUENTE.values()) <= {"head", "stream", "get"}
     print("ok")
 
@@ -217,6 +274,8 @@ def main() -> int:
                     help="auto: el modo medido para cada portal (ver MODO_POR_FUENTE)")
     ap.add_argument("--recheck-days", type=int, default=30,
                     help="no volver a revisar lo visto hace menos de N días")
+    ap.add_argument("--sin-proxy", action="store_true",
+                    help=f"permite más de {LIMITE_SIN_PROXY} peticiones por la IP local")
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--selfcheck", action="store_true")
     a = ap.parse_args()
@@ -252,6 +311,7 @@ def main() -> int:
         if not trabajo:
             print("nada pendiente")
             return 0
+        exigir_proxy(len(trabajo), usa_proxy, a.sin_proxy)
         print(f"por revisar: {len(trabajo):,}"
               + ("  (muestra, no se escribe)" if a.sample else "")
               + (f"  modo={a.modo}")
