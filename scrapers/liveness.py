@@ -78,6 +78,32 @@ MUERTO = re.compile(
 # la ventana descargada no arriesga el falso positivo que obliga a capar MUERTO.
 CERRADO = re.compile(r'"item_status":"(closed|paused|under_review)"')
 
+# Un 200 prueba que el servidor contestó, no que contestó *esta* ficha: un portal
+# puede servir su portada, una búsqueda o un desafío con el mismo código. La prueba
+# positiva es que los datos que ya tenemos guardados aparezcan en la página.
+_ACENTOS = str.maketrans("áéíóúüñ", "aeiouun")
+
+
+def _norm(t: str) -> str:
+    return re.sub(r"\W+", " ", t.lower().translate(_ACENTOS))
+
+
+def coincide(cuerpo: str, titulo: str, minimo: float = 0.6) -> bool | None:
+    """¿El cuerpo contiene el título que tenemos guardado? None = no se puede juzgar.
+
+    Palabras de 5+ letras: las cortas ("en", "de", "casa") salen en cualquier página
+    del portal y darían por viva la portada. Con menos de tres palabras útiles el
+    título no distingue nada —"Terreno en Venta" es media base— y se devuelve None
+    en vez de inventar un veredicto."""
+    palabras = {w for w in _norm(titulo or "").split() if len(w) >= 5}
+    # Medido sobre los 114,829 de Pincali: con menos de 3 palabras útiles el título
+    # no identifica nada ("Terreno en Venta" es media base) y juzgarlo inventa bajas.
+    # El corte deja 9,380 (8%) sin veredicto por título — mejor eso que un falso.
+    if len(palabras) < 3:
+        return None
+    cuerpo_n = _norm(cuerpo)
+    return sum(w in cuerpo_n for w in palabras) / len(palabras) >= minimo
+
 # Cómo revisar cada portal, medido contra GET completo sobre la misma muestra:
 #   head   — 1.6 KB. inmuebles24 y vivanuncios coincidieron 22/22 con el GET.
 #   stream — 13 KB. Se lee el estado y se corta antes del cuerpo completo (27x menos
@@ -85,13 +111,16 @@ CERRADO = re.compile(r'"item_status":"(closed|paused|under_review)"')
 #            dé 404, así que HEAD daría por vivos todos los caídos.
 #   get    — 425 KB. La página entera. Ya no lo usa nadie salvo pincali, cuyo desafío
 #            del WAF hay que leer completo para distinguirlo de una ficha.
+#   waf    — como `get`, pero detrás del token de AWS WAF que mintea Chrome headful.
+#            Sin él Pincali contesta 202 con un desafío de 2 KB a TODO, viva o caída
+#            la ficha: medido, 0 de 104,131 anuncios llegaron a verificarse nunca.
 # MercadoLibre pasó de get a stream tras medirlo: 50 de 50 URLs dieron el mismo
 # veredicto con 10x menos tráfico (28 MB → 2.8 MB).
 MODO_POR_FUENTE = {
     "inmuebles24": "head",
     "vivanuncios": "head",
     "lamudi": "stream",
-    "pincali": "get",
+    "pincali": "waf",
     "mercadolibre": "stream",
 }
 PRIMER_TROZO = 49152          # el JSON de estado de MercadoLibre vive cerca del byte 25k;
@@ -121,6 +150,58 @@ def exigir_proxy(pendientes: int, usa_proxy: bool, permitido: bool) -> None:
         "  · --sin-proxy si de verdad quieres quemar esta IP")
 
 
+# El token, el cookie jar y el ritmo de Pincali son uno solo por proceso: dos hilos
+# pidiendo a la vez se pisan el jar y queman tokens. Un candado global los serializa.
+# ponytail: global; si algún día hay más de un portal con WAF, un candado por fuente.
+_waf_lock = threading.Lock()
+_waf: dict = {}
+
+
+def _waf_get(url: str) -> tuple[int | None, str]:
+    """(status, html) detrás del token. Token y jar de pincali_scraper; el ladder de
+    cooldowns de `ps.fetch` no: ahí cada URL puede costar 13 min de espera, que valen
+    la pena cuando lo que se pierde es una query de 4,200 anuncios y no cuando es un
+    solo registro. Liveness es reanudable — lo que hoy queda sin veredicto se vuelve
+    a intentar mañana. Un re-minteo por si el token venció, y ya."""
+    with _waf_lock:
+        if not _waf:
+            import pincali_scraper as ps
+            from stealth_scraper import Scraper
+            # ensure_display() hace os.execv: llamarlo desde un hilo del pool
+            # re-arrancaría la corrida entera. Va en main(), antes de tocar nada.
+            if not os.environ.get("DISPLAY"):
+                raise RuntimeError("el modo waf necesita DISPLAY (ver preparar_waf)")
+            _waf.update(ps=ps, sc=Scraper(), token=ps.WafToken())
+        ps, sc, token = _waf["ps"], _waf["sc"], _waf["token"]
+        for intento in range(2):
+            try:
+                ps._install(sc, token.value)
+                r = sc.get(url, headers={"Referer": ps.BASE})
+            except Exception:                   # noqa: BLE001 — cualquier fallo de red
+                return None, ""
+            html = r.text or ""
+            if r.status_code != 202 and not ps._CHALLENGE.search(html[:3000]):
+                time.sleep(random.uniform(ps.MIN_GAP, ps.MIN_GAP * 1.6))
+                return r.status_code, html
+            if not intento:
+                token.refresh()
+        return None, ""                         # desafío que el token fresco no abrió
+
+
+def preparar_waf(fuente: str | None, modo: str) -> None:
+    """Re-ejecuta bajo Xvfb *antes* de empezar, si la corrida va a tocar Pincali.
+
+    `ensure_display()` se re-ejecuta a sí mismo con os.execv. Desde un hilo del pool
+    eso reinicia la corrida a media escritura; aquí, antes de la primera petición,
+    sólo cuesta volver a hacer la consulta de pendientes."""
+    if modo not in ("auto", "waf") or fuente not in (None, "pincali"):
+        return
+    if modo == "auto" and fuente is None and "waf" not in MODO_POR_FUENTE.values():
+        return
+    import pincali_scraper as ps
+    ps.ensure_display()
+
+
 def dominio(url: str) -> str:
     return url.split("/")[2].lower() if "://" in url else url
 
@@ -138,8 +219,13 @@ class Limitador:
             return self._sem.setdefault(dom, threading.Semaphore(self.n))
 
 
-def clasificar(status: int | None, cuerpo: str) -> tuple[bool | None, str]:
-    """(activo, motivo). None = indeterminado: no se toca el registro."""
+def clasificar(status: int | None, cuerpo: str,
+               titulo: str = "") -> tuple[bool | None, str]:
+    """(activo, motivo). None = indeterminado: no se toca el registro.
+
+    `titulo` es el que guardamos en la base. Cuando viene, un 200 sólo cuenta como
+    vivo si la página trae esos datos: sin eso, cualquier portada o desafío pasa
+    por ficha viva. Es lo que sella 104k anuncios de Pincali en falso."""
     if status is None:
         return None, "sin_respuesta"
     if status in (404, 410):
@@ -155,18 +241,26 @@ def clasificar(status: int | None, cuerpo: str) -> tuple[bool | None, str]:
         return False, "texto_no_disponible"
     if cuerpo and (m := CERRADO.search(cuerpo)):
         return False, f"item_{m.group(1)}"
+    if titulo and cuerpo and coincide(cuerpo, titulo) is False:
+        # 200 que no es esta ficha. No se puede saber si es baja o gate: no se toca.
+        return None, "sin_coincidencia"
     return True, "ok"
 
 
 def revisar(url: str, proxies: dict | None, modo: str = "stream",
-            timeout: int = 25) -> tuple[bool | None, str, int | None, int]:
+            timeout: int = 25, titulo: str = "") -> tuple[bool | None, str, int | None, int]:
     """(activo, motivo, status, bytes). `modo=head` gasta ~1 KB en vez de ~425 KB,
     a cambio de no ver el cuerpo: detecta el 404/410 pero no la página que responde
     200 diciendo "ya no disponible"."""
     try:
+        if modo == "waf":
+            status, html = _waf_get(url)
+            return (*clasificar(status, html, titulo), status, len(html))
+
         if modo == "head":
             r = cffi.head(url, impersonate=random.choice(IMPERSONATE), timeout=timeout,
                           proxies=proxies, allow_redirects=True)
+            # head no trae cuerpo: no hay con qué comparar el título.
             return (*clasificar(r.status_code, ""), r.status_code, len(r.content or b""))
 
         if modo == "stream":
@@ -178,12 +272,14 @@ def revisar(url: str, proxies: dict | None, modo: str = "stream",
                 if len(trozo) >= PRIMER_TROZO:   # el resto de la página no se baja
                     break
             r.close()
-            return (*clasificar(r.status_code, trozo[:PRIMER_TROZO].decode("utf-8", "replace")),
+            return (*clasificar(r.status_code, trozo[:PRIMER_TROZO].decode("utf-8", "replace"),
+                                titulo),
                     r.status_code, len(trozo))
 
         r = cffi.get(url, impersonate=random.choice(IMPERSONATE), timeout=timeout,
                      proxies=proxies, allow_redirects=True)
-        return (*clasificar(r.status_code, r.text or ""), r.status_code, len(r.content or b""))
+        return (*clasificar(r.status_code, r.text or "", titulo),
+                r.status_code, len(r.content or b""))
     except Exception as e:                       # noqa: BLE001 — cualquier fallo de red
         return None, f"error_{type(e).__name__}", None, 0
 
@@ -191,7 +287,7 @@ def revisar(url: str, proxies: dict | None, modo: str = "stream",
 # ─────────────────────────────────────────────────────────────────────────── db
 
 PENDIENTES = """
-SELECT source, listing_id, url FROM listings
+SELECT source, listing_id, url, coalesce(title, '') FROM listings
 WHERE url <> '' AND activo IS NOT false
   {filtro_fuente}
   {filtro_frescura}
@@ -205,7 +301,7 @@ def pendientes(conn, fuente: str | None, limite: int, redias: int) -> list[tuple
         filtro_fuente="AND source = %s" if fuente else "",
         filtro_frescura=f"AND (revisado_at IS NULL OR revisado_at < now() - interval '{redias} days')")
     params = ([fuente] if fuente else []) + [limite]
-    return [(r[0], r[1], r[2]) for r in conn.execute(sql, params).fetchall()]
+    return [(r[0], r[1], r[2], r[3]) for r in conn.execute(sql, params).fetchall()]
 
 
 def guardar(conn, filas: list[tuple]) -> None:
@@ -254,12 +350,36 @@ def selfcheck() -> None:
 
     lim = Limitador(2)
     assert lim.para("a.com") is lim.para("a.com") and lim.para("a.com") is not lim.para("b.com")
+    # preparar_waf no debe re-ejecutar nada cuando la corrida no toca Pincali.
+    preparar_waf("lamudi", "auto")
+    preparar_waf(None, "head")
     # lamudi NO puede ir por head: contesta 200 a HEAD aunque el GET dé 404.
     assert MODO_POR_FUENTE["lamudi"] == "stream"
     # MercadoLibre anuncia la baja con 200 hacia el byte 17k: head no la vería
     # y la ventana de stream tiene que pasar de ahí.
     assert MODO_POR_FUENTE["mercadolibre"] == "stream" and PRIMER_TROZO > 20000
-    assert set(MODO_POR_FUENTE.values()) <= {"head", "stream", "get"}
+    assert set(MODO_POR_FUENTE.values()) <= {"head", "stream", "get", "waf"}
+    # Pincali sólo se puede verificar con el token: sin él contesta 202 a todo.
+    assert MODO_POR_FUENTE["pincali"] == "waf"
+
+    # Coincidencia positiva: un 200 que no trae la ficha no prueba nada.
+    t = "Local Comercial en Renta de 90m2 en Av. Rosario Sabinal"
+    assert coincide(f"<h1>{t}</h1>", t) is True
+    assert coincide("<h1>Pincali - Inmuebles en México</h1>", t) is False
+    assert coincide("<html>challenge</html>", t) is False
+    # Los acentos no deben romper la comparación.
+    assert coincide("terreno en venta jilotepec estado de mexico", 
+                    "Venta de terreno en Jilotepec, Estado de México") is True
+    # Un título que no distingue nada no se juzga: no se inventan bajas.
+    assert coincide("lo que sea", "Terreno en Venta") is None
+    assert coincide("lo que sea", "") is None
+    # El veredicto entra a clasificar sin tocar el registro.
+    assert clasificar(200, "<h1>otra cosa cualquiera</h1>", t) == (None, "sin_coincidencia")
+    assert clasificar(200, f"<h1>{t}</h1>", t)[0] is True
+    # Sin título guardado, el comportamiento de siempre.
+    assert clasificar(200, "<h1>lo que sea</h1>")[0] is True
+    # Un 404 sigue mandando aunque el título coincida.
+    assert clasificar(404, f"<h1>{t}</h1>", t)[0] is False
     print("ok")
 
 
@@ -270,7 +390,7 @@ def main() -> int:
     ap.add_argument("--source")
     ap.add_argument("--limit", type=int, default=1_000_000)
     ap.add_argument("--workers", type=int, default=12)
-    ap.add_argument("--modo", choices=["auto", "get", "head", "stream"], default="auto",
+    ap.add_argument("--modo", choices=["auto", "get", "head", "stream", "waf"], default="auto",
                     help="auto: el modo medido para cada portal (ver MODO_POR_FUENTE)")
     ap.add_argument("--recheck-days", type=int, default=30,
                     help="no volver a revisar lo visto hace menos de N días")
@@ -283,6 +403,9 @@ def main() -> int:
     if a.selfcheck:
         selfcheck()
         return 0
+
+    # Antes de la conexión y de la primera petición: esto puede re-ejecutar el proceso.
+    preparar_waf(a.source, a.modo)
 
     dsn = os.environ.get("DATABASE_URL", "")
     usa_proxy = bool(os.environ.get("PROXIES", "").strip() or _apify_pw())
@@ -301,8 +424,9 @@ def main() -> int:
 
         if a.sample:
             filtro = "AND source = %s" if a.source else ""
-            trabajo = [(r[0], r[1], r[2]) for r in conn.execute(
-                f"SELECT source, listing_id, url FROM listings WHERE url <> '' {filtro} "
+            trabajo = [(r[0], r[1], r[2], r[3]) for r in conn.execute(
+                f"SELECT source, listing_id, url, coalesce(title, '') FROM listings "
+                f"WHERE url <> '' {filtro} "
                 f"ORDER BY random() LIMIT %s",
                 ([a.source] if a.source else []) + [a.sample]).fetchall()]
         else:
@@ -327,13 +451,13 @@ def main() -> int:
         bytes_totales = [0]
 
         def tarea(item):
-            source, lid, url = item
+            source, lid, url, titulo = item
             with lim.para(dominio(url)):
                 time.sleep(random.uniform(*PAUSA))
                 # Una sesión por dominio+hilo mantiene la IP estable durante el chequeo.
                 px = proxy_para(f"{source}{threading.get_ident() % 1000}")
                 modo = MODO_POR_FUENTE.get(source, "stream") if a.modo == "auto" else a.modo
-                activo, motivo, status, n = revisar(url, px, modo)
+                activo, motivo, status, n = revisar(url, px, modo, titulo=titulo)
             bytes_totales[0] += n
             cuenta[motivo] += 1
             por_fuente.setdefault(source, Counter())[motivo] += 1
