@@ -95,11 +95,11 @@ del `docker-compose.yml`. No lo cambies, y usa `ss -tln` (no `ufw status`) para 
 
 ## 3. El repositorio
 
-Repo público: `https://github.com/4k3sito/4k3sito.github.io`
+Repo público: `https://github.com/4k3sito/Broker-CRM`
 
 ```bash
 sudo mkdir -p /srv && sudo chown "$USER" /srv
-git clone https://github.com/4k3sito/4k3sito.github.io.git /srv/officelab
+git clone https://github.com/4k3sito/Broker-CRM.git /srv/officelab
 cd /srv/officelab/vps
 ```
 
