@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import sys
@@ -51,6 +52,23 @@ def wkt(coords: dict | None) -> str | None:
     return f"SRID=4326;POINT({lng} {lat})"
 
 
+def texto(v):
+    """Los portales entregan el texto con entidades HTML sin decodificar: un local
+    de "88 m&sup2;". Y a veces doble codificadas —"&amp;#243;" por "ó"—, así que
+    una sola pasada no basta: hay que repetir hasta que deje de cambiar. El tope
+    de 3 es para que una cadena adversaria no ponga a girar el bucle.
+    unescape deja intactas las que no conoce (el &mibextid; de un link de
+    Facebook), así que es seguro pasarle todo."""
+    if not isinstance(v, str):
+        return v
+    for _ in range(3):
+        s = html.unescape(v)
+        if s == v:
+            break
+        v = s
+    return v
+
+
 def vacio_a_null(v):
     """Los scrapers escriben "" cuando no hay dato (Listing usa str = "" por defecto).
     COPY no puede parsear "" en una columna timestamptz o numérica: tiene que ser NULL."""
@@ -58,19 +76,21 @@ def vacio_a_null(v):
 
 
 def to_row(source: str, d: dict) -> tuple:
+    title, location = texto(d.get("title")), texto(d.get("location"))
+    city, province = texto(d.get("city")), texto(d.get("province"))
     return (
-        source, str(d["listingId"]), d["url"], d.get("title"), d.get("imageUrl"),
+        source, str(d["listingId"]), d["url"], title, d.get("imageUrl"),
         d.get("operation"), vacio_a_null(d.get("price")), d.get("currency"),
         d.get("propertyType"),
         vacio_a_null(d.get("areaM2")), vacio_a_null(d.get("plotAreaM2")),
         vacio_a_null(d.get("builtAreaM2")),
         vacio_a_null(d.get("bedrooms")), vacio_a_null(d.get("bathrooms")),
-        d.get("location"), d.get("city"),
-        d.get("province"), d.get("agencyName"), d.get("agentPhone"), d.get("description"),
+        location, city,
+        province, texto(d.get("agencyName")), d.get("agentPhone"), texto(d.get("description")),
         wkt(d.get("coordinates")),
         vacio_a_null(d.get("listedAt")), vacio_a_null(d.get("observedAt")),
         vacio_a_null(d.get("priceIsPerM2")),
-        norm(d.get("location"), d.get("city"), d.get("province"), d.get("title")),
+        norm(location, city, province, title),
     )
 
 
@@ -257,6 +277,18 @@ def selfcheck() -> None:
                          "price": "", "areaM2": ""})
     for c in ("listed_at", "observed_at", "price", "area_m2"):
         assert r2[COLS.index(c)] is None, c
+
+    # Las entidades HTML se decodifican hasta que dejan de cambiar, y sólo las
+    # reales: el &mibextid; de un link de Facebook tiene que sobrevivir intacto.
+    assert texto("Local de 88 m&sup2;") == "Local de 88 m\u00b2"
+    assert texto("?fbclid=x&mibextid=y") == "?fbclid=x&mibextid=y"
+    assert texto("Habitaci&amp;#243;n &amp;gt; 20m") == "Habitación > 20m"   # doble
+    assert texto(None) is None and texto(3) == 3
+    r3 = to_row("viva", {"listingId": 2, "url": "u", "title": "Caf&eacute; &amp; Bar",
+                         "city": "Le&oacute;n", "description": "80 m&sup2;"})
+    assert r3[COLS.index("title")] == "Caf\u00e9 & Bar"
+    assert r3[COLS.index("description")] == "80 m\u00b2"
+    assert r3[COLS.index("norm")] == "leon cafe & bar"   # norm ve el texto ya limpio
 
     # El colapso de la fila dual conserva la segunda oferta; antes la tiraba.
     assert "{" not in UPSERT, "quedaron placeholders sin formatear"
