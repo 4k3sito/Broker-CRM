@@ -149,7 +149,9 @@ existe: `scrapers.html` ya muestra la salud por fuente y nadie ha pedido que sue
 
 ## Migración de datos: hecha (2026-08-27)
 
-`vps/migrate_supabase.py` — idempotente, se puede repetir para re-sincronizar antes del corte final.
+`vps/migrate_supabase.py` — idempotente, se podía repetir para re-sincronizar antes del corte
+final. **Eliminado el 2026-09-15**, cumplida la migración: sólo servía para leer de Supabase, que ya
+no se usa. Sigue en el historial de git si alguna vez hiciera falta consultarlo.
 
 | Tabla | Filas |
 |---|---|
@@ -271,8 +273,9 @@ dentro de un municipio. Los 2 restantes traen coordenadas malas en origen: uno e
 El join en vivo con `ST_Covers` cuesta **~430 ms**: el índice GIST filtra por bounding box, pero
 comparar contra un polígono de miles de vértices es caro por fila. Como el inventario solo cambia
 cuando corre el cron, la zona se materializa en `listings.zona_id` (btree) y la función
-`asignar_zonas()` la refresca. La misma consulta baja a **1.02 ms**. `zonas.py` y
-`migrate_supabase.py` ya la llaman al terminar; `propdb.py load` debe llamarla en la Fase 4.
+`asignar_zonas()` la refresca. La misma consulta baja a **1.02 ms**. `zonas.py` la llama
+al terminar (y también lo hacía `migrate_supabase.py`, ya eliminado); `propdb.py load` debe
+llamarla en la Fase 4.
 
 ### Colonias: por texto, no por polígono
 
