@@ -13,10 +13,12 @@ Each state is crawled as a fresh visitor — new session/proxy, entering through
 the homepage and the state landing page, with a Referer chain down the pages.
 Resumable twice over: dedupes on listingId against the existing JSONL, and
 checkpoints exhausted queries to <out>.done so a killed nationwide run doesn't
-re-walk pages. Sequential + jittered pacing on purpose (polite, low ban risk).
+re-walk pages. States are crawled by a pool of workers, one Scraper each: the 2.5 s jittered
+floor is per identity, so N workers are N polite visitors, not one rude one.
 
     .venv/bin/python lamudi_scraper.py --out data/lamudi.jsonl   # all 32 states
     .venv/bin/python lamudi_scraper.py --states nuevo-leon jalisco --no-enrich
+    .venv/bin/python lamudi_scraper.py --workers 4      # gentler on the proxy pool
     .venv/bin/python lamudi_scraper.py --selfcheck        # offline fixture parse
 """
 
@@ -29,12 +31,14 @@ import json
 import random
 import re
 import sys
+import threading
 import time
 from collections import Counter
 from urllib.parse import quote, urlparse
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from typing import Iterator
 
 from selectolax.parser import HTMLParser
@@ -396,16 +400,20 @@ def _load_done(path: Path) -> set[str]:
     return set(path.read_text(encoding="utf-8").split()) if path.exists() else set()
 
 
-def crawl(states, searches, enrich, out_path, max_pages):
+def crawl(states, searches, enrich, out_path, max_pages, workers=8):
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     ckpt = out.with_name(out.name + ".done")
     seen = _load_seen(out)
     done = _load_done(ckpt)
     logger = setup_logging(out)
-    scraper = Scraper(min_gap=2.5)  # slower floor: Lamudi challenges bursty single-IP traffic
     planned = len(states) * len(searches)
     stats = {"added": 0, "queries": 0, "errors": 0}
+    # One lock for all shared mutable state (seen/stats/both file handles). The
+    # workers are I/O-bound — they hold it for a dict bump and a write, never
+    # across a request — so one lock costs nothing and avoids a lock-order bug.
+    lock = threading.Lock()
+    stop = threading.Event()   # Ctrl-C: let workers finish the page, not the state
 
     def summary() -> str:
         return (f"{stats['added']} new listings → {out}\n"
@@ -417,38 +425,55 @@ def crawl(states, searches, enrich, out_path, max_pages):
     with graceful(logger, summary), \
             out.open("a", encoding="utf-8") as sink, \
             ckpt.open("a", encoding="utf-8") as log:
-        for state in states:
+
+        # ponytail: one indeterminate bar for the whole run, not one per query —
+        # concurrent tqdm bars overwrite each other and the cron log is the real
+        # progress record anyway (and --status parses it, not this).
+        bar = tqdm(desc="lamudi", unit=" listing")
+
+        def do_state(state: str) -> None:
+            """One state, start to finish, as a single fresh visitor."""
+            if stop.is_set():
+                return
             todo = [s for s in searches if f"{state}/{s[0]}/{s[1]}" not in done]
-            stats["queries"] += len(searches) - len(todo)  # checkpointed = already complete
+            with lock:
+                stats["queries"] += len(searches) - len(todo)  # checkpointed = already complete
             if not todo:
                 logger.info("%s: skip (checkpointed)", state)
-                continue
-            # One identity per state: a fresh visitor arriving from the homepage.
-            # Rotating mid-state would be the suspicious move, not this.
-            scraper.rotate()
+                return
+            # One identity per state, built inside the worker: Scraper keeps its
+            # proxy rotator and its pacing clock per instance, so each worker is
+            # an independent visitor honouring the 2.5 s floor on its own IP.
+            # Sharing one Scraper across threads would collapse that into a
+            # single IP fired at N times the rate — the exact thing that gets
+            # the pool banned.
+            scraper = Scraper(min_gap=2.5)
             try:
                 referer = _enter(scraper, state)
             except RuntimeError as exc:
-                stats["errors"] += 1
+                with lock:
+                    stats["errors"] += 1
                 logger.error("entry %s -> %s", state, exc)
-                continue
+                return
 
             for category, operation in todo:
+                if stop.is_set():
+                    return
                 query = f"{state}/{category}/{operation}"
                 logger.info("%s: start", query)
                 exhausted = False
                 ref = referer
-                # ponytail: indeterminate bar (no total=) — Lamudi's SERP exposes
-                # no result count, so completeness is "reached an empty page".
-                bar = tqdm(desc=query, unit=" listing")
                 for page in range(1, max_pages + 1):
+                    if stop.is_set():
+                        return
                     url = f"{BASE}/{state}/{category}/{operation}/"
                     if page > 1:
                         url += f"?page={page}"
                     try:
                         html = _fetch(scraper, url, referer=ref)
                     except RuntimeError as exc:
-                        stats["errors"] += 1
+                        with lock:
+                            stats["errors"] += 1
                         logger.error("%s -> %s", url, exc)
                         break
                     ref = url  # next page is a click from this one
@@ -456,29 +481,48 @@ def crawl(states, searches, enrich, out_path, max_pages):
                     if not cards:
                         exhausted = True
                         break  # past the last page for this query
-                    new = [c for c in cards if c.listingId not in seen]
+                    # Claim the ids before fetching details: two states can list
+                    # the same property, and check-then-add outside the lock
+                    # would write it twice.
+                    with lock:
+                        new = [c for c in cards if c.listingId not in seen]
+                        seen.update(c.listingId for c in new)
                     for listing in new:
-                        seen.add(listing.listingId)
                         if enrich:
                             try:
                                 parse_detail(_fetch(scraper, listing.url, referer=url), listing)
                             except RuntimeError as exc:
-                                stats["errors"] += 1
+                                with lock:
+                                    stats["errors"] += 1
                                 logger.error("detail %s: %s", listing.url, exc)
-                        sink.write(json.dumps(_serialize(listing), ensure_ascii=False) + "\n")
-                        sink.flush()
-                        stats["added"] += 1
+                        with lock:
+                            sink.write(json.dumps(_serialize(listing), ensure_ascii=False) + "\n")
+                            sink.flush()
+                            stats["added"] += 1
                     bar.update(len(cards))
                     logger.info("%s p%d cards=%d new=%d total_new=%d",
                                 query, page, len(cards), len(new), stats["added"])
-                bar.close()
                 if exhausted:
-                    stats["queries"] += 1
-                    log.write(query + "\n")
-                    log.flush()
+                    with lock:
+                        stats["queries"] += 1
+                        log.write(query + "\n")
+                        log.flush()
                     logger.info("%s: complete", query)
                 else:
                     logger.warning("%s: incomplete (stopped early)", query)
+
+        logger.info("pool: %d states, %d workers", len(states), workers)
+        pool = ThreadPoolExecutor(max_workers=workers)
+        try:
+            futures = [pool.submit(do_state, s) for s in states]
+            for f in futures:
+                f.result()          # re-raise a worker crash on the main thread
+        except BaseException:
+            stop.set()              # tell the others to stop at the next page
+            raise
+        finally:
+            pool.shutdown(wait=True)
+            bar.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -669,6 +713,71 @@ def reenrich(in_path, out_path, keep_types):
 
 
 # --------------------------------------------------------------------------- #
+def _selfcheck_pool() -> None:
+    """The parallel crawl, with the network faked out: 8 workers over 12 states.
+
+    Guards the two things threading can silently break — a listing written twice
+    (or lost) when two workers race on `seen`, and a checkpoint that doesn't
+    survive a restart. Both are invisible in a good run and expensive in a bad
+    one, so they get a check that needs neither network nor fixtures.
+    """
+    import shutil
+    import tempfile
+
+    states = [f"estado-{i}" for i in range(12)]
+    searches = [("comercial", "for-sale"), ("terreno", "for-sale")]
+    pages, per_page = 3, 30
+    expected = len(states) * len(searches) * pages * per_page
+
+    def fake_serp(html, category, operation, keep=None):
+        state, page = html.split("|")
+        if int(page) > pages:
+            return
+        for i in range(per_page):
+            # Same id from two different states on purpose: the dedupe has to
+            # hold across workers, not just within one.
+            shared = int(page) == 1 and i == 0
+            lid = f"{category}-{page}-{i}" if shared else f"{state}-{category}-{operation}-{page}-{i}"
+            yield Listing(listingId=lid, url=f"{BASE}/detalle/{lid}")
+
+    real = (globals()["_enter"], globals()["_fetch"], globals()["parse_serp"],
+            globals()["Scraper"])
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        globals()["_enter"] = lambda scraper, state: f"{BASE}/{state}/"
+        globals()["_fetch"] = lambda scraper, url, **kw: (
+            f"{url.split('/')[3]}|{url.split('page=')[1] if 'page=' in url else '1'}")
+        globals()["parse_serp"] = fake_serp
+        globals()["Scraper"] = lambda **kw: object()
+
+        out = tmp / "pool.jsonl"
+        crawl(states, searches, enrich=False, out_path=out, max_pages=10, workers=8)
+
+        ids = [json.loads(l)["listingId"] for l in out.read_text().splitlines() if l.strip()]
+        dupes = len(ids) - len(set(ids))
+        assert dupes == 0, f"{dupes} listing(s) written twice — the seen/write race is back"
+        # Each shared id is emitted by all 12 states but must be stored once.
+        shared_ids = len(searches) * per_page * 0 + len(searches)  # one per category, page 1 slot 0
+        assert len(ids) == expected - shared_ids * (len(states) - 1), (
+            f"{len(ids)} rows, expected {expected - shared_ids * (len(states) - 1)} — listings lost")
+
+        done = (tmp / "pool.jsonl.done").read_text().splitlines()
+        assert len(done) == len(states) * len(searches), \
+            f"checkpoint has {len(done)}/{len(states) * len(searches)} queries"
+        assert len(set(done)) == len(done), "checkpoint wrote a query twice"
+
+        # Restart on the same --out: every query is checkpointed, so a resumed
+        # run must fetch nothing at all. This is what cron.sh now relies on.
+        before = out.stat().st_size
+        crawl(states, searches, enrich=False, out_path=out, max_pages=10, workers=8)
+        assert out.stat().st_size == before, "resume re-walked completed queries"
+        print(f"OK pool: {len(ids)} rows, 0 dupes, {len(done)} queries checkpointed, resume is a no-op")
+    finally:
+        for name, fn in zip(("_enter", "_fetch", "parse_serp", "Scraper"), real):
+            globals()[name] = fn
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def _selfcheck() -> None:
     """Offline parse of saved fixtures — fails if selectors/JSON-LD drift."""
     n = _solve_pow("MTc4NTE3MDIzNjAzMgoxODkuMTUzLjE2MC4xMDcKMTYgLSAxMg", 5)
@@ -709,6 +818,8 @@ def main() -> None:
     ap.add_argument("--out", default="data/lamudi.jsonl")
     ap.add_argument("--states", nargs="*", default=STATES)
     ap.add_argument("--max-pages", type=int, default=200)
+    ap.add_argument("--workers", type=int, default=8,
+                    help="states crawled at once, one identity/proxy each (default 8)")
     ap.add_argument("--no-enrich", dest="enrich", action="store_false",
                     help="SERP only; skips detail-page fields (phone, photos, areas, condition)")
     ap.add_argument("--status", action="store_true",
@@ -726,6 +837,7 @@ def main() -> None:
         sys.exit(status(args.out, args.states))
     if args.selfcheck:
         _selfcheck()
+        _selfcheck_pool()
         return
     if args.audit:
         audit(args.audit, len(args.states))
@@ -733,7 +845,9 @@ def main() -> None:
     if args.reenrich:
         reenrich(args.reenrich, args.out, set(args.types) if args.types else None)
         return
-    crawl(args.states, SEARCHES, args.enrich, args.out, args.max_pages)
+    if args.workers < 1:
+        ap.error("--workers must be >= 1")
+    crawl(args.states, SEARCHES, args.enrich, args.out, args.max_pages, args.workers)
 
 
 if __name__ == "__main__":
