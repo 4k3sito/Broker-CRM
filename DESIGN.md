@@ -107,6 +107,11 @@ oficial. Se tradujeron a `hermes.css` el 2026-09-01 midiendo cada valor del mock
 no a ojo. Antes de cambiar una medida de la topbar, la barra de consulta, la
 tarjeta o el kanban, abre el mock correspondiente:
 
+> **No están en el repo.** Viven en Claude Design y se leen con `DesignSync`
+> (`projectId 581b7f93-d1ff-4d8d-8328-532c4cfb228b`). Los archivos con estos mismos
+> nombres que había sueltos en la raíz eran los mocks **terracota de julio** y se
+> borraron el 2026-09-15; si hicieran falta, están en el commit `4cd8815`.
+
 | Mock | Página | Qué define |
 |---|---|---|
 | `OfficeLab.dc.html` | `index.html` | topbar de 66 px, barra de consulta con tokens, tarjeta |
