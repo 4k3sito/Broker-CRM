@@ -49,8 +49,23 @@ if [ "$f" = liveness ]; then
 else
     # El .done es el checkpoint de reanudación: sin borrarlo el scraper cree que ya
     # terminó y no baja nada. El JSONL es scratch — lo bueno ya vive en Postgres.
-    rm -f "data/$f.jsonl" "data/$f.jsonl.done"
+    # Por eso la corrida normal arranca limpia. La excepción es la marca .resume,
+    # que la corrida anterior deja al morir a media: entonces se conservan JSONL y
+    # checkpoint y el scraper sigue donde quedó. Un nacional de Lamudi no cabe en
+    # una sola ventana, y volver a empezar de cero tiraba las horas ya pagadas al
+    # proxy. La marca es lo que se busca (y no lo contrario) para que una fuente
+    # sin marca se comporte exactamente como antes: sin ella, barrido fresco.
+    if [ -f "data/$f.jsonl.resume" ]; then
+        rm -f "data/$f.jsonl.resume"
+        echo "reanudando: $(wc -l < "data/$f.jsonl.done" 2>/dev/null || echo 0) consulta(s) ya completas"
+    else
+        rm -f "data/$f.jsonl" "data/$f.jsonl.done"
+    fi
     timeout $TL .venv/bin/python "$(script_de "$f")" --out "data/$f.jsonl"; rs=$?
+    # Cualquier final que no sea limpio (124 del timeout, o un crash) deja la marca:
+    # el checkpoint sólo anota consultas AGOTADAS, así que reanudar nunca se salta
+    # datos pendientes — a lo más re-camina la consulta que quedó a medias.
+    [ $rs != 0 ] && touch "data/$f.jsonl.resume"
     # Aunque el timeout la corte a media corrida, lo que alcanzó a escribir se carga:
     # el upsert es idempotente y `load` ignora las líneas rotas.
     if [ -s "data/$f.jsonl" ]; then
