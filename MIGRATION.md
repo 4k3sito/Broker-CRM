@@ -452,3 +452,104 @@ Ambas funciones corren después de cada `propdb.py load`, junto con `asignar_zon
 
 **Cola larga sin resolver:** unas decenas con `area_m2 = 1` (superficie basura en origen)
 siguen mostrando precios de $3–$11. No hay dato con qué corregirlas.
+
+
+## Geocodificación: 78.1% → 88.8% (2026-09-18)
+
+El tablero filtra por radio y dibuja mapa, así que un anuncio sin `geom` es un anuncio que
+no existe para media interfaz. Estaba al 78.1%, y el hueco no estaba repartido:
+
+| fuente | filas | con coordenada, antes |
+|---|---|---|
+| pincali | 116,310 | 100.0% |
+| lamudi | 89,321 | 100.0% |
+| inmuebles24 | 86,521 | 89.1% |
+| vivanuncios | 85,724 | 89.1% |
+| **mercadolibre** | **86,138** | **4.1%** |
+
+MercadoLibre es el problema entero: es el único portal que no publica lat/lng en el SERP.
+La aritmética manda — geocodificar al 100% las otras cuatro fuentes deja el total en 82.2%,
+así que **no hay camino al 95% que no pase por MercadoLibre**.
+
+### El corpus geocodificado es el gazetteer
+
+ML sí publica `"colonia, municipio, estado"` en texto, y los otros cuatro portales ya
+aportaron 362,606 coordenadas exactas sobre ese mismo territorio. `geocodificar_colonias()`
+(en `schema.sql`, corre desde `propdb.py load`) agrupa esas coordenadas por
+`(parte de location, ciudad, estado)` y usa la mediana del grupo como centro de la colonia.
+
+No se parsea `location` por portal: los cinco lo ordenan distinto (lamudi abre con la
+colonia, inmuebles24 y vivanuncios la cierran, ML la mete entre título y municipio). Se
+prueban **todas** las partes separadas por comas y el filtro de radio decide — el nombre de
+una calle o una palabra de título se dispersa por toda la ciudad y la clave se descarta
+sola. Resultó mejor que un parser y no hay que mantener cinco.
+
+Dos decisiones que sostienen el resultado:
+
+- **El diccionario se arma sólo con `geo_origen='portal'`.** Alimentarlo de sus propios
+  centroides haría que cada corrida heredara el error de la anterior.
+- **Mediana, no promedio**, para el centro y para el radio. Un anuncio mal ubicado mueve el
+  promedio de su colonia y dispara la desviación estándar; con mediana es un voto perdido.
+
+### Lo que se midió antes de escribir 49,356 coordenadas
+
+Prueba **fuera de muestra**: gazetteer con el 90% de las filas de coordenada conocida,
+predicción sobre el 10% restante.
+
+| radio máximo de la clave | cobertura | error mediano | p90 |
+|---|---|---|---|
+| 250 m | 22.6% | 89 m | 2,496 m |
+| 500 m | 34.0% | 214 m | 2,507 m |
+| **1,000 m** (elegido) | **48.8%** | **351 m** | 2,900 m |
+
+Apretar el radio mejora mucho la mediana pero **no mueve la cola**: ~6% queda a más de 5 km
+en todos los ajustes. Esa cola no es del método. En ese grupo, la coordenada *del portal*
+cae dentro del municipio que el propio anuncio declara sólo el **64.3%** de las veces,
+contra **78.9%** de la predicción — es decir, buena parte de la "cola de error" es dato malo
+del portal, medido contra sí mismo. El error real del gazetteer está sobreestimado.
+
+### `geo_origen` y `geo_error_m`
+
+Subir cobertura sin marcar procedencia sería cambiar un hueco honesto por un pin que miente.
+Cada fila dice de dónde salió su coordenada (`portal` / `colonia` / `relleno`) y cuál es su
+error esperado en metros. El mapa y la búsqueda por radio pueden distinguir; el 95% deja de
+ser un número ciego.
+
+| fuente | total | portal | colonia | sin geom | cobertura |
+|---|---|---|---|---|---|
+| pincali | 116,310 | 116,270 | 24 | 16 | 100.0% |
+| lamudi | 89,321 | 89,321 | 0 | 0 | 100.0% |
+| inmuebles24 | 86,521 | 77,059 | 5,701 | 3,761 | 95.7% |
+| vivanuncios | 85,724 | 76,399 | 5,604 | 3,721 | 95.7% |
+| mercadolibre | 86,138 | 3,305 | 38,027 | 44,554 | 48.3% |
+| **TOTAL** | **464,014** | **362,354** | **49,356** | **52,052** | **88.8%** |
+
+### De dónde salían las "coordenadas de relleno" de ML
+
+`ml_geo.py` marcaba ~18% de lo que bajaba como relleno, detectado a posteriori por
+`--validate` (misma coordenada repetida en muchos estados). El origen resultó ser un bug
+propio, no un engaño del portal: el chrome de ML publica **la geolocalización del sitio** en
+un bloque `geo_information` —19.39068 / -99.2836995, idéntica en todas sus páginas— y los
+regex de coordenadas tomaban la **primera** ocurrencia del documento. Cuando el anuncio no
+publica ubicación, esa primera ocurrencia es la del chrome: el barrido devolvía `ok` con un
+punto que no es de nadie.
+
+Se confirmó sin red, comparando el fixture `.fixtures/ml_serp.html` contra la primera fila
+marcada `repe` en `data/ml_coords.validated.jsonl`: es exactamente la misma coordenada.
+
+Ahora el bloque se **recorta** antes de buscar, en Python y en el JS del barrido (que es el
+que corre de verdad). Se recorta en vez de medir bytes hacia atrás desde cada coincidencia,
+porque una ventana de distancia también descarta la coordenada buena cuando el anuncio la
+publica cerca del chrome. Ese ~18% pasa a reportarse como `sin-coords`, que es la verdad.
+
+**Nota:** el arreglo está probado por `--selfcheck` y el JS validado con node, pero **no
+contra una página real de ML**, porque el perfil de sesión (`~/.cache/ml-scraper-profile`)
+ya no existe y el login es manual.
+
+### Pendiente para llegar al 95%
+
+Faltan 28,851 filas, y 44,554 de las 52,052 sin coordenada son de MercadoLibre. El camino es
+`ml_geo.py`, que saca lat/lng exacta del detail page (~0.6 s por anuncio, unas 14-20 h para
+el pendiente). **Está bloqueado en un paso manual**: hay que rehacer `--login` en Chrome
+headful, con sesión de cuenta real, y el VPS no tiene pantalla — se necesita `ssh -X`, VNC, o
+hacer el login en otra máquina y copiar el perfil.

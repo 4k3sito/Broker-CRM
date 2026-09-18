@@ -355,8 +355,12 @@ def main() -> int:
             if patch.exists() and "mercadolibre" in names:
                 patch_coords(conn, patch, "mercadolibre")
             # Post-proceso: sin esto una recarga deja zonas viejas y precios sin normalizar.
+            # `geocodificar_colonias` va ANTES de `asignar_zonas`: rellena geom desde
+            # el texto de ubicación, y las filas que rellena necesitan su zona en la
+            # misma pasada o se quedan un ciclo entero sin aparecer en los filtros.
             for fn, etiqueta in (("limpiar_precios", "precios a null"),
                                  ("inferir_precio_m2", "precio por m2"),
+                                 ("geocodificar_colonias", "geo por colonia"),
                                  ("asignar_zonas", "zonas asignadas")):
                 if conn.execute("SELECT to_regproc(%s)", (fn,)).fetchone()[0]:
                     n = conn.execute(f"SELECT {fn}()").fetchone()[0]
