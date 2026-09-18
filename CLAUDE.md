@@ -15,11 +15,14 @@ Idioma de la interfaz y de todos los textos al usuario: **español**. Moneda: MX
 
 - **Sitio en producción: `http://31.220.56.100`** — VPS propio. Sin dominio ni TLS todavía.
 - **GitHub Pages está apagado.** `https://4k3sito.github.io` da 404 desde 2026-08-28.
-- **La rama viva es `vps-migration`**, no `main`. `main` quedó con la versión de Pages.
+- **La rama viva es `main`** (desde 2026-09-18). Antes lo fue `vps-migration`: `main` estaba
+  congelada en la versión de GitHub Pages y se adelantó por fast-forward a `vps-migration`,
+  sin merge ni conflictos porque no tenía ni un commit propio. **`vps-migration` queda
+  congelada** en `7c3b921` como marca del punto de la migración: no se mueve ni se borra.
 - SSH: `ssh officelab` (ya está en `~/.ssh/config`).
 
 ```
-VPS  /srv/officelab            el repo, en vps-migration
+VPS  /srv/officelab            el repo, en main
      vps/docker-compose.yml    caddy (:80/:443) + api (:8000) + db (postgis, :5432)
                                api y db sólo en 127.0.0.1; Caddy es el único camino
      vps/cron.sh               un scraper por noche (crontab de root), logs en

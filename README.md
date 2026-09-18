@@ -9,7 +9,8 @@ y procesos.
 Interfaz y textos en **español**. Moneda: **MXN**.
 
 - **Producción:** http://31.220.56.100 — VPS propio, sin dominio ni TLS todavía.
-- **Rama viva:** `vps-migration`. `main` quedó congelada con la versión antigua.
+- **Rama viva:** `main`. `vps-migration` queda congelada en `7c3b921`, como marca del punto
+  de la migración.
 - **GitHub Pages está apagado** desde el 2026-08-28.
 
 ---
