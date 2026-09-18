@@ -47,6 +47,25 @@ SRC = pathlib.Path("data/mercadolibre.jsonl")
 LAT = re.compile(r'"latitude"\s*:\s*"?(-?\d+\.\d+)')
 LNG = re.compile(r'"longitude"\s*:\s*"?(-?\d+\.\d+)')
 LOGIN_WALL = "ingresa a tu cuenta"
+# De dónde salían las "coordenadas de relleno". El chrome de ML publica la
+# geolocalización del SITIO en un bloque `geo_information` —la misma coordenada en
+# todas las páginas del portal, 19.39068/-99.2836995 al 2026-09— y estos regex
+# tomaban la PRIMERA ocurrencia del documento. Cuando el anuncio no publica su
+# ubicación, esa primera ocurrencia es la del chrome: el barrido devolvía `ok` con
+# un punto que no es de nadie, y `--validate` lo cazaba después por repetido.
+# Descartarlo en el origen convierte ese ~18% en `sin-coords`, que es la verdad.
+# Se filtra por contexto y no por valor: el punto del chrome puede cambiar, el
+# nombre de la llave que lo envuelve es lo estable.
+#
+# El bloque se RECORTA antes de buscar, en vez de medir bytes hacia atrás desde
+# cada coincidencia: una ventana de distancia descarta también la coordenada buena
+# cuando el anuncio la publica cerca del chrome, y acertarle al ancho es adivinar
+# el anidamiento. Recortar no depende de dónde caiga nada. El patrón tolera un
+# nivel de llaves (`{"location":{...}}`), que es como ML lo sirve; si algún día lo
+# anida más hondo simplemente no empata y se vuelve al comportamiento viejo, que
+# `--validate` sigue cubriendo.
+CHROME_GEO = "geo_information"
+CHROME_GEO_RX = re.compile(r'"geo_information"\s*:\s*\{(?:[^{}]|\{[^{}]*\})*\}')
 # ponytail: paro el run al 3er gate seguido en vez de reintentar — si la sesión
 # cayó, insistir sólo acelera el baneo. Subir si el piloto muestra gates aislados.
 MAX_CONSECUTIVE_GATES = 3
@@ -102,7 +121,8 @@ def verdict(n_bytes: int, coords: tuple[float, float] | None,
 
 
 def classify(html: str) -> tuple[str, tuple[float, float] | None]:
-    la, ln = LAT.search(html), LNG.search(html)
+    sin_chrome = CHROME_GEO_RX.sub(" ", html)
+    la, ln = LAT.search(sin_chrome), LNG.search(sin_chrome)
     # sin etiquetas: los muros parten frases con <br/>, y el crudo no empata
     text = " ".join(re.sub(r"<[^>]+>", " ", html).lower().split())
     return verdict(len(html),
@@ -181,8 +201,12 @@ FETCH_JS = """async ([urls, gap]) => {
       const p = new URL(u);
       const r = await fetch(p.pathname + p.search, {credentials: 'include'});
       const html = await r.text();
-      const la = html.match(/"latitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/);
-      const ln = html.match(/"longitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/);
+      // Mismo recorte que `CHROME_GEO_RX` en Python: la geolocalización del sitio
+      // aparece antes que la del anuncio y no es de nadie.
+      const limpio = html.replace(
+        /"__CHROME_GEO__"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*\\}/g, ' ');
+      const la = limpio.match(/"latitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/);
+      const ln = limpio.match(/"longitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/);
       const text = html.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').toLowerCase();
       out.push({n: html.length,
                 lat: la ? parseFloat(la[1]) : null, lng: ln ? parseFloat(ln[1]) : null,
@@ -192,7 +216,7 @@ FETCH_JS = """async ([urls, gap]) => {
     await new Promise(k => setTimeout(k, gap + Math.random() * gap * 0.4));
   }
   return out;
-}""".replace("__WALL__", LOGIN_WALL)
+}""".replace("__WALL__", LOGIN_WALL).replace("__CHROME_GEO__", CHROME_GEO)
 
 BATCH = 25          # anuncios por viaje al browser; ~1 min de trabajo por llamada
 ANCHOR_TRIES = 5    # anclas candidatas antes de declarar muerta la sesión
@@ -467,6 +491,19 @@ def _selfcheck() -> None:
     assert verdict(21_000, None, True, False)[0] == "login"
     assert verdict(9_000, None, False, False)[0] == "desconocido"
     assert LOGIN_WALL in FETCH_JS, "el JS tiene que buscar la misma frase que Python"
+    assert CHROME_GEO in FETCH_JS, "el JS tiene que descartar el mismo bloque que Python"
+    assert CHROME_GEO in CHROME_GEO_RX.pattern, "la constante y el patrón se separaron"
+
+    # El origen de las "coordenadas de relleno": el chrome del sitio publica su
+    # propia geolocalización antes de que aparezca la del anuncio. Un anuncio real
+    # que sólo trae la del chrome es `sin-coords`, no `ok` con un punto ajeno.
+    chrome = ('"geo_information":{"location":{"latitude":19.39068,'
+              '"longitude":-99.2836995}},')
+    assert classify("<html>" + chrome + "x" * REAL_PAGE_BYTES + "</html>") \
+        == ("sin-coords", None), "la coordenada del chrome no es la del anuncio"
+    # ...y cuando el anuncio SÍ trae la suya, gana la del anuncio aunque vaya después
+    assert classify(chrome + '{"latitude":25.65,"longitude":-100.28}') \
+        == ("ok", (25.65, -100.28)), "el descarte no debe comerse la coordenada buena"
 
     # el alias de provincia: sin él, CDMX entera sale como no verificable
     assert _norm("Distrito Federal") == _norm("Ciudad de México") == "ciudad de mexico"

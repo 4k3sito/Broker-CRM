@@ -259,6 +259,104 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS operacion_alt       text
   CHECK (operacion_alt IN ('rent','sale'));
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS precio_alt_por_m2   boolean;
 
+-- Procedencia de `geom`. Sin esto la cobertura es un número ciego: el centroide de
+-- una colonia y la coordenada exacta del portal ocupan la misma columna, y ni el
+-- mapa ni la búsqueda por radio pueden distinguirlas. La columna existe para que
+-- subir la cobertura no signifique bajar la confianza sin avisar.
+--   portal   — lat/lng publicada por la fuente; es la ubicación real
+--   colonia  — centroide de una clave apretada del gazetteer de colonias
+--   relleno  — el punto por defecto que sirve ML cuando el anuncio no publica
+--              ubicación; no es una ubicación y no debe dibujarse como tal
+-- `geo_error_m` es el error ESPERADO en metros, no el real: para 'colonia' es la
+-- dispersión medida de esa clave sobre el corpus que sí trae coordenada.
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS geo_origen  text
+  CHECK (geo_origen IN ('portal','colonia','relleno'));
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS geo_error_m int;
+CREATE INDEX IF NOT EXISTS listings_geo_origen_idx ON listings (geo_origen);
+
+-- El equivalente SQL de `norm()` en propdb.py. La extensión `unaccent` no está
+-- instalada y no vale un cambio de imagen: los cinco portales publican en español
+-- y `translate` cubre el juego entero.
+CREATE OR REPLACE FUNCTION sin_acentos(t text) RETURNS text IMMUTABLE LANGUAGE sql AS $$
+  SELECT btrim(lower(translate(coalesce(t, ''),
+                               'ÁÉÍÓÚÜÑáéíóúüñ', 'AEIOUUNaeiouun')));
+$$;
+
+-- Geocodificación por colonia, sin red: 82,581 anuncios de MercadoLibre no traen
+-- lat/lng, pero sí el texto "colonia, municipio, estado" — y los otros cuatro
+-- portales ya aportaron 362,606 coordenadas exactas sobre ese mismo territorio.
+-- El corpus geocodificado ES el gazetteer.
+--
+-- Dos decisiones que son el punto entero de la función:
+--
+--  1. El diccionario se arma SOLO con `geo_origen='portal'`. Si se alimentara de
+--     sus propios centroides, cada corrida heredaría el error de la anterior y la
+--     nube se iría corriendo sola. 'relleno' queda fuera por la misma razón: es un
+--     punto inventado por ML y arrastraría a toda su colonia hacia él.
+--
+--  2. Mediana y no promedio, para el centro y para el radio. Un anuncio con la
+--     coordenada equivocada mueve el promedio de su colonia y dispara la stddev;
+--     con mediana y distancia mediana al centro, ese anuncio es un voto perdido y
+--     la colonia sigue siendo utilizable. Medido sobre 20,000 filas de coordenada
+--     conocida: con claves de radio <1 km el error real fue 0.35 km mediano y
+--     1.32 km al p90. Por encima de ese radio la clave describe la ciudad, no la
+--     colonia, y el pin miente por kilómetros — de ahí el tope, y de ahí que la
+--     función prefiera dejar el hueco antes que rellenarlo con ruido.
+--
+-- No toca filas que ya tienen `geom`: una coordenada del portal siempre gana.
+CREATE OR REPLACE FUNCTION geocodificar_colonias(max_error_m int DEFAULT 1000,
+                                                 min_n int DEFAULT 5) RETURNS bigint AS $$
+  WITH partes AS (
+    -- Cada parte separada por comas de `location` es una colonia CANDIDATA. No se
+    -- intenta adivinar cuál lo es: los cinco portales ordenan el campo distinto
+    -- (lamudi abre con la colonia, inmuebles24 y vivanuncios la cierran, ML la
+    -- mete entre el título y el municipio). El filtro de radio hace ese trabajo
+    -- mejor que un parser por portal: el nombre de una calle larga o una palabra
+    -- de título se dispersan por toda la ciudad y la clave se cae sola.
+    SELECT l.geom, sin_acentos(l.city) c, sin_acentos(l.province) p,
+           sin_acentos(parte) col
+    FROM listings l, unnest(string_to_array(l.location, ',')) parte
+    WHERE l.geo_origen = 'portal' AND l.location IS NOT NULL
+  ), centro AS (
+    SELECT col, c, p, count(*) n,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY ST_X(geom::geometry)) x,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY ST_Y(geom::geometry)) y
+    FROM partes WHERE length(col) >= 4 AND c <> '' AND p <> ''
+    GROUP BY 1, 2, 3 HAVING count(*) >= min_n
+  ), gz AS (
+    -- Segunda pasada: qué tan apretada es la clave, en metros. Es el dato que se
+    -- guarda como `geo_error_m` y el que decide si la clave se usa.
+    SELECT k.col, k.c, k.p, k.x, k.y,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY ST_Distance(
+             pa.geom, ST_SetSRID(ST_MakePoint(k.x, k.y), 4326)::geography))::int r
+    FROM centro k
+    JOIN partes pa ON pa.col = k.col AND pa.c = k.c AND pa.p = k.p
+    GROUP BY 1, 2, 3, 4, 5
+  ), falta AS (
+    SELECT l.source, l.listing_id, sin_acentos(l.city) c,
+           sin_acentos(l.province) p, sin_acentos(parte) col
+    FROM listings l, unnest(string_to_array(coalesce(l.location, ''), ',')) parte
+    WHERE l.geom IS NULL
+  ), mejor AS (
+    -- La clave más apretada de las que empatan: si el anuncio nombra su colonia y
+    -- también su avenida, gana la colonia.
+    SELECT DISTINCT ON (f.source, f.listing_id)
+           f.source, f.listing_id, g.x, g.y, g.r
+    FROM falta f
+    JOIN gz g ON g.col = f.col AND g.c = f.c AND g.p = f.p
+    WHERE g.r <= max_error_m
+    ORDER BY f.source, f.listing_id, g.r
+  ), m AS (
+    UPDATE listings l
+       SET geom = ST_SetSRID(ST_MakePoint(mejor.x, mejor.y), 4326)::geography,
+           geo_origen = 'colonia', geo_error_m = mejor.r
+    FROM mejor
+    WHERE l.source = mejor.source AND l.listing_id = mejor.listing_id
+      AND l.geom IS NULL
+    RETURNING 1)
+  SELECT count(*) FROM m;
+$$ LANGUAGE sql;
+
 -- ────────────────────────────────────────────────────────────── auth (Fase 2a)
 
 CREATE TABLE IF NOT EXISTS usuario (
