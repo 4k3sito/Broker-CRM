@@ -25,6 +25,13 @@ así que el barrido va por host, anclado en un anuncio de ese host. Y hace falta
     .venv/bin/python ml_geo.py --limit 0        # todo lo pendiente
     .venv/bin/python ml_geo.py --validate       # marcar coordenadas de relleno
 
+El barrido es headful y en el VPS no hay pantalla, así que se re-ejecuta solo
+bajo `xvfb-run`. `--login` NO: ahí hay que ver el navegador para teclear, y
+necesita `ssh -X` o VNC. `--headless` prueba si ML aguanta sin pantalla —para
+pincali está medido que el WAF nunca cede en headless, pero ML gatea distinto
+(PoW + muro de cuenta) y nadie lo ha medido. Ojo: la sesión se acuña headful, y
+reusarla headless cambia la huella entre acuñación y uso.
+
 `--min-gap` es piso de cortesía nuestro, no directiva: el `Crawl-delay: 5` de
 robots.txt vive en el bloque de Bingbot y el de `*` no tiene ninguno.
 """
@@ -34,9 +41,11 @@ import argparse
 import collections
 import json
 import math
+import os
 import pathlib
 import random
 import re
+import shutil
 import statistics
 import sys
 import time
@@ -129,6 +138,34 @@ def classify(html: str) -> tuple[str, tuple[float, float] | None]:
                    (float(la.group(1)), float(ln.group(1))) if la and ln else None,
                    LOGIN_WALL in text,
                    "bot_challenge" in html or "_bmc" in html)
+
+
+def ensure_display() -> None:
+    """Re-exec bajo Xvfb cuando no hay pantalla. Mismo mecanismo que
+    `pincali_scraper.ensure_display`: olvidar el wrapper no falla al armar la
+    corrida sino minutos después, con el browser ya abierto.
+
+    **Sólo para el barrido**, que corre desatendido. `--login` no pasa por aquí:
+    una pantalla virtual no la ve nadie, y ahí hay que teclear a mano.
+    """
+    if os.environ.get("DISPLAY"):
+        return
+    xvfb = shutil.which("xvfb-run")
+    if not xvfb:
+        sys.exit("sin DISPLAY y sin xvfb-run: el barrido headful necesita una "
+                 "pantalla (apt install xvfb, o correr con --headless)")
+    os.execv(xvfb, [xvfb, "-a", sys.executable, *sys.argv])   # no vuelve
+
+
+def require_real_display() -> None:
+    """El login necesita una pantalla que un humano pueda VER. Xvfb no sirve: es
+    virtual, y este flujo pide contraseña y a veces verificación de ML."""
+    if os.environ.get("DISPLAY"):
+        return
+    sys.exit("--login necesita una pantalla de verdad, no Xvfb: nadie ve una "
+             "pantalla virtual y aquí hay que teclear la contraseña.\n"
+             "  ssh -X officelab   (o VNC) y repetir --login\n"
+             f"  o loguearse en otra máquina y copiar {PROFILE} al VPS")
 
 
 def open_context(pw, headless: bool, bypass_csp: bool = False):
@@ -226,7 +263,8 @@ def _host(url: str) -> str:
     return url.split("/")[2]
 
 
-def crawl(limit: int | None, out_path: pathlib.Path, min_gap: float) -> None:
+def crawl(limit: int | None, out_path: pathlib.Path, min_gap: float,
+          headless: bool = False) -> None:
     if not PROFILE.exists():
         sys.exit("no hay perfil: corre primero  .venv/bin/python ml_geo.py --login")
 
@@ -254,7 +292,7 @@ def crawl(limit: int | None, out_path: pathlib.Path, min_gap: float) -> None:
     stop = False
 
     with sync_playwright() as pw, out_path.open("a") as sink:
-        ctx = open_context(pw, headless=False, bypass_csp=True)
+        ctx = open_context(pw, headless=headless, bypass_csp=True)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.set_default_timeout(300_000)
 
@@ -505,6 +543,18 @@ def _selfcheck() -> None:
     assert classify(chrome + '{"latitude":25.65,"longitude":-100.28}') \
         == ("ok", (25.65, -100.28)), "el descarte no debe comerse la coordenada buena"
 
+    # con pantalla, ninguna de las dos guardas hace nada: ni re-ejecuta ni sale
+    previo = os.environ.get("DISPLAY")
+    os.environ["DISPLAY"] = ":0"
+    try:
+        ensure_display()
+        require_real_display()
+    finally:
+        if previo is None:
+            os.environ.pop("DISPLAY", None)
+        else:
+            os.environ["DISPLAY"] = previo
+
     # el alias de provincia: sin él, CDMX entera sale como no verificable
     assert _norm("Distrito Federal") == _norm("Ciudad de México") == "ciudad de mexico"
 
@@ -525,17 +575,24 @@ def main() -> None:
     ap.add_argument("--min-gap", type=float, default=5.0, help="Crawl-delay de robots.txt")
     ap.add_argument("--validate", action="store_true",
                     help="marcar coordenadas de relleno en <out> (no toca la red)")
+    ap.add_argument("--headless", action="store_true",
+                    help="barrido sin pantalla (experimental: ML puede gatear)")
     ap.add_argument("--selfcheck", action="store_true", help="pruebas offline")
     a = ap.parse_args()
 
     if a.selfcheck:
         _selfcheck()
     elif a.login:
+        if a.headless:
+            ap.error("--login no puede ser headless: hay que teclear a mano")
+        require_real_display()
         do_login()
     elif a.validate:
         validate(a.out)
     else:
-        crawl(a.limit or None, a.out, a.min_gap)
+        if not a.headless:
+            ensure_display()      # re-exec bajo Xvfb; de aquí no vuelve
+        crawl(a.limit or None, a.out, a.min_gap, a.headless)
 
 
 if __name__ == "__main__":
