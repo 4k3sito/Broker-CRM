@@ -157,18 +157,43 @@ def load(conn: psycopg.Connection, files: list[Path]) -> None:
 
 
 def patch_coords(conn: psycopg.Connection, path: Path, source: str) -> None:
-    """ml_coords.validated.jsonl: MercadoLibre no trae coords en el SERP."""
-    rows = []
+    """ml_coords.validated.jsonl: MercadoLibre no trae coords en el SERP.
+
+    **Respeta `suspect`.** El archivo lo produce `ml_geo.py --validate`, que marca
+    las coordenadas de relleno y las que caen lejos de su ciudad. Aplicarlas sería
+    peor que no tener nada: la mayoría de estos anuncios ya trae un centroide de
+    colonia con ~674 m de error medido, y un punto de relleno lo cambiaría por uno
+    que no es de nadie. Se saltan.
+
+    Marca `geo_origen='portal'` y borra `geo_error_m`, porque esta coordenada la
+    publicó el anuncio y es exacta. Sin eso pasarían dos cosas malas: el gazetteer
+    de colonias, que se arma SOLO con `geo_origen='portal'`, ignoraría justo las
+    coordenadas nuevas; y `geo_error_m` seguiría declarando el error del centroide
+    viejo, mintiendo sobre la precisión de un punto que ya es exacto.
+    """
+    rows, sospechosas, sin_coord = [], 0, 0
     for line in path.open(encoding="utf-8"):
         d = json.loads(line)
+        if d.get("suspect"):
+            sospechosas += 1
+            continue
         if g := wkt(d.get("coordinates")):
             rows.append((g, source, str(d["listingId"])))
+        else:
+            sin_coord += 1
     with conn.cursor() as cur:
         cur.executemany(
-            "UPDATE listings SET geom = %s WHERE source = %s AND listing_id = %s", rows
+            "UPDATE listings SET geom = %s, geo_origen = 'portal', geo_error_m = NULL "
+            "WHERE source = %s AND listing_id = %s", rows
         )
     conn.commit()
-    print(f"{'coords patch':14s} {len(rows):>7,} puntos -> {source}")
+    detalle = []
+    if sospechosas:
+        detalle.append(f"{sospechosas:,} marcadas")
+    if sin_coord:
+        detalle.append(f"{sin_coord:,} sin coordenada")
+    print(f"{'coords patch':14s} {len(rows):>7,} puntos -> {source}"
+          + (f"  ({', '.join(detalle)} omitidas)" if detalle else ""))
 
 
 # ------------------------------------------------------------------------- search

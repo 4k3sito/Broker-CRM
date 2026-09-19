@@ -250,12 +250,20 @@ TOPE_LECTURA = 300_000
 #
 # El muro y el proof-of-work se siguen viendo: esas páginas son chicas, el
 # stream termina solo antes del tope y se clasifican sobre el cuerpo completo.
-FETCH_JS = """async ([urls, gap]) => {
+FETCH_JS = """async ([urls, gap, obreros]) => {
   const CHROME = /"__CHROME_GEO__"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*\\}/g;
   const RX_LA = /"latitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/;
   const RX_LN = /"longitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/;
-  const out = [];
-  for (const u of urls) {
+  // Indexado por posición, NO push: con varios obreros los resultados vuelven
+  // en desorden, y `zip(chunk, res)` del lado de Python pegaría la coordenada
+  // al anuncio equivocado. Cada obrero escribe en out[i] y nadie más lo toca.
+  const out = new Array(urls.length);
+  let siguiente = 0;
+  const obrero = async () => {
+   while (true) {
+    const i = siguiente++;
+    if (i >= urls.length) return;
+    const u = urls[i];
     try {
       // por path, no por URL absoluta: ML redirige a un host canónico, y contra
       // ese origen la URL del corpus sale cross-origin y CORS la mata.
@@ -276,13 +284,17 @@ FETCH_JS = """async ([urls, gap]) => {
         if (buf.length >= __TOPE__) { cortado = true; reader.cancel(); break; }
       }
       const text = buf.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').toLowerCase();
-      out.push({n: buf.length, cortado: cortado,
+      out[i] = {n: buf.length, cortado: cortado,
                 lat: la ? parseFloat(la) : null, lng: ln ? parseFloat(ln) : null,
                 wall: text.includes('__WALL__'),
-                pow: buf.includes('bot_challenge') || buf.includes('_bmc')});
-    } catch (e) { out.push({n: 0, err: String(e).slice(0, 80)}); }
+                pow: buf.includes('bot_challenge') || buf.includes('_bmc')};
+    } catch (e) { out[i] = {n: 0, err: String(e).slice(0, 80)}; }
+    // El gap es POR OBRERO: con 4 obreros y gap 5s el ritmo agregado es
+    // ~0.8 peticiones/segundo, no 4 de golpe cada 5 segundos.
     await new Promise(k => setTimeout(k, gap + Math.random() * gap * 0.4));
-  }
+   }
+  };
+  await Promise.all(Array.from({length: obreros}, obrero));
   return out;
 }""".replace("__WALL__", LOGIN_WALL).replace("__CHROME_GEO__", CHROME_GEO) \
     .replace("__TOPE__", str(TOPE_LECTURA))
@@ -296,7 +308,7 @@ def _host(url: str) -> str:
 
 
 def crawl(limit: int | None, out_path: pathlib.Path, min_gap: float,
-          headless: bool = False) -> None:
+          headless: bool = False, obreros: int = 1) -> None:
     if not PROFILE.exists():
         sys.exit("no hay perfil: corre primero  .venv/bin/python ml_geo.py --login")
 
@@ -352,7 +364,8 @@ def crawl(limit: int | None, out_path: pathlib.Path, min_gap: float,
             crossed: list[tuple[str, str]] = []
             for b in range(0, len(rows), BATCH):
                 chunk = rows[b:b + BATCH]
-                res = page.evaluate(FETCH_JS, [[u for _, u in chunk], min_gap * 1000])
+                res = page.evaluate(FETCH_JS,
+                                    [[u for _, u in chunk], min_gap * 1000, obreros])
                 for (lid, url), d in zip(chunk, res):
                     i += 1
                     wire += d["n"]
@@ -568,6 +581,13 @@ def _selfcheck() -> None:
     assert "getReader" in FETCH_JS and "reader.cancel()" in FETCH_JS, \
         "el JS tiene que leer por trozos y cancelar, no bajar el documento entero"
     assert str(TOPE_LECTURA) in FETCH_JS, "el tope de lectura no llegó al JS"
+    # Con varios obreros los resultados vuelven en desorden. Si alguien cambia
+    # `out[i] = ...` por `out.push(...)`, `zip(chunk, res)` en crawl() le pega la
+    # coordenada al anuncio equivocado y NADA lo delata: los puntos siguen siendo
+    # válidos, sólo que del inmueble de junto.
+    assert "out[i] =" in FETCH_JS and "out.push" not in FETCH_JS, \
+        "los resultados tienen que ir indexados por posición, no apilados"
+    assert "new Array(urls.length)" in FETCH_JS, "out tiene que venir preasignado"
     assert TOPE_LECTURA > REAL_PAGE_BYTES, \
         "un corte por tope debe seguir contando como página real: si no, `verdict()` " \
         "lo manda a `desconocido` y el barrido se frena creyendo que lo bloquearon"
@@ -615,7 +635,11 @@ def main() -> None:
     ap.add_argument("--login", action="store_true", help="abrir Chrome para loguearte a mano")
     ap.add_argument("--limit", type=int, default=30, help="piloto: cuántos listings (0 = todos)")
     ap.add_argument("--out", type=pathlib.Path, default=pathlib.Path("data/ml_coords.jsonl"))
-    ap.add_argument("--min-gap", type=float, default=5.0, help="Crawl-delay de robots.txt")
+    ap.add_argument("--min-gap", type=float, default=5.0,
+                    help="piso de cortesía POR OBRERO (default 5)")
+    ap.add_argument("--workers", type=int, default=1,
+                    help="peticiones en vuelo a la vez (default 1). El gap es por "
+                         "obrero: 4 obreros con gap 5s dan ~0.8 peticiones/segundo")
     ap.add_argument("--validate", action="store_true",
                     help="marcar coordenadas de relleno en <out> (no toca la red)")
     ap.add_argument("--headless", action="store_true",
@@ -635,7 +659,9 @@ def main() -> None:
     else:
         if not a.headless:
             ensure_display()      # re-exec bajo Xvfb; de aquí no vuelve
-        crawl(a.limit or None, a.out, a.min_gap, a.headless)
+        if a.workers < 1:
+            ap.error("--workers tiene que ser al menos 1")
+        crawl(a.limit or None, a.out, a.min_gap, a.headless, a.workers)
 
 
 if __name__ == "__main__":
