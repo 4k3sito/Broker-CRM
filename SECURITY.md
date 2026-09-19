@@ -6,7 +6,8 @@ contra el sitio en producción y qué sigue abierto.
 **Se actualiza en el mismo commit que el cambio.** Si tocas auth, sesiones, la API,
 Caddy o el despliegue y este archivo no cambia, el cambio está incompleto.
 
-- Última revisión completa: **2026-08-28** (cron de scrapers y su control de calidad: 2026-09-10)
+- Última revisión completa: **2026-08-28** (cron de scrapers y su control de calidad: 2026-09-10;
+  retirada de Supabase: 2026-09-19)
 - Sitio en producción: `http://31.220.56.100` (VPS propio, sin dominio todavía)
 - Alcance: cuentas de asesores, CRM (clientes, fichas, procesos) e inventario scrapeado
 
@@ -217,6 +218,18 @@ instalación es del usuario y apagarlas le cambia su propio uso interactivo del 
 No queda rastro de logins exitosos ni de cambios de contraseña. `reset_token` guarda
 `solicitado_desde` y `created_at`, que es un principio, pero no hay historial de accesos.
 
+### H7 — El proyecto de Supabase puede seguir vivo · **bajo**
+
+El repo ya no habla con Supabase por ningún lado (ver §8, 2026-09-19), pero eso sólo
+cierra *nuestro* extremo. Si el proyecto sigue existiendo en el panel, sigue existiendo
+una copia del CRM del 2026-08-27 —clientes, fichas y procesos, que es lo más sensible
+del sistema— alcanzable con la **service key** que se usó para migrar, y que salta RLS
+por diseño. Esa key vivió en el entorno de la migración; no está en el repo, pero
+tampoco consta que se haya revocado.
+
+**Arreglo:** en el panel de Supabase, rotar o revocar la service key y borrar el
+proyecto. Es manual y fuera del VPS — nadie puede verificarlo desde aquí.
+
 ---
 
 ## 8. Resuelto
@@ -229,6 +242,7 @@ No queda rastro de logins exitosos ni de cambios de contraseña. `reset_token` g
 | 2026-08-28 | scrypt N=2^16 → 2^17 | Estaba a la mitad del mínimo de OWASP. Migración sin resets: el login re-hashea. |
 | 2026-08-28 | Mínimo 10 → 15 caracteres + HIBP | NIST SP 800-63B Rev.4. |
 | 2026-08-28 | Flujo de recuperación | Antes la única vía era que el admin fijara la contraseña por SSH — o sea, que el admin la conociera. |
+| 2026-09-19 | Se retiró Supabase del repo | Quedaba el servidor MCP en `.mcp.json` (HTTP a `mcp.supabase.com` con el `project_ref` del proyecto viejo, habilitado en `.claude/settings.local.json`) y dos skills de `supabase/agent-skills` en `skills-lock.json`. Nada de eso lo usa la aplicación: era superficie de acceso al proyecto viejo abierta desde la máquina de desarrollo. Revisado el código: **ninguna ruta viva habla con Supabase**; sólo quedan comentarios históricos. Queda H7. |
 | 2026-08-27 | Auth propia | scrypt + sesiones opacas sustituyen a Supabase Auth; filtro por `user_id` sustituye a RLS. |
 | 2026-08-27 | Base fuera de internet | `127.0.0.1:5432`, acceso por túnel SSH. |
 

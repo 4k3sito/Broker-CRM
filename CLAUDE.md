@@ -82,7 +82,7 @@ Los `.dc.html` sueltos en la raíz del repo son de julio y describen un sistema
 ## Comandos
 
 ```bash
-npm run dev                       # sirve web/ en localhost:3000 contra la API del VPS
+npm run dev                       # dev-server.js: sirve web/ en :3000 y proxya /api al VPS
 
 # API (en el VPS)
 ssh officelab 'cd /srv/officelab/vps && docker compose exec -T api python main.py selfcheck'

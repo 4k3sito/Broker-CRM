@@ -25,8 +25,8 @@ VPS (Docker)
 
 ## El cambio de fondo: una sola tabla `listings`
 
-Hoy hay dos tablas con el mismo nombre y esquemas distintos (dashboard en Supabase vs.
-`propdb.py` en PostGIS). En el VPS **gana la de PostGIS** — es la que alimentan los
+Había dos tablas con el mismo nombre y esquemas distintos (dashboard en Supabase vs.
+`propdb.py` en PostGIS). En el VPS **ganó la de PostGIS** — es la que alimentan los
 scrapers y la única que tiene `geom`. La traducción de nombres pasa a ser un `SELECT`
 con alias dentro de la API, no una migración de columnas:
 
@@ -48,10 +48,10 @@ Es la llave natural que ya usan los scrapers, sobrevive recargas completas de la
 elimina la secuencia. El frontend lo trata como opaco (URL `?id=`, clave de `user_listing`),
 así que solo cambia el tipo: `bigint` → `text`.
 
-**Gotcha de la fase 5:** los ids que hoy tiene Supabase en `user_listing.listing_id` y
-`ficha.source_listing_id` no corresponden a nada en la tabla nueva. Se mapean con un join
-por `(source, external_id)` contra la tabla vieja al migrar. Si un listing viejo ya no
-existe en la nueva, esa fila de CRM se queda huérfana — hay que decidir si se conserva.
+**Gotcha de la fase 5 — resuelto el 2026-08-27:** los ids que tenía Supabase en
+`user_listing.listing_id` y `ficha.source_listing_id` no correspondían a nada en la tabla
+nueva. Se mapearon con un join por `(source, external_id)` contra la tabla vieja al
+migrar; resolvieron 6/6 y 5/5, sin filas huérfanas. Ver "Migración de datos" abajo.
 
 ## Fases
 
@@ -66,12 +66,21 @@ Cada fase se entrega y se verifica sola. No se empieza la siguiente hasta que la
 - **Fase 2z — Zonas geográficas.** `vps/zonas.py` + tabla `zona`: los 51 municipios de Nuevo León
   como polígonos reales, y `listings.zona_id` materializado. ✅ *entregada y verificada*
 - **Fase 2b — Datos.** Endpoints de listings, zonas y CRM. ✅ *entregada y verificada*
-- **Fase 3 — Frontend.** Cambiar los 6 JS de `supabase-js` a `fetch` contra la API (`credentials: 'same-origin'`), y `COOKIE_SECURE=1` en cuanto haya HTTPS. Caddy sirve
-  la raíz del repo. Dominio + TLS. `adaptListing()` puede desaparecer si la API ya devuelve el shape final.
+- **Fase 3 — Frontend.** Cambiar los 6 JS de `supabase-js` a `fetch` contra la API
+  (`credentials: 'same-origin'`). Caddy sirve `web/`, no la raíz del repo.
+  ✅ *entregada y verificada el 2026-08-27* — ver abajo. **Queda pendiente** lo que depende
+  de tener dominio: TLS y `COOKIE_SECURE=1`.
 - **Fase 4 — Cron.** `vps/cron.sh` + crontab de root: una fuente por noche, `scrape → propdb load`.
   ✅ *entregada y verificada el 2026-09-10* — ver abajo.
-- **Fase 5 — Corte.** Apagar Pages y borrar el proyecto de Supabase. *(La migración de datos ya
-  se hizo por adelantado — ver abajo; falta solo el corte.)*
+- **Fase 5 — Corte.** Apagar Pages y borrar el proyecto de Supabase.
+  ✅ *del lado del repo* — Pages devuelve 404 desde el 2026-08-28,
+  `vps/migrate_supabase.py` se eliminó el 2026-09-15 y el 2026-09-19 se quitó lo último
+  que apuntaba a Supabase: el servidor MCP (`.mcp.json`, con su `project_ref`) y las dos
+  skills de `supabase/agent-skills` en `skills-lock.json`. **Ya no queda nada vivo en el
+  código que hable con Supabase**; las menciones que siguen en este archivo y los dos
+  comentarios en `web/api.js` y `api/main.py` son historia, a propósito.
+  ⚠️ *Falta confirmar a mano*: borrar el proyecto en el panel de Supabase y rotar/revocar
+  la service key, que existió en el entorno de la migración.
 
 ## Fase 4: el cron de scrapers (2026-09-10)
 
@@ -242,6 +251,9 @@ Decidido el 2026-08-26: **auth propia**, Supabase desaparece por completo.
 - **Sin recuperación por correo, por ahora.** Requiere SMTP para un caso que se resuelve con
   `python main.py passwd <email>` (que además cierra las sesiones abiertas). `reset-password.html` y
   `update-password.html` quedan sin backend: se borran en la Fase 3 o se cablea un SMTP si lo pides.
+  *(Superado: en la Fase 3 se borró `reset-password.html` y `update-password.html` pasó a ser el
+  cambio de contraseña con sesión; el 2026-08-28 se añadió el flujo de recuperación por enlace
+  emitido con `main.py resetlink` — sigue sin haber SMTP.)*
 - **Límite de intentos**: 10 por IP cada 5 minutos, en memoria. Anotado con `ponytail:` porque
   asume un solo worker.
 

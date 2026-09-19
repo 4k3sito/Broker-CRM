@@ -49,8 +49,8 @@ CREATE INDEX IF NOT EXISTS listings_filter_idx ON listings (operation, property_
 
 -- ──────────────────────────────────────────────────────────────────────────── CRM
 --
--- user_id es uuid SIN foreign key: la identidad puede venir de Supabase Auth o de la
--- API propia (ver "Decisión abierta" en MIGRATION.md). Sin FK las dos opciones sirven.
+-- user_id es uuid y apunta a `usuario` (la tabla de la API propia). La FK no se declara
+-- aquí sino al final del archivo, en bloque, porque `usuario` se crea más abajo.
 --
 -- listing_id / source_listing_id son text con el formato "source:listing_id" — la llave
 -- natural del inventario. NO hay FK a listings: una recarga completa del inventario no
@@ -193,7 +193,7 @@ CREATE INDEX IF NOT EXISTS zona_norm_idx ON zona USING gin  (norm gin_trgm_ops);
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS zona_id bigint REFERENCES zona (id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS listings_zona_idx ON listings (zona_id);
 
--- Se llama después de cada carga (migrate_supabase.py, propdb.py load, zonas.py).
+-- Se llama después de cada carga (propdb.py load, zonas.py).
 CREATE OR REPLACE FUNCTION asignar_zonas() RETURNS bigint AS $$
   WITH m AS (
     UPDATE listings l SET zona_id = z.id

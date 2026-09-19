@@ -61,6 +61,10 @@ apretando una sola.
 npm run dev      # sirve web/ en http://localhost:3000 contra la API del VPS
 ```
 
+Detrás va `dev-server.js` (http/fs de la stdlib, sin dependencias): sirve `web/` y
+**reenvía `/api/*` al VPS**, que es lo que permite probar contra datos y sesión reales sin
+desplegar. Un servidor estático a secas no sirve — el frontend no tiene backend propio.
+
 ### Scrapers
 
 ```bash
