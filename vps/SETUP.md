@@ -236,16 +236,18 @@ por http y deja de estar protegida.
 
 ## 6c. Zonas geográficas
 
-Los 51 municipios de Nuevo León como polígonos, para filtrar por zona:
+Municipios como polígonos, para filtrar por zona. Sin `--estado` carga los ~2,475 del país,
+que es como está hoy en producción; con `--estado` arranca más rápido para una prueba:
 
 ```bash
 cd /srv/officelab/vps
 docker compose cp zonas.py api:/app/
-docker compose exec -T api python zonas.py --estado "Nuevo León"
+docker compose exec -T api python zonas.py --estado "Nuevo León"   # ~1 min, 51 municipios
+docker compose exec -T api python zonas.py                         # el país entero, ~45 min
 ```
 
-Tarda ~1 min (Nominatim permite 1 request/segundo). **Verifica** — deben ser 51, todas válidas,
-y el área total ~64,000 km²:
+Nominatim permite 1 request/segundo, y de ahí sale el tiempo. **Verifica** — con `--estado`
+deben ser 51, todas válidas, y el área total ~64,000 km²:
 
 ```bash
 docker compose exec -T db psql -U officelab -d officelab -c \

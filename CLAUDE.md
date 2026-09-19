@@ -166,6 +166,7 @@ rescata el 1%. Corrido el 2026-08-28: 1,463 de 1,481 bajadas, 1,451 con precios 
 
 ## Escala
 
-Los scrapers tienen ~363k anuncios nacionales. El tablero pagina server-side; el payload
+Los scrapers tienen ~464k anuncios nacionales (2026-09-19; ~202k activos). La tabla `zona`
+trae los 2,475 municipios del país, no solo los 51 de Nuevo León. El tablero pagina server-side; el payload
 bajó de ~25 MB a ~296 KB cuando el filtrado se movió a SQL. No reintroduzcas una carga
 completa al navegador.

@@ -139,7 +139,8 @@ ordena por ese total**, no por el unitario.
 
 ### Escala
 
-~363k anuncios nacionales. El tablero **pagina del lado del servidor**: el payload bajó de
+~464k anuncios nacionales (medido el 2026-09-19), de los cuales ~202k siguen activos y
+411k tienen municipio asignado. El tablero **pagina del lado del servidor**: el payload bajó de
 ~25 MB a ~296 KB cuando el filtrado se movió a SQL. No reintroduzcas una carga completa al
 navegador.
 

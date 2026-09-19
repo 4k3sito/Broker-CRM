@@ -50,6 +50,23 @@ the browser costs ~2% of the run and every listing still arrives over plain HTTP
 The script re-execs itself under `xvfb-run` when `DISPLAY` is unset. It is also
 the only SERP in the repo that carries **coordinates per card**.
 
+## Companion tools
+
+Everything in this directory that is not one of the five scrapers:
+
+| Script | What it does |
+|---|---|
+| `propdb.py` | Loads the JSONL into PostGIS (`load`), dedupes on `(source, listing_id)` and collapses dual rent/sale rows into the `*_alt` columns. `selfcheck` runs without a database. |
+| `liveness.py` | Re-checks whether stored listings are still published, and fills `activo` / `revisado_at`. `MODO_POR_FUENTE` picks `head`, `stream` or `waf` per portal. Resumable. |
+| `qa.py` | Closes out a run: numbers first, then `hermes` for judgement. Files a card on the task board when something looks wrong. **Always called with `-t memory`** — see H6 in SECURITY.md. |
+| `pincali_dual.py` | Backfills the second price of dual rent+sale listings. The SERP shows the same number for both operations, so the detail page is the only source. `--fetch` needs a residential IP and headful Chrome; `--apply` runs on the VPS. |
+| `ml_geo.py` | Geocodes Mercado Libre listings; re-execs under Xvfb for the sweep. |
+| `ml_session.py` | Gets a logged-in Mercado Libre session. ML approves the login from the phone app and **requires the browser to be on the same network as the phone**, so this one cannot run on the VPS: `login` here, then `scp` the Playwright `storage_state` over and `check` it there. |
+| `sanity.sh` | The smallest run that proves all five scrapers still extract and still bring coordinates, with a hard timeout each. Prints `RESULT <source> rc= … listings= coords= wire=`. |
+| `medir.py` | One-off measurement: GET vs HEAD for liveness, per source. This is where `MODO_POR_FUENTE` came from. Not part of the cron — it spends residential proxy. |
+
+`vps/zonas.py` is the matching loader for the `zona` table (OSM municipal polygons).
+
 Use `.venv/`, not `env/` (stale, missing deps).
 
 Make sure your use of each site and any proxy service is authorized and complies
