@@ -75,10 +75,21 @@ def municipios(rel_id: int) -> list[dict]:
 
 
 def estado_de(display_name: str) -> str | None:
-    """Nominatim devuelve "Monterrey, Nuevo León, México": el estado es el
-    penúltimo componente. Evita 32 consultas extra a Overpass."""
+    """Nominatim devuelve "Monterrey, Nuevo León, México": el estado es el último
+    componente antes del país. Evita 32 consultas extra a Overpass.
+
+    No siempre es el penúltimo: cuando el municipio tiene código postal en OSM,
+    Nominatim lo intercala ("Abalá, Yucatán, 97825, México") y el penúltimo es el
+    CP. Eso metió un código postal en `zona.estado` en 465 de los 2,475
+    municipios —el 18.8%— hasta que el cruce de coordenadas del 2026-09-19 lo
+    destapó. Se descartan por la derecha los componentes numéricos; el nombre de
+    un estado mexicano nunca lo es.
+    """
     partes = [x.strip() for x in (display_name or "").split(",")]
-    return partes[-2] if len(partes) >= 2 else None
+    partes = partes[:-1]                       # el país
+    while partes and partes[-1].replace(" ", "").isdigit():
+        partes.pop()                           # el código postal, si lo hay
+    return partes[-1] if len(partes) >= 2 else None
 
 
 def geometrias(ids: list[int]) -> dict[int, tuple[dict, str | None]]:
@@ -115,7 +126,12 @@ def selfcheck() -> None:
     assert BATCH <= 50, "Nominatim rechaza más de 50 osm_ids por lookup"
     assert estado_de("Monterrey, Nuevo León, México") == "Nuevo León"
     assert estado_de("Mexicali, Baja California, México") == "Baja California"
+    assert estado_de("Abalá, Yucatán, 97825, México") == "Yucatán"
+    assert estado_de("Monterrey, Nuevo León, 64490, México") == "Nuevo León"
+    assert estado_de("Tezoyuca, Estado de México, 56020, México") == "Estado de México"
+    assert estado_de("Ébano, San Luis Potosí, México") == "San Luis Potosí"
     assert estado_de("") is None
+    assert estado_de("México") is None         # sin municipio no hay estado
     print("ok")
 
 

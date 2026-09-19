@@ -12,6 +12,9 @@ tú te logueas a mano, y la sesión queda en un perfil persistente fuera del rep
 El barrido va por `fetch()` DENTRO de la página, no navegando. Sale por la pila
 de red de Chrome —mismo TLS, mismas cookies, mismo todo— pero sin renderizar ni
 bajar subrecursos: 0.6 s por anuncio contra los 7 s de una navegación completa.
+Y no baja el documento entero: lo lee por trozos y corta en cuanto tiene la
+coordenada, que vive al ~10% del HTML. Son 27.7 KB de red por anuncio en vez de
+112.9 KB —75.4% menos, medido con CDP— con la misma coordenada 8 de 8.
 Handoff a curl_cffi ya no existe: el 2026-08-08 medí que ML lo topa con PoW y
 muro aunque le repliques VERBATIM los 16 headers de Chrome y su cookie de 3.6 KB.
 El discriminador está debajo de HTTP y no se pelea; se usa el navegador.
@@ -226,10 +229,31 @@ def do_login() -> None:
         ctx.close()
 
 
+# Cuánto texto se lee antes de rendirse. La coordenada vive al ~10% del
+# documento (offset mediano medido: 51,665 de ~512,000 caracteres), pero el
+# lector entrega trozos grandes y en la práctica el corte cae entre 130 KB y
+# 223 KB. 300,000 deja margen de sobra sobre eso y aun así frena en seco a los
+# anuncios que no publican ubicación, que hoy se bajan enteros para nada.
+# Queda por ENCIMA de REAL_PAGE_BYTES a propósito: un corte por tope sigue
+# valiendo como "página real", y `verdict()` lo llama `sin-coords`, no
+# `desconocido`.
+TOPE_LECTURA = 300_000
+
 # El barrido entero vive aquí. Devuelve las cuatro señales de `verdict()`, nunca
 # el HTML: son 485 KB por anuncio y cruzar eso por el puente CDP cuesta más que
 # la request. El gap va adentro para no pagar un round-trip por anuncio.
+#
+# No usa `await r.text()`: lee el cuerpo por trozos y CANCELA en cuanto tiene
+# lat y lng. Medido con CDP sobre 8 anuncios por los dos caminos, los bytes de
+# red bajan de 112,868 a 27,740 —un 75.4% menos— y las coordenadas salieron
+# idénticas 8 de 8. Cancelar manda RST_STREAM y el resto no viaja.
+#
+# El muro y el proof-of-work se siguen viendo: esas páginas son chicas, el
+# stream termina solo antes del tope y se clasifican sobre el cuerpo completo.
 FETCH_JS = """async ([urls, gap]) => {
+  const CHROME = /"__CHROME_GEO__"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*\\}/g;
+  const RX_LA = /"latitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/;
+  const RX_LN = /"longitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/;
   const out = [];
   for (const u of urls) {
     try {
@@ -237,23 +261,31 @@ FETCH_JS = """async ([urls, gap]) => {
       // ese origen la URL del corpus sale cross-origin y CORS la mata.
       const p = new URL(u);
       const r = await fetch(p.pathname + p.search, {credentials: 'include'});
-      const html = await r.text();
-      // Mismo recorte que `CHROME_GEO_RX` en Python: la geolocalización del sitio
-      // aparece antes que la del anuncio y no es de nadie.
-      const limpio = html.replace(
-        /"__CHROME_GEO__"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*\\}/g, ' ');
-      const la = limpio.match(/"latitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/);
-      const ln = limpio.match(/"longitude"\\s*:\\s*"?(-?\\d+\\.\\d+)/);
-      const text = html.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').toLowerCase();
-      out.push({n: html.length,
-                lat: la ? parseFloat(la[1]) : null, lng: ln ? parseFloat(ln[1]) : null,
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '', la = null, ln = null, cortado = false;
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, {stream: true});
+        // Mismo recorte que `CHROME_GEO_RX` en Python: la geolocalización del
+        // sitio aparece antes que la del anuncio y no es de nadie.
+        const limpio = buf.replace(CHROME, ' ');
+        const a = limpio.match(RX_LA), b = limpio.match(RX_LN);
+        if (a && b) { la = a[1]; ln = b[1]; cortado = true; reader.cancel(); break; }
+        if (buf.length >= __TOPE__) { cortado = true; reader.cancel(); break; }
+      }
+      const text = buf.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').toLowerCase();
+      out.push({n: buf.length, cortado: cortado,
+                lat: la ? parseFloat(la) : null, lng: ln ? parseFloat(ln) : null,
                 wall: text.includes('__WALL__'),
-                pow: html.includes('bot_challenge') || html.includes('_bmc')});
+                pow: buf.includes('bot_challenge') || buf.includes('_bmc')});
     } catch (e) { out.push({n: 0, err: String(e).slice(0, 80)}); }
     await new Promise(k => setTimeout(k, gap + Math.random() * gap * 0.4));
   }
   return out;
-}""".replace("__WALL__", LOGIN_WALL).replace("__CHROME_GEO__", CHROME_GEO)
+}""".replace("__WALL__", LOGIN_WALL).replace("__CHROME_GEO__", CHROME_GEO) \
+    .replace("__TOPE__", str(TOPE_LECTURA))
 
 BATCH = 25          # anuncios por viaje al browser; ~1 min de trabajo por llamada
 ANCHOR_TRIES = 5    # anclas candidatas antes de declarar muerta la sesión
@@ -383,9 +415,11 @@ def crawl(limit: int | None, out_path: pathlib.Path, min_gap: float,
 
     el = time.monotonic() - t0
     n = sum(stats.values())
-    # `wire` es HTML ya descomprimido. ML sirve brotli (~23% con gzip como cota
-    # superior), así que el dato de red es ~1/4.
-    net = wire * 0.23
+    # `wire` es texto ya descomprimido. Con el corte de stream la razón medida
+    # (CDP, 8 anuncios) es 27,740 bytes de red por ~170,000 caracteres leídos;
+    # leyendo el documento entero era 112,868 por ~515,000. Las dos rondan 0.16
+    # y 0.22: se usa 0.17, que es la del camino que hoy corre.
+    net = wire * 0.17
     print(f"\n{dict(stats)} · {n} anuncios · {el:.0f}s · {el/max(n,1):.1f}s/anuncio · "
           f"{wire/max(n,1)/1024:.0f}KB HTML (~{net/max(n,1)/1024:.0f}KB de red) · "
           f"{remints} re-anclajes")
@@ -530,6 +564,15 @@ def _selfcheck() -> None:
     assert verdict(9_000, None, False, False)[0] == "desconocido"
     assert LOGIN_WALL in FETCH_JS, "el JS tiene que buscar la misma frase que Python"
     assert CHROME_GEO in FETCH_JS, "el JS tiene que descartar el mismo bloque que Python"
+    # el corte de stream: si alguien lo revierte a `r.text()` el ahorro se va
+    assert "getReader" in FETCH_JS and "reader.cancel()" in FETCH_JS, \
+        "el JS tiene que leer por trozos y cancelar, no bajar el documento entero"
+    assert str(TOPE_LECTURA) in FETCH_JS, "el tope de lectura no llegó al JS"
+    assert TOPE_LECTURA > REAL_PAGE_BYTES, \
+        "un corte por tope debe seguir contando como página real: si no, `verdict()` " \
+        "lo manda a `desconocido` y el barrido se frena creyendo que lo bloquearon"
+    # cortar por tope sin coordenada es un anuncio que no publica ubicación
+    assert verdict(TOPE_LECTURA, None, False, False)[0] == "sin-coords"
     assert CHROME_GEO in CHROME_GEO_RX.pattern, "la constante y el patrón se separaron"
 
     # El origen de las "coordenadas de relleno": el chrome del sitio publica su
