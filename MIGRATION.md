@@ -283,6 +283,72 @@ las 51 geometrías válidas, **64,157 km² contra los 64,220 km² oficiales del 
 `zonas.py` sin `--estado` y la tabla pasó a los **2,475 municipios de México**. Los 2 restantes traen coordenadas malas en origen: uno está en la CDMX
 (`inmuebles24:148862987`, lat 19.22) y otro fuera de NL por el oeste.
 
+### Dos defectos que destapó el cruce de coordenadas (2026-09-19)
+
+Al validar el geocodificado de Mercado Libre se cruzaron 29 coordenadas nuevas contra los
+polígonos de `zona`: **las 29 cayeron en el municipio exacto que declara el anuncio**. El
+geocodificado salió limpio; lo que no estaba limpio era la tabla de zonas.
+
+- **`zona.estado` traía un código postal en 465 de los 2,475 municipios (18.8%).**
+  `estado_de()` tomaba el penúltimo componente del `display_name` de Nominatim, que casi
+  siempre es el estado — pero cuando el municipio tiene CP en OSM, Nominatim lo intercala
+  (`"Abalá, Yucatán, 97825, México"`) y el penúltimo es el CP. Corregido: se descartan por
+  la derecha los componentes numéricos, y el selfcheck ahora trae los dos formatos. Las 465
+  filas se repararon consultando sólo sus `osm_id` (10 peticiones a Nominatim, no una
+  recarga completa). Ahora la tabla tiene **32 estados distintos**, que son los que hay.
+
+- **Abierto: el filtro de zona colapsa municipios homónimos.** `GET /api/zonas` agrupa por
+  `nombre`/`norm` y no devuelve el estado, así que los **7 "Benito Juárez"** del país
+  —Ciudad de México, Guerrero, Quintana Roo, Sonora, Tlaxcala, Veracruz y Zacatecas— salen
+  como una sola entrada de 9,289 anuncios, y filtrar por ella mezcla Cancún con la CDMX.
+  Pasa igual con `Juárez` (5 estados), `Hidalgo` (5), `Morelos` (5) y `Ocampo` (6). Era
+  invisible mientras el inventario era sólo de Nuevo León; con 2,475 municipios ya no lo es.
+  El arreglo natural es devolver `estado` en `/api/zonas` y filtrar por `zona_id`, no por
+  texto — y hasta ahora ese estado estaba mal en el 18.8% de las filas, así que el orden
+  importa: primero lo de arriba.
+
+### Geocodificar MercadoLibre: qué se probó y qué quedó (2026-09-19)
+
+ML es el único portal que no publica lat/lng en el SERP. De sus 86,138 anuncios,
+**44,554 (51.7%) no tienen ninguna coordenada**, 38,027 traen el centroide de su colonia
+del gazetteer, 3,305 la coordenada real del portal y 252 el punto de relleno del sitio.
+
+**Descartado: la API oficial de ML.** `api.mercadolibre.com` responde 401/403 desde el
+VPS; el multiget `?ids=` existe y pide token de una app registrada. No se pudo medir.
+
+**Descartado: Mapbox.** Se midió contra verdad de campo —los 3,305 anuncios cuya
+coordenada publicó el propio portal— con el endpoint por lotes de Geocoding v6, acotando
+cada búsqueda a la caja del municipio resuelta **desde el texto** `city`+`province`
+(usar la coordenada real para acotar habría sido preguntar la respuesta). Resultado sobre
+904 anuncios:
+
+| Grupo | n | error p50 | ≤100 m | ≤1 km |
+|---|---|---|---|---|
+| con número de calle | 303 | 1,046 m | 25.1% | 48.8% |
+| sin número de calle | 587 | 2,348 m | 7.0% | 33.9% |
+
+**El gazetteer propio da 674 m de mediana y es gratis**, así que Mapbox pierde. La
+confianza que declara Mapbox sí está bien calibrada —`high` acierta a 68 m— pero sólo la
+declara en el 1.1% de los casos: unos 493 anuncios de los 44,554. El cuello de botella no
+es el geocodificador sino el texto: el 83% de los anuncios sin coordenada sólo dice
+"Colonia, Municipio, Estado", y de los que traen número, muchos son lote o manzana.
+`scrapers/mapbox_bench.py` deja la medición reproducible.
+
+De ahí sale un dato que sí sirve: que los aciertos de alta confianza de Mapbox caigan a
+68 m del pin de ML significa que **los pines de ML son reales, no difuminados**. El
+barrido del detail page vale como fuente de verdad.
+
+**Lo que quedó: `ml_geo.py` corta el stream.** La coordenada vive al ~10% del HTML, así
+que `FETCH_JS` dejó de hacer `await r.text()` y ahora lee por trozos y cancela al primer
+match. Medido con CDP sobre 8 anuncios por los dos caminos: **112,868 → 27,740 bytes de
+red, 75.4% menos, con la misma coordenada 8 de 8**. `Range:` no era opción —el origen lo
+ignora y devuelve 200 con el cuerpo entero— y brotli ya estaba puesto.
+
+**Pendiente:** `rows_needing_coords()` decide qué falta mirando sólo el JSONL, y como el
+SERP nunca trae coordenadas da los 56,033 por pendientes. La base ya sabe que 2,128 de
+ellos tienen la coordenada exacta y 24,270 una de colonia: cruzar contra la base antes de
+barrer quita 26,428 peticiones (47%).
+
 ### `listings.zona_id` materializado — 429 ms → 1 ms
 
 El join en vivo con `ST_Covers` cuesta **~430 ms**: el índice GIST filtra por bounding box, pero
