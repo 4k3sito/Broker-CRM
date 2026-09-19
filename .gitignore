@@ -29,3 +29,6 @@ error_logs/
 
 # Credenciales de proxy en el servidor — nunca al repo
 scrapers/.env
+
+# Logs de corridas sueltas en la raíz
+*.log

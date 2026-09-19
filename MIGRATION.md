@@ -63,8 +63,10 @@ Cada fase se entrega y se verifica sola. No se empieza la siguiente hasta que la
 - **Fase 2a — Auth.** `api/main.py`: `POST /api/login`, `POST /api/logout`, `GET /api/me`,
   `POST /api/password`, `GET /api/health`, CLI de usuarios y `selfcheck`. Tablas `usuario` y `sesion`, y las FKs del CRM
   colgadas de `usuario`. ✅ *entregada y verificada en el VPS*
-- **Fase 2z — Zonas geográficas.** `vps/zonas.py` + tabla `zona`: los 51 municipios de Nuevo León
-  como polígonos reales, y `listings.zona_id` materializado. ✅ *entregada y verificada*
+- **Fase 2z — Zonas geográficas.** `vps/zonas.py` + tabla `zona`: municipios como polígonos
+  reales y `listings.zona_id` materializado. ✅ *entregada y verificada* — se estrenó con los
+  51 de Nuevo León y **hoy la tabla trae los 2,475 municipios del país**; 411,452 de 464,014
+  listings tienen zona asignada (medido el 2026-09-19).
 - **Fase 2b — Datos.** Endpoints de listings, zonas y CRM. ✅ *entregada y verificada*
 - **Fase 3 — Frontend.** Cambiar los 6 JS de `supabase-js` a `fetch` contra la API
   (`credentials: 'same-origin'`). Caddy sirve `web/`, no la raíz del repo.
@@ -275,9 +277,10 @@ da los ids y **Nominatim devuelve la geometría ya en GeoJSON**, que PostGIS lee
 `ST_GeomFromGeoJSON` — sin shapefiles ni GDAL. El script rota entre 3 espejos de Overpass porque
 `overpass-api.de` devuelve 504 cuando está saturado.
 
-**Verificación:** 51 municipios (los 51 reales de NL), las 51 geometrías válidas, **64,157 km²
-contra los 64,220 km² oficiales del estado**, y **4,202 de 4,204** listings con coordenadas caen
-dentro de un municipio. Los 2 restantes traen coordenadas malas en origen: uno está en la CDMX
+**Verificación de la primera carga** (solo Nuevo León): 51 municipios (los 51 reales de NL),
+las 51 geometrías válidas, **64,157 km² contra los 64,220 km² oficiales del estado**, y
+**4,202 de 4,204** listings con coordenadas caen dentro de un municipio. Después se corrió
+`zonas.py` sin `--estado` y la tabla pasó a los **2,475 municipios de México**. Los 2 restantes traen coordenadas malas en origen: uno está en la CDMX
 (`inmuebles24:148862987`, lat 19.22) y otro fuera de NL por el oeste.
 
 ### `listings.zona_id` materializado — 429 ms → 1 ms
