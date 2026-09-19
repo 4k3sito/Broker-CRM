@@ -323,7 +323,6 @@ ls -lh /srv/backups/test.sql.gz     # debe pesar > 1 KB
 - No instalar Caddy, nginx ni certificados: eso es Fase 3.
 - No configurar el cron de scrapers: es Fase 4, y necesita credenciales de proxy residencial que
   aquí no existen. Correrlos sin proxy desde la IP del VPS quema la IP con los portales.
-- No tocar el proyecto de Supabase: sigue en producción hasta la Fase 5.
 - No hacer `docker compose down -v` (la `-v` borra el volumen y con él la base).
 
 ## Ajuste opcional de Postgres
