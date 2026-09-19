@@ -344,6 +344,39 @@ match. Medido con CDP sobre 8 anuncios por los dos caminos: **112,868 → 27,740
 red, 75.4% menos, con la misma coordenada 8 de 8**. `Range:` no era opción —el origen lo
 ignora y devuelve 200 con el cuerpo entero— y brotli ya estaba puesto.
 
+**El tiempo, y por qué eran 120 h.** El piso real de una petición son **520 ms**, medido;
+el resto del reloj era el gap de 5 s que nos pusimos nosotros. Ese 5 no es una directiva:
+el único `Crawl-delay: 5` del robots.txt de ML vive en el bloque de **Bingbot**, y el de
+`*` no tiene ninguno. Medida la concurrencia desde la misma página, la latencia **no se
+degrada**: 517 ms con 8 peticiones en vuelo contra 527 ms con una, 122 anuncios, cero
+gates. De ahí sale `--workers`.
+
+| Concurrencia | 56,033 anuncios, gap 5 s |
+|---|---|
+| 1 | 120 h |
+| 2 | 60 h |
+| **4** | **30 h** |
+| 8 | 15 h |
+
+Se eligió **4 sin bajar el gap**: cada obrero sigue esperando sus 5 s y el ritmo agregado
+queda en ~0.8 peticiones/segundo. La medición fue una ráfaga de 18 segundos y **no dice
+nada del régimen sostenido** —límites por hora, detección de comportamiento, marcas en la
+cuenta— y con una sola cuenta de ML, perderla acaba el barrido.
+
+**Trampa del paralelismo:** con varios obreros los resultados vuelven en desorden, y
+`zip(chunk, res)` en `crawl()` le pegaría la coordenada al anuncio de junto. Nada lo
+delataría: los puntos siguen siendo válidos. Por eso `FETCH_JS` preasigna `out` y escribe
+en `out[i]`, y el selfcheck falla si alguien lo vuelve a `out.push()`.
+
+**`patch_coords()` ignoraba `suspect`.** Aplicaba todas las filas del
+`ml_coords.validated.jsonl`, incluidas las que `--validate` acababa de marcar como
+relleno o lejanas. Para los 24,270 anuncios que ya traían un centroide de colonia con
+~674 m de error, eso cambiaba un punto aproximado pero honesto por uno que no es de nadie:
+precisión peor, no mejor. Ahora las salta. Y marca `geo_origen='portal'` con
+`geo_error_m=NULL`, que antes no hacía: sin eso el gazetteer —que se arma SOLO con
+`geo_origen='portal'`— ignoraría justo las coordenadas nuevas, y `geo_error_m` seguiría
+declarando el error del centroide viejo sobre un punto ya exacto.
+
 **Pendiente:** `rows_needing_coords()` decide qué falta mirando sólo el JSONL, y como el
 SERP nunca trae coordenadas da los 56,033 por pendientes. La base ya sabe que 2,128 de
 ellos tienen la coordenada exacta y 24,270 una de colonia: cruzar contra la base antes de
