@@ -83,6 +83,8 @@ Los `.dc.html` sueltos en la raíz del repo son de julio y describen un sistema
 
 ```bash
 npm run dev                       # dev-server.js: sirve web/ en :3000 y proxya /api al VPS
+npm run verificar                 # clases sin regla y marcas retiradas, en las 8 páginas
+npm run verificar:selfcheck       # las trampas del verificador, sin tocar el sitio
 
 # API (en el VPS)
 ssh officelab 'cd /srv/officelab/vps && docker compose exec -T api python main.py selfcheck'
@@ -106,8 +108,12 @@ ssh officelab 'TL=600 /srv/officelab/vps/cron.sh lamudi'   # forzar una corrida 
 ```
 
 `--selfcheck` **es la suite de pruebas** de los scrapers: córrelo después de tocar
-cualquier parser, falla cuando los selectores se mueven. El frontend no tiene tests
-automatizados — se verifica con capturas del sitio real (ver abajo).
+cualquier parser, falla cuando los selectores se mueven.
+
+El frontend tiene un solo chequeo automatizado, `npm run verificar` (`web/verificar.py`,
+ver `DESIGN.md` §6): clases sin regla en `hermes.css` y marcas del sistema terracota.
+**Reporta y sale con 0** — no es una compuerta, y no mira layout ni comportamiento. Todo
+lo demás se sigue verificando con un navegador contra el sitio real (ver abajo).
 
 ## Verificar cambios de frontend
 

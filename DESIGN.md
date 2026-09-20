@@ -99,12 +99,33 @@ Hanken Grotesk + Space Mono). Es lo único externo que la CSP permite.
 - **Ningún componente define un color propio.** Todo sale de un token, o el tema
   oscuro se rompe en silencio.
 - Wordmark: `Office<i>Lab</i>`, subtítulo `CRM Inmobiliario · México`.
+- **Piso de 10px para el texto funcional.** Todo lo que se lee o se toca —etiquetas,
+  fechas, precios, códigos, navegación, encabezados de tabla— está en 10px o más.
+  Sólo siete reglas quedan por debajo, y son deliberadas: el subtítulo del wordmark
+  (`.brand-sub`, `.brand-lockup small`, `.mn-brand small`) y `.mn-soon` a 8.5–9px, que
+  son marca y no información; `.login-sep span` a 9.5px; `.print-facts span` a 9px, que
+  sólo existe al imprimir; y `.field-error::before` a 9px, que es el glifo `!` dentro de
+  una caja de 14px y no texto.
 
 ## 4 bis. La referencia es el proyecto de Claude Design
 
 Los siete `.dc.html` del proyecto **"Hermes Agent aesthetic"** son el layout
 oficial. Se tradujeron a `hermes.css` el 2026-09-01 midiendo cada valor del mock,
-no a ojo. Antes de cambiar una medida de la topbar, la barra de consulta, la
+no a ojo.
+
+**El mock manda en layout, no en legibilidad.** El 2026-09-20 se midieron 61 reglas con
+`font-size` bajo 11px, 49 de ellas en texto funcional, todas heredadas de medir el mock:
+el idioma de micro-etiqueta en Space Mono con tracking ancho carga por igual la
+decoración y datos que hay que leer (`.tk-vence` es cuándo vence una tarea, `.price-note`
+y `.currency` son el precio, `.mn-label` es la navegación). 26 de esas reglas subieron a
+10px. **Cuando una medida del mock choque con la legibilidad, gana la legibilidad y la
+desviación se anota aquí**, en vez de tratar el mock como si fuera también la autoridad
+tipográfica.
+
+Las 22 reglas funcionales que quedaron en 10 y 10.5px son una deuda conocida: un
+detector de diseño con piso de 11px las sigue marcando, y la decisión de dejarlas fue
+por riesgo de layout, no porque estén bien. Subirlas exige re-medir la topbar de 66px,
+la cáscara de altura fija del kanban y el panel de 336px. Antes de cambiar una medida de la topbar, la barra de consulta, la
 tarjeta o el kanban, abre el mock correspondiente:
 
 > **No están en el repo.** Viven en Claude Design y se leen con `DesignSync`
@@ -159,31 +180,38 @@ selector de estado) y sólo aporta las suyas con prefijo `detail-`, `ficha-`,
 ## 6. Cómo verificar que no rompiste el sistema
 
 ```bash
+npm run verificar             # clases sin regla y marcas retiradas, en las 8 páginas
+npm run verificar:selfcheck   # las trampas del verificador, sin tocar el sitio
+```
+
+`web/verificar.py` **reporta y siempre sale con 0**: es un informe, no una compuerta,
+para que nadie quede bloqueado a media edición. Saca las páginas de los `<script src>`
+de cada HTML, así que una página nueva entra sola y `menu.js` se revisa en todas las
+que lo cargan — el fragmento que vivía aquí antes miraba seis páginas y nunca el cajón
+de navegación. Lo que salga, o se estiliza o se borra del marcado.
+
+**Las dos trampas que ya costaron un despliegue roto** están fijadas en su
+`--selfcheck`, que es donde tienen que seguir: una clase con guiones dobles
+(`.login-brand--mobile`) es un nombre entero y no una variante que herede la regla de
+`.login-brand`, y una marca partida por el marcado (`Office<span>Scrapper</span>`) se
+lee en pantalla aunque ningún grep de la palabra entera la encuentre en el fuente. Una
+tercera, más nueva: las expresiones `${…}` de los template literals no son clases, y
+sin descartarlas el informe se llena de `${l.starred`, `?` y `===`.
+
+Las reglas duras siguen siendo greps, porque se leen de un vistazo:
+
+```bash
 cd web
 grep -c "border-radius\|box-shadow" hermes.css        # tiene que dar 0
 grep -o '#[0-9A-Fa-f]\{6\}' hermes.css | sort -u      # solo los del :root
-grep -l "OfficeScrapper\|#241F19\|Newsreader" *.html  # no debe salir nada
 ```
 
-Y que ninguna clase del HTML/JS se quede sin regla:
+### Contraste
 
-```bash
-python3 - <<'PY'
-import re, pathlib
-uso = lambda *fs: {c for f in fs for m in re.findall(r'class="([^"]*)"',
-                   pathlib.Path(f).read_text(encoding='utf-8')) for c in m.split()}
-css = pathlib.Path('hermes.css').read_text(encoding='utf-8')
-tiene = set(re.findall(r'\.([a-z][a-z0-9-]*)', css))
-for n, fs in {'index':('index.html','app.js'), 'clientes':('clientes.html','clientes.js'),
-              'listing':('listing.html','listing.js'), 'login':('login.html','login.js'),
-              'tareas':('tareas.html','tareas.js'),
-              'scrapers':('scrapers.html','scrapers.js')}.items():
-    falta = [c for c in sorted(uso(*fs) - tiene) if not c.startswith(('status-','s-'))]
-    print(n, falta or 'OK')
-PY
-```
-
-Lo que salga, o se estiliza o se borra del marcado. **Ojo con dos trampas que ya
-costaron un despliegue roto:** una clase con guiones dobles (`.login-brand--mobile`)
-no la encuentra un filtro que busque `.login-brand`, y una marca partida por el
-marcado (`Office<span>Scrapper</span>`) no la encuentra un grep de la palabra entera.
+`--muted` y `--faint` son los dos tokens de texto secundario y los dos tienen que
+llegar a **4.5:1 (WCAG AA)** contra `--bg`, en los dos temas. `--faint` no llegaba: era
+`#9C93AD`, o sea 2.49:1 en claro y 4.06:1 en oscuro, en los 48 lugares donde se usa.
+Está en `#716686` (4.54:1) y `rgba(239,237,230,.50)` (4.59:1) desde el 2026-09-20.
+Un detector que lea sólo el HTML estático ve tres de esos 48 casos: el resto lo pinta
+el JS. Al cambiar un token de texto, la cuenta se hace sobre el token, no sobre lo que
+alcance a ver un escáner.
