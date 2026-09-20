@@ -977,11 +977,19 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   --p-alta:#A83B22; --p-media:#A85F14; --p-baja:#6B7D6E;
   --r-alta:rgba(168,59,34,.10); --r-media:rgba(168,95,20,.10); --r-baja:rgba(107,125,110,.10);
   --c-pendiente:#83808C; --c-asignado:#2B3FC4; --c-encurso:#A85F14; --c-completado:#1F6F4A;
+  /* Tintes de avatar: `tareas.js` deriva uno del id de la persona. Son tokens y no
+     hexes en el JS porque en oscuro tienen que subir de luminosidad como cualquier
+     otro color del sistema; con los hexes puestos a mano no lo hacían. No son
+     colores de estado y no deben reutilizarse como tales. */
+  --tono-0:#2B3FC4; --tono-1:#1F6F4A; --tono-2:#A85F14; --tono-3:#6B3FB5;
+  --tono-4:#A83B22; --tono-5:#6B7D6E; --tono-6:#83808C;
 }
 :root[data-theme="dark"] {
   --p-alta:#F0A18E; --p-media:#F5C98C; --p-baja:#A8C0AC;
   --r-alta:rgba(240,161,142,.14); --r-media:rgba(245,201,140,.14); --r-baja:rgba(168,192,172,.14);
   --c-pendiente:#C6C4CF; --c-asignado:#A9BEFF; --c-encurso:#F5C98C; --c-completado:#95DEB9;
+  --tono-0:#A9BEFF; --tono-1:#95DEB9; --tono-2:#F5C98C; --tono-3:#D3BFF7;
+  --tono-4:#F0A18E; --tono-5:#A8C0AC; --tono-6:#C6C4CF;
 }
 
 /* ── Tablero de tareas ──────────────────────────────────────────────────────

@@ -3,7 +3,10 @@
 Five nationwide scrapers at the repo root: `lamudi_scraper.py`,
 `inmuebles24_scraper.py`, `viva_scraper.py`, `mercadolibre_scraper.py` and
 `pincali_scraper.py`. They share `stealth_scraper.py` (curl_cffi/camoufox
-transport), `scrape_utils.py` (logging + Ctrl-C-safe run guard) and — for the two
+transport), `scrape_utils.py` (logging, Ctrl-C-safe run guard, `load_seen` to resume from the
+JSONL and `crawl_pids` to watch a run — the last two used to be copy-pasted into every
+scraper; Pincali keeps its own `_load_seen` because it keys on `(listing, operation)`
+for the dual-priced rows) and — for the two
 Navent-built portals, Inmuebles24 and Vivanuncios — `navent_serp.py`, which holds
 the entire SERP data layer because those two sites ship the identical
 `preloadedData` blob (Mercado Libre and Pincali reuse its `Listing`/wire meter).

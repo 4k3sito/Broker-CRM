@@ -4,8 +4,6 @@
 // el resultado — qué trajo cada fuente, cuándo, y qué tan completo vino.
 // Una corrida en vuelo se vigila con `<scraper>.py --status` en la terminal.
 
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-                                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const num = n => Number(n ?? 0).toLocaleString('es-MX');
 const DIA = 86_400_000;
 const plural = (n, sing, pl) => `${num(n)} ${n === 1 ? sing : pl}`;

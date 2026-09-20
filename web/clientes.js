@@ -1,8 +1,6 @@
 
 const PROC_STATUS = ['presentado', 'aprobado', 'rechazado'];
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
-const escAttr = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const norm = s => (s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 let currentUser  = null;
 let clientes     = [];          // cada uno con .proceso[] embebido
@@ -112,15 +110,8 @@ function procesoRow(p) {
   const opts = PROC_STATUS.map(s =>
     `<option value="${s}"${s === p.status ? ' selected' : ''}>${cap(s)}</option>`).join('');
   return `<div class="proc-row">
-    <span class="proc-ficha" title="${escAttr(titulo)}">${escAttr(titulo)}</span>
+    <span class="proc-ficha" title="${esc(titulo)}">${esc(titulo)}</span>
     <select class="proc-status status-${p.status}" data-proc="${p.id}">${opts}</select>
-  </div>`;
-}
-
-function campoRow(c, campo, label, placeholder) {
-  return `<div class="cliente-field">
-    <span>${label}</span>
-    <input class="cli-in" data-f="${campo}" placeholder="${placeholder}" value="${escAttr(c[campo])}">
   </div>`;
 }
 
@@ -140,7 +131,7 @@ const iniciales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0])
 function campoRow(c, campo, label, placeholder) {
   return `<div class="cliente-field">
     <span>${label}</span>
-    <input class="cli-in" data-f="${campo}" placeholder="${placeholder}" value="${escAttr(c[campo])}">
+    <input class="cli-in" data-f="${campo}" placeholder="${placeholder}" value="${esc(c[campo])}">
   </div>`;
 }
 
@@ -151,10 +142,10 @@ function clienteCard(c) {
   const pend = cuenta(todos, 'presentado');
   return `<article class="cliente-card" data-id="${c.id}">
     <div class="cliente-head">
-      <span class="cliente-ava">${escAttr(iniciales(c.nombre))}</span>
+      <span class="cliente-ava">${esc(iniciales(c.nombre))}</span>
       <div class="cliente-id">
-        <input class="cliente-nombre cli-in" data-f="nombre" value="${escAttr(c.nombre)}">
-        <input class="cliente-sub cli-in" data-f="empresa" placeholder="Empresa" value="${escAttr(c.empresa)}">
+        <input class="cliente-nombre cli-in" data-f="nombre" value="${esc(c.nombre)}">
+        <input class="cliente-sub cli-in" data-f="empresa" placeholder="Empresa" value="${esc(c.empresa)}">
       </div>
       ${etapa ? `<span class="cliente-etapa status-${etapa}">${cap(etapa)}</span>` : ''}
       <button class="cliente-del" title="Eliminar cliente">&times;</button>

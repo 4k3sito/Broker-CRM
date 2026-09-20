@@ -10,7 +10,7 @@ which proved the flows port to a new site in an afternoon when the platform is
 shared (§4b).
 
 Reference implementations in this repo: `stealth_scraper.py` (transport tier),
-`scrape_utils.py` (logging + interrupt-safe run guard), `navent_serp.py` (the
+`scrape_utils.py` (logging, interrupt-safe run guard, `load_seen`, `crawl_pids`), `navent_serp.py` (the
 SERP data layer shared by both Navent portals), `lamudi_scraper.py`
 (target-specific parsing + challenge solver), `inmuebles24_scraper.py`
 (price-keyset sharding under a hard page cap), `viva_scraper.py`

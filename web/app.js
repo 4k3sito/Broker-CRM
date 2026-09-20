@@ -22,8 +22,6 @@ const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
 const TIPOS  = ['oficina', 'local', 'bodega', 'terreno', 'edificio'];
 const ORDENES = { recientes: 'Recientes', precio_asc: 'Precio ↑', precio_desc: 'Precio ↓', m2_desc: 'Más m²' };
 
-const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-                                .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const mx  = n => Number(n).toLocaleString('es-MX');
 
 const ICON_EXTERNAL = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
@@ -237,7 +235,7 @@ function renderCard(l) {
       ${l.direccion ? `<div class="card-dir">${ICON_PIN}${esc(l.direccion)}</div>` : ''}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
-        <span class="tag-txn">${l.transaccion}</span>
+        <span class="tag-txn">${esc(l.transaccion)}</span>
         ${l.codigo ? `<span class="tag-cod">${esc(l.codigo)}</span>` : ''}
       </div>
       <div class="card-sep"></div>

@@ -49,7 +49,7 @@ from selectolax.parser import HTMLParser
 from tqdm import tqdm
 
 from stealth_scraper import Scraper
-from scrape_utils import graceful, setup_logging
+from scrape_utils import crawl_pids, graceful, load_seen, setup_logging
 from navent_serp import (chain as _nav_chain, BLOCK as _BLOCK, WIRE, Listing, fetch as _navent_fetch,
                          find_postings as _find_postings, num as _num,
                          paging as _paging, preloaded as _preloaded,
@@ -219,19 +219,6 @@ def _enter(scraper: Scraper, state_slug: str) -> str:
     return landing
 
 
-def _load_seen(out: Path) -> set[str]:
-    if not out.exists():
-        return set()
-    seen = set()
-    with out.open(encoding="utf-8") as fh:
-        for line in fh:
-            try:
-                seen.add(json.loads(line)["listingId"])
-            except (json.JSONDecodeError, KeyError):
-                continue
-    return seen
-
-
 def _load_done(path: Path) -> dict[str, str | int]:
     """query -> "done", or the price floor to resume the sweep from.
 
@@ -255,7 +242,7 @@ def crawl(states, searches, out_path, max_shards, days=None, min_gap=2.5):
     # exhausted means "all listings newer than 7 days", not "the whole query".
     suffix = f"@{days}d" if days else ""
     ckpt = out.with_name(out.name + ".done")
-    seen = _load_seen(out)
+    seen = load_seen(out)
     done = _load_done(ckpt)
     logger = setup_logging(out)
     scraper = Scraper(min_gap=min_gap)  # DataDome punishes bursts; slow floor on one IP
@@ -421,23 +408,6 @@ def survey(states, searches, min_gap=2.5) -> None:
 _LOG_LINE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\w+) +(.*)$")
 
 
-def _crawl_pids() -> list[int]:
-    """The running crawl, read straight off /proc — no `pgrep -f`, whose pattern
-    matches the watcher's own command line and waits on itself forever."""
-    pids = []
-    for entry in Path("/proc").iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            argv = (entry / "cmdline").read_bytes().decode().split("\0")
-        except OSError:
-            continue                       # process exited between listing and read
-        if (any("inmuebles24_scraper.py" in a for a in argv[1:])
-                and "python" in argv[0] and "--status" not in argv):
-            pids.append(int(entry.name))
-    return pids
-
-
 def status(out_path, states=None, searches=None, stall_after: float = 600.0,
            _pids=None) -> int:
     """One-shot health read of a run in flight: no network, no loop.
@@ -459,7 +429,7 @@ def status(out_path, states=None, searches=None, stall_after: float = 600.0,
     states = states if states is not None else list(STATES)
     searches = searches if searches is not None else SEARCHES
     rows = sum(1 for _ in out.open(encoding="utf-8")) if out.exists() else 0
-    pids = _crawl_pids() if _pids is None else _pids
+    pids = crawl_pids() if _pids is None else _pids
     lines = [m.groups() for m in
              (_LOG_LINE.match(l) for l in log_path.read_text(encoding="utf-8").splitlines())
              if m]

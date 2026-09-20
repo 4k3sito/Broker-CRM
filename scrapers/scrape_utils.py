@@ -1,4 +1,6 @@
-"""Shared scraper plumbing: file logging and a Ctrl-C-safe run guard.
+"""Shared scraper plumbing: file logging, a Ctrl-C-safe run guard, and the two
+helpers every scraper needs to resume and to watch itself (`load_seen`,
+`crawl_pids`).
 
 Progress bars are plain `tqdm` at the call sites — it already does determinate
 (n/total + ETA) and indeterminate (counter + rate) and stays quiet off a TTY.
@@ -10,6 +12,7 @@ exit graceful, the timeline legible, and errors persistent on disk.
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
 from contextlib import contextmanager
@@ -53,6 +56,45 @@ def graceful(logger: logging.Logger, summary):
         sys.stderr.write("\n" + summary() + "\n")
 
 
+def load_seen(out: Path) -> set[str]:
+    """The listing ids already in the JSONL, so a re-run resumes instead of
+    re-fetching. A truncated last line from a killed run is skipped, not fatal."""
+    if not out.exists():
+        return set()
+    seen = set()
+    with out.open(encoding="utf-8") as fh:
+        for line in fh:
+            try:
+                seen.add(json.loads(line)["listingId"])
+            except (json.JSONDecodeError, KeyError):
+                continue
+    return seen
+
+
+def crawl_pids() -> list[int]:
+    """The running crawl of *this* script, read straight off /proc — no `pgrep -f`,
+    whose pattern matches the watcher's own command line and waits on itself forever.
+
+    The script name comes from `sys.argv[0]`, so every scraper calls this the same
+    way and none of them has to name itself.
+    """
+    nombre = Path(sys.argv[0]).name
+    pids = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().decode().split("\0")
+        except OSError:
+            continue                       # process exited between listing and read
+        # argv[0] must be the interpreter, or the `xvfb-run` wrapper shell — whose
+        # command line also names the script — doubles every hit.
+        if (any(nombre in a for a in argv[1:])
+                and "python" in argv[0] and "--status" not in argv):
+            pids.append(int(entry.name))
+    return pids
+
+
 if __name__ == "__main__":  # self-check: python scrape_utils.py
     import tempfile
 
@@ -83,4 +125,15 @@ if __name__ == "__main__":  # self-check: python scrape_utils.py
 
         text = Path(str(out) + ".log").read_text(encoding="utf-8")
         assert "SIGINT" in text and "boom" in text and "run complete" in text, text
+
+        # load_seen: reanuda desde el JSONL y sobrevive a una última línea truncada.
+        assert load_seen(Path(tmp) / "no-existe.jsonl") == set()
+        out.write_text('{"listingId": "a"}\n{"listingId": "b"}\n{"listing', encoding="utf-8")
+        assert load_seen(out) == {"a", "b"}, load_seen(out)
+
+    # crawl_pids lee /proc de verdad: sin `--status`, este mismo proceso ES el crawl
+    # y tiene que aparecer. Lo que excluye al vigilante es el filtro de `--status`,
+    # y por eso `status()` puede llamarlo sin esperarse a sí mismo para siempre.
+    import os
+    assert os.getpid() in crawl_pids(), "el barrido de /proc no encontró este proceso"
     print("OK scrape_utils selfcheck")
