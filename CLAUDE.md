@@ -46,7 +46,10 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   `update-password.html`. `api.js` es la capa de datos (`fetch` contra `/api/*`,
   `credentials: 'same-origin'`); **una sola hoja de estilos, `hermes.css`**; `menu.js`
   inyecta el cajón de navegación y `theme.js` el tema claro/oscuro — ninguna página
-  repite ese marcado.
+  repite ese marcado. **`texto.js` es el único sitio donde se escapa**: `esc`, `norm` y
+  `hrefSeguro`. Llegó a haber cinco copias de `esc` y por eso `listing.js` se olvidó de
+  usarlo con datos de portales; todo lo que entre a `innerHTML` pasa por ahí, y todo
+  `href` que venga de un anuncio o de un adjunto, por `hrefSeguro`.
 - **`api/main.py`** — FastAPI. Auth propia (scrypt de la stdlib + sesiones opacas en la
   DB), endpoints de listings/zonas/CRM/tareas, `GET /api/scrapers` (agregados de
   `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers), y un CLI: `selfcheck`, `lsusers`, `adduser`,

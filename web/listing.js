@@ -28,7 +28,6 @@ let currentUser = null;
 
 const PROC_STATUS = ['presentado', 'aprobado', 'rechazado'];
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
-const escAttr = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function parseLocation(loc) {
   if (loc == null) return null;
@@ -166,7 +165,7 @@ function seguimientoHtml() {
   const rows = procesos.map(p => {
     const opts = PROC_STATUS.map(s => `<option value="${s}"${s === p.status ? ' selected' : ''}>${cap(s)}</option>`).join('');
     return `<div class="proc-row" data-proc="${p.id}">
-      <span class="proc-ficha">${escAttr(p.cliente?.nombre ?? '(cliente)')}</span>
+      <span class="proc-ficha">${esc(p.cliente?.nombre ?? '(cliente)')}</span>
       <select class="proc-status status-${p.status}" data-proc="${p.id}">${opts}</select>
       <button class="proc-del" data-proc="${p.id}" title="Quitar del seguimiento">&times;</button>
     </div>`;
@@ -181,7 +180,7 @@ function seguimientoHtml() {
     adder = `<div class="proc-add">
       <select id="proc-add-select" class="ficha-in">
         <option value="">Agregar cliente al seguimiento&#8230;</option>
-        ${disponibles.map(c => `<option value="${c.id}">${escAttr(c.nombre)}</option>`).join('')}
+        ${disponibles.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('')}
       </select>
       <button class="btn-solid" id="proc-add-btn">Agregar</button>
     </div>`;
@@ -237,7 +236,7 @@ function documentosHtml() {
   const done = documentos.filter(d => d.done).length;
   const rows = documentos.map(d => `<div class="tarea ${d.done ? 'done' : ''}">
     <label><input type="checkbox" class="doc-chk" data-id="${d.id}"${d.done ? ' checked' : ''}>
-      <span>${escAttr(d.label)}</span></label>
+      <span>${esc(d.label)}</span></label>
     <button class="tarea-del doc-del" data-id="${d.id}" title="Quitar documento">&times;</button>
   </div>`).join('');
   return `<div class="detail-section">
@@ -292,15 +291,15 @@ function printFicha() {
         <div class="print-brand">Office<i>Lab</i></div>
         <div class="print-tag">Ficha t&#233;cnica</div>
       </div>
-      <h1>${escAttr(f.titulo || 'Propiedad')}</h1>
-      ${listing.direccion ? `<div class="print-loc">${escAttr(listing.direccion)}</div>` : ''}
+      <h1>${esc(f.titulo || 'Propiedad')}</h1>
+      ${listing.direccion ? `<div class="print-loc">${esc(listing.direccion)}</div>` : ''}
       <div class="print-facts">
         <div><span>Precio</span><strong>${p ? '$' + p.n + ' ' + p.curr : 'Sin precio'}</strong></div>
-        ${f.tamano_m2 ? `<div><span>Tama&#241;o</span><strong>${f.tamano_m2} m&#178;</strong></div>` : ''}
+        ${f.tamano_m2 ? `<div><span>Tama&#241;o</span><strong>${esc(f.tamano_m2)} m&#178;</strong></div>` : ''}
         ${ppm ? `<div><span>Precio / m&#178;</span><strong>${ppm}</strong></div>` : ''}
       </div>
-      ${fotos.length ? `<div class="print-fotos">${fotos.map(u => `<img src="${escAttr(u)}" alt="">`).join('')}</div>` : ''}
-      ${f.notas ? `<div class="print-notes"><h2>Notas</h2><p>${escAttr(f.notas)}</p></div>` : ''}
+      ${fotos.length ? `<div class="print-fotos">${fotos.map(u => `<img src="${esc(u)}" alt="">`).join('')}</div>` : ''}
+      ${f.notas ? `<div class="print-notes"><h2>Notas</h2><p>${esc(f.notas)}</p></div>` : ''}
     </div>`;
   window.print();
 }
@@ -321,13 +320,13 @@ function fichaSectionHtml() {
       <button class="btn-pdf" id="ficha-pdf" title="Descargar como PDF">&#8595; PDF</button>
     </div>
     <div class="ficha-form">
-      <label class="ficha-field">T&#237;tulo<input class="ficha-in" data-f="titulo" value="${escAttr(ficha.titulo)}"></label>
+      <label class="ficha-field">T&#237;tulo<input class="ficha-in" data-f="titulo" value="${esc(ficha.titulo)}"></label>
       <div class="ficha-row">
         <label class="ficha-field">Precio<input type="number" class="ficha-in" data-f="precio" value="${ficha.precio ?? ''}"></label>
         <label class="ficha-field">Tama&#241;o (m&#178;)<input type="number" class="ficha-in" data-f="tamano_m2" value="${ficha.tamano_m2 ?? ''}"></label>
       </div>
-      <label class="ficha-field">Notas<textarea class="ficha-in notes-area" data-f="notas" placeholder="Notas de la ficha&#8230;">${escAttr(ficha.notas)}</textarea></label>
-      ${fotos.length ? `<div class="ficha-fotos">${fotos.map(f => `<img src="${escAttr(f)}" alt="foto">`).join('')}</div>` : ''}
+      <label class="ficha-field">Notas<textarea class="ficha-in notes-area" data-f="notas" placeholder="Notas de la ficha&#8230;">${esc(ficha.notas)}</textarea></label>
+      ${fotos.length ? `<div class="ficha-fotos">${fotos.map(f => `<img src="${esc(f)}" alt="foto">`).join('')}</div>` : ''}
     </div>
   </div>`;
 }
@@ -338,50 +337,59 @@ function selectPhoto(idx) {
   document.querySelectorAll('.thumb').forEach((t, i) => t.classList.toggle('active', i === idx));
 }
 
-function render() {
-  const l      = listing;
-  const cfg    = FUENTE_CONFIG[l.fuente];
-  const badge  = cfg?.badge  ?? 'other';
-  const blabel = (cfg?.label ?? l.fuente).toUpperCase();
-  const p      = fmtPrice(l.precio, l.moneda, l);
+// ── Render ──────────────────────────────────────────────────────────────────
+//
+// `render()` arma cinco bloques y conecta los eventos. Cada bloque es una función
+// con nombre —la misma forma que ya tenían `fichaSectionHtml`, `documentosHtml` y
+// `seguimientoHtml`— para que la función de arriba se lea como el esqueleto de la
+// página y no como 140 líneas de plantilla.
 
-  // Galería del canvas: foto de 380px sobre tinta, con los badges encima y una
-  // fila de miniaturas debajo. Sin foto queda la trama de plano, nunca un gris.
-  const galleryHtml = `
+// Galería del canvas: foto de 380px sobre tinta, con los badges encima y una
+// fila de miniaturas debajo. Sin foto queda la trama de plano, nunca un gris.
+function galeriaHtml(l) {
+  const badge = FUENTE_CONFIG[l.fuente]?.badge ?? 'other';
+  const blabel = (FUENTE_CONFIG[l.fuente]?.label ?? l.fuente).toUpperCase();
+  return `
     <div class="detail-photo${l.fotos.length ? '' : ' detail-photo-empty'}">
-      ${l.fotos.length ? `<img id="mainPhoto" src="${l.fotos[0]}" alt="">` : ICON_BUILDING}
-      <span class="badge-src ${badge}">${blabel}</span>
+      ${l.fotos.length ? `<img id="mainPhoto" src="${esc(l.fotos[0])}" alt="">` : ICON_BUILDING}
+      <span class="badge-src ${badge}">${esc(blabel)}</span>
       ${l.size ? `<span class="badge-size">${Math.round(l.size).toLocaleString('es-MX')} m&#178;</span>` : ''}
     </div>
     ${l.fotos.length > 1 ? `<div class="detail-thumbs">${l.fotos.slice(0, 4).map((f, i) =>
-      `<button class="thumb ${i === 0 ? 'active' : ''}" data-i="${i}"><img src="${f}" alt=""></button>`).join('')}</div>` : ''}`;
+      `<button class="thumb ${i === 0 ? 'active' : ''}" data-i="${i}"><img src="${esc(f)}" alt=""></button>`).join('')}</div>` : ''}`;
+}
 
-  const sufijo = l.transaccion === 'Renta' ? 'MXN / mes' : 'MXN';
-  // La estrella comparte renglón con el precio (mock): un solo bloque de cabecera
-  // en la barra lateral, en vez de un botón ancho que competía con el CTA.
-  const starBtn = `<button class="detail-star ${l.starred ? 'on' : ''}" id="detailStar"
+// La estrella comparte renglón con el precio (mock): un solo bloque de cabecera
+// en la barra lateral, en vez de un botón ancho que competía con el CTA.
+function estrellaHtml(l) {
+  return `<button class="detail-star ${l.starred ? 'on' : ''}" id="detailStar"
       title="${l.starred ? 'Quitar destacado' : 'Marcar destacado'}" aria-pressed="${l.starred}">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="${l.starred ? 'currentColor' : 'none'}"
            stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
         <polygon points="12 2.6 15.1 9 22 10 17 14.9 18.2 21.8 12 18.5 5.8 21.8 7 14.9 2 10 8.9 9"/>
       </svg></button>`;
-  const priceHtml = p
-    ? `<div class="detail-price">$${p.n}<span class="currency">${sufijo}</span>${starBtn}</div>` +
+}
+
+function precioHtml(l) {
+  const p = fmtPrice(l.precio, l.moneda, l);
+  const sufijo = l.transaccion === 'Renta' ? 'MXN / mes' : 'MXN';
+  const estrella = estrellaHtml(l);
+  const bloque = p
+    ? `<div class="detail-price">$${p.n}<span class="currency">${esc(sufijo)}</span>${estrella}</div>` +
       (p.nota ? `<div class="card-ppm">${p.nota}${p.parcial ? '' : ' × ' + l.size + ' m²'}</div>` : '') +
       altPriceHtml(l.alt)
-    : `<div class="detail-price"><span class="no-price">Sin precio</span>${starBtn}</div>`;
-
+    : `<div class="detail-price"><span class="no-price">Sin precio</span>${estrella}</div>`;
   // Si el precio ya viene por m², repetir el unitario aquí sería decirlo dos veces.
-  const ppmHtml = (!l.porM2 && l.precio && l.size)
+  const ppm = (!l.porM2 && l.precio && l.size)
     ? `<div class="card-ppm">$${Math.round(l.precio / l.size).toLocaleString('es-MX')} / m²</div>` : '';
+  return bloque + ppm;
+}
 
-  const statusOptions = STATUSES.map(st =>
-    `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`).join('');
-
-  // Ficha técnica: el canvas la quiere como cifras en Bodoni, no como lista de pares.
-  // Sólo lo que el esquema guarda de verdad. El mock pinta además Frente, Fondo,
-  // Estacionamiento, Baños y Antigüedad: ninguna de esas columnas existe hoy, y
-  // una ficha con celdas vacías miente peor que una ficha corta.
+// Ficha técnica: el canvas la quiere como cifras en Bodoni, no como lista de pares.
+// Sólo lo que el esquema guarda de verdad. El mock pinta además Frente, Fondo,
+// Estacionamiento, Baños y Antigüedad: ninguna de esas columnas existe hoy, y
+// una ficha con celdas vacías miente peor que una ficha corta.
+function fichaTecnicaHtml(l) {
   const facts = [
     l.size ? ['Superficie', `${Math.round(l.size).toLocaleString('es-MX')} m²`] : null,
     l.tipo ? ['Tipo', l.tipo] : null,
@@ -390,60 +398,43 @@ function render() {
     l.fuente ? ['Fuente', FUENTE_CONFIG[l.fuente]?.label ?? l.fuente] : null,
     l.codigo ? ['Código', l.codigo] : null,
   ].filter(Boolean);
-  const factsHtml = facts.length
-    ? `<div class="detail-panel">
-         <div class="detail-panel-label">Ficha técnica</div>
-         <dl class="detail-facts">${facts.map(([label, value]) =>
-           `<div><dt>${label}</dt><dd>${escAttr(String(value))}</dd></div>`).join('')}</dl>
-       </div>`
-    : '';
+  if (!facts.length) return '';
+  return `<div class="detail-panel">
+       <div class="detail-panel-label">Ficha técnica</div>
+       <dl class="detail-facts">${facts.map(([label, value]) =>
+         `<div><dt>${esc(label)}</dt><dd>${esc(String(value))}</dd></div>`).join('')}</dl>
+     </div>`;
+}
 
-  document.title = (l.titulo ?? 'Propiedad') + ' · OfficeLab';
-
-  document.getElementById('detail').innerHTML = `
-    <article class="detail-content">
-      <nav class="detail-crumb" aria-label="Ruta">
-        <a href="index.html">Listados</a><span>/</span><strong>${escAttr(l.codigo ?? l.id)}</strong>
-      </nav>
-      <div class="detail-gallery">${galleryHtml}</div>
-      <div class="detail-heading">
-        <div class="card-tags">
-          ${l.tipo ? `<span class="tag tag-tipo">${l.tipo}</span>` : ''}
-          <span class="tag tag-txn">${l.transaccion}</span>
-          ${l.codigo ? `<span class="tag tag-cod">${l.codigo}</span>` : ''}
-        </div>
-        ${l.titulo ? `<h1 class="detail-title">${l.titulo}</h1>` : ''}
-        ${l.direccion ? `<div class="detail-location">${ICON_PIN}${l.direccion}</div>` : ''}
-      </div>
-      ${factsHtml}
-      ${l.descripcion ? `<div class="detail-panel"><div class="detail-panel-label">Descripción</div><p>${l.descripcion}</p></div>` : ''}
-      ${l.features.length ? `<div class="detail-panel"><div class="detail-panel-label">Características</div><ul class="detail-features">${l.features.map(f => `<li>${f}</li>`).join('')}</ul></div>` : ''}
-      ${fichaSectionHtml()}
-      ${ficha ? documentosHtml() : ''}
-      ${ficha ? seguimientoHtml() : ''}
-    </article>
+function barraLateralHtml(l) {
+  const statusOptions = STATUSES.map(st =>
+    `<option value="${st}"${st === l.status ? ' selected' : ''}>${st}</option>`).join('');
+  return `
     <aside class="detail-sidebar">
       <div class="detail-sidebar-card">
-        ${priceHtml}
-        ${ppmHtml}
+        ${precioHtml(l)}
         <div class="detail-sidebar-divider"></div>
         <div class="card-status-row">
           <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
           <select class="status-select s-${l.status}" id="detailStatus">${statusOptions}</select>
         </div>
         <div class="detail-links">
-          ${l.url      ? `<a href="${l.url}" class="btn-solid" target="_blank" rel="noopener">Ver anuncio original ${ICON_EXTERNAL}</a>` : ''}
+          ${l.url      ? `<a href="${hrefSeguro(l.url)}" class="btn-solid" target="_blank" rel="noopener">Ver anuncio original ${ICON_EXTERNAL}</a>` : ''}
           ${l.whatsapp ? `<a href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" class="btn-outline" target="_blank" rel="noopener">WhatsApp ${ICON_EXTERNAL}</a>` : ''}
         </div>
       </div>
       <div class="detail-sidebar-card">
         <div class="detail-panel-label">Notas internas</div>
-        <textarea class="notes-area" id="detailNotes" placeholder="AGREGAR NOTAS DE SEGUIMIENTO…">${l.notes}</textarea>
+        <textarea class="notes-area" id="detailNotes" placeholder="AGREGAR NOTAS DE SEGUIMIENTO&#8230;">${esc(l.notes)}</textarea>
       </div>
-    </aside>
-  `;
+    </aside>`;
+}
 
-  document.querySelectorAll('.thumb').forEach(t => t.addEventListener('click', () => selectPhoto(+t.dataset.i)));
+// Todo el cableado de la ficha en un solo sitio: el marcado se vuelve a generar
+// entero en cada `render()`, así que los listeners se reconectan siempre juntos.
+function conectarEventos() {
+  document.querySelectorAll('.thumb').forEach(t =>
+    t.addEventListener('click', () => selectPhoto(+t.dataset.i)));
 
   document.getElementById('detailStar').addEventListener('click', () => {
     setState({ starred: !listing.starred });
@@ -476,6 +467,38 @@ function render() {
     }));
   document.querySelectorAll('.proc-del').forEach(btn =>
     btn.addEventListener('click', e => removeProceso(e.currentTarget.dataset.proc)));
+}
+
+function render() {
+  const l = listing;
+  document.title = (l.titulo ?? 'Propiedad') + ' · OfficeLab';
+
+  document.getElementById('detail').innerHTML = `
+    <article class="detail-content">
+      <nav class="detail-crumb" aria-label="Ruta">
+        <a href="index.html">Listados</a><span>/</span><strong>${esc(l.codigo ?? l.id)}</strong>
+      </nav>
+      <div class="detail-gallery">${galeriaHtml(l)}</div>
+      <div class="detail-heading">
+        <div class="card-tags">
+          ${l.tipo ? `<span class="tag tag-tipo">${esc(l.tipo)}</span>` : ''}
+          <span class="tag tag-txn">${esc(l.transaccion)}</span>
+          ${l.codigo ? `<span class="tag tag-cod">${esc(l.codigo)}</span>` : ''}
+        </div>
+        ${l.titulo ? `<h1 class="detail-title">${esc(l.titulo)}</h1>` : ''}
+        ${l.direccion ? `<div class="detail-location">${ICON_PIN}${esc(l.direccion)}</div>` : ''}
+      </div>
+      ${fichaTecnicaHtml(l)}
+      ${l.descripcion ? `<div class="detail-panel"><div class="detail-panel-label">Descripción</div><p>${esc(l.descripcion)}</p></div>` : ''}
+      ${l.features.length ? `<div class="detail-panel"><div class="detail-panel-label">Características</div><ul class="detail-features">${l.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul></div>` : ''}
+      ${fichaSectionHtml()}
+      ${ficha ? documentosHtml() : ''}
+      ${ficha ? seguimientoHtml() : ''}
+    </article>
+    ${barraLateralHtml(l)}
+  `;
+
+  conectarEventos();
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────

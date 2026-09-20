@@ -44,6 +44,27 @@ def clases_usadas(texto):
     return out
 
 
+def clases_por_js(texto):
+    """Las clases que el JS pone sin pasar por un `class="…"`.
+
+    `tareas.js` arma casi todo su DOM con `className =`, y `menu.js` y `theme.js`
+    construyen el cajón y el botón de tema igual. Sin mirar aquí, el informe da OK
+    en `tareas` sin haber revisado nada de su kanban.
+    """
+    out = set()
+    # La comilla de cierre tiene que ser la misma que la de apertura: un template
+    # literal como `tk ${x ? ' dragging' : ''}` lleva comillas simples adentro, y
+    # un patrón que corte en la primera comilla que encuentre parte el valor a la
+    # mitad y se inventa clases.
+    crudas = [m[1] for m in re.findall(r"""className\s*=\s*(['"`])(.*?)\1""", texto)]
+    crudas += [m[1] for m in re.findall(r"""classList\.(?:add|toggle)\(\s*(['"])(.*?)\1""", texto)]
+    for v in crudas:
+        for c in re.sub(r'\$\{[^}]*\}', ' ', v).split():
+            if re.fullmatch(r'[a-z][a-z0-9-]*', c):
+                out.add(c)
+    return out
+
+
 def clases_con_regla(css):
     return set(re.findall(r'\.([a-z][a-z0-9-]*)', css))
 
@@ -78,7 +99,8 @@ def main():
     for html, archivos in paginas():
         usadas = set()
         for f in archivos:
-            usadas |= clases_usadas(f.read_text(encoding='utf-8'))
+            texto = f.read_text(encoding='utf-8')
+            usadas |= clases_usadas(texto) | clases_por_js(texto)
         faltan = sorted(c for c in usadas - tiene if not c.startswith(GENERADOS))
         print(f"  {html.stem:17} {', '.join(faltan) if faltan else 'OK'}")
         problemas += len(faltan)
@@ -112,7 +134,18 @@ def selfcheck():
     # El prefijo pegado a la expresión sí es una clase real y tiene que quedar.
     assert clases_usadas('<div class="qpop-chip${o.v === actual ? \' on\' : \'\'}">') == {'qpop-chip'}
 
-    # 4. Las páginas salen de los `<script src>`, no de una lista escrita a mano.
+    # 4. El DOM que el JS arma sin `class="…"` también cuenta. Sin esto, `tareas`
+    #    daba OK sin que nadie hubiera mirado una sola clase de su kanban.
+    assert clases_por_js("div.className = 'kb-col';") == {'kb-col'}
+    # `p-` sobrevive al recorte de la expresión y lo filtra GENERADOS, como `.p-alta`.
+    assert clases_por_js("art.className = `tk p-${t.prioridad}${x ? ' dragging' : ''}`;") == {'tk', 'p-'}
+    assert clases_por_js("el.classList.add('over');") == {'over'}
+    assert clases_por_js("e.classList.toggle('active', v);") == {'active'}
+    tareas = clases_por_js((WEB / 'tareas.js').read_text(encoding='utf-8'))
+    assert {'kb', 'kb-col', 'kb-list', 'tk-matrix'} <= tareas, \
+        "el kanban se construye con className y tiene que verse desde aquí"
+
+    # 5. Las páginas salen de los `<script src>`, no de una lista escrita a mano.
     encontradas = {h.stem for h, _ in paginas()}
     assert 'update-password' in encontradas and 'reset-request' in encontradas, \
         "las ocho páginas, no las seis del fragmento viejo"

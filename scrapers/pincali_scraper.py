@@ -82,7 +82,7 @@ from selectolax.parser import HTMLParser
 from tqdm import tqdm
 
 from stealth_scraper import Scraper
-from scrape_utils import graceful, setup_logging
+from scrape_utils import crawl_pids, graceful, setup_logging
 # Row shape and wire meter are shared with the other four corpora.
 from navent_serp import WIRE, Listing, serialize
 
@@ -509,6 +509,8 @@ def _verify(cards, type_label: str, operation: str, floor: int) -> str:
 # --------------------------------------------------------------------------- #
 # crawl
 # --------------------------------------------------------------------------- #
+
+
 def _load_seen(out: Path) -> set[tuple[str, str]]:
     """Keyed on (listing, operation), not the listing alone.
 
@@ -733,25 +735,6 @@ SURVEYED = {
 _LOG_LINE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\w+) +(.*)$")
 
 
-def _crawl_pids() -> list[int]:
-    """The running crawl, read straight off /proc — no `pgrep -f`, whose pattern
-    matches the watcher's own command line and waits on itself forever."""
-    pids = []
-    for entry in Path("/proc").iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            argv = (entry / "cmdline").read_bytes().decode().split("\0")
-        except OSError:
-            continue                       # process exited between listing and read
-        # argv[0] must be the interpreter, or the `xvfb-run` wrapper shell — whose
-        # command line also names the script — doubles every hit.
-        if (any("pincali_scraper.py" in a for a in argv[1:])
-                and "python" in argv[0] and "--status" not in argv):
-            pids.append(int(entry.name))
-    return pids
-
-
 def status(out_path, stall_after: float = 600.0, _pids=None) -> int:
     """One-shot health read of a run in flight: no network, no browser, no loop.
 
@@ -773,7 +756,7 @@ def status(out_path, stall_after: float = 600.0, _pids=None) -> int:
         return 2
 
     rows = sum(1 for _ in out.open(encoding="utf-8")) if out.exists() else 0
-    pids = _crawl_pids() if _pids is None else _pids   # _pids: seam for --selfcheck
+    pids = crawl_pids() if _pids is None else _pids   # _pids: seam for --selfcheck
     lines = [m.groups() for m in
              (_LOG_LINE.match(l) for l in log_path.read_text(encoding="utf-8").splitlines())
              if m]

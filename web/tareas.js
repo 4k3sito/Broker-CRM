@@ -19,13 +19,9 @@ let coments = [];                // comentarios de la tarea abierta
 let previo = false;              // el editor de descripción muestra la vista previa
 let arrastrando = null;
 
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const norm = s => (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
 // El tono del avatar sale del id, no de una columna: mismo color siempre para la
 // misma persona sin tener que guardarlo.
-const TONOS = ['#2B3FC4', '#1F6F4A', '#A85F14', '#6B3FB5', '#A83B22', '#6B7D6E', '#83808C'];
+const TONOS = Array.from({ length: 7 }, (_, i) => `var(--tono-${i})`);
 const tono = id => TONOS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % TONOS.length];
 const iniciales = p => (p?.nombre || p?.email || '?').trim().split(/\s+/).slice(0, 2)
   .map(w => w[0]).join('').toUpperCase();
@@ -163,14 +159,14 @@ function tarjeta(t) {
   art.draggable = true;
   art.innerHTML = `
     <div class="tk-top">
-      <span class="tk-prio p-${t.prioridad}">${t.prioridad}</span>
+      <span class="tk-prio p-${esc(t.prioridad)}">${esc(t.prioridad)}</span>
       <span class="tk-tipo">${esc(t.tipo ?? 'Tarea')}</span>
     </div>
     <div class="tk-titulo">${esc(t.titulo)}</div>
     ${t.listing_id || t.cliente_nombre || t.vence_el ? `<div class="tk-meta">
       ${t.listing_id ? `<span class="tk-cod">${ICON_COD}${esc(t.listing_id)}</span>` : ''}
       ${t.cliente_nombre ? `<span class="tk-cod">${esc(t.cliente_nombre)}</span>` : ''}
-      ${t.vence_el ? `<span class="tk-vence${tarde ? ' tarde' : ''}">${t.vence_el}</span>` : ''}
+      ${t.vence_el ? `<span class="tk-vence${tarde ? ' tarde' : ''}">${esc(t.vence_el)}</span>` : ''}
     </div>` : ''}
     <div class="tk-sep"></div>
     <div class="tk-foot">
@@ -333,24 +329,12 @@ function opciones(lista, sel, valor = x => x, texto = x => x) {
   return lista.map(x => `<option value="${esc(valor(x))}"${valor(x) === sel ? ' selected' : ''}>${esc(texto(x))}</option>`).join('');
 }
 
-function renderPanel() {
-  const side = document.getElementById('aside');
-  if (!abierta) return renderEquipoAside();
+// El panel derecho: cinco bloques de marcado y el cableado, cada uno con nombre.
+// Antes era una sola función de 128 líneas donde la plantilla y los listeners se
+// turnaban, y había que leerla entera para encontrar cualquiera de los dos.
 
-  const nueva = abierta === 'nueva';
-  const t = nueva
-    ? { titulo: '', tipo: 'Visita', prioridad: 'media', columna: 'pendiente',
-        asignado_a: null, listing_id: '', descripcion: '', vence_el: null }
-    : tareas.find(x => x.id === abierta);
-  if (!t) { abierta = null; return renderPanel(); }
-
-  const chk = checklist(t.descripcion);
-  side.innerHTML = `
-    <div class="tk-aside-head">
-      ${nueva ? 'Nueva tarea' : 'Detalle'}
-      <button class="tk-x" id="tkClose" title="Cerrar">&times;</button>
-    </div>
-    <div class="tk-aside-body">
+function panelCamposHtml(t, nueva) {
+  return `
     ${nueva ? '' : `<h2>${esc(t.titulo)}</h2>`}
     <div><label for="f-titulo">Título</label><input id="f-titulo" value="${esc(t.titulo)}" placeholder="Qué hay que hacer"></div>
     <div class="tk-row">
@@ -359,13 +343,21 @@ function renderPanel() {
     </div>
     <div class="tk-row">
       <div><label for="f-col">Columna</label><select id="f-col">${opciones(COLS, t.columna, c => c.key, c => c.label)}</select></div>
-      <div><label for="f-vence">Vence</label><input id="f-vence" type="date" value="${t.vence_el ?? ''}"></div>
+      <div><label for="f-vence">Vence</label><input id="f-vence" type="date" value="${esc(t.vence_el ?? '')}"></div>
     </div>
     <div><label for="f-asg">Asignada a</label>
-      <select id="f-asg"><option value="">Sin asignar</option>${opciones(equipo, t.asignado_a, p => p.id, p => `${p.nombre ?? p.email}${p.rol ? ' — ' + p.rol : ''}`)}</select></div>
-    <div><label for="f-listing">Inmueble (source:id)</label><input id="f-listing" value="${esc(t.listing_id ?? '')}" placeholder="pincali:EB-7741"></div>
-    ${chk.length ? `<div><label>Checklist · ${chk.filter(c => c.done).length}/${chk.length}</label>
-      <div class="tk-check">${chk.map(c => `<label><input type="checkbox" data-i="${c.i}"${c.done ? ' checked' : ''}><span class="${c.done ? 'listo' : ''}">${esc(c.texto)}</span></label>`).join('')}</div></div>` : ''}
+      <select id="f-asg"><option value="">Sin asignar</option>${opciones(equipo, t.asignado_a, p => p.id, p => `${esc(p.nombre ?? p.email)}${p.rol ? ' — ' + esc(p.rol) : ''}`)}</select></div>
+    <div><label for="f-listing">Inmueble (source:id)</label><input id="f-listing" value="${esc(t.listing_id ?? '')}" placeholder="pincali:EB-7741"></div>`;
+}
+
+function panelChecklistHtml(chk) {
+  if (!chk.length) return '';
+  return `<div><label>Checklist · ${chk.filter(c => c.done).length}/${chk.length}</label>
+      <div class="tk-check">${chk.map(c => `<label><input type="checkbox" data-i="${c.i}"${c.done ? ' checked' : ''}><span class="${c.done ? 'listo' : ''}">${esc(c.texto)}</span></label>`).join('')}</div></div>`;
+}
+
+function panelDescripcionHtml(t) {
+  return `
     <div>
       <label>Descripción · markdown</label>
       <div class="md-bar">
@@ -378,21 +370,25 @@ function renderPanel() {
       </div>
       <textarea id="f-desc" ${previo ? 'hidden' : ''} placeholder="- [ ] Primer paso&#10;- [ ] Segundo paso">${esc(t.descripcion ?? '')}</textarea>
       ${previo ? `<div class="md-out">${mdHtml(t.descripcion)}</div>` : ''}
-    </div>
+    </div>`;
+}
+
+function panelAdjuntosHtml(t) {
+  const adj = t.adjuntos ?? [];
+  return `
     <div><label for="f-adj">Adjuntos · una URL por línea</label>
-      <textarea id="f-adj" class="md-adj" placeholder="https://…">${esc((t.adjuntos ?? []).join('\n'))}</textarea>
-      ${(t.adjuntos ?? []).length ? `<div class="tk-adj">${t.adjuntos.map(u =>
-        `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.split('/').pop() || u)}</a>`).join('')}</div>` : ''}</div>
-    <div class="tk-actions">
-      <button class="btn-solid" id="tkSave">${nueva ? 'Crear tarea' : 'Guardar'}</button>
-      ${nueva ? '' : '<button class="tk-del" id="tkDel">Borrar</button>'}
-    </div>
-    ${nueva ? '' : `<div class="tk-com">
+      <textarea id="f-adj" class="md-adj" placeholder="https://…">${esc(adj.join('\n'))}</textarea>
+      ${adj.length ? `<div class="tk-adj">${adj.map(u =>
+        `<a href="${hrefSeguro(u)}" target="_blank" rel="noopener">${esc(u.split('/').pop() || u)}</a>`).join('')}</div>` : ''}</div>`;
+}
+
+function panelComentariosHtml() {
+  return `<div class="tk-com">
       <label>Comentarios · ${coments.length}</label>
       ${coments.map(c => `<div class="tk-com-row">
           <span class="tk-ava" style="background:${tono(c.autor_email)}">${iniciales({ nombre: c.autor, email: c.autor_email })}</span>
           <span class="tk-com-b">
-            <span class="tk-com-h"><strong>${esc(c.autor ?? c.autor_email)}</strong><small>${(c.created_at ?? '').slice(0, 16).replace('T', ' ')}</small></span>
+            <span class="tk-com-h"><strong>${esc(c.autor ?? c.autor_email)}</strong><small>${esc((c.created_at ?? '').slice(0, 16).replace('T', ' '))}</small></span>
             <span class="tk-com-t">${esc(c.texto)}</span>
           </span>
         </div>`).join('') || '<p class="md-vacio">Nadie ha comentado.</p>'}
@@ -400,9 +396,11 @@ function renderPanel() {
         <input id="f-com" placeholder="Escribe un comentario">
         <button class="btn-solid" id="tkCom">Enviar</button>
       </div>
-    </div>`}
     </div>`;
+}
 
+function conectarPanel(t, nueva) {
+  const side = document.getElementById('aside');
   const val = id => document.getElementById(id).value.trim();
   const cuerpo = () => ({
     titulo: val('f-titulo'), tipo: val('f-tipo'), prioridad: val('f-prio'),
@@ -462,6 +460,37 @@ function renderPanel() {
     }));
 }
 
+function renderPanel() {
+  const side = document.getElementById('aside');
+  if (!abierta) return renderEquipoAside();
+
+  const nueva = abierta === 'nueva';
+  const t = nueva
+    ? { titulo: '', tipo: 'Visita', prioridad: 'media', columna: 'pendiente',
+        asignado_a: null, listing_id: '', descripcion: '', vence_el: null }
+    : tareas.find(x => x.id === abierta);
+  if (!t) { abierta = null; return renderPanel(); }
+
+  side.innerHTML = `
+    <div class="tk-aside-head">
+      ${nueva ? 'Nueva tarea' : 'Detalle'}
+      <button class="tk-x" id="tkClose" title="Cerrar">&times;</button>
+    </div>
+    <div class="tk-aside-body">
+      ${panelCamposHtml(t, nueva)}
+      ${panelChecklistHtml(checklist(t.descripcion))}
+      ${panelDescripcionHtml(t)}
+      ${panelAdjuntosHtml(t)}
+      <div class="tk-actions">
+        <button class="btn-solid" id="tkSave">${nueva ? 'Crear tarea' : 'Guardar'}</button>
+        ${nueva ? '' : '<button class="tk-del" id="tkDel">Borrar</button>'}
+      </div>
+      ${nueva ? '' : panelComentariosHtml()}
+    </div>`;
+
+  conectarPanel(t, nueva);
+}
+
 function render() {
   const lista = visibles();
   document.getElementById('countNum').textContent = lista.length;
@@ -503,9 +532,6 @@ function render() {
   renderEquipoAside();
   renderPanel();
 }
-
-// ── Arranque ─────────────────────────────────────────────────────────────────
-document.getElementById('searchInput').addEventListener('input', e => { q = e.target.value; render(); });
 document.getElementById('nueva-btn').addEventListener('click', () => { abierta = 'nueva'; coments = []; previo = false; renderPanel(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && abierta) { abierta = null; renderPanel(); } });
 
