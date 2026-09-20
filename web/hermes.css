@@ -131,6 +131,7 @@ a:hover { color:var(--ink); }
 }
 .btn-ghost:hover { background:rgba(255,255,255,.12); color:var(--topbar-text); }
 
+
 /* Interruptor de tema. Lo inyecta theme.js al principio de .topbar-right; el
    cuadro medio relleno es el ícono de contraste de siempre y encaja con la marca. */
 .th-btn {
@@ -1383,3 +1384,95 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .sc-hist-n { font-family: var(--font-mono); font-feature-settings: 'tnum'; text-align: right; }
 
 .sc-error { padding: 40px 26px; color: var(--s-rechazado); font-size: 14px; }
+
+/* ── La topbar en pantalla chica ─────────────────────────────────────────────
+   La fila de la topbar mide entre 815 y 1141 px: `.topbar-nav` (324) y
+   `.topbar-right` llevan `flex-shrink:0` y nunca ceden, así que empujaban el
+   documento entero. El contenido de las páginas sí reflowea; esto era lo único
+   que desbordaba.
+
+   El corte está donde se rompe el contenido, no en un tamaño de aparato:
+   324 de navegación + ~210 de marca + ~160 de la derecha + los huecos ≈ 760.
+
+   La navegación no se encoge: desaparece. `menu.js` ya inyecta un cajón con las
+   mismas cuatro entradas y su botón vive en la topbar desde siempre — repetirlas
+   en una fila horizontal era la versión de escritorio de algo que ya tenía su
+   versión de teléfono. Y el buscador pasa a su propio renglón: con `flex:1` y
+   `min-width:0` se encogía hasta 0 px de ancho, o sea que en el teléfono no
+   estaba estrecho, estaba inutilizable. Sólo lo tienen index, clientes y tareas;
+   en las demás la topbar sigue siendo una sola fila. */
+@media (max-width: 760px) {
+  .topbar {
+    flex-wrap: wrap; height: auto; min-height: 58px;
+    gap: 12px; padding: 0 14px;
+  }
+  .topbar-nav { display: none; }            /* el cajón de menu.js hace este trabajo */
+  .topbar-rule { display: none; }           /* filete decorativo, no información */
+  .topbar-right { gap: 10px; min-width: 0; }
+  .brand-group { gap: 10px; }
+  /* Para que la marca, el botón del cajón y los controles quepan en un renglón:
+     235 + 38 + 239 no entran en 390. Se va el subtítulo de la marca —el cajón lo
+     sigue mostrando— y el contador, que el tablero ya repite en su propia barra.
+     Si se quedaran, `.topbar-right` se iría a un renglón propio y la barra
+     pegajosa pasaría de 58 a 176 px: una quinta parte de la pantalla, siempre. */
+  .brand-sub { display: none; }
+  .count-tag { display: none; }
+
+  .topbar-search {
+    order: 10; flex: 0 0 100%; max-width: none;
+    margin: 0 -14px; padding: 0 14px 12px;
+    border-top: 1px solid rgba(255,255,255,.06);
+  }
+  .topbar-search .search-box { margin-top: 12px; }
+  /* El desplegable de sugerencias colgaba de una caja de 430 px como máximo;
+     a ancho completo tiene que alinearse con el renglón nuevo, no con la caja. */
+  .search-suggestions { left: 14px; right: 14px; width: auto; }
+
+  /* Los KPI de clientes son una fila de celdas con `padding:0 22px`: 401 px, que
+     en un teléfono no desbordan la página sino que **ensanchan el viewport** a
+     431 y encogen todo lo demás. En dos columnas se leen mejor que apretados en
+     una fila, y el filete de separación sigue siendo el borde de 1px del sistema. */
+  /* `1fr` es `minmax(auto,1fr)` y ese `auto` es el min-content de la celda: una
+     etiqueta larga como "Tasa de aceptación" no deja encoger la columna. Con
+     `minmax(0,1fr)` sí. */
+  .pg-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .pg-kpi { padding: 12px 16px; }
+  .pg-kpi:nth-child(odd) { border-left: 0; }
+  .pg-kpi:nth-child(n+3) { border-top: 1px solid var(--border); }
+
+  /* Las cifras del tablero eran una fila que se partía en 2-3-1, con el filete
+     vertical de `.stat-main` colgando a media altura. En dos columnas el total
+     manda —ocupa el renglón entero— y las cinco cifras de estado se leen como
+     una tabla y no como una fila rota. */
+  .statsbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 4px 0; padding: 18px 16px 8px; }
+  .stat { padding-right: 0; }
+  .stat-main { grid-column: 1 / -1; padding: 0 0 12px; margin: 0 0 8px;
+               border-right: 0; border-bottom: 1px solid var(--border); }
+
+  /* El tablero de tareas: `.tk-page` es 100vh con `overflow:hidden`, y `.tk-shell`
+     pone la columna de filtros, el kanban y un panel fijo de 336 px en una sola
+     fila. En 390 px al kanban le quedaban 54: la barra de filtros se plegaba en
+     una tira vertical y el panel se encimaba encima de ella. En el teléfono la
+     página deja de ser una cáscara de altura fija y vuelve a ser una página que
+     se desplaza, con el panel debajo del tablero en vez de a un lado. */
+  .tk-page { height: auto; min-height: 100vh; overflow: visible; }
+  .tk-shell { flex-direction: column; }
+  .tk-aside { width: auto; overflow-y: visible;
+              border-left: 0; border-top: 1px solid var(--border-2); }
+  .tk-bar { padding: 10px 14px; }
+}
+
+/* ── Dedos, no cursor ────────────────────────────────────────────────────────
+   El mínimo de 44 px no depende del ancho de la pantalla: una laptop con
+   pantalla táctil también lo necesita, y por eso esto va por `pointer`, no por
+   `max-width`. Al final del archivo a propósito: `.th-btn` y `.btn-ghost` se
+   definen más abajo que la topbar, y a igual especificidad gana el que va
+   después. */
+@media (pointer: coarse) {
+  .th-btn { width: 44px; height: 44px; }
+  .mn-btn { width: 44px; height: 44px; }
+  .btn-ghost { height: 44px; padding: 0 18px; }
+  .topbar-search .search-box { height: 44px; }
+  .topbar-nav a { padding: 0 18px; }
+}

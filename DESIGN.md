@@ -27,7 +27,7 @@ Siempre como custom properties en `:root`. Nunca escribir un hex en un component
 | `--surface` | `#FFFFFF` | Tarjetas, inputs, paneles |
 | `--ink` | `#111120` | Texto principal |
 | `--muted` | `#5B4A75` | Texto secundario |
-| `--faint` | `#9C93AD` | Terciario / placeholders |
+| `--faint` | `#716686` | Terciario / placeholders — AA 4.54:1, ver §6 |
 | `--border` | `rgba(32,19,51,.22)` | Bordes sutiles |
 | `--border-2` | `rgba(32,19,51,.42)` | Bordes de input |
 | `--accent` / `--blue` / `--topbar` | `#201333` | Acento único, topbar, fondo de foto vacía |
@@ -176,6 +176,44 @@ color de cada tarjeta sale de los mismos tokens de estado del tablero vía `.e-<
 `listing.html` reutiliza 29 clases del tablero (topbar, badges, tags, notas,
 selector de estado) y sólo aporta las suyas con prefijo `detail-`, `ficha-`,
 `proc-`, `tarea-`, `doc-` y `print-`.
+
+## 5 bis. Pantalla chica
+
+Un solo corte, **760 px**, elegido por donde se rompe el contenido y no por el tamaño
+de un aparato: 324 px de `.topbar-nav` + ~210 de marca + ~160 de controles + los huecos.
+Más el kanban, que ya tenía los suyos en 1100 y 620.
+
+Cuatro decisiones, todas reversibles leyendo el bloque `@media (max-width: 760px)` al
+final de `hermes.css`:
+
+1. **La navegación no se encoge: desaparece.** `menu.js` ya inyecta un cajón con las
+   mismas cuatro entradas y su botón vive en la topbar desde siempre. La fila horizontal
+   era la versión de escritorio de algo que ya tenía versión de teléfono.
+2. **El buscador pasa a su propio renglón.** Con `flex:1; min-width:0` se encogía a
+   **0 px de ancho**: en el teléfono no estaba estrecho, estaba inutilizable. Sólo lo
+   tienen `index`, `clientes` y `tareas`; en las demás la topbar sigue siendo una fila
+   de 58 px.
+3. **Se van el subtítulo de la marca y el contador** para que la primera fila quepa. Si
+   se quedan, `.topbar-right` salta a un renglón propio y la barra pegajosa pasa de 58
+   a 176 px: una quinta parte de la pantalla, todo el tiempo.
+4. **`tareas.html` deja de ser una cáscara de altura fija.** `.tk-page` es `100vh` con
+   `overflow:hidden` y `.tk-shell` pone filtros, kanban y un panel de 336 px en una sola
+   fila; en 390 px al kanban le quedaban 54 y el panel se encimaba. En el teléfono la
+   página vuelve a desplazarse y el panel va debajo del tablero.
+
+Las filas de cifras (`.statsbar`, `.pg-kpis`) pasan a dos columnas. Ojo con `1fr`: es
+`minmax(auto,1fr)` y ese `auto` es el min-content de la celda, así que una etiqueta
+larga impide encoger la columna. Va `minmax(0,1fr)`.
+
+**Los objetivos táctiles van por `@media (pointer: coarse)`, no por ancho** — una laptop
+con pantalla táctil también los necesita. Ese bloque y el de 760 px viven **al final del
+archivo** a propósito: `.th-btn`, `.pg-kpis` y `.statsbar` se declaran más abajo que la
+topbar, y a igual especificidad gana el último. Puestos arriba, las reglas de contenido
+no se aplican y el bloque parece no hacer nada.
+
+Lo que **no** se resolvió: el tablero de tareas invita a "arrastrar una tarjeta a otra
+columna" y el arrastre HTML5 no funciona con el dedo. En el teléfono hay que cambiar el
+estado desde el detalle de la tarea.
 
 ## 6. Cómo verificar que no rompiste el sistema
 
