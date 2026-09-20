@@ -4,7 +4,9 @@
   "private": true,
   "description": "Dashboard estático de listings comerciales (Monterrey, MX)",
   "scripts": {
-    "dev": "node dev-server.js"
+    "dev": "node dev-server.js",
+    "verificar": "python3 web/verificar.py",
+    "verificar:selfcheck": "python3 web/verificar.py --selfcheck"
   },
   "license": "ISC"
 }

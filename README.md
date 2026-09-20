@@ -59,6 +59,7 @@ apretando una sola.
 
 ```bash
 npm run dev      # sirve web/ en http://localhost:3000 contra la API del VPS
+npm run verificar  # el sistema de diseño: clases sin regla y marcas retiradas
 ```
 
 Detrás va `dev-server.js` (http/fs de la stdlib, sin dependencias): sirve `web/` y

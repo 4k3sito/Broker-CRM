@@ -6,7 +6,10 @@
 
 :root {
   --blue:#201333; --paper:#EFEDE6;
-  --bg:#EFEDE6; --surface:#FFFFFF; --ink:#111120; --muted:#5B4A75; --faint:#9C93AD;
+  /* --faint era #9C93AD y daba 2.49:1 sobre --bg: reprobaba AA (4.5:1) en los 48
+     lugares donde se usa, no sólo en los 3 que ve un detector de HTML estático.
+     #716686 es el mismo tono y la misma saturación, bajado lo justo para dar 4.54:1. */
+  --bg:#EFEDE6; --surface:#FFFFFF; --ink:#111120; --muted:#5B4A75; --faint:#716686;
   --border:rgba(32,19,51,.22); --border-2:rgba(32,19,51,.42);
   --accent:#201333; --accent-soft:rgba(32,19,51,.10); --on-accent:#EFEDE6;
   --topbar:#201333; --topbar-text:#EFEDE6;
@@ -33,7 +36,8 @@
 :root[data-theme="dark"] {
   color-scheme:dark;
   --bg:#201333; --surface:#2A1A42; --ink:#EFEDE6;
-  --muted:rgba(239,237,230,.72); --faint:rgba(239,237,230,.46);
+  /* .46 daba 4.06:1 sobre --bg y también reprobaba AA; .50 llega a 4.59:1. */
+  --muted:rgba(239,237,230,.72); --faint:rgba(239,237,230,.50);
   --border:rgba(239,237,230,.24); --border-2:rgba(239,237,230,.42);
   --accent:#EFEDE6; --accent-soft:rgba(239,237,230,.14); --on-accent:#201333;
   --topbar:#160C24;
@@ -167,7 +171,7 @@ a:hover { color:var(--ink); }
   border:none; background:transparent; color:var(--accent);
   font-family:var(--font-ui); font-size:13px; font-weight:600; cursor:pointer;
 }
-.tok-kind { font-family:var(--font-mono); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; opacity:.6; }
+.tok-kind { font-family:var(--font-mono); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; opacity:.6; }
 .tok-del {
   height:30px; padding:0 9px; border:none; background:transparent;
   color:var(--accent); opacity:.55; font-size:15px; line-height:1; cursor:pointer;
@@ -213,13 +217,13 @@ a:hover { color:var(--ink); }
 }
 .qpop-item:hover, .qpop-item.sel { background:var(--accent-soft); }
 .qpop-group {
-  font-family:var(--font-mono); font-size:9.5px; font-weight:700; color:var(--faint);
+  font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--faint);
   text-transform:uppercase; letter-spacing:.08em; width:74px; flex-shrink:0;
 }
 .qpop-hint { margin-left:auto; font-family:var(--font-mono); font-size:10.5px; color:var(--faint); }
 .qpop-empty { padding:12px 10px; font-size:13px; color:var(--muted); }
 .qpop-head { display:flex; align-items:center; justify-content:space-between; }
-.qpop-title { font-family:var(--font-mono); font-size:9.5px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.1em; }
+.qpop-title { font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.1em; }
 .qpop-x { border:none; background:transparent; color:var(--faint); font-size:17px; line-height:1; cursor:pointer; padding:0; }
 .qpop-row { display:flex; align-items:center; gap:8px; }
 .qpop-chips { display:flex; flex-wrap:wrap; gap:6px; }
@@ -252,7 +256,7 @@ a:hover { color:var(--ink); }
   padding:11px 26px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
 }
 .statebar-label {
-  font-family:var(--font-mono); font-size:9.5px; font-weight:700; color:var(--faint);
+  font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--faint);
   text-transform:uppercase; letter-spacing:.1em; margin-right:2px;
 }
 .pill {
@@ -327,7 +331,7 @@ a:hover { color:var(--ink); }
 }
 .cliente-sub { font-size:12px; color:var(--muted); }
 .cliente-etapa {
-  flex-shrink:0; padding:4px 9px; font-family:var(--font-mono); font-size:9.5px;
+  flex-shrink:0; padding:4px 9px; font-family:var(--font-mono); font-size:10px;
   font-weight:700; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
 }
 .cliente-etapa.status-presentado { background:var(--r-presentado); color:var(--s-presentado); }
@@ -340,7 +344,7 @@ a:hover { color:var(--ink); }
 .cliente-del:hover { color:var(--s-rechazado); }
 .cliente-field { display:flex; align-items:center; gap:9px; font-size:12px; }
 .cliente-field > span {
-  width:74px; flex-shrink:0; font-family:var(--font-mono); font-size:9px; font-weight:700;
+  width:74px; flex-shrink:0; font-family:var(--font-mono); font-size:10px; font-weight:700;
   letter-spacing:.1em; text-transform:uppercase; color:var(--faint);
 }
 .cliente-foot { display:flex; align-items:center; gap:10px; font-family:var(--font-mono); font-size:10.5px; }
@@ -356,7 +360,7 @@ a:hover { color:var(--ink); }
 }
 .proc-status {
   flex-shrink:0; height:26px; padding:0 8px; cursor:pointer; outline:none;
-  font-family:var(--font-mono); font-size:9.5px; font-weight:700;
+  font-family:var(--font-mono); font-size:10px; font-weight:700;
   letter-spacing:.06em; text-transform:uppercase;
 }
 .proc-status option { color:var(--ink); background:var(--surface); font-weight:500; }
@@ -406,7 +410,7 @@ a:hover { color:var(--ink); }
 }
 .search-suggestions.open { display:block; }
 .suggestions-header {
-  font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.18em;
+  font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.18em;
   text-transform:uppercase; color:var(--faint); padding:9px 12px; border-bottom:1px solid var(--border);
 }
 .suggestion-row {
@@ -416,7 +420,7 @@ a:hover { color:var(--ink); }
 .suggestion-row:hover { background:var(--accent-soft); }
 .suggestion-icon { flex-shrink:0; color:var(--faint); }
 .suggestion-text { flex:1; min-width:0; font-size:12.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.suggestion-count { font-family:var(--font-mono); font-size:9.5px; color:var(--faint); }
+.suggestion-count { font-family:var(--font-mono); font-size:10px; color:var(--faint); }
 
 /* ── Rejilla de propiedades ─────────────────────────────────────────────────
    Todas las medidas salen del mock: foto de var(--photo-h) con trama diagonal,
@@ -445,7 +449,7 @@ a:hover { color:var(--ink); }
   color:rgba(255,255,255,.55);
 }
 .badge {
-  position:absolute; font-family:var(--font-mono); font-size:9.5px; font-weight:700;
+  position:absolute; font-family:var(--font-mono); font-size:10px; font-weight:700;
   letter-spacing:.05em; padding:4px 8px; background:var(--paper); color:var(--blue);
 }
 .badge-src  { top:11px; left:11px; text-transform:uppercase; }
@@ -624,7 +628,7 @@ button, input, textarea, select { font: inherit; }
 .field-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
 .login-card label, .field-head span {
   display: block; color: var(--faint);
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  font-family: var(--font-mono); font-size:10px; font-weight: 700;
   letter-spacing: .1em; text-transform: uppercase;
 }
 .login-card label { margin-bottom: 8px; }
@@ -788,7 +792,7 @@ button, input, textarea, select { font: inherit; }
 .detail-features { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; }
 .detail-features li {
   padding: 4px 10px; border: 1px solid var(--border); color: var(--muted);
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  font-family: var(--font-mono); font-size:10px; letter-spacing: .1em; text-transform: uppercase;
 }
 
 /* Columna derecha */
@@ -852,7 +856,7 @@ button, input, textarea, select { font: inherit; }
 
 .ficha-hint { font-size: 13px; color: var(--muted); }
 .ficha-badge {
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
+  font-family: var(--font-mono); font-size:10px; font-weight: 700; letter-spacing: .05em;
   text-transform: uppercase; padding: 3px 8px;
   background: var(--accent-soft); color: var(--accent); vertical-align: middle; margin-left: 6px;
 }
@@ -1032,7 +1036,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .tk.p-baja  { border-left-color:var(--p-baja); }
 .tk-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px; }
 .tk-prio {
-  padding:3px 8px; font-family:var(--font-mono); font-size:9.5px; font-weight:700;
+  padding:3px 8px; font-family:var(--font-mono); font-size:10px; font-weight:700;
   letter-spacing:.04em; text-transform:uppercase;
 }
 .tk-prio.p-alta  { color:var(--p-alta);  background:var(--r-alta); }
@@ -1086,7 +1090,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .tk-mini-n small { display:block; font-size:11.5px; color:var(--muted); margin-top:2px; }
 .tk-mini-k { text-align:right; flex-shrink:0; }
 .tk-mini-k b { font-family:var(--font-display); font-size:18px; font-weight:500; line-height:1; }
-.tk-mini-k span { display:block; font-family:var(--font-mono); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-top:3px; }
+.tk-mini-k span { display:block; font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-top:3px; }
 
 /* ── Vista de equipo: matriz persona × columna ───────────────────────────── */
 .tk-matrix { padding: 18px 24px 56px; overflow-x: auto; }
@@ -1094,7 +1098,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .tk-matrix th, .tk-matrix td { border: 1px solid var(--border); vertical-align: top; }
 .tk-matrix th {
   padding: 11px 14px; background: var(--surface); text-align: left;
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  font-family: var(--font-mono); font-size:10px; font-weight: 700;
   letter-spacing: .16em; text-transform: uppercase; color: var(--ink);
 }
 .tk-matrix td { padding: 10px; background: var(--surface); }
@@ -1104,7 +1108,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .tk-persona .tk-ava { margin-left: 0; width: 28px; height: 28px; }
 .tk-persona-n { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tk-persona-n strong { font-family: var(--font-ui); font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ink); }
-.tk-persona-n span { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .12em; color: var(--faint); }
+.tk-persona-n span { font-family: var(--font-mono); font-size:10px; letter-spacing: .12em; color: var(--faint); }
 
 /* ── Panel lateral ───────────────────────────────────────────────────────── */
 .tk-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(17,17,32,.35); }
@@ -1119,7 +1123,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 }
 .tk-side label {
   display: block; margin-bottom: 7px; color: var(--faint);
-  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  font-family: var(--font-mono); font-size:10px; font-weight: 700;
   letter-spacing: .18em; text-transform: uppercase;
 }
 .tk-side input, .tk-side select, .tk-side textarea {
@@ -1184,7 +1188,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .mn-x:hover { background: rgba(255,255,255,.12); }
 .mn-label {
   padding: 14px 20px 9px; opacity: .35;
-  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  font-family: var(--font-mono); font-size:10px; font-weight: 700;
   letter-spacing: .16em; text-transform: uppercase;
 }
 .mn-nav { display: flex; flex-direction: column; }
@@ -1251,7 +1255,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .tk-com-b { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .tk-com-h { display: flex; align-items: baseline; gap: 8px; }
 .tk-com-h strong { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.tk-com-h small { font-family: var(--font-mono); font-size: 9px; color: var(--faint); }
+.tk-com-h small { font-family: var(--font-mono); font-size:10px; color: var(--faint); }
 .tk-com-t { font-size: 13px; line-height: 1.5; color: var(--muted); }
 .tk-com-new { display: flex; gap: 8px; }
 .tk-com-new input { flex: 1; }
@@ -1276,7 +1280,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   font-family: var(--font-display); font-size: 22px; font-weight: 500; line-height: 1;
   color: var(--ink); font-feature-settings: 'tnum';
 }
-.tk-dir-n small { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
+.tk-dir-n small { font-family: var(--font-mono); font-size:10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
 
 /* ── Scrapers ───────────────────────────────────────────────────────────────
    Del mock `OfficeLab - Scrapers.dc.html`: una tarjeta por fuente con el borde
@@ -1317,13 +1321,13 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .sc-card-dot { width: 9px; height: 9px; flex-shrink: 0; background: var(--sc-color); }
 .sc-card-title { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 700; line-height: 1.2; }
 .sc-card-key {
-  padding: 6px 17px 0; font-family: var(--font-mono); font-size: 9.5px;
+  padding: 6px 17px 0; font-family: var(--font-mono); font-size:10px;
   letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
 }
 .sc-state {
   flex-shrink: 0; white-space: nowrap; padding: 4px 8px;
   background: var(--sc-ring); color: var(--sc-color);
-  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  font-family: var(--font-mono); font-size:10px; font-weight: 700;
   letter-spacing: .1em; text-transform: uppercase;
 }
 
@@ -1334,7 +1338,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   line-height: 1; font-feature-settings: 'tnum';
 }
 .sc-fig small {
-  font-family: var(--font-mono); font-size: 9px; letter-spacing: .12em;
+  font-family: var(--font-mono); font-size:10px; letter-spacing: .12em;
   text-transform: uppercase; color: var(--faint);
 }
 
@@ -1353,14 +1357,14 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .sc-card-foot {
   margin-top: auto; padding: 11px 17px; border-top: 1px solid var(--border);
   display: flex; flex-wrap: wrap; gap: 4px 14px;
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em;
+  font-family: var(--font-mono); font-size:10px; letter-spacing: .06em;
   text-transform: uppercase; color: var(--faint);
 }
 
 .sc-hist { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); }
 .sc-hist th {
   text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-2);
-  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  font-family: var(--font-mono); font-size:10px; font-weight: 700;
   letter-spacing: .16em; text-transform: uppercase; color: var(--faint);
 }
 .sc-hist td { padding: 8px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }

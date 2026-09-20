@@ -218,6 +218,24 @@ instalación es del usuario y apagarlas le cambia su propio uso interactivo del 
 No queda rastro de logins exitosos ni de cambios de contraseña. `reset_token` guarda
 `solicitado_desde` y `created_at`, que es un principio, pero no hay historial de accesos.
 
+### H8 — Cuenta de servicio para verificación de frontend · **bajo**
+
+El 2026-09-20 se creó `verificacion-dom@officelab.local` para poder entrar con un
+navegador automatizado y leer el DOM de las páginas con sesión, que es la única forma de
+verificar un cambio de frontend (ver `CLAUDE.md`). **Es una cuenta con los mismos
+permisos que la de cualquier asesor**: el modelo de autorización no distingue roles, así
+que ve el CRM completo —clientes, fichas y procesos— igual que una persona.
+
+Su contraseña se generó con `adduser --generar` y se mostró una sola vez; no está en el
+repo ni en ningún archivo del VPS. No caduca, y no hay registro de accesos que permita
+distinguir su uso del de una persona (ver H5).
+
+**Arreglo:** borrarla cuando deje de hacer falta —
+`docker compose exec -T api python main.py deluser verificacion-dom@officelab.local`,
+que arrastra su CRM en cascada— o, si se queda, rotarle la contraseña con la misma
+frecuencia que a una cuenta de persona. Lo correcto de fondo es que la API distinga un
+rol de sólo lectura, que hoy no existe.
+
 ### H7 — El proyecto de Supabase puede seguir vivo · **bajo**
 
 El repo ya no habla con Supabase por ningún lado (ver §8, 2026-09-19), pero eso sólo
