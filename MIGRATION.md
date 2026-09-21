@@ -568,7 +568,7 @@ Ambas funciones corren después de cada `propdb.py load`, junto con `asignar_zon
 siguen mostrando precios de $3–$11. No hay dato con qué corregirlas.
 
 
-## Geocodificación: 78.1% → 88.8% (2026-09-18)
+## Geocodificación: 78.1% → 95.7% (2026-09-18 → 2026-09-21)
 
 El tablero filtra por radio y dibuja mapa, así que un anuncio sin `geom` es un anuncio que
 no existe para media interfaz. Estaba al 78.1%, y el hueco no estaba repartido:
@@ -638,6 +638,8 @@ ser un número ciego.
 | mercadolibre | 86,138 | 3,305 | 38,027 | 44,554 | 48.3% |
 | **TOTAL** | **464,014** | **362,354** | **49,356** | **52,052** | **88.8%** |
 
+Así quedó **el 2026-09-18**, con el gazetteer ya aplicado y `ml_geo` todavía sin correr.
+
 ### De dónde salían las "coordenadas de relleno" de ML
 
 `ml_geo.py` marcaba ~18% de lo que bajaba como relleno, detectado a posteriori por
@@ -660,13 +662,45 @@ publica cerca del chrome. Ese ~18% pasa a reportarse como `sin-coords`, que es l
 contra una página real de ML**, porque el perfil de sesión (`~/.cache/ml-scraper-profile`)
 ya no existe y el login es manual.
 
-### Pendiente para llegar al 95%
+### El 95% se cerró el 2026-09-21, con `ml_geo` corriendo solo 27.5 h
 
-Faltan 28,851 filas, y 44,554 de las 52,052 sin coordenada son de MercadoLibre. El camino es
-`ml_geo.py`, que saca lat/lng exacta del detail page (~0.6 s por anuncio, unas 14-20 h para
-el pendiente). **Está bloqueado en un paso manual**: hay que rehacer `--login` en Chrome
-headful, con sesión de cuenta real, y el VPS no tiene pantalla — se necesita `ssh -X`, VNC, o
-hacer el login en otra máquina y copiar el perfil.
+El paso manual que bloqueaba todo —`--login` en Chrome headful, sin pantalla en el VPS— se
+resolvió acuñando la sesión a mano y dejando el barrido re-ejecutarse bajo Xvfb. La corrida
+larga (`ml_geo.py --limit 0 --workers 4`, arrancada el 2026-09-19 23:38 UTC) terminó sola el
+2026-09-21 03:08 UTC: **54,287 coordenadas de 55,894 pendientes (97%)** en 27.5 h, a
+1.8 s/anuncio y ~30 KB de red por anuncio, con 1,504 anuncios de otro host y 103 sin
+coordenada publicada. La proyección de ~30 h que dejó `67aa597` se cumplió.
+
+`--validate` marcó 1,427 de las 54,426 líneas: 863 por caer a más de 40 km de la ciudad que
+el propio anuncio declara y 564 por no tener centroide contra el cual compararse. Las
+**52,999 limpias** las aplicó `patch_coords()` dentro de `propdb.py load --only mercadolibre`.
+
+| fuente | total | portal | colonia | sin geom | cobertura |
+|---|---|---|---|---|---|
+| pincali | 116,310 | 116,270 | 27 | 13 | 100.0% |
+| lamudi | 89,321 | 89,321 | 0 | 0 | 100.0% |
+| inmuebles24 | 86,521 | 77,059 | 5,852 | 3,610 | 95.8% |
+| vivanuncios | 85,724 | 76,399 | 5,756 | 3,569 | 95.8% |
+| **mercadolibre** | **86,138** | **54,214** | **18,818** | **12,856** | **85.1%** |
+| **TOTAL** | **464,014** | **413,263** | **30,453** | **20,048** | **95.7%** |
+
+Dos efectos que no son obvios leyendo la tabla:
+
+- **El `colonia` de ML bajó de 38,027 a 18,818.** No se perdió nada: son filas que tenían un
+  centroide de colonia con ~674 m de error y ahora tienen la coordenada exacta del portal.
+  `patch_coords()` reescribe `geo_origen='portal'` y borra `geo_error_m` justo para eso.
+- **El gazetteer mejoró de rebote.** `geocodificar_colonias()` se arma sólo con
+  `geo_origen='portal'`, que pasó de 362,354 a 413,263 filas; las 50,909 nuevas son todas de
+  MercadoLibre, que era el territorio peor cubierto del diccionario.
+
+Dos pasos obligatorios, en este orden, que conviene no olvidar la próxima vez: `--validate`
+antes de cargar (sin él se aplican las coordenadas de relleno), y `propdb.py load` como único
+camino, porque `patch_coords()` sólo corre desde ahí (`propdb.py:379`) y arrastra la recarga
+completa del JSONL de la fuente más el post-proceso.
+
+**Lo que queda sin coordenada** son 20,048 filas: 12,856 de MercadoLibre (las que el anuncio
+no publica y el texto de ubicación no alcanza a resolver) y ~3,600 de inmuebles24 y otras
+tantas de vivanuncios. Subir de ahí ya no es un problema de método sino de dato en origen.
 
 ## Vigencia: de cubrir el 19% a cubrir el país (2026-09-21)
 

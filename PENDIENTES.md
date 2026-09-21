@@ -5,13 +5,30 @@ Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
 
-- **`ml_geo.py --limit 0 --workers 4`** — PID 1633017, bajo Xvfb, arrancó el
-  2026-09-19 23:38 UTC. Verificado el 2026-09-21 01:15 UTC: **52,086 de 55,894
-  pendientes (93%)**, 50,596 geocodificados, a 1.8 s/anuncio. Quedan ~3,800, o sea
-  **~2 h**: debería terminar solo alrededor de las 03:10 UTC del 2026-09-21. La
-  estimación tras `67aa597` era ~30 h y se está cumpliendo.
-  Comprobar con `pgrep -af ml_geo` y `tail -3` del log
-  (`scrapers/logs/ml_geo-2026-09-19.log`).
+- *(nada)*
+
+## Geocodificación: cerrada en 95.7%, queda la cola dura
+
+`ml_geo` terminó el 2026-09-21 03:08 UTC y sus 52,999 coordenadas limpias ya están en la
+base (`propdb.py load --only mercadolibre`, mismo día 03:40 UTC). La tabla pasó de 88.8% a
+**95.7%** de cobertura y MercadoLibre de 48.3% a **85.1%**. El detalle y las tablas por
+fuente están en `MIGRATION.md`, sección "Geocodificación: 78.1% → 95.7%".
+
+Lo que sigue abierto es sólo la cola, y ya no es un problema de método:
+
+- **12,856 anuncios de MercadoLibre sin coordenada.** El anuncio no la publica y el texto de
+  ubicación no alcanza para el gazetteer. Bajarlos otra vez con `ml_geo` no sirve: la corrida
+  ya los visitó y salieron `sin-coords`.
+- **3,610 de inmuebles24 y 3,569 de vivanuncios**, por la misma razón.
+- **250 filas marcadas `relleno`** en MercadoLibre, restos del bug del bloque
+  `geo_information` que se corrigió el 2026-09-18. Son puntos que no son de nadie: conviene
+  borrarles el `geom` en vez de dejarlos mintiendo en el mapa.
+
+Si se vuelve a correr `ml_geo` para un re-scrape, el orden obligatorio es `--validate` y
+luego `propdb.py load`, nunca al revés ni por separado: `patch_coords()` sólo corre dentro
+de `load` (`propdb.py:379`) y respeta la marca `suspect` que pone `--validate`. Y hay que
+exportarle `DATABASE_URL` desde `vps/.env` como hace `cron.sh:16`; sin eso `propdb.py` busca
+un socket local y muere al instante.
 
 ## Degradando datos todos los días
 
