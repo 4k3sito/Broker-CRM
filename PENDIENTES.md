@@ -5,23 +5,54 @@ Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
 
-- **`ml_geo.py --limit 0 --workers 4`** — PID 1633017, bajo Xvfb, lleva 25 h.
-  Log: `scrapers/logs/ml_geo-2026-09-19.log`. Iba en 51,786 anuncios con 50,304
-  geocodificados (97%), a 1.8 s/anuncio. La estimación tras `67aa597` era ~30 h.
-  Comprobar con `pgrep -af ml_geo` y `tail -3` del log.
+- **`ml_geo.py --limit 0 --workers 4`** — PID 1633017, bajo Xvfb, arrancó el
+  2026-09-19 23:38 UTC. Verificado el 2026-09-21 01:15 UTC: **52,086 de 55,894
+  pendientes (93%)**, 50,596 geocodificados, a 1.8 s/anuncio. Quedan ~3,800, o sea
+  **~2 h**: debería terminar solo alrededor de las 03:10 UTC del 2026-09-21. La
+  estimación tras `67aa597` era ~30 h y se está cumpliendo.
+  Comprobar con `pgrep -af ml_geo` y `tail -3` del log
+  (`scrapers/logs/ml_geo-2026-09-19.log`).
 
 ## Degradando datos todos los días
 
-- **`liveness` murió por timeout el 2026-09-19** (`rc=124`). Alcanzó 52,000 de
-  270,319 anuncios (19%) y de lo que pidió, **12,036 fueron bloqueos 403** (23%).
-  `liveness.py` es lo que llena `activo` y `revisado_at`, así que la vigencia del
-  81% de la tabla no se actualiza desde esa fecha. Es el único pendiente que
-  empeora solo. Log: `scrapers/logs/liveness-2026-09-19.log`.
+- *(vacío — `liveness` se arregló el 2026-09-21; ver abajo lo que queda por observar)*
+
+## `liveness` — arreglado el 2026-09-21, falta verlo correr solo
+
+Lo que estaba mal y ya no: la corrida moría por `timeout` habiendo cubierto el 19%,
+gastaba ~19 KB por anuncio y los bloqueos acaparaban la cola para siempre. Medido
+después del cambio, sobre corridas reales: **13.5 KB por petición** (eran 52.8 en la
+muestra equivalente) y **6.1 anuncios/s** con 16 hilos (eran 2.4). Una pasada completa
+del país pasa de ~57 GB a ~6 GB.
+
+Lo que falta es simplemente **mirar la primera corrida de verdad**, el sábado
+**2026-09-26 07:00 UTC**. Qué revisar en `scrapers/logs/liveness-2026-09-26.log`:
+
+- Que termine por `presupuesto agotado` y no por `rc=124`.
+- La línea `padrón pincali: N urls vivas`. Si dice "no se pudo bajar el índice", el WAF
+  le cerró la puerta a la IP del servidor y esa noche pincali salió caro: hay reintentos
+  y un respaldo por proxy, pero no está probado en vivo bajo bloqueo.
+- `dominios cortados por bloqueos`. Si aparece inmuebles24 o vivanuncios todas las
+  noches, el umbral del `Cortacircuitos` (50% sobre 40 peticiones) quedó corto.
+
+Dos cosas medidas que conviene no perder de vista:
+
+- **Pincali sigue sin poder verificarse rápido por el camino caro.** El candado global
+  `_waf_lock` lo serializa a ~0.37/s, así que los ~13,573 que el sitemap no cubre son
+  ~10 h si se hicieran de un tirón. Repartidos en el ciclo de 30 días son ~20 min por
+  noche, que es como está configurado. Si alguna vez hay que hacerlos de golpe, eso no
+  va a funcionar tal como está.
+- **La fuga de memoria no se volvió a medir.** La corrida vieja llevaba 1,158 MB de RSS
+  a los 52,000 anuncios. Ahora se baja mucho menos cuerpo, así que probablemente mejoró,
+  pero nadie lo comprobó. Vale la pena un `ps -o rss=` a media corrida del sábado.
 
 ## `web/tareas.html` — crítica del 2026-09-20, 11/40
 
 Reporte completo en `.impeccable/critique/2026-09-20T18-48-55Z__web-tareas-html.md`
-(no versionado). Nada de esto está arreglado.
+(no versionado). **Nada de esto está arreglado**, revisado uno por uno el 2026-09-21:
+`.tk-side` sigue con 7 reglas en `hermes.css` y 0 usos en `tareas.js`; `#searchInput`
+existe en `tareas.html:36` y `tareas.js` no lo nombra ni una vez, así que no hay
+listener; `tareas.js:317` sigue pintando `${p.hechas ?? 0}`.
 
 | Sev | Qué | Dónde |
 |---|---|---|
@@ -47,10 +78,28 @@ Reporte completo en `.impeccable/critique/2026-09-20T18-48-55Z__web-tareas-html.
 ## Seguridad
 
 - **H1 sigue abierto y es crítico**: SSH con contraseña para root, sin firewall ni
-  fail2ban. No se tocó en toda la sesión.
+  fail2ban. Reconfirmado contra el host el 2026-09-21 con `sshd -T`:
+  `permitrootlogin yes`, `passwordauthentication yes`, `ufw` inactivo, `fail2ban`
+  inactivo.
+
+  Detalle que confunde al leer los archivos sueltos: hay **dos ajustes en conflicto**,
+  `50-cloud-init.conf` dice `PasswordAuthentication yes` y
+  `60-cloudimg-settings.conf` dice `no`. Gana el `yes`, porque el `Include` está en
+  `sshd_config:12` y OpenSSH **se queda con el primer valor** que encuentra, no con el
+  último. Por eso no basta con editar el `60-`: hay que corregir el `50-`, o poner la
+  directiva antes del `Include`. Verifica siempre con `sshd -T`, no leyendo los `.conf`.
+
+  Lo que no es: no hay una campaña de fuerza bruta en curso. En el `auth.log` del
+  2026-09-20 al 2026-09-21 hay **3 intentos fallidos desde 1 sola IP y 0
+  `Accepted password`**. La exposición es real; la urgencia de hoy es menor de lo que
+  suena. No cambia la severidad, porque basta con que aparezca un solo barrido.
 - **H8**: la cuenta `verificacion-dom@officelab.local` se creó el 2026-09-20 para
   leer el DOM de las páginas con sesión. Tiene los mismos permisos que un asesor.
-  Se borra con `docker compose exec -T api python main.py deluser verificacion-dom@officelab.local`.
+  **Confirmado el 2026-09-21 con `lsusers`: sigue existiendo**, es el quinto usuario
+  de la instalación. Se borra con
+  `docker compose exec -T api python main.py deluser verificacion-dom@officelab.local`;
+  hazlo cuando se cierre el trabajo de verificación de frontend, no antes, porque
+  cada alta y baja vuelve a pedir el `resetlink`.
 
 ## Repo
 

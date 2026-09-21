@@ -133,7 +133,8 @@ Columnas que suelen confundir:
 | `precio_m2_inferido` | la bandera la dedujo el cargador, no vino del portal |
 | `operacion_alt`, `precio_alt`, `precio_alt_por_m2` | segunda oferta: el inmueble se ofrece en renta **y** venta |
 | `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms) |
-| `activo`, `revisado_at` | vigencia del anuncio, la llena `liveness.py` |
+| `activo`, `revisado_at` | vigencia del anuncio, la llena `liveness.py`. `revisado_at` = hubo veredicto |
+| `intento_at`, `intentos_fallidos` | hubo intento, con o sin veredicto. Alimentan el backoff de `liveness.py` |
 
 La API expone `precio_total = price * area_m2` cuando la bandera está puesta, y **filtra y
 ordena por ese total**, no por el unitario.

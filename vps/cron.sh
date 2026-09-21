@@ -44,8 +44,12 @@ flock -n 9 || { echo "$(date -Is) otra corrida en curso: salto $f"; exit 0; }
 echo "=== $(date -Is) inicio $f"
 
 if [ "$f" = liveness ]; then
-    timeout $TL .venv/bin/python liveness.py; rc=$?
-    echo "=== $(date -Is) fin $f liveness rc=$rc"
+    # Que pare ella sola, media hora antes del tope duro. `timeout` la mataba a media
+    # escritura (rc=124 el 2026-09-19) y sin resumen; con --max-horas termina limpia,
+    # deja la cola ordenada y dice qué alcanzó. El `timeout` queda de red de seguridad.
+    LV_H=${LV_H:-$(awk -v t="$TL" 'BEGIN{printf "%.2f", (t-1800)/3600}')}
+    timeout $TL .venv/bin/python liveness.py --max-horas "$LV_H"; rc=$?
+    echo "=== $(date -Is) fin $f liveness rc=$rc (max-horas=$LV_H)"
 else
     # El .done es el checkpoint de reanudación: sin borrarlo el scraper cree que ya
     # terminó y no baja nada. El JSONL es scratch — lo bueno ya vive en Postgres.
