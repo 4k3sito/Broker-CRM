@@ -68,6 +68,10 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
 
 ## Documentos que hay que mantener al día
 
+- **`PENDIENTES.md`** — lo que falta, con dónde está y qué se midió. **Léelo al abrir
+  una sesión**: trae lo que quedó corriendo, lo que se está degradando solo y los
+  hallazgos abiertos de la última crítica. Lo cerrado se borra de ahí, no se tacha.
+
 - **`SECURITY.md`** — registro vivo de seguridad. **Se actualiza en el mismo commit** que
   cualquier cambio a auth, sesiones, la API, Caddy o el despliegue, y cada vez que se
   encuentre algo nuevo del sitio en producción. Trae los hallazgos abiertos con su
@@ -128,6 +132,18 @@ mirar la captura:
 from patchright.sync_api import sync_playwright   # ya está en scrapers/.venv
 # login → goto → page.evaluate(...) para comprobar que las clases existen
 ```
+
+**`page.add_script_tag()` no sirve contra este sitio**: la CSP es `script-src 'self'`
+sin `unsafe-inline` ni nonce, y el navegador bloquea la inyección. `page.evaluate()` sí
+funciona porque va por CDP y no pasa por la CSP. Toda sonda va por ahí.
+
+Y **medir no basta**: `tareas.html` daba `scrollWidth` de 390 en un viewport de 390
+mientras el kanban estaba reducido a 54 px con el panel encimado. La página no
+desbordaba y era inservible. Hay que **leer la captura**, no sólo el número.
+
+Ojo con el límite de intentos: seis inicios de sesión seguidos desde la misma IP
+devuelven `429 Demasiados intentos`. Reusa el contexto del navegador entre páginas en
+vez de volver a entrar en cada una.
 
 Esto no es paranoia: un cambio pasó `node --check`, se desplegó y no se veía, porque el
 bloque nuevo cayó dentro de otra función y quedaron **dos `function render()`** — en JS
