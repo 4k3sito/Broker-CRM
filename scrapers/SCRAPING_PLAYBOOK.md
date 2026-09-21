@@ -549,6 +549,39 @@ The consequence is a design change, not a transport change: **every query URL
 must be sharded until it holds fewer than `pages × per_page` listings.** Which
 means you need a partition dimension.
 
+
+### The same subset rule decides what a sitemap may be used for in liveness
+
+`liveness.py` uses Pincali's sitemap as a *padrón*: a roster of what the portal
+says is live today, fetched once per run. It is the cheapest signal in the whole
+repo — 470,489 URLs in 20 MB of gzip, off `assets.easybroker.com`, which sits
+outside the WAF and needs no residential proxy at all. It confirms 102,737 of our
+116,310 Pincali listings (88.3%) without a single per-listing request.
+
+The asymmetry is the whole point, and it follows directly from "subset, not
+partition":
+
+| the roster says | what it proves |
+|---|---|
+| URL is present | the listing is live |
+| URL is absent | **nothing** |
+
+Measured 2026-09-21: of the 13,573 listings absent from the sitemap, 15 were
+picked at random and fetched through the expensive WAF path. All 15 answered 200
+with their own listing intact. Absence meant the sitemap was incomplete, not that
+the listing was gone. Treating absence as a death certificate would have retired
+13,573 good listings in one pass, 12% of the source.
+
+`padron_dice()` exists to hold that rule somewhere `--selfcheck` can test it: it
+returns `True` or `None` and has no branch that returns `False`.
+
+One counter-intuitive detail worth keeping: **do not impersonate a browser when
+fetching a sitemap.** With `impersonate=chrome131` the Pincali WAF answers 202 and
+a challenge; with plain libcurl and an honest crawler User-Agent it answers 200
+and the XML. The challenge hunts browser fingerprints, and `robots.txt` invites
+crawlers to read the sitemap — so asking as what you are is both cheaper and more
+truthful than dressing up.
+
 ### Sharding below the cap: keyset pagination on a filter
 
 Location is the obvious shard and it runs out fast (a state is one slug and can

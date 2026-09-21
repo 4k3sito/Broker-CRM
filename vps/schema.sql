@@ -211,8 +211,21 @@ $$ LANGUAGE sql;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS activo       boolean;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS revisado_at  timestamptz;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS http_status  int;
+-- `revisado_at` es cuándo se VERIFICÓ (hubo veredicto). `intento_at` es cuándo se
+-- INTENTÓ, con o sin suerte. La distinción no es cosmética: un 403 no concluye nada,
+-- así que dejaba `revisado_at` en NULL y la fila volvía a salir primera en la corrida
+-- siguiente — y en la siguiente. Medido el 2026-09-19: 12,036 de 52,000 peticiones se
+-- fueron en bloqueos, y las mismas filas encabezaban la cola cada vez, así que el
+-- grueso de la tabla no se revisó nunca. `intentos_fallidos` alimenta un backoff
+-- exponencial para que lo que se bloquea se espere en vez de acaparar el turno.
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS intento_at        timestamptz;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS intentos_fallidos smallint NOT NULL DEFAULT 0;
+
 -- Parcial: la consulta que importa es "qué falta revisar", no el índice completo.
+-- Ordena por intento, no por verificación, que es como se elige el trabajo.
 CREATE INDEX IF NOT EXISTS listings_por_revisar_idx ON listings (revisado_at NULLS FIRST)
+  WHERE activo IS NOT false;
+CREATE INDEX IF NOT EXISTS listings_por_intentar_idx ON listings (intento_at NULLS FIRST)
   WHERE activo IS NOT false;
 
 -- Precio por m² vs precio total. Varios portales publican "$700" queriendo decir

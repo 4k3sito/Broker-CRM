@@ -667,3 +667,74 @@ Faltan 28,851 filas, y 44,554 de las 52,052 sin coordenada son de MercadoLibre. 
 el pendiente). **Está bloqueado en un paso manual**: hay que rehacer `--login` en Chrome
 headful, con sesión de cuenta real, y el VPS no tiene pantalla — se necesita `ssh -X`, VNC, o
 hacer el login en otra máquina y copiar el perfil.
+
+## Vigencia: de cubrir el 19% a cubrir el país (2026-09-21)
+
+`liveness.py` llevaba tres corridas muriendo por `timeout` (`rc=124`) después de
+revisar ~52,000 de 270,319 anuncios. No era mala suerte ni una máquina lenta: iba a
+2.4 anuncios/s y el tope de `vps/cron.sh` son 6 h, así que el presupuesto estaba
+cinco veces corto y la corrida **no podía** pasar del 19% ningún sábado.
+
+Debajo había tres problemas distintos, y los tres se midieron antes de tocar nada.
+
+### 1. Se bajaba cuerpo que no se iba a leer
+
+`stream` descargaba 49 KB de cada página **antes** de mirar el código de respuesta.
+Un 404 de Lamudi llegaba con 182 KB de página de error que se bajaban enteros para
+tirarlos. Ahora el status se mira primero y una respuesta ya decidida se cierra con
+cero bytes de cuerpo; la que sí hay que leer se corta en la ventana medida para esa
+fuente (`VENTANA_POR_FUENTE`: 16 KB para Lamudi, donde el título quedó confirmado a
+los 8 KB, y 32 KB para MercadoLibre, cuyo `"item_status"` apareció en el byte 26,012).
+
+Quedarse corto es seguro por diseño: el veredicto sale `sin_coincidencia`, que es
+`None` y no toca el registro. Lo que nunca puede pasar es dar por muerto lo que no
+se vio.
+
+### 2. Pincali costaba 48 GB y 48 horas, y no verificaba nada
+
+Sus 116,310 anuncios iban por el token del WAF, serializados por un candado global a
+1.5 s. Resultado real: 4 anuncios dados de baja en toda la historia de la tabla.
+
+Pincali publica su inventario vivo en un sitemap, y **no lo sirve Pincali**: vive en
+`assets.easybroker.com`, fuera del WAF. Son 470,489 URLs en 20 MB de gzip, sin un byte
+de proxy, y cubren 102,737 de nuestros 116,310 (88.3%).
+
+La asimetría es lo importante y está medida: de los 13,573 ausentes se tomaron 15 al
+azar y se pidieron por el camino caro — **los 15 contestaron 200 con su ficha intacta**.
+Estar en el padrón prueba que vive; no estar no prueba nada. Por eso existe
+`padron_dice()`, que devuelve `True` o `None` y no tiene ninguna rama que devuelva
+`False`, con su assert en `--selfcheck`. Tratar la ausencia como baja habría retirado
+13,573 anuncios buenos de un golpe.
+
+Detalle contraintuitivo que conviene no volver a descubrir: **para el sitemap no hay
+que imitar a Chrome**. Con `impersonate=chrome131` el WAF contesta 202 y su desafío;
+con libcurl pelón y un User-Agent honesto de rastreador, contesta 200 y el XML.
+
+### 3. Un intento no es una verificación
+
+Un 403 dejaba `revisado_at` en NULL, y como la cola se ordenaba por `revisado_at NULLS
+FIRST`, esa misma fila volvía a encabezarla la noche siguiente. Y la siguiente. Por eso
+había 12,036 bloqueos por corrida y 234,119 anuncios sin revisar **nunca**.
+
+Se separaron las dos ideas en columnas: `revisado_at` es cuándo hubo veredicto,
+`intento_at` e `intentos_fallidos` cuándo se intentó y cuántas veces falló. La cola
+ordena por intento con backoff exponencial (6 h · 2ⁿ, hasta 32 días). El `ALTER TABLE`
+y el `CREATE INDEX CONCURRENTLY` se aplicaron en vivo el 2026-09-21 con `ml_geo`
+todavía escribiendo, y `intento_at` se rellenó desde `revisado_at` en lotes de 40,000
+para no bloquearlo. **La base ya está al día**: `vps/schema.sql` documenta el estado,
+no hay nada pendiente de aplicar.
+
+### Lo que se midió después
+
+| | antes | después |
+|---|---|---|
+| tráfico por petición | 52.8 KB | **13.5 KB** |
+| ritmo (16 hilos) | 2.4/s | **6.1/s** |
+| pasada nacional completa | ~57 GB | **~6 GB** |
+| Pincali | 48 GB · 48 h · 4 bajas detectadas | 20 MB para el 88%, el resto repartido |
+
+Se añadieron además un `Cortacircuitos` por dominio —la corrida vieja pasó del 10% de
+bloqueos en los primeros 10,000 anuncios al 41% entre el 40,000 y el 50,000, y siguió
+tocando la puerta igual— y `--max-horas` / `--max-mb`, para que la corrida pare por
+decisión propia con su resumen en vez de que `timeout` la mate a media escritura.
+`vps/cron.sh` le pasa media hora menos que el tope duro, que queda de red de seguridad.

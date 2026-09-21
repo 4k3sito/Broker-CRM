@@ -60,6 +60,10 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   Lee `scrapers/SCRAPING_PLAYBOOK.md` §11 antes de escribir un sexto scraper.
   **Corren solos en el VPS**: `vps/cron.sh <fuente>` + el crontab de root, una fuente por
   noche a las 07:00 UTC (lun→vie) y `liveness` el sábado. Ver MIGRATION.md "Fase 4".
+  `liveness.py` marca la vigencia y su regla de oro es que **un bloqueo no es una baja**:
+  confirma vivos gratis con el sitemap de Pincali (`padron_dice`, donde *ausente* NO
+  significa muerto), sólo baja el cuerpo cuando el status no alcanza, y corta el dominio
+  que empieza a devolver 403 en vez de insistirle. Lee su docstring antes de tocarla.
   `qa.py <fuente>` cierra cada corrida: números primero (sin modelo) y `hermes` para el
   criterio; si algo salió mal deja una tarjeta en el tablero de tareas. **Hermes se llama
   siempre con `-t memory`** — sin eso trae shell de root (H6 en SECURITY.md).
@@ -112,6 +116,9 @@ ssh officelab 'tail -3 /srv/officelab/scrapers/logs/lamudi-*.log'
 ssh officelab 'TL=600 /srv/officelab/vps/cron.sh lamudi'   # forzar una corrida corta
 .venv/bin/python qa.py lamudi --dry              # el veredicto, sin tocar el tablero
 .venv/bin/python qa.py --selfcheck               # el del control de calidad, sin DB
+.venv/bin/python liveness.py --selfcheck         # el de vigencia, sin red ni DB
+.venv/bin/python liveness.py --sample 250        # calibra por fuente, no escribe
+.venv/bin/python liveness.py --max-horas 5       # corrida real que para sola
 ```
 
 `--selfcheck` **es la suite de pruebas** de los scrapers: córrelo después de tocar
@@ -163,7 +170,8 @@ Columnas que suelen confundir:
 | `precio_m2_inferido` | la bandera la dedujo `inferir_precio_m2()`, no vino del portal |
 | `operacion_alt` / `precio_alt` / `precio_alt_por_m2` | segunda oferta: el inmueble se ofrece en renta **y** venta |
 | `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms) |
-| `activo` / `revisado_at` | vigencia del anuncio, la llena `liveness.py` |
+| `activo` / `revisado_at` | vigencia del anuncio, la llena `liveness.py`. `revisado_at` es cuándo hubo **veredicto** |
+| `intento_at` / `intentos_fallidos` | cuándo se **intentó** y cuántas veces falló. Un bloqueo mueve estas dos y no toca `activo`; el backoff las usa para que lo que se bloquea no acapare la cola |
 
 La API expone `precio_total = price * area_m2` cuando la bandera está puesta, y **filtra y
 ordena por ese total**, no por el unitario.
