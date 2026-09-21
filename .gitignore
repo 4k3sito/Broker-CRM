@@ -11,6 +11,7 @@ __pycache__/
 # Herramientas locales (viven fuera del repo)
 .claude/
 .agents/
+.impeccable/
 AGENTS.md
 graphify-out/
 

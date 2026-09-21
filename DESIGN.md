@@ -249,7 +249,14 @@ grep -o '#[0-9A-Fa-f]\{6\}' hermes.css | sort -u      # solo los del :root
 `--muted` y `--faint` son los dos tokens de texto secundario y los dos tienen que
 llegar a **4.5:1 (WCAG AA)** contra `--bg`, en los dos temas. `--faint` no llegaba: era
 `#9C93AD`, o sea 2.49:1 en claro y 4.06:1 en oscuro, en los 48 lugares donde se usa.
-Está en `#716686` (4.54:1) y `rgba(239,237,230,.50)` (4.59:1) desde el 2026-09-20.
+Está en `#716686` (4.54:1) y `rgba(239,237,230,.50)` desde el 2026-09-20.
+
+**Corrección del 2026-09-20:** esos 4.59:1 del tema oscuro se midieron contra `--bg`
+(`#201333`) y **sólo valen ahí**. Sobre `--surface` (`#2A1A42`, más claro) el mismo token
+da **4.41:1 y reprueba AA**, que es donde caen `.statebar-label`, `.tk-bar-hint` y
+`.tk-mini-k span` en el tablero de tareas. Un token de texto hay que medirlo contra
+**todos** los fondos sobre los que se usa, no sólo contra el de la página: `.51` pasa en
+los dos (4.53:1 sobre `--surface`, 4.71:1 sobre `--bg`).
 Un detector que lea sólo el HTML estático ve tres de esos 48 casos: el resto lo pinta
 el JS. Al cambiar un token de texto, la cuenta se hace sobre el token, no sobre lo que
 alcance a ver un escáner.
