@@ -155,6 +155,7 @@ navegador.
 | [`SECURITY.md`](SECURITY.md) | Registro vivo de seguridad. Se actualiza **en el mismo commit** que cualquier cambio a auth, sesiones, la API, Caddy o el despliegue. |
 | [`DESIGN.md`](DESIGN.md) | El sistema de diseño "Hermes Tinta" y sus reglas duras (sin `border-radius`, sin `box-shadow`, sin `<script>` inline). |
 | [`MIGRATION.md`](MIGRATION.md) | Historia y decisiones de la migración a VPS, por fases. |
+| [`PLAN-STACK.md`](PLAN-STACK.md) | La decisión de arquitectura del frontend: qué se adopta, qué se descartó y por qué. Léelo antes de proponer un framework. |
 | [`vps/SETUP.md`](vps/SETUP.md) | Levantar el servidor desde cero. |
 | [`scrapers/SCRAPING_PLAYBOOK.md`](scrapers/SCRAPING_PLAYBOOK.md) | Doctrina de scraping. Léelo antes de escribir un sexto scraper. |
 
