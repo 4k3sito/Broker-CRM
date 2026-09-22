@@ -1,6 +1,6 @@
 # Pendientes
 
-Estado al **2026-09-21**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-09-22**. Es una foto, no la verdad: verifica antes de actuar.
 Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
@@ -91,6 +91,26 @@ listener; `tareas.js:317` sigue pintando `${p.hechas ?? 0}`.
   arrastre HTML5 no funciona en táctil y no hay alternativa.
 - 22 reglas de texto funcional siguen en 10 y 10.5 px. Subirlas obliga a re-medir
   la topbar de 66 px, la cáscara del kanban y el panel de 336 px. Ver `DESIGN.md` §4bis.
+
+## Stack del frontend — decidido el 2026-09-22, sin empezar
+
+La propuesta de migrar a Angular + Nx + NgRx + Material/Tailwind + NestJS se evaluó y se
+rechazó; los documentos que la traían quedaron archivados en `docs/externo/` con una nota
+de que no son canon. Lo que sí se adopta está en **`PLAN-STACK.md`**: componentes con Lit
+vendorizado sin build, tipos por JSDoc + `tsc --checkJs`, y CI.
+
+Nada de eso está hecho. Lo primero y lo único que no depende de nadie más es la **etapa
+E0**, que no toca una línea de interfaz: **hoy no hay CI** — `.github/workflows` no existe
+en el repo — así que `main.py selfcheck`, `npm run verificar` y los `--selfcheck` de los
+scrapers sólo corren cuando alguien se acuerda.
+
+Dos huecos de `web/verificar.py` que hay que cerrar **antes** de la primera página con
+módulos ES, y que hoy ya son deuda:
+
+- `verificar.py:88` busca literalmente `<script src="…"` y no reconoce
+  `<script type="module" src="…">`: el orden de los atributos lo ciega.
+- No resuelve los `import`, así que un módulo compartido que no esté declarado en el HTML
+  queda sin revisar.
 
 ## Seguridad
 
