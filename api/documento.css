@@ -1,0 +1,161 @@
+/* Hermes Tinta para papel. Los tokens son los mismos de web/hermes.css: si allá
+   cambia un color, aquí hay que cambiarlo también — no hay forma de compartir el
+   archivo, porque la hoja del sitio está llena de reglas de pantalla que a
+   WeasyPrint no le sirven y porque el contenedor de la API no monta web/.
+
+   Reglas duras heredadas de DESIGN.md §4, que aquí valen igual: sin
+   border-radius, sin box-shadow, y ningún componente define un color propio. */
+:root {
+  --paper:#FFFFFF; --bg:#EFEDE6; --ink:#111120; --muted:#5B4A75; --faint:#716686;
+  --border:rgba(32,19,51,.22); --border-2:rgba(32,19,51,.42);
+  --accent:#201333; --accent-soft:rgba(32,19,51,.10);
+  --font-ui:'Hanken Grotesk', sans-serif;
+  --font-display:'Bodoni Moda', serif;
+  --font-mono:'Space Mono', monospace;
+}
+
+@page {
+  size: A4;
+  margin: 18mm 16mm 20mm;
+  @bottom-left {
+    content: "OfficeLab · Análisis de mercado";
+    font-family: var(--font-mono); font-size: 7.5pt; color: var(--faint);
+    letter-spacing: .06em;
+  }
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font-family: var(--font-mono); font-size: 7.5pt; color: var(--faint);
+  }
+}
+
+body {
+  font-family: var(--font-ui); font-size: 10pt; line-height: 1.55;
+  color: var(--ink); margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────── portada */
+.portada {
+  display: flex; align-items: baseline; justify-content: space-between;
+  border-bottom: 2px solid var(--ink); padding-bottom: 8px;
+}
+.marca { font-size: 15pt; font-weight: 700; letter-spacing: -.01em; }
+.marca i { font-style: italic; font-family: var(--font-display); font-weight: 500; }
+.kicker {
+  font-family: var(--font-mono); font-size: 8pt; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+h1 {
+  font-family: var(--font-display); font-size: 24pt; font-weight: 500;
+  line-height: 1.15; margin: 22px 0 4px;
+}
+.donde { font-size: 10.5pt; color: var(--muted); margin-bottom: 20px; }
+
+/* Tabla y no flex: WeasyPrint reparte el ancho de una fila de tabla con más
+   fidelidad que un contenedor flexible, y esto tiene que quedar parejo siempre. */
+.hechos { width: 100%; border-collapse: collapse; margin-bottom: 26px; }
+.hechos td {
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  padding: 9px 12px 9px 0; vertical-align: top;
+}
+.hechos span {
+  display: block; font-family: var(--font-mono); font-size: 7.5pt;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
+  margin-bottom: 3px;
+}
+.hechos strong { font-family: var(--font-display); font-size: 13pt; font-weight: 500; }
+
+/* ──────────────────────────────────────────────────────────── secciones */
+section { margin-bottom: 26px; }
+.evitar-corte { break-inside: avoid; }
+/* Un encabezado al pie de una página, con su contenido en la siguiente, es
+   la forma más barata de que un documento se vea descuidado. */
+h2 { break-after: avoid; }
+h2 {
+  font-family: var(--font-mono); font-size: 8.5pt; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 0 0 12px;
+}
+p { margin: 0 0 10px; }
+.sutil { color: var(--muted); font-size: 9.5pt; }
+
+.cifras { width: 100%; border-collapse: collapse; margin-top: 14px; }
+.cifras th {
+  text-align: left; font-weight: 500; color: var(--muted); font-size: 9.5pt;
+  padding: 7px 0; border-bottom: 1px solid var(--border); width: 46%;
+}
+.cifras td {
+  text-align: right; padding: 7px 0; border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.cifras .dato { font-family: var(--font-display); font-size: 13pt; }
+
+/* ───────────────────────────────────────────── la tira de distribución */
+.tira-caja { border: 1px solid var(--border); padding: 20px 22px 14px; }
+
+/* La tira son cajas posicionadas sobre una banda de 56px: cada marca es un
+   rectángulo, así nada se deforma y todas toman su color de un token. Las
+   posiciones llegan en `style=` desde documento.py porque son datos calculados.
+   Hairlines sólidas, nunca punteadas: el punteado se lee como "proyección"
+   cuando aquí no hay nada proyectado. */
+.tira { position: relative; height: 56px; }
+.tira i { position: absolute; display: block; }
+.t-eje     { left: 0; right: 0; top: 27px; height: 1px; background: var(--border); }
+.t-bigote  { top: 27px; height: 1px; background: var(--border-2); }
+.t-banda   { top: 18px; height: 20px; background: var(--accent-soft); }
+.t-tope    { top: 20px; height: 16px; width: 2px; margin-left: -1px; background: var(--border-2); }
+.t-mediana { top: 14px; height: 28px; width: 2px; margin-left: -1px; background: var(--accent); }
+/* El sujeto en tinta plena: patrón de énfasis. Sobrevive en blanco y negro
+   porque no depende del tono sino del peso. */
+.t-tallo   { top:  6px; height: 44px; width: 1px; background: var(--accent); }
+.t-suj     { position: absolute; top: 20px; left: 0; width: 16px; height: 16px;
+             margin-left: -8px; }
+
+.tira-pies { position: relative; height: 16px; margin-top: 4px; }
+.tira-pies span {
+  position: absolute; transform: translateX(-50%); white-space: nowrap;
+  font-family: var(--font-mono); font-size: 8pt; color: var(--faint);
+}
+.tira-pies b { color: var(--ink); font-weight: 700; }
+
+.tira-leyenda {
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border);
+  font-size: 8.5pt; color: var(--muted);
+}
+.tira-leyenda span, .tira-leyenda svg {
+  display: inline-block; vertical-align: middle; margin: 0 5px 0 16px;
+}
+.tira-leyenda span:first-child { margin-left: 0; }
+.lg-banda   { width: 16px; height: 9px; background: var(--accent-soft);
+              border-top: 1px solid var(--border-2); border-bottom: 1px solid var(--border-2); }
+.lg-mediana { width: 2px;  height: 12px; background: var(--accent); }
+/* SVG y no una caja con border-radius: DESIGN.md §4 no admite excepciones, y así
+   la leyenda es una miniatura literal de la marca que aparece en la tira. */
+.lg-suj     { width: 10px; height: 10px; }
+
+/* ──────────────────────────────────────────── tabla de comparables */
+.lista { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+.lista th {
+  font-family: var(--font-mono); font-size: 7.5pt; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint); text-align: left;
+  border-bottom: 1px solid var(--border-2); padding: 0 8px 7px 0; font-weight: 700;
+}
+.lista td {
+  border-bottom: 1px solid var(--border); padding: 8px 8px 8px 0;
+  vertical-align: top;
+}
+.lista tr { break-inside: avoid; }
+/* El padding izquierdo es lo que separa los encabezados: sin él,
+   "SUPERFICIE PRECIO / M² DISTANCIA" se leen como una sola cadena. */
+.lista .num { text-align: right; font-variant-numeric: tabular-nums;
+              padding-right: 0; padding-left: 18px; white-space: nowrap; }
+.lista .muni {
+  display: block; font-family: var(--font-mono); font-size: 7.5pt;
+  letter-spacing: .06em; color: var(--faint); margin-top: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────── notas */
+.notas { border-top: 2px solid var(--ink); padding-top: 14px; break-inside: avoid; }
+.notas ul { margin: 0; padding-left: 16px; }
+.notas li { font-size: 9pt; color: var(--muted); margin-bottom: 8px; line-height: 1.5; }
+.notas b { color: var(--ink); }

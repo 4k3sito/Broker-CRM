@@ -143,8 +143,9 @@ tarjeta o el kanban, abre el mock correspondiente:
 | `OfficeLab - Scrapers.dc.html` | `scrapers.html` | tarjeta de cifras + filas etiqueta/valor |
 
 **Lo que el mock pide y no existe** (y por qué no está): botones para correr
-scrapers, agenda con cron y reporte a Telegram (los scrapers corren en la máquina
-del asesor, no en el VPS); *Segmentos*, vista *SQL*, *ocultar duplicados / precios
+scrapers, agenda con cron y reporte a Telegram (los scrapers **sí corren en el VPS**
+desde la Fase 4, con su propio crontab; lo que no existe es interfaz para dispararlos
+ni reporte a Telegram — `scrapers.html` sólo lee agregados de `listings`); *Segmentos*, vista *SQL*, *ocultar duplicados / precios
 raros / sin coordenadas* (no hay endpoints); *Continuar con Google* (no hay OAuth);
 miniaturas de fotos y Frente/Fondo/Baños/Antigüedad en la ficha (`images[]` queda
 NULL y esas columnas no están en el esquema). El mock también lista EasyBroker y
@@ -154,6 +155,36 @@ planeadas: es exactamente al revés.
 **Dos cambios de comportamiento que trajo el layout del mock:** la tarjeta del
 tablero ya no lleva el campo de notas —viven en la ficha, bajo *Notas internas*—
 y el detalle de una tarea ocupa el panel derecho fijo en vez de un cajón flotante.
+
+## 4 ter. La segunda hoja: `api/documento.css`
+
+Desde el 2026-09-21 hay una superficie más, y no es una página: el **PDF del análisis de
+mercado** que la API arma con WeasyPrint. Vive en `api/documento.css` y no en
+`hermes.css` por dos razones — la hoja del sitio está llena de reglas de pantalla que a
+un renderizador de papel no le sirven, y el contenedor de la API no monta `web/`.
+
+**Rige las mismas reglas duras**: sin `border-radius` (el punto de la leyenda es un SVG
+justamente por eso), sin `box-shadow`, y ningún componente define un color propio. Los
+tokens están duplicados a mano en el `:root` de esa hoja: **si un color cambia en
+`hermes.css`, hay que cambiarlo también allá.** Las únicas dos tintas escritas literales
+en Python son `TINTA` y `PAPEL` en `api/documento.py`, porque van como atributo de un
+SVG y WeasyPrint no resuelve `var()` dentro del SVG.
+
+**Dos desviaciones, declaradas:**
+
+- **`style=` en línea sí se usa**, para la posición de cada marca de la tira de
+  distribución. Es un dato calculado, no una constante que pueda vivir en una hoja. La
+  prohibición de §4 nace de la CSP del sitio, y este HTML nunca llega a un navegador: lo
+  consume WeasyPrint y muere ahí.
+- **La cifra grande va en Bodoni**, aunque la práctica común de visualización de datos
+  pida una sans para el número héroe. Aquí manda el sistema: toda cifra destacada del
+  producto está en `--font-display`, y una excepción en el único documento que ve un
+  cliente sería lo que se vería fuera de lugar.
+
+`npm run verificar` **no mira esta hoja**: revisa las ocho páginas de `web/` contra
+`hermes.css`. Lo que verifica el documento es el selfcheck de `api/documento.py` —que
+comprueba escapado, geometría y formato— más mirar el PDF renderizado, que es como se
+encontraron sus cinco primeros defectos.
 
 ## 5. Páginas y lo que comparten
 

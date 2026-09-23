@@ -304,6 +304,37 @@ function printFicha() {
   window.print();
 }
 
+// El análisis de mercado se genera en el servidor, al revés que `printFicha()`,
+// que imprime en el navegador. La asimetría es deliberada: este documento sale
+// del sistema hacia un cliente, así que tiene que paginar igual siempre y poder
+// archivarse tal como se entregó. El porqué largo está en api/documento.py.
+async function descargarAnalisis(btn) {
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Generando\u2026';
+  const aviso = document.getElementById('mkt-aviso');
+  if (aviso) aviso.remove();
+  try {
+    const blob = await API.pdfAnalisis(listing.id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analisis-${listing.id.replace(/[^A-Za-z0-9._-]+/g, '-')}.pdf`;
+    a.click();
+    // Sin revoke, cada descarga deja el PDF entero retenido en memoria.
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    const p = document.createElement('p');
+    p.className = 'ficha-hint';
+    p.id = 'mkt-aviso';
+    p.textContent = e.message;
+    btn.parentElement.insertAdjacentElement('afterend', p);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+
 function fichaSectionHtml() {
   if (!currentUser) {
     return `<div class="detail-section"><h2>Ficha del asesor</h2>
@@ -318,6 +349,8 @@ function fichaSectionHtml() {
     <div class="ficha-head">
       <h2>Ficha t&#233;cnica <span class="ficha-badge">en seguimiento</span></h2>
       <button class="btn-pdf" id="ficha-pdf" title="Descargar como PDF">&#8595; PDF</button>
+      <button class="btn-pdf" id="mkt-pdf"
+              title="An&#225;lisis de mercado de esta propiedad, para adjuntar a la propuesta">&#8595; An&#225;lisis de mercado</button>
     </div>
     <div class="ficha-form">
       <label class="ficha-field">T&#237;tulo<input class="ficha-in" data-f="titulo" value="${esc(ficha.titulo)}"></label>
@@ -445,6 +478,8 @@ function conectarEventos() {
 
   document.getElementById('ficha-create')?.addEventListener('click', createFicha);
   document.getElementById('ficha-pdf')?.addEventListener('click', printFicha);
+  document.getElementById('mkt-pdf')?.addEventListener('click', e =>
+    descargarAnalisis(e.currentTarget));
   document.querySelectorAll('.ficha-in').forEach(el =>
     el.addEventListener('blur', e => saveFicha(e.target.dataset.f, e.target.value)));
 

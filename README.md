@@ -135,9 +135,24 @@ Columnas que suelen confundir:
 | `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms) |
 | `activo`, `revisado_at` | vigencia del anuncio, la llena `liveness.py`. `revisado_at` = hubo veredicto |
 | `intento_at`, `intentos_fallidos` | hubo intento, con o sin veredicto. Alimentan el backoff de `liveness.py` |
+| `tipo` | columna **generada** por `tipo_norm(property_type)`: colapsa los 17 deletreos de los portales en `local` / `terreno` / `bodega` / `oficina` / `rancho` / `hotel` / `desarrollo` |
 
 La API expone `precio_total = price * area_m2` cuando la bandera está puesta, y **filtra y
 ordena por ese total**, no por el unitario.
+
+Hay una segunda tabla, **`precio_historial`**, que guarda cada cambio de precio y de
+vigencia. `listings` es una foto —el upsert pisa el precio anterior— y sin esta tabla no
+hay forma de contestar si el mercado subió. La llena un trigger sobre `listings`, no un
+script, para cubrir por igual lo que escribe `propdb.py` y lo que escribe `liveness.py`.
+
+### Análisis de mercado
+
+Desde la ficha de una propiedad, el botón **Análisis de mercado** genera un PDF con sus
+comparables para adjuntarlo a una propuesta. Lo arma la API con WeasyPrint
+(`api/documento.py`), no el navegador: el documento sale del sistema hacia un cliente y
+tiene que paginar igual siempre. Un comparable es mismo tipo, misma operación, superficie
+±50% y radio en escalera de 1 a 5 km; con menos de 15 comparables el documento dice que
+el inventario es insuficiente en vez de publicar una mediana que no se puede defender.
 
 ### Escala
 

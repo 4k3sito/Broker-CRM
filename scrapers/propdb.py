@@ -375,6 +375,16 @@ def main() -> int:
             missing = [f for f in files if not f.exists()]
             if missing:
                 sys.exit(f"faltan: {', '.join(str(f) for f in missing)}")
+            # Trigger de historial apagado durante la carga. El UPSERT reescribe
+            # `price` y `price_is_per_m2` con lo que dice el archivo y el
+            # post-proceso los vuelve a corregir: con el trigger encendido, esa
+            # ida y vuelta queda escrita como dos cambios por fila por noche que
+            # nunca pasaron. `sincronizar_historial()`, abajo, registra el neto.
+            # `SET` de sesión y no `ALTER TABLE ... DISABLE TRIGGER`: si la carga
+            # se cae, la sesión muere y el trigger vuelve solo. Ojo al efecto
+            # colateral — también suspende las FK, que aquí no importa porque
+            # `asignar_zonas()` sólo usa filas de `zona` que ya existen.
+            conn.execute("SET session_replication_role = replica")
             load(conn, files)
             patch = DATA / "ml_coords.validated.jsonl"
             if patch.exists() and "mercadolibre" in names:
@@ -386,10 +396,14 @@ def main() -> int:
             for fn, etiqueta in (("limpiar_precios", "precios a null"),
                                  ("inferir_precio_m2", "precio por m2"),
                                  ("geocodificar_colonias", "geo por colonia"),
-                                 ("asignar_zonas", "zonas asignadas")):
+                                 ("asignar_zonas", "zonas asignadas"),
+                                 # Al final: el historial tiene que ver el estado
+                                 # ya limpio, no el crudo del archivo.
+                                 ("sincronizar_historial", "historial")):
                 if conn.execute("SELECT to_regproc(%s)", (fn,)).fetchone()[0]:
                     n = conn.execute(f"SELECT {fn}()").fetchone()[0]
                     print(f"{etiqueta:14} {n:>7,}")
+            conn.execute("SET session_replication_role = origin")
             conn.execute("ANALYZE listings")
         elif a.cmd == "search":
             search(conn, a)

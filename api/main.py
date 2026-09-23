@@ -15,18 +15,23 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import sys
 import threading
 import time
 import urllib.request
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Body, Cookie, Depends, FastAPI, HTTPException, Query, Request, Response
 from psycopg import errors as psycopg_errors
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+
+# Local: la maqueta del PDF. No importa WeasyPrint al cargarse —eso pasa dentro
+# de documento.pdf()—, así que no encarece el arranque de la API.
+import documento
 from pydantic import BaseModel, Field
 
 # ─────────────────────────────────────────────────────────────────── contraseñas
@@ -968,6 +973,228 @@ def borrar_tarea(tid: str, _: dict = Depends(current_user)) -> None:
             raise HTTPException(404, "No existe esa tarea")
 
 
+# ─────────────────────────────────────────────────────── análisis de mercado
+#
+# Un comparable es un anuncio vigente del mismo tipo y la misma operación, dentro
+# de una banda de superficie y de un radio alrededor de la propiedad.
+#
+# Los tres números salieron de medir la base el 2026-09-21, sobre muestras de 200
+# propiedades por tipo del área metropolitana de Monterrey, **ya deduplicadas por
+# `deduplicar()`** (sin deduplicar los porcentajes salen ~4 puntos más altos y no
+# son ciertos). Con banda de ±50% y radio de 3 km:
+#
+#   local / renta     86.0% junta 15 o más   mediana  83 comparables
+#   terreno / venta   85.0%                  mediana 122
+#   local / venta     71.5%                  mediana  30
+#   bodega / renta    44.0%                  mediana  12
+#
+# De ahí que el radio sea una escalera: empieza cerrado, que es donde el
+# comparable se parece de verdad, y sólo crece cuando le falta muestra — hasta 5
+# km, que estas cifras de 3 km todavía no incluyen. El documento siempre declara
+# con qué radio acabó. Las bodegas son el caso que más veces se va a negar a dar
+# cifra, y es el comportamiento correcto: no hay mercado que medir.
+RADIOS = (1000, 2000, 3000, 5000)
+MIN_COMPARABLES = 15
+BANDA = 0.5                        # ±50% de la superficie del sujeto
+
+# `price` puede ser el total o el precio por m²: la bandera lo decide (ver el
+# comentario de price_is_per_m2 en schema.sql). Compararlos sin normalizar mezcla
+# un terreno de 7.5 MDP con uno de $700 — el unitario es la única escala común.
+_UNITARIO = "(CASE WHEN {t}.price_is_per_m2 THEN {t}.price ELSE {t}.price / NULLIF({t}.area_m2, 0) END)::float8"
+
+SQL_SUJETO = f"""
+SELECT l.source, l.listing_id, l.title, l.location, l.url, l.tipo, l.operation,
+       l.area_m2::float8 AS area_m2, l.price::float8 AS price, l.currency,
+       l.price_is_per_m2, l.geom IS NOT NULL AS tiene_geom,
+       z.nombre AS municipio, {_UNITARIO.format(t='l')} AS unitario
+FROM listings l LEFT JOIN zona z ON z.id = l.zona_id
+WHERE l.source || ':' || l.listing_id = %s
+"""
+
+# Trae de una vez todo lo que cabe en el radio más ancho; la escalera la resuelve
+# `elegir_radio()` en Python. Son ~115 filas en la mediana y 542 en el peor caso
+# medido: no vale un viaje a la base por cada peldaño.
+SQL_COMPARABLES = f"""
+SELECT c.source || ':' || c.listing_id AS id, c.title, c.url, c.currency,
+       c.area_m2::float8 AS area_m2, z.nombre AS municipio,
+       {_UNITARIO.format(t='c')} AS unitario,
+       ST_Distance(c.geom, s.geom)::float8 AS dist_m
+FROM listings c
+CROSS JOIN (SELECT geom, area_m2, tipo, operation FROM listings
+            WHERE source = %s AND listing_id = %s) s
+LEFT JOIN zona z ON z.id = c.zona_id
+WHERE c.activo
+  AND c.tipo = s.tipo AND c.operation = s.operation
+  AND c.geom IS NOT NULL AND c.price > 0 AND c.area_m2 > 0
+  AND c.area_m2 BETWEEN s.area_m2 * %s AND s.area_m2 * %s
+  AND NOT (c.source = %s AND c.listing_id = %s)
+  AND ST_DWithin(c.geom, s.geom, %s)
+"""
+
+
+def percentil(ordenados: list[float], q: float) -> float | None:
+    """`percentile_cont` de Postgres, en Python: interpolación lineal entre los dos
+    vecinos. Vive aquí y no en SQL para que el selfcheck lo pruebe sin base."""
+    if not ordenados:
+        return None
+    if len(ordenados) == 1:
+        return ordenados[0]
+    pos = q * (len(ordenados) - 1)
+    bajo = int(pos)
+    alto = min(bajo + 1, len(ordenados) - 1)
+    return ordenados[bajo] + (ordenados[alto] - ordenados[bajo]) * (pos - bajo)
+
+
+def elegir_radio(distancias: list[float]) -> int | None:
+    """El radio más cerrado que junta MIN_COMPARABLES. None significa que no
+    alcanza ni con el más ancho, y entonces el documento no publica cifra: dar
+    una mediana de seis anuncios es lo único que no se puede defender frente a
+    un cliente que pregunte de dónde salió."""
+    for r in RADIOS:
+        if sum(1 for d in distancias if d <= r) >= MIN_COMPARABLES:
+            return r
+    return None
+
+
+def firma(dist_m: float, area_m2: float, unitario: float) -> tuple:
+    """La firma de una PROPIEDAD, no de un anuncio.
+
+    Un mismo local se publica en varios portales a la vez y la tabla lo guarda
+    como varias filas: la llave natural es `(source, listing_id)` y no hay
+    deduplicación entre fuentes. Medido el 2026-09-21 sobre los 19,834 anuncios
+    usables del área metropolitana de Monterrey, **el 17.5% son republicaciones**
+    —3,480 filas—, y sin colapsarlas el mercado le da un voto por portal a quien
+    paga cinco portales, lo que corre la mediana hacia quien más anuncia.
+
+    Misma distancia al sujeto, misma superficie y mismo precio unitario es una
+    sola propiedad en la práctica. La distancia se redondea a 25 m porque un
+    portal publica la coordenada exacta y otro el centroide de la colonia; el
+    17.5% medido es un piso, no el total.
+    """
+    return (round(dist_m / 25), round(area_m2, 1), round(unitario, 2))
+
+
+def deduplicar(comparables: list[dict], area_sujeto: float,
+               unitario_sujeto: float | None) -> list[dict]:
+    """Una fila por propiedad, y ninguna que sea el sujeto.
+
+    El sujeto entra al conjunto de firmas ya vistas antes de empezar: así su
+    propia republicación en otro portal se descarta con la misma mecánica, sin
+    una segunda regla que mantener. Sin esto la propiedad aparece como comparable
+    de sí misma —se vio en el primer PDF de prueba— y arrastra su percentil hacia
+    el centro.
+    """
+    vistas = set()
+    if unitario_sujeto is not None:
+        vistas.add(firma(0.0, area_sujeto, unitario_sujeto))
+    # Orden estable: gana el más cercano, y entre empatados el id. Sin esto, cuál
+    # de las republicaciones sobrevive depende del orden en que vuelva el SELECT.
+    unicas = []
+    for c in sorted(comparables, key=lambda c: (c["dist_m"], c["id"])):
+        f = firma(c["dist_m"], c["area_m2"], c["unitario"])
+        if f in vistas:
+            continue
+        vistas.add(f)
+        unicas.append(c)
+    return unicas
+
+
+def resumen(sujeto_unitario: float | None, comparables: list[dict]) -> dict:
+    """La estadística del documento. Mediana y percentiles, nunca promedio: entre
+    precios de portal siempre hay un anuncio con el precio mal capturado, y un
+    promedio se lo cree. Con percentiles ese anuncio es un voto perdido."""
+    radio = elegir_radio([c["dist_m"] for c in comparables])
+    if radio is None:
+        return {"suficiente": False, "n": len(comparables), "radio_m": None,
+                "minimo": MIN_COMPARABLES}
+    dentro = [c for c in comparables if c["dist_m"] <= radio]
+    unitarios = sorted(c["unitario"] for c in dentro)
+    areas = sorted(c["area_m2"] for c in dentro)
+    # Los municipios que de verdad aportan al comparable, para poder nombrar el
+    # submercado en el documento sin inventarle un nombre comercial.
+    conteo: dict[str, int] = {}
+    for c in dentro:
+        if c["municipio"]:
+            conteo[c["municipio"]] = conteo.get(c["municipio"], 0) + 1
+    municipios = sorted(conteo.items(), key=lambda kv: -kv[1])
+    posicion = None
+    if sujeto_unitario is not None:
+        bajo = sum(1 for u in unitarios if u <= sujeto_unitario)
+        posicion = round(100 * bajo / len(unitarios))
+    return {
+        "suficiente": True,
+        "n": len(dentro),
+        "radio_m": radio,
+        "minimo": MIN_COMPARABLES,
+        "unitario": {"p10": percentil(unitarios, .10), "p25": percentil(unitarios, .25),
+                     "mediana": percentil(unitarios, .50), "p75": percentil(unitarios, .75),
+                     "p90": percentil(unitarios, .90)},
+        "area_mediana": percentil(areas, .50),
+        "percentil_sujeto": posicion,
+        "municipios": [{"nombre": n, "n": k} for n, k in municipios],
+    }
+
+
+def analisis(conn, listing_id: str) -> dict:
+    """El análisis completo de una propiedad. Levanta 404 si no existe y 422 con
+    el motivo exacto cuando la propiedad no se puede analizar: sin coordenada, sin
+    superficie o sin precio no hay comparable posible, y decirlo es más útil que
+    devolver un documento vacío."""
+    s = conn.execute(SQL_SUJETO, (listing_id,)).fetchone()
+    if not s:
+        raise HTTPException(404, "No existe ese listing")
+    falta = [nombre for nombre, ok in (("coordenada", s["tiene_geom"]),
+                                       ("superficie", (s["area_m2"] or 0) > 0),
+                                       ("precio", (s["price"] or 0) > 0),
+                                       ("tipo", bool(s["tipo"])),
+                                       ("operación", bool(s["operation"])))
+             if not ok]
+    if falta:
+        raise HTTPException(422, "Sin " + ", ".join(falta) + " no se puede comparar "
+                                 "esta propiedad con el mercado")
+    comparables = conn.execute(
+        SQL_COMPARABLES,
+        (s["source"], s["listing_id"], 1 - BANDA, 1 + BANDA,
+         s["source"], s["listing_id"], max(RADIOS))).fetchall()
+    comparables = deduplicar(comparables, s["area_m2"], s["unitario"])
+    r = resumen(s["unitario"], comparables)
+    cercanos = comparables                       # deduplicar() ya los ordenó
+    if r["suficiente"]:
+        cercanos = [c for c in cercanos if c["dist_m"] <= r["radio_m"]]
+    return {"sujeto": s, "resumen": r,
+            # Los que se imprimen en la tabla del documento. Doce caben en una
+            # página sin apretar y son suficientes para que el cliente vea de
+            # dónde salieron las cifras sin recibir un directorio.
+            "comparables": cercanos[:12],
+            "generado_at": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/api/analisis/{listing_id:path}")
+def get_analisis(listing_id: str, user: dict = Depends(current_user)) -> dict:
+    """El análisis en JSON: lo que la ficha consulta para saber si puede ofrecer
+    el documento antes de que el asesor lo descargue."""
+    with POOL.connection() as conn:
+        return analisis(conn, listing_id)
+
+
+@app.get("/api/analisis-pdf/{listing_id:path}")
+def get_analisis_pdf(listing_id: str, user: dict = Depends(current_user)) -> Response:
+    """El documento que el asesor le manda a su cliente.
+
+    El formato va delante en la ruta y no como sufijo porque `{listing_id:path}`
+    es glotón: con `/api/analisis/{id:path}/pdf` el identificador se comería el
+    `/pdf` y la ruta nunca haría match.
+    """
+    with POOL.connection() as conn:
+        d = analisis(conn, listing_id)
+    # El nombre del archivo se arma con lo que venga en la URL, así que se filtra
+    # a un juego seguro: una comilla o un salto de línea en Content-Disposition
+    # deja de ser un nombre de archivo y pasa a ser una cabecera inyectada.
+    limpio = re.sub(r"[^A-Za-z0-9._-]+", "-", listing_id).strip("-")[:60] or "propiedad"
+    return Response(documento.pdf(d), media_type="application/pdf",
+                    headers={"Content-Disposition":
+                             f'attachment; filename="analisis-{limpio}.pdf"'})
+
 # ───────────────────────────────────────────────────────────────────────── cli
 def selfcheck() -> None:
     h = hash_password("contrasena-larga")
@@ -1024,6 +1251,71 @@ def selfcheck() -> None:
     # Si HIBP no responde ambas dan False y el assert no se ejecuta — falla abierto.
     if password_filtrada("password"):
         assert not password_filtrada(secrets.token_hex(16)), "falso positivo en HIBP"
+
+    # ── análisis de mercado ──────────────────────────────────────────────────
+    # `percentil` tiene que dar lo mismo que percentile_cont de Postgres, porque
+    # el documento cita esos números como si vinieran de la base.
+    assert percentil([], .5) is None and percentil([7.0], .5) == 7.0
+    assert percentil([1.0, 2.0, 3.0, 4.0], .50) == 2.5       # interpola, no redondea
+    assert percentil([1.0, 2.0, 3.0, 4.0], .25) == 1.75
+    assert percentil([1.0, 2.0, 3.0, 4.0], .00) == 1.0
+    assert percentil([1.0, 2.0, 3.0, 4.0], 1.0) == 4.0
+
+    # La escalera de radios: gana el más cerrado que junte el mínimo.
+    assert RADIOS == tuple(sorted(RADIOS)), "la escalera tiene que ir de menor a mayor"
+    assert elegir_radio([500.0] * MIN_COMPARABLES) == RADIOS[0]
+    assert elegir_radio([500.0] * (MIN_COMPARABLES - 1)) is None, "no alcanza y no debe mentir"
+    # Catorce cerca y uno lejos: el radio se abre hasta alcanzar al quinceavo.
+    assert elegir_radio([500.0] * (MIN_COMPARABLES - 1) + [2500.0]) == 3000
+
+    # Muestra insuficiente: el resumen lo dice y no trae cifras que citar.
+    flaco = resumen(300.0, [{"dist_m": 100.0, "unitario": 250.0, "area_m2": 100.0,
+                             "municipio": "Monterrey"}])
+    assert flaco["suficiente"] is False and "unitario" not in flaco
+
+    # Muestra suficiente: el sujeto más caro que todos queda en el percentil 100,
+    # y el submercado se nombra con los municipios que más comparables aportaron.
+    comps = [{"dist_m": 100.0 + i, "unitario": 100.0 + i, "area_m2": 200.0,
+              "municipio": "Monterrey" if i % 3 else "San Pedro Garza García"}
+             for i in range(20)]
+    r = resumen(9999.0, comps)
+    assert r["suficiente"] and r["n"] == 20 and r["radio_m"] == 1000
+    assert r["percentil_sujeto"] == 100
+    assert r["municipios"][0]["nombre"] == "Monterrey"
+    assert resumen(0.0, comps)["percentil_sujeto"] == 0
+    # Sin precio en el sujeto el documento sigue saliendo: describe el mercado y
+    # no lo ubica. Que falte el dato no puede tumbar el análisis entero.
+    assert resumen(None, comps)["percentil_sujeto"] is None
+
+    # Una propiedad publicada en tres portales es UNA propiedad. Sin esto le da
+    # tres votos a la mediana y, si es el propio sujeto, se compara consigo mismo.
+    tres_portales = [{"id": f"p{i}:1", "dist_m": 300.0, "area_m2": 328.0,
+                      "unitario": 91.0, "municipio": "Monterrey"} for i in range(3)]
+    assert len(deduplicar(tres_portales, 200.0, 500.0)) == 1
+    # Dos locales distintos en la misma plaza (misma distancia, superficie
+    # distinta) NO son el mismo: el que se colapsa es el idéntico, no el vecino.
+    vecino = {"id": "otro:9", "dist_m": 300.0, "area_m2": 200.0, "unitario": 91.0,
+              "municipio": "Monterrey"}
+    assert len(deduplicar(tres_portales + [vecino], 999.0, 999.0)) == 2
+    # El sujeto republicado en otro portal se descarta solo.
+    yo_mismo = {"id": "otro:7", "dist_m": 0.0, "area_m2": 297.0, "unitario": 361.0,
+                "municipio": "Monterrey"}
+    assert deduplicar([yo_mismo], 297.0, 361.0) == []
+    assert len(deduplicar([yo_mismo], 297.0, None)) == 1, "sin precio propio no hay firma que excluir"
+    # 20 m de diferencia en la coordenada es el mismo inmueble: un portal publica
+    # el punto exacto y otro el centroide de la colonia.
+    assert len(deduplicar([{**tres_portales[0]}, {**tres_portales[1], "dist_m": 310.0}],
+                          999.0, 999.0)) == 1
+    # Orden estable: gana el más cercano.
+    lejos = {"id": "a:1", "dist_m": 900.0, "area_m2": 50.0, "unitario": 10.0, "municipio": None}
+    cerca = {"id": "b:1", "dist_m": 100.0, "area_m2": 60.0, "unitario": 20.0, "municipio": None}
+    assert [c["id"] for c in deduplicar([lejos, cerca], 1.0, 1.0)] == ["b:1", "a:1"]
+
+    # La maqueta del documento trae su propia batería: formato de moneda,
+    # geometría de la tira y —lo que más importa— que todo lo que escribieron los
+    # portales salga escapado.
+    documento.selfcheck()
+
     print("ok")
 
 

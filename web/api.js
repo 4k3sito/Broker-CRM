@@ -34,6 +34,20 @@ const API = {
     return s ? `?${s}` : '';
   },
 
+  // El PDF del análisis de mercado. No es un `<a href>` normal a propósito: si la
+  // propiedad no se puede analizar la API responde 422 con el motivo, y un enlace
+  // llevaría al asesor a una página de JSON en vez de decírselo en su sitio.
+  async pdfAnalisis(listingId) {
+    const r = await fetch(`/api/analisis-pdf/${encodeURIComponent(listingId)}`,
+                          { credentials: 'same-origin' });
+    if (r.status === 401) { location.href = 'login.html'; throw new Error('Sesión expirada'); }
+    if (!r.ok) {
+      const d = await r.json().catch(() => null);
+      throw new Error(d?.detail ?? `Error ${r.status}`);
+    }
+    return r.blob();
+  },
+
   me:     ()             => API.get('/me'),
   login:  (email, password) => API.post('/login', { email, password }),
   logout: ()             => API.post('/logout'),

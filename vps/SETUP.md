@@ -146,6 +146,14 @@ docker compose logs -f db     # Ctrl-C cuando aparezca "database system is ready
 El `schema.sql` **solo corre en un volumen vacío**. Si el volumen ya existía, las tablas no se
 crean solas: ver "Reaplicar el esquema" abajo.
 
+> ⚠️ **Y sobre un volumen vacío no termina.** Medido el 2026-09-21 en una base limpia:
+> `tarea` (línea 153) referencia `usuario`, que el archivo crea unas 340 líneas más
+> abajo, así que esa tabla y `tarea_comentario` **fallan en silencio** —el
+> `docker-entrypoint-initdb.d` no aborta— y la instalación queda sin el tablero del
+> equipo. Hasta que se arregle el orden, **corre el esquema dos veces** en una
+> instalación nueva: en la segunda pasada `usuario` ya existe y todo se crea. La
+> verificación de abajo lo detecta si se salta este paso.
+
 **Verifica** (esto es la prueba real de que la Fase 1 quedó):
 
 ```bash
