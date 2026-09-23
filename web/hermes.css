@@ -195,6 +195,119 @@ a:hover { color:var(--ink); }
   font-family:var(--font-ui); font-size:12.5px; color:var(--muted);
 }
 
+/* Barra fija de filtros (`fb-`): Ubicación, Precio y Tipo.
+   Caja recta y borde, como todo aquí: la jerarquía la da el acento del chip puesto,
+   no una sombra. Bajo 760px el popover deja de colgar del chip y se vuelve hoja
+   inferior, porque anclado se sale de la pantalla. */
+.fb { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.fb-chip { display:inline-flex; align-items:center; border:1px solid var(--border-2); background:var(--surface); }
+.fb-chip.on { border-color:var(--accent); background:var(--accent-soft); }
+.fb-open {
+  display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 12px;
+  border:none; background:transparent; color:var(--ink);
+  font-family:var(--font-ui); font-size:13.5px; font-weight:600; cursor:pointer;
+}
+.fb-chip.on .fb-open { color:var(--accent); }
+.fb-open:hover { color:var(--accent); }
+.fb-k {
+  font-family:var(--font-mono); font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.08em; color:var(--faint);
+}
+.fb-chip.on .fb-k { color:var(--accent); opacity:.65; }
+.fb-v { max-width:230px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fb-x {
+  height:38px; padding:0 10px; border:none; background:transparent; color:var(--accent);
+  opacity:.55; font-size:15px; line-height:1; cursor:pointer;
+}
+.fb-x:hover { opacity:1; }
+.fb-x[hidden] { display:none; }
+
+.fb-scrim { display:none; }
+.fb-pop {
+  position:absolute; top:calc(100% - 6px); left:26px; z-index:90; width:420px;
+  background:var(--surface); border:1px solid var(--accent);
+  padding:14px 16px 12px; display:flex; flex-direction:column; gap:11px;
+}
+.fb-pop[hidden] { display:none; }
+.fb-head { display:flex; align-items:center; justify-content:space-between; }
+.fb-title {
+  font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--accent);
+  text-transform:uppercase; letter-spacing:.1em;
+}
+.fb-close { border:none; background:transparent; color:var(--faint); font-size:17px; line-height:1; cursor:pointer; padding:0; }
+.fb-close:hover { color:var(--accent); }
+.fb-in {
+  width:100%; height:38px; padding:0 12px; border:1px solid var(--border-2);
+  background:var(--surface); font-family:var(--font-ui); font-size:13.5px;
+  color:var(--ink); outline:none;
+}
+.fb-in:focus { border-color:var(--accent); }
+.fb-in:disabled { color:var(--faint); background:var(--bg); }
+.fb-nota { margin:0; font-size:11.5px; line-height:1.45; color:var(--faint); }
+
+/* Ubicación */
+.fb-sels { display:flex; flex-wrap:wrap; gap:6px; }
+.fb-sels:empty { display:none; }
+.fb-sel {
+  display:inline-flex; align-items:center; gap:6px; padding:0 0 0 9px; height:28px;
+  border:1px solid var(--accent); background:var(--accent-soft);
+  color:var(--accent); font-size:12.5px; font-weight:600;
+}
+.fb-sel-e { font-family:var(--font-mono); font-size:10px; opacity:.6; }
+.fb-sel-x { height:28px; padding:0 8px; border:none; background:transparent; color:var(--accent); opacity:.55; font-size:14px; line-height:1; cursor:pointer; }
+.fb-sel-x:hover { opacity:1; }
+.fb-sugs { display:flex; flex-direction:column; max-height:228px; overflow-y:auto; }
+.fb-sugs:empty { display:none; }
+.fb-sug {
+  display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px;
+  border:none; background:transparent; color:var(--ink); text-align:left;
+  font-family:var(--font-ui); font-size:13px; cursor:pointer;
+}
+.fb-sug:hover { background:var(--accent-soft); }
+.fb-sug-e { font-family:var(--font-mono); font-size:10px; color:var(--faint); }
+.fb-sug-n { margin-left:auto; font-family:var(--font-mono); font-size:10.5px; color:var(--faint); }
+
+/* Precio */
+.fb-segs { display:flex; }
+.fb-seg {
+  flex:1; height:38px; border:1px solid var(--border-2); background:var(--surface);
+  color:var(--ink); font-family:var(--font-ui); font-size:13px; font-weight:600; cursor:pointer;
+}
+.fb-seg + .fb-seg { border-left:none; }
+.fb-seg.on { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+.fb-rango { display:flex; align-items:center; gap:9px; }
+.fb-num { text-align:right; font-family:var(--font-mono); font-size:13px; }
+.fb-guion { color:var(--faint); }
+
+/* Tipo */
+.fb-cajas { display:grid; grid-template-columns:1fr 1fr; gap:2px 12px; }
+.fb-caja { display:flex; align-items:center; gap:9px; min-height:36px; font-size:13.5px; cursor:pointer; }
+.fb-caja input { width:17px; height:17px; accent-color:var(--accent); cursor:pointer; }
+
+.fb-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.fb-limpia {
+  height:34px; padding:0 4px; border:none; background:transparent; color:var(--muted);
+  font-family:var(--font-ui); font-size:12.5px; font-weight:700; cursor:pointer;
+}
+.fb-limpia:hover { color:var(--accent); }
+.fb-aplica {
+  height:34px; padding:0 20px; border:1px solid var(--accent); background:var(--accent);
+  color:var(--on-accent); font-family:var(--font-ui); font-size:13px; font-weight:700; cursor:pointer;
+}
+
+@media (max-width:760px) {
+  /* Hoja inferior: anclada al chip se saldría de la pantalla. El fondo oscurecido
+     sólo existe aquí, porque es lo que hace tocable el "cerrar" fuera de la hoja. */
+  .fb-pop {
+    position:fixed; inset:auto 0 0 0; width:auto; max-height:78vh; overflow-y:auto;
+    border-width:1px 0 0; padding:16px 18px calc(16px + env(safe-area-inset-bottom));
+  }
+  .fb-scrim { display:block; position:fixed; inset:0; z-index:85; background:rgba(17,17,32,.45); }
+  .fb-scrim[hidden] { display:none; }
+  .fb-v { max-width:120px; }
+  .fb-cajas { grid-template-columns:1fr; }
+}
+
 /* Paleta ⌘K y editor de token: dos popovers anclados a la barra. */
 .qpop {
   position:absolute; top:calc(100% - 6px); left:26px; z-index:80;

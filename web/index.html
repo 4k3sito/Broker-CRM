@@ -60,6 +60,31 @@
 
 <!-- Sentencia editable: un token por filtro, la paleta los agrega. -->
 <div class="qbar" id="qbar">
+  <!-- Barra fija: los tres filtros que el asesor usa siempre. El popover y su fondo
+       viven fuera de .fb para que en el teléfono la hoja inferior no herede su ancho. -->
+<div class="fb" id="fb">
+  <span class="fb-chip" data-f="ubicacion">
+    <button class="fb-open" data-f="ubicacion" aria-expanded="false" aria-haspopup="dialog">
+      <span class="fb-k">Ubicaci&#243;n</span><span class="fb-v" id="fbv-ubicacion">Todo M&#233;xico</span>
+    </button>
+    <button class="fb-x" data-x="ubicacion" title="Quitar ubicaci&#243;n" hidden>&times;</button>
+  </span>
+  <span class="fb-chip" data-f="precio">
+    <button class="fb-open" data-f="precio" aria-expanded="false" aria-haspopup="dialog">
+      <span class="fb-k">Precio</span><span class="fb-v" id="fbv-precio">Cualquiera</span>
+    </button>
+    <button class="fb-x" data-x="precio" title="Quitar precio" hidden>&times;</button>
+  </span>
+  <span class="fb-chip" data-f="tipo">
+    <button class="fb-open" data-f="tipo" aria-expanded="false" aria-haspopup="dialog">
+      <span class="fb-k">Tipo</span><span class="fb-v" id="fbv-tipo">Todos</span>
+    </button>
+    <button class="fb-x" data-x="tipo" title="Quitar tipo" hidden>&times;</button>
+  </span>
+</div>
+<div class="fb-scrim" id="fbScrim" hidden></div>
+<div class="fb-pop" id="fbPop" role="dialog" aria-label="Filtro" hidden></div>
+
   <div class="qbar-box" id="qbarBox">
     <span class="qbar-label">Mostrar</span>
     <span id="tokens"></span>
