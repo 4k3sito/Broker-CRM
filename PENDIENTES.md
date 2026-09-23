@@ -186,40 +186,23 @@ y Monterrey + local/bodega da 8,164, que es exactamente lo que devuelve la base.
 
 Dos cosas medidas el 2026-09-23 que cambian el plan:
 
-- **Las colonias no existen como dato y el filtro de ubicación no puede usarlas.**
-  `neighborhood` está poblado en **1,788 de 467,417 anuncios (0.38%)**. `location` sí está
-  casi siempre (99.9%) pero es texto libre con **189,615 variantes** —"Cholul, Mérida" y
-  "Cholul, Mérida, Yucatán" son dos filas distintas—, y derivar la colonia partiendo por
-  la coma da **3,494 valores para los 16,805 anuncios de Monterrey**, con "sin calle"
-  (774), "-" (210) y el propio "monterrey" (288) entre los más comunes. Por eso
-  `GET /api/lugares` devuelve **sólo municipios**, que sí son limpios: 95.6% de cobertura
-  y 2,475 valores de la tabla `zona`.
-  El camino bueno cuando se retome: cargar polígonos de colonia en `zona` con
-  `tipo='colonia'` —la tabla ya tiene la columna `tipo` y hoy sólo guarda `municipio`— y
-  materializarlos como ya se hace con el municipio. El 95.7% de los anuncios tiene
-  coordenada, así que `ST_Covers` los asigna solo. La API ya devuelve `clase` en cada
-  fila para que ese día el cliente no cambie.
+- **Las colonias ya existen: cargadas el 2026-09-23.** Eran el agujero del filtro de
+  ubicación —`neighborhood` poblado en el 0.38% y `location` con 189,615 variantes— y se
+  cerró con los polígonos de INEGI (DCAH), 71,465 con nombre útil, cargados por
+  `vps/colonias.py`. **Monterrey queda al 80.6%** (13,547 de 16,805), el área
+  metropolitana al 80.4% y el país al 54.2%. El detalle está en `MIGRATION.md`,
+  "Cargado el 2026-09-23". Lo que queda abierto de esto:
+  - **`pyshp` no está declarado en ningún sitio.** `vps/colonias.py` lo importa y `vps/`
+    no tiene `requirements.txt`. Hoy vive sólo en `scrapers/.venv` porque se instaló a
+    mano.
+  - **`asignar_colonias()` no se llama sola.** `propdb.py load` llama a `asignar_zonas()`
+    después de cada carga; la gemela hay que correrla a mano, así que los anuncios nuevos
+    de cada noche entran sin colonia hasta que alguien la ejecute. Tarda 3 min 40 s.
+  - **Una colonia quedó sin municipio** de 71,465: su polígono no cae dentro de ningún
+    municipio de OSM. No estorba, pero delata un desajuste entre las dos fuentes.
+  - Falta repetir la carga cuando INEGI publique el corte siguiente. El script es
+    idempotente por `CVEGEO`, así que es volver a correrlo.
 
-  **Y la fuente ya está identificada (2026-09-23):** INEGI **sí** publica colonias con
-  nombre, al contrario de lo que decían `vps/zonas.py` y `MIGRATION.md` —los dos
-  corregidos—. Es *Delimitación de Colonias y otros Asentamientos Humanos*
-  ([DCAH](https://www.inegi.org.mx/programas/dcah/)), del 12 de noviembre de 2024 con
-  corte 2023: **7,672 localidades**, shapefile, nombre y tipo por asentamiento, clave
-  `CVEGEO`. La delimitan los municipios y INEGI sólo integra, así que la cobertura es
-  desigual; se priorizan las localidades de 50 mil habitantes o más y las capitales, que
-  son el 55% de la superficie delimitada, y ahí cae Monterrey. **Falta confirmarlo
-  bajando el archivo de Nuevo León y contando cuántos de los 16,805 anuncios de Monterrey
-  caen dentro de un polígono** — la misma prueba que se le hizo a los municipios.
-
-  Lo que hay que construir: reproyectar de Cónica Conforme de Lambert (ITRF2008) a 4326,
-  cargar con `tipo='colonia'` e idempotencia por `CVEGEO` en vez de `osm_id`, y
-  materializar una columna en `listings` como ya se hizo con `zona_id`.
-
-  Descartadas y por qué: **OSM** tiene **17 polígonos** de colonia en todo el municipio de
-  Monterrey, medido con Overpass. **Mapbox Boundaries** es de paga y su licencia ata los
-  polígonos al uso con servicios de Mapbox, no a guardarlos en PostGIS propio.
-  **Google Earth Engine** es una plataforma de análisis de imágenes satelitales: sus capas
-  administrativas no bajan de municipio y no tiene colonias mexicanas.
 - **27 anuncios tienen `operation = 'sale'` y `operacion_alt = 'sale'`**: la misma
   operación dos veces, que no significa nada. Es un defecto del colapso de duales en
   `propdb.py`. Son pocos y no estorban al filtro, pero el dato está mal.

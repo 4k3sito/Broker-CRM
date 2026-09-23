@@ -577,26 +577,26 @@ function fbPintarPop() {
 function fbCuerpoUbicacion() {
   return `
     <input class="fb-in" id="fbBuscaLugar" type="search" autocomplete="off"
-           placeholder="Municipio: Monterrey, San Pedro&#8230;">
+           placeholder="Municipio o colonia: Monterrey, Contry&#8230;">
     <div class="fb-sels" id="fbSels"></div>
     <div class="fb-sugs" id="fbSugs"></div>
-    <p class="fb-nota" id="fbNota">Por municipio. Para algo m&#225;s fino, usa el buscador de arriba.</p>`;
+    <p class="fb-nota" id="fbNota">Municipios y colonias.</p>`;
 }
 
 function fbPintarSeleccion() {
   document.getElementById('fbSels').innerHTML = fbDraft.lugares.map((l, i) => `
-    <span class="fb-sel">${esc(l.nombre)}<span class="fb-sel-e">${esc(l.estado ?? '')}</span>
+    <span class="fb-sel">${esc(l.nombre)}<span class="fb-sel-e">${esc(l.contexto ?? '')}</span>
       <button class="fb-sel-x" data-quita="${i}" title="Quitar">&times;</button></span>`).join('');
   const tope = fbDraft.lugares.length >= MAX_LUGARES;
   document.getElementById('fbBuscaLugar').disabled = tope;
   document.getElementById('fbNota').textContent = tope
     ? `Máximo ${MAX_LUGARES} municipios a la vez.`
-    : 'Por municipio. Para algo más fino, usa el buscador de arriba.';
+    : 'Municipios y colonias. Las colonias vienen de INEGI y no cubren todo el país.';
 }
 
 function fbPintarSugerencias() {
   document.getElementById('fbSugs').innerHTML = fbDraft.sug.map(s => `
-    <button class="fb-sug" data-add="${esc(s.valor)}">${esc(s.nombre)}<span class="fb-sug-e">${esc(s.estado ?? '')}</span>
+    <button class="fb-sug" data-add="${esc(s.valor)}">${esc(s.nombre)}<span class="fb-sug-e">${esc(s.contexto ?? '')}</span>
       <span class="fb-sug-n">${mx(s.anuncios)}</span></button>`).join('');
 }
 
@@ -681,7 +681,7 @@ document.getElementById('fbPop').addEventListener('click', e => {
   if (add) {
     const s = fbDraft.sug.find(x => x.valor === add.dataset.add);
     if (s && fbDraft.lugares.length < MAX_LUGARES) {
-      fbDraft.lugares.push({ valor: s.valor, nombre: s.nombre, estado: s.estado });
+      fbDraft.lugares.push({ valor: s.valor, nombre: s.nombre, contexto: s.contexto });
       fbDraft.sug = fbDraft.sug.filter(x => x.valor !== s.valor);
       document.getElementById('fbBuscaLugar').value = '';
       fbPintarSeleccion(); fbPintarSugerencias();

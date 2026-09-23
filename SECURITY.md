@@ -110,6 +110,14 @@ LISTEN 0.0.0.0:22    sshd
 - **Caddy sirve `web/`, no la raíz del repo.** Decisión deliberada: con root en el
   repo, `/vps/.env` sería descargable desde internet.
 - `docs_url=None, redoc_url=None`: la API no publica su propio esquema.
+- **Segunda API en `127.0.0.1:8001`** desde el 2026-09-23 (`vps/docker-compose.dev.yml`),
+  la de la copia de trabajo `/srv/officelab-dev`. Sólo loopback, Caddy no la conoce, y
+  usa la misma base que producción: lo que escriba ahí es real. Se apaga con
+  `docker compose -p officelab-dev -f docker-compose.dev.yml down`.
+- **`GET /api/lugares`** (autocompletado del filtro de ubicación) pide sesión como el
+  resto. Devuelve nombres de municipio y de colonia con su conteo de inventario — datos
+  públicos del catálogo, no del seguimiento privado de ningún asesor. El parámetro `q`
+  va parametrizado contra un `LIKE` sobre la columna `norm`, sin concatenar nada.
 - Cabeceras que sí manda (verificadas con `curl -D -`):
 
 ```

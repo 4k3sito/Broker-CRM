@@ -444,14 +444,21 @@ def _filtros(a: dict) -> tuple[list[str], list]:
     # de colonia (hoy sólo tiene tipo='municipio') se pueda agregar "c<...>" sin romper
     # el contrato con el cliente.
     if a.get("lugar"):
-        municipios = [int(v[1:]) for v in a["lugar"]
-                      if isinstance(v, str) and v[:1] == "m" and v[1:].isdigit()]
-        if not municipios:
-            raise HTTPException(422, "lugar debe ser 'm<id de municipio>'")
-        if len(municipios) > MAX_LUGARES:
+        vals = [v for v in a["lugar"] if isinstance(v, str)]
+        municipios = [int(v[1:]) for v in vals if v[:1] == "m" and v[1:].isdigit()]
+        colonias  = [int(v[1:]) for v in vals if v[:1] == "c" and v[1:].isdigit()]
+        if not municipios and not colonias:
+            raise HTTPException(422, "lugar debe ser 'm<id de municipio>' o 'c<id de colonia>'")
+        if len(municipios) + len(colonias) > MAX_LUGARES:
             raise HTTPException(422, f"lugar acepta {MAX_LUGARES} valores como máximo")
-        w.append("l.zona_id = ANY(%s)")
-        p.append(municipios)
+        # OR entre los dos niveles: elegir "San Pedro" y "Del Valle" quiere decir lo que
+        # esté en cualquiera de los dos, no la intersección, que casi siempre es vacía.
+        partes = []
+        if municipios:
+            partes.append("l.zona_id = ANY(%s)"); p.append(municipios)
+        if colonias:
+            partes.append("l.colonia_id = ANY(%s)"); p.append(colonias)
+        w.append("(" + " OR ".join(partes) + ")")
     # La operación tiene que encontrar también la oferta alterna: un local ofrecido en
     # renta Y venta a la vez guarda la segunda en `operacion_alt`, y filtrar "Renta" no
     # puede esconderlo sólo porque el portal listó la venta primero.
@@ -646,28 +653,43 @@ def zonas() -> list[dict]:
 @app.get("/api/lugares")
 def lugares(q: str = Query(min_length=2, max_length=80),
             user: dict = Depends(current_user)) -> list[dict]:
-    """Autocompletado del filtro de ubicación.
+    """Autocompletado del filtro de ubicación: municipios y colonias.
 
-    Devuelve **sólo municipios**, y eso es deliberado. Medido el 2026-09-23: `neighborhood`
-    está poblado en 1,788 de 467,417 anuncios (0.38%), y `location` es texto libre con
-    189,615 variantes distintas —"Cholul, Mérida" y "Cholul, Mérida, Yucatán" son dos—.
-    Una lista de colonias armada con eso sería una promesa falsa: el asesor elegiría una
-    colonia y recibiría una fracción arbitraria de lo que hay en ella.
+    Las colonias salen de *Delimitación de Colonias y otros Asentamientos Humanos* de
+    INEGI, cargadas por `vps/colonias.py` en `zona` con `tipo='colonia'`. Antes esto
+    devolvía sólo municipios porque el dato no existía: `neighborhood` estaba poblado en
+    el 0.38% de los anuncios y `location` es texto libre con 189,615 variantes.
 
-    El camino bueno, cuando se retome, es cargar polígonos de colonia en `zona` con
-    `tipo='colonia'` y materializarlos como ya se hace con el municipio: el 95.7% de los
-    anuncios tiene coordenada, así que `ST_Covers` los asigna solos. Por eso cada fila ya
-    trae `clase`: el día que existan, esto devuelve los dos niveles y el cliente no cambia.
+    Medido el 2026-09-23 con los polígonos ya cargados: **el 80.6% de los anuncios de
+    Monterrey cae dentro de una colonia con nombre** (13,547 de 16,805) y el 54.2% a
+    nivel nacional. La diferencia es la cobertura desigual de INEGI, que depende de qué
+    ayuntamiento entregó sus límites — no de un fallo del cruce.
+
+    Los municipios van primero a igualdad de coincidencia: quien escribe "san pedro"
+    quiere el municipio, no una colonia homónima de otro estado.
     """
+    patron = f"%{norm_txt(q)}%"
     with POOL.connection() as conn:
         return conn.execute(
-            """SELECT 'm' AS clase, 'm' || z.id AS valor, z.nombre, z.estado,
-                      count(l.*) AS anuncios
-               FROM zona z JOIN listings l ON l.zona_id = z.id
-               WHERE z.norm LIKE %s
-               GROUP BY z.id, z.nombre, z.estado
-               ORDER BY count(l.*) DESC LIMIT %s""",
-            (f"%{norm_txt(q)}%", MAX_LUGARES)).fetchall()
+            """SELECT clase, valor, nombre, contexto, anuncios FROM (
+                 (SELECT 0 AS orden, 'm' AS clase, 'm' || z.id AS valor, z.nombre,
+                         z.estado AS contexto, count(l.*) AS anuncios
+                  FROM zona z JOIN listings l ON l.zona_id = z.id
+                  WHERE z.tipo = 'municipio' AND z.norm LIKE %s
+                  GROUP BY z.id, z.nombre, z.estado
+                  ORDER BY count(l.*) DESC LIMIT %s)
+                 UNION ALL
+                 (SELECT 1, 'c', 'c' || z.id, z.nombre,
+                         coalesce(m.nombre || ', ', '') || coalesce(z.estado, '') AS contexto,
+                         count(l.*)
+                  FROM zona z
+                  JOIN listings l ON l.colonia_id = z.id
+                  LEFT JOIN zona m ON m.id = z.padre_id
+                  WHERE z.tipo = 'colonia' AND z.norm LIKE %s
+                  GROUP BY z.id, z.nombre, m.nombre, z.estado
+                  ORDER BY count(l.*) DESC LIMIT %s)
+               ) s ORDER BY orden, anuncios DESC""",
+            (patron, MAX_LUGARES, patron, MAX_LUGARES)).fetchall()
 
 
 # Fuentes con scraper propio en scrapers/. Lo que aparezca en la tabla y no aquí es
@@ -1314,8 +1336,14 @@ def selfcheck() -> None:
 
     # Ubicación múltiple: varios municipios en un solo ANY, y nada de ids inventados.
     w, p = _filtros({"lugar": ["m40", "m47"]})
-    assert w == ["l.zona_id = ANY(%s)"] and p == [[40, 47]], (w, p)
-    for malo in (["basura"], ["m"], ["40"], [f"m{i}" for i in range(MAX_LUGARES + 1)]):
+    assert w == ["(l.zona_id = ANY(%s))"] and p == [[40, 47]], (w, p)
+    # Los dos niveles se unen con OR, no con AND: la intersección sería casi siempre vacía.
+    w, p = _filtros({"lugar": ["m40", "c9001"]})
+    assert w == ["(l.zona_id = ANY(%s) OR l.colonia_id = ANY(%s))"], w
+    assert p == [[40], [9001]], p
+    w, p = _filtros({"lugar": ["c9001"]})
+    assert w == ["(l.colonia_id = ANY(%s))"] and p == [[9001]], (w, p)
+    for malo in (["basura"], ["m"], ["c"], ["40"], [f"m{i}" for i in range(MAX_LUGARES + 1)]):
         try:
             _filtros({"lugar": malo})
             raise AssertionError(f"lugar={malo} debió ser 422")
