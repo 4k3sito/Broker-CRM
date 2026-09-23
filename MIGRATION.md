@@ -436,8 +436,43 @@ distintas entre municipios. Se priorizan las localidades de **50 mil habitantes 
 capitales**, que son el **55% de la superficie** con delimitación de área — y ahí cae Monterrey.
 
 Cargarlo no es el camino de `zonas.py`: viene en shapefile con proyección Cónica Conforme de
-Lambert sobre ITRF2008, no en GeoJSON de Nominatim. Hay que reproyectar a 4326 y la
-idempotencia va por `CVEGEO` en vez de `osm_id`.
+Lambert sobre ITRF2008, no en GeoJSON de Nominatim. La reproyección la hace Postgres —
+esa proyección **es EPSG:6372 y PostGIS ya la conoce**, así que `ST_Transform` basta y no
+hace falta GDAL ni pyproj. La idempotencia va por `CVEGEO` en vez de `osm_id`.
+
+### Cargado el 2026-09-23
+
+`vps/colonias.py`, contra el nacional integrado 2024 (68 MB). Resultado:
+
+| | |
+|---|---|
+| Polígonos en el archivo | 75,516 |
+| Cargados (con nombre útil) | **71,465** |
+| Descartados por no tener nombre | 4,051 — "NINGUNO" (3,671), "SIN NOMBRE" (22) y nombres que son sólo un número |
+| Tiempo de carga | 39 s |
+| `asignar_colonias()` sobre 447k anuncios | 3 min 40 s |
+
+Cobertura del cruce, que es lo que decidía si valía la pena:
+
+| Ámbito | Anuncios | Con colonia | |
+|---|---|---|---|
+| Monterrey | 16,805 | 13,547 | **80.6%** |
+| Área metropolitana | 42,107 | 33,865 | 80.4% |
+| Nacional | 467,417 | 253,317 | 54.2% |
+
+Lo nacional es bajo porque la cobertura de INEGI depende de qué ayuntamiento entregó sus
+límites. No es un fallo del cruce: donde hay polígonos, entran casi todos.
+
+**Los "NINGUNO" importan y por eso se descartan.** Son polígonos delimitados que INEGI
+marca sin nombre de asentamiento. Con ellos dentro, Monterrey daba 98.8% — pero 2,911 de
+esos anuncios habrían caído en una opción de filtro llamada "NINGUNO", con más inventario
+que Centro. El 80.6% es el número honesto.
+
+**Un defecto que esto destapó, corregido en el mismo commit:** `asignar_zonas()` buscaba
+cualquier polígono que cubriera el anuncio, sin filtrar por `tipo`. Al haber dos niveles
+en `zona`, la carga nocturna habría empezado a poner ids de colonia en `zona_id`, y como
+la condición es `IS DISTINCT FROM`, lo habría cambiado otra vez cada noche: el filtro de
+municipio habría dado resultados distintos cada día sin que nada fallara.
 
 
 ## Fase 2b: endpoints (2026-08-27)

@@ -194,13 +194,55 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS zona_id bigint REFERENCES zona (id
 CREATE INDEX IF NOT EXISTS listings_zona_idx ON listings (zona_id);
 
 -- Se llama después de cada carga (propdb.py load, zonas.py).
+--
+-- ⚠️ El `z.tipo = 'municipio'` NO es decorativo. `zona` guarda dos niveles desde el
+-- 2026-09-23: municipios y colonias (INEGI DCAH). Un anuncio cae dentro de los dos a la
+-- vez, así que sin el filtro el UPDATE elegiría cualquiera de ellos y `zona_id` pasaría a
+-- ser a veces una colonia. Peor: como la condición es `IS DISTINCT FROM`, cada corrida
+-- nocturna lo cambiaría otra vez, y el filtro de municipio del tablero devolvería
+-- resultados distintos cada día sin que nada fallara.
 CREATE OR REPLACE FUNCTION asignar_zonas() RETURNS bigint AS $$
   WITH m AS (
     UPDATE listings l SET zona_id = z.id
     FROM zona z
     WHERE l.geom IS NOT NULL
+      AND z.tipo = 'municipio'
       AND ST_Covers(z.geom, l.geom)
       AND l.zona_id IS DISTINCT FROM z.id
+    RETURNING 1)
+  SELECT count(*) FROM m;
+$$ LANGUAGE sql;
+
+-- ── Colonias (INEGI DCAH) ───────────────────────────────────────────────────
+--
+-- Segundo nivel de `zona`, cargado por vps/colonias.py desde la Delimitación de Colonias
+-- y otros Asentamientos Humanos de INEGI: 75,516 polígonos con nombre, tipo y código
+-- postal, delimitados por cada municipio y sólo integrados por INEGI. La cobertura es
+-- desigual por diseño —depende de qué ayuntamiento entregó y cuándo— así que un anuncio
+-- sin colonia es lo normal, no un error.
+--
+-- `clave` es el CVEGEO de 13 caracteres (EEMMMLLLLAAAA) y da la idempotencia, igual que
+-- `osm_id` la da para los municipios. Los municipios no tienen CVEGEO y las colonias no
+-- tienen osm_id: por eso son dos columnas y no una.
+ALTER TABLE zona ADD COLUMN IF NOT EXISTS clave     text;
+ALTER TABLE zona ADD COLUMN IF NOT EXISTS cp        text;
+ALTER TABLE zona ADD COLUMN IF NOT EXISTS padre_id  bigint REFERENCES zona (id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS zona_clave_idx ON zona (clave) WHERE clave IS NOT NULL;
+CREATE INDEX IF NOT EXISTS zona_tipo_idx  ON zona (tipo);
+CREATE INDEX IF NOT EXISTS zona_padre_idx ON zona (padre_id);
+
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS colonia_id bigint REFERENCES zona (id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS listings_colonia_idx ON listings (colonia_id);
+
+-- Gemela de asignar_zonas(), para el nivel de colonia. Se llama en los mismos sitios.
+CREATE OR REPLACE FUNCTION asignar_colonias() RETURNS bigint AS $$
+  WITH m AS (
+    UPDATE listings l SET colonia_id = z.id
+    FROM zona z
+    WHERE l.geom IS NOT NULL
+      AND z.tipo = 'colonia'
+      AND ST_Covers(z.geom, l.geom)
+      AND l.colonia_id IS DISTINCT FROM z.id
     RETURNING 1)
   SELECT count(*) FROM m;
 $$ LANGUAGE sql;

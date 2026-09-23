@@ -87,6 +87,22 @@ with sync_playwright() as pw:
     check("Monterrey" in frase, "la sentencia nombra el municipio filtrado")
     check(not pg.eval_on_selector("#qbar-clear", "e => e.hidden"), "aparece «Limpiar» en la barra")
 
+    # Las colonias de INEGI: buscar una y ver que filtra más fino que el municipio.
+    print("\ncolonia")
+    pg.click('.fb-chip[data-f="ubicacion"] .fb-x')
+    pg.wait_for_timeout(2500)
+    pg.click('.fb-open[data-f="ubicacion"]')
+    pg.fill("#fbBuscaLugar", "contry")
+    pg.wait_for_selector(".fb-sug", timeout=15000)
+    sug = pg.eval_on_selector_all(".fb-sug", "es => es.map(e => e.textContent.trim())")
+    check(any("CONTRY" in s.upper() for s in sug), f"el buscador encuentra colonias ({sug[:2]})")
+    check(any("," in s for s in sug), "la colonia dice a qué municipio pertenece")
+    pg.click(".fb-sug")
+    pg.click(".fb-aplica")
+    pg.wait_for_timeout(3000)
+    n_col = int(pg.eval_on_selector("#countNum", "e => e.textContent.trim()").replace(",", ""))
+    check(0 < n_col < 16805, f"filtrar por colonia da menos que el municipio ({n_col})")
+
     # ── Esc descarta el borrador ──────────────────────────────────────────────
     print("\nborrador")
     pg.click('.fb-open[data-f="tipo"]')

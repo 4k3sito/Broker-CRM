@@ -96,6 +96,9 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   MercadoLibre, Pincali) sobre `stealth_scraper.py` (curl_cffi/camoufox),
   `scrape_utils.py` y `navent_serp.py`. `propdb.py` carga los JSONL a PostGIS.
   Lee `scrapers/SCRAPING_PLAYBOOK.md` §11 antes de escribir un sexto scraper.
+  `vps/zonas.py` carga los municipios desde OpenStreetMap y `vps/colonias.py` las
+  colonias desde el shapefile de INEGI (DCAH); las dos escriben en `zona`, que por eso
+  tiene la columna `tipo`. `colonias.py` necesita `pyshp` (`pip install pyshp`).
   **Corren solos en el VPS**: `vps/cron.sh <fuente>` + el crontab de root, una fuente por
   noche a las 07:00 UTC (lun→vie) y `liveness` el sábado. Ver MIGRATION.md "Fase 4".
   `liveness.py` marca la vigencia y su regla de oro es que **un bloqueo no es una baja**:
@@ -221,7 +224,8 @@ Columnas que suelen confundir:
 | `price` + `price_is_per_m2` | si la bandera está puesta, `price` es **$/m²**, no el total |
 | `precio_m2_inferido` | la bandera la dedujo `inferir_precio_m2()`, no vino del portal |
 | `operacion_alt` / `precio_alt` / `precio_alt_por_m2` | segunda oferta: el inmueble se ofrece en renta **y** venta |
-| `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms) |
+| `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms). Lo llena `asignar_zonas()`, que **filtra por `tipo='municipio'`**: `zona` guarda dos niveles y sin ese filtro un anuncio recibiría a veces el id de su colonia |
+| `colonia_id` | colonia materializada, de los polígonos de INEGI que carga `vps/colonias.py`. Lo llena `asignar_colonias()`. **NULL es normal**: la cobertura de INEGI es desigual — 80.6% en Monterrey, 54.2% nacional |
 | `activo` / `revisado_at` | vigencia del anuncio, la llena `liveness.py`. `revisado_at` es cuándo hubo **veredicto** |
 | `intento_at` / `intentos_fallidos` | cuándo se **intentó** y cuántas veces falló. Un bloqueo mueve estas dos y no toca `activo`; el backoff las usa para que lo que se bloquea no acapare la cola |
 | `tipo` | **columna generada**: `tipo_norm(property_type)` colapsa los 17 deletreos de los portales en `local` / `terreno` / `bodega` / `oficina` / `rancho` / `hotel` / `desarrollo`. La mantiene Postgres sola. Cambiar la función obliga a recrear la columna |
