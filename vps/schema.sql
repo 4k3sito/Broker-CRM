@@ -318,14 +318,31 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS precio_alt_por_m2   boolean;
 -- una colonia y la coordenada exacta del portal ocupan la misma columna, y ni el
 -- mapa ni la búsqueda por radio pueden distinguirlas. La columna existe para que
 -- subir la cobertura no signifique bajar la confianza sin avisar.
---   portal   — lat/lng publicada por la fuente; es la ubicación real
---   colonia  — centroide de una clave apretada del gazetteer de colonias
---   relleno  — el punto por defecto que sirve ML cuando el anuncio no publica
---              ubicación; no es una ubicación y no debe dibujarse como tal
+--   portal        — lat/lng publicada por la fuente; es la ubicación real
+--   portal_aprox  — la fuente publicó el punto y **ella misma avisa de que es
+--                   aproximado**. Hoy sólo Pincali lo dice, con
+--                   `data-exact-location="false"`: ese pin es el centroide de la
+--                   colonia, no la propiedad. Se separa de 'portal' porque parecen
+--                   iguales y no lo son, y de 'colonia' porque el centroide es del
+--                   portal y no de nuestro gazetteer, así que `geo_error_m` no se
+--                   puede calcular igual.
+--   colonia       — centroide de una clave apretada del gazetteer de colonias
+--   relleno       — el punto por defecto que sirve ML cuando el anuncio no publica
+--                   ubicación; no es una ubicación y no debe dibujarse como tal
 -- `geo_error_m` es el error ESPERADO en metros, no el real: para 'colonia' es la
 -- dispersión medida de esa clave sobre el corpus que sí trae coordenada.
-ALTER TABLE listings ADD COLUMN IF NOT EXISTS geo_origen  text
-  CHECK (geo_origen IN ('portal','colonia','relleno'));
+--
+-- Dos consecuencias de marcar 'portal_aprox' que son el motivo de existir de este
+-- valor: el gazetteer de colonias se arma SÓLO con `geo_origen='portal'`
+-- (propdb.py), así que estos dejan de contaminarlo; y `colonia_id` de un pin que ya
+-- es centroide de colonia es circular —siempre cae en la colonia de la que salió— y
+-- ahora se puede detectar en vez de confundirlo con una ubicación real.
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS geo_origen  text;
+-- La CHECK se rehace: `ADD COLUMN IF NOT EXISTS` no la actualiza en una base que ya
+-- tiene la columna, así que ampliarla ahí no habría surtido efecto.
+ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_geo_origen_check;
+ALTER TABLE listings ADD CONSTRAINT listings_geo_origen_check
+  CHECK (geo_origen IN ('portal','portal_aprox','colonia','relleno'));
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS geo_error_m int;
 CREATE INDEX IF NOT EXISTS listings_geo_origen_idx ON listings (geo_origen);
 

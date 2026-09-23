@@ -205,13 +205,16 @@ Dos cosas medidas el 2026-09-23 que cambian el plan:
 
 - **Pincali nos dice dos cosas sobre la ubicación y las dos se tiran en la carga.**
   Analizado el 2026-09-23 a propósito de los anuncios sin colonia:
-  - `pincali_scraper.py` parsea `data-exact-location="false"`, que es Pincali avisando
-    de que **el pin es el centroide de la colonia y no la propiedad**. Lo guarda en
-    `PincaliListing.coordsExact`… y `propdb.py` no lo escribe: `COLS` no lo incluye y
-    nadie más lo toca. Importa más de lo que parece: un pin que ya es el centroide de
-    una colonia siempre va a caer dentro de esa colonia, así que su `colonia_id` es
-    circular —correcto y vacío de información— y hoy **no hay forma de distinguirlo**
-    de un pin real. También contamina el radio del análisis de mercado y el mapa.
+  - ~~`coordsExact` se tiraba en la carga~~ **Resuelto el 2026-09-23**, sin desplegar:
+    `propdb.py` traduce `coordsExact` a `geo_origen` (`portal` / `portal_aprox`) y la
+    columna acepta el valor nuevo. Medido sobre `scrapers/data/pincali.jsonl` del
+    2026-09-18: **11,173 anuncios (10.9% de los que traen coordenada) están marcados por
+    Pincali como aproximados**, 11,029 siguen en la base, y **los 11,029 están hoy
+    guardados como `portal`, o sea como ubicación real**. De ellos, 6,058 ya recibieron
+    colonia, y esa asignación es circular: el pin salió del centroide de esa colonia.
+    **Falta poblarlo.** No se rellena solo: la traducción actúa en la carga, así que hay
+    que esperar al re-scrape de Pincali o aplicar el relleno dirigido desde el JSONL que
+    ya está en disco, que sólo toca `geo_origen` y no pisa ningún otro campo.
   - `neighborhood` es la única colonia de portal que existe (1,788 filas, todas de
     Pincali; las otras cuatro fuentes: 0) y **está congelada**: no aparece en `COLS`,
     ningún script la escribe, y `vps/schema.sql` ya lo dice en su comentario. Lo que

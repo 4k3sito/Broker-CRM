@@ -225,6 +225,7 @@ Columnas que suelen confundir:
 | `precio_m2_inferido` | la bandera la dedujo `inferir_precio_m2()`, no vino del portal |
 | `operacion_alt` / `precio_alt` / `precio_alt_por_m2` | segunda oferta: el inmueble se ofrece en renta **y** venta |
 | `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms). Lo llena `asignar_zonas()`, que **filtra por `tipo='municipio'`**: `zona` guarda dos niveles y sin ese filtro un anuncio recibiría a veces el id de su colonia |
+| `geo_origen` | de dónde salió la coordenada: `portal` (real), **`portal_aprox`** (la fuente publicó el punto y avisa de que es el centroide de la colonia — hoy sólo Pincali, `data-exact-location="false"`), `colonia` (centroide de nuestro gazetteer), `relleno` (el punto por defecto de ML, que no es una ubicación). El gazetteer se arma **sólo** con `portal` |
 | `colonia_id` | colonia materializada, de los polígonos de INEGI que carga `vps/colonias.py`. Lo llena `asignar_colonias()`. **NULL es normal**: la cobertura de INEGI es desigual — 80.6% en Monterrey, 54.2% nacional |
 | `activo` / `revisado_at` | vigencia del anuncio, la llena `liveness.py`. `revisado_at` es cuándo hubo **veredicto** |
 | `intento_at` / `intentos_fallidos` | cuándo se **intentó** y cuántas veces falló. Un bloqueo mueve estas dos y no toca `activo`; el backoff las usa para que lo que se bloquea no acapare la cola |
