@@ -26,7 +26,8 @@ SOURCES = ["inmuebles24", "lamudi", "mercadolibre", "vivanuncios", "pincali"]
 COLS = (
     "source listing_id url title image_url operation price currency property_type "
     "area_m2 plot_area_m2 built_area_m2 bedrooms bathrooms location city province "
-    "agency_name agent_phone description geom listed_at observed_at price_is_per_m2 norm"
+    "agency_name agent_phone description geom listed_at observed_at price_is_per_m2 norm "
+    "geo_origen"
 ).split()
 
 # El esquema vive en vps/schema.sql — mismo archivo que ejecuta el contenedor al
@@ -91,7 +92,26 @@ def to_row(source: str, d: dict) -> tuple:
         vacio_a_null(d.get("listedAt")), vacio_a_null(d.get("observedAt")),
         vacio_a_null(d.get("priceIsPerM2")),
         norm(location, city, province, title),
+        geo_origen(d),
     )
+
+
+def geo_origen(d: dict) -> str | None:
+    """Traduce lo que el scraper sabe de la coordenada al vocabulario de la columna.
+
+    Hoy sólo Pincali dice algo: `coordsExact` sale de `data-exact-location`, y un
+    `false` significa que el pin es el centroide de la colonia y no la propiedad. Se
+    perdía entero —el scraper lo parseaba y esta función no existía— y con él se perdía
+    la única forma de distinguir una coordenada real de una aproximada que el portal ya
+    había marcado como tal.
+
+    `None` cuando la fuente no dice nada: el UPSERT hace COALESCE, así que una carga que
+    no sabe no pisa lo que sí averiguó la geocodificación (`patch_coords`).
+    """
+    exacta = d.get("coordsExact")
+    if exacta is None or d.get("coordinates") in (None, ""):
+        return None
+    return "portal" if exacta else "portal_aprox"
 
 
 # --------------------------------------------------------------------------- load
@@ -128,7 +148,7 @@ ON CONFLICT (source, listing_id) DO UPDATE SET {sets}
     # COALESCE en geom y en las *_alt: una carga parcial (un solo --only, un delta
     # que solo trajo una operación) no debe borrar coordenadas ni la segunda oferta.
     sets=", ".join(
-        f"{c} = COALESCE(EXCLUDED.{c}, listings.{c})" if c == "geom" or c in ALT
+        f"{c} = COALESCE(EXCLUDED.{c}, listings.{c})" if c in ("geom", "geo_origen") or c in ALT
         else f"{c} = EXCLUDED.{c}"
         for c in [*COLS, *ALT] if c not in ("source", "listing_id")
     ),
@@ -295,6 +315,23 @@ def selfcheck() -> None:
     assert r[:3] == ("lamudi", "7", "u")
     assert r[COLS.index("norm")] == "polanco cdmx"
     assert r[COLS.index("geom")] == "SRID=4326;POINT(-99.1 19.4)"
+    # Lamudi no dice nada de la exactitud: NULL, para que el COALESCE del UPSERT no
+    # pise lo que haya averiguado la geocodificación.
+    assert r[COLS.index("geo_origen")] is None
+
+    # Pincali sí lo dice, y es el único que lo dice hoy.
+    coord = {"lat": 25.65, "lng": -100.3}
+    exacto = to_row("pincali", {"listingId": 1, "url": "u", "coordinates": coord,
+                                "coordsExact": True})
+    aprox = to_row("pincali", {"listingId": 2, "url": "u", "coordinates": coord,
+                               "coordsExact": False})
+    assert exacto[COLS.index("geo_origen")] == "portal"
+    assert aprox[COLS.index("geo_origen")] == "portal_aprox", "un pin de colonia no es una dirección"
+    # Sin coordenada, la marca no significa nada.
+    sin = to_row("pincali", {"listingId": 3, "url": "u", "coordsExact": False})
+    assert sin[COLS.index("geo_origen")] is None
+    # El UPSERT no debe borrar geo_origen cuando la carga no trae el dato.
+    assert "geo_origen = COALESCE(EXCLUDED.geo_origen, listings.geo_origen)" in UPSERT
 
     # "" en una columna con tipo revienta el COPY; tiene que llegar como NULL.
     assert vacio_a_null("") is None and vacio_a_null(0) == 0 and vacio_a_null("x") == "x"
