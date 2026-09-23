@@ -66,6 +66,25 @@ Detrás va `dev-server.js` (http/fs de la stdlib, sin dependencias): sirve `web/
 **reenvía `/api/*` al VPS**, que es lo que permite probar contra datos y sesión reales sin
 desplegar. Un servidor estático a secas no sirve — el frontend no tiene backend propio.
 
+### Dónde trabajar en el VPS
+
+El servidor tiene **dos copias del repo** y no da lo mismo cuál se toque:
+
+| Ruta | Qué es |
+|---|---|
+| `/srv/officelab` | Producción. Caddy sirve su `web/` tal cual: editar ahí cambia el sitio en vivo, y cambiar de rama ahí también. |
+| `/srv/officelab-dev` | Copia de trabajo (`git worktree`, rama `desarrollo`). Caddy no la sirve. Es donde van los cambios. |
+
+```bash
+git worktree list                     # las dos copias y su rama
+cd /srv/officelab-dev && npm run dev   # previsualizar en el :3000
+```
+
+Aísla el diseño, **no los datos**: el `/api` del previsualizador va al VPS real, así que
+cambiar el estado de un anuncio desde ahí lo cambia para todos. Y el previsualizador
+escucha en todas las interfaces sobre un host sin firewall (H1 en `SECURITY.md`): mientras
+corre, es visible desde internet. Apágalo al terminar.
+
 ### Scrapers
 
 ```bash

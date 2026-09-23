@@ -199,6 +199,13 @@ frene la fuerza bruta. Es el agujero más grande del sistema: hoy toda la seguri
 la aplicación cuelga de que nadie adivine esa contraseña. Un VPS público recibe miles
 de intentos al día.
 
+Sin `ufw` **cualquier puerto que alguien abra queda expuesto sin decidirlo**. El caso
+concreto es `npm run dev`: `dev-server.js` hace `listen(3000)` sin host, así que escucha
+en todas las interfaces, y mientras corre el previsualizador de `/srv/officelab-dev` es
+alcanzable desde internet. Sirve los mismos estáticos que el sitio y su `/api` sigue
+pidiendo sesión, así que no regala datos, pero es superficie que nadie eligió publicar.
+Mientras H1 siga abierto, el previsualizador se apaga al terminar de usarlo.
+
 **Arreglo:** con la llave ya instalada y probada, `PasswordAuthentication no` y
 `PermitRootLogin prohibit-password` en `/etc/ssh/sshd_config.d/`, más `ufw` limitado a
 22/80/443 y `fail2ban`. *Requiere confirmación: hacerlo mal deja el VPS inaccesible.*

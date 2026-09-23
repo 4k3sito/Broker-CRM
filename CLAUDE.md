@@ -22,7 +22,8 @@ Idioma de la interfaz y de todos los textos al usuario: **español**. Moneda: MX
 - SSH: `ssh officelab` (ya está en `~/.ssh/config`).
 
 ```
-VPS  /srv/officelab            el repo, en main
+VPS  /srv/officelab            producción. Lo que hay en disco es lo que se sirve
+     /srv/officelab-dev        copia de trabajo (git worktree, rama `desarrollo`)
      vps/docker-compose.yml    caddy (:80/:443) + api (:8000) + db (postgis, :5432)
                                api y db sólo en 127.0.0.1; Caddy es el único camino
      vps/cron.sh               un scraper por noche (crontab de root), logs en
@@ -41,6 +42,22 @@ desmiente, lo primero que hay que descartar es su caché.
 **Si cambió `vps/schema.sql`** — ⚠️ está montado como bind mount **de archivo**: `git pull`
 crea un inode nuevo y el contenedor sigue leyendo el viejo. Hay que
 `docker compose cp schema.sql db:/tmp/` y correr `psql -f` desde ahí.
+
+**Una rama de git no aísla producción, y por eso existe `/srv/officelab-dev`.** Caddy
+sirve los archivos que haya en `/srv/officelab/web` **en ese momento**, sea cual sea la
+rama: editar ahí cambia el sitio en vivo, y **cambiar de rama también**, porque cambia los
+archivos en disco. La rama que esté puesta en producción tiene que ser la que coincide con
+lo que está corriendo. El trabajo nuevo va en la copia:
+
+```bash
+git worktree list                      # las dos copias y en qué rama está cada una
+cd /srv/officelab-dev && npm run dev    # la copia, en el :3000; producción no la ve
+```
+
+Dos cosas que esa copia **no** aísla, y conviene tener presentes: `dev-server.js` reenvía
+`/api/*` al VPS, así que escribe en la **base de datos real** —aísla el diseño, no los
+datos—, y escucha en todas las interfaces sobre un host sin firewall (H1), así que
+mientras corre es visible desde internet. Apágalo al terminar.
 
 ## Arquitectura
 
