@@ -1,0 +1,33 @@
+# API de la copia de trabajo (/srv/officelab-dev), para poder cambiar endpoints sin
+# desplegar. Levanta un SEGUNDO contenedor de la API, construido desde el `api/` de esta
+# copia, en 127.0.0.1:8001. Caddy no lo conoce: el único que le habla es `dev-server.js`.
+#
+#   cd /srv/officelab-dev/vps
+#   docker compose -p officelab-dev --env-file /srv/officelab/vps/.env \
+#     -f docker-compose.dev.yml up -d --build
+#   API=http://127.0.0.1:8001 npm run dev      # desde /srv/officelab-dev
+#
+# ⚠️ Usa la MISMA base de datos que producción, porque levantar una copia de 1.1 GB para
+# probar un filtro no tiene sentido. Las lecturas son libres; **las escrituras son
+# reales** y las ven los asesores. Aísla el código, no los datos.
+#
+# Se apaga con:  docker compose -p officelab-dev -f docker-compose.dev.yml down
+name: officelab-dev
+
+services:
+  api:
+    build: ../api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+    # Otro puerto que el 8000 de producción, y sólo en loopback.
+    ports:
+      - "127.0.0.1:8001:8000"
+    # La red la crea el compose de producción; aquí se usa tal cual para alcanzar a `db`.
+    networks: [officelab]
+
+networks:
+  officelab:
+    external: true
+    name: officelab_default

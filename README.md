@@ -80,6 +80,21 @@ git worktree list                     # las dos copias y su rama
 cd /srv/officelab-dev && npm run dev   # previsualizar en el :3000
 ```
 
+Por defecto el previsualizador reenvía `/api` a la **API de producción**, que sirve
+mientras el cambio sea sólo de frontend. Cuando el cambio también toca endpoints hay que
+levantarle su propia API, o habría que desplegar para poder probar:
+
+```bash
+cd /srv/officelab-dev/vps
+docker compose -p officelab-dev --env-file /srv/officelab/vps/.env \
+  -f docker-compose.dev.yml up -d --build          # API de la copia en 127.0.0.1:8001
+cd /srv/officelab-dev && API=http://127.0.0.1:8001 npm run dev
+```
+
+Esa API se construye desde el `api/` de la copia y usa la **misma base de datos** que
+producción: levantar un duplicado de 1.1 GB para probar un filtro no tiene sentido. Se
+apaga con `docker compose -p officelab-dev -f docker-compose.dev.yml down`.
+
 Aísla el diseño, **no los datos**: el `/api` del previsualizador va al VPS real, así que
 cambiar el estado de un anuncio desde ahí lo cambia para todos. Y el previsualizador
 escucha en todas las interfaces sobre un host sin firewall (H1 en `SECURITY.md`): mientras

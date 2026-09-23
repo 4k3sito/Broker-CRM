@@ -6,7 +6,11 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const VPS = 'http://31.220.56.100';
+// A dónde van las llamadas a /api. Por defecto, la API de producción: es lo que permite
+// probar el frontend contra datos y sesión reales. Con API=http://127.0.0.1:8001 apunta a
+// la API de la copia de trabajo (vps/docker-compose.dev.yml), que es lo que hay que usar
+// cuando el cambio también toca endpoints.
+const VPS = process.env.API || 'http://31.220.56.100';
 const ROOT = path.join(__dirname, 'web');
 const TIPOS = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 
