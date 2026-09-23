@@ -501,6 +501,10 @@ const fbNum = v => {
   return Number.isFinite(n) && n > 0 ? n : '';
 };
 
+// Formatea para el campo sin confiar en lo que traiga el borrador: acepta número, el
+// texto ya formateado, vacío o basura, y nunca devuelve "NaN".
+const fbImporte = v => { const n = fbNum(v); return n ? mx(n) : ''; };
+
 const fbResumen = {
   ubicacion: () => !F.lugares.length ? 'Todo México'
     : F.lugares.length === 1 ? F.lugares[0].nombre
@@ -615,10 +619,10 @@ function fbCuerpoPrecio() {
     <div class="fb-segs">${seg}</div>
     <div class="fb-rango">
       <input class="fb-in fb-num" id="fbMin" inputmode="numeric" placeholder="M&#237;nimo"
-             value="${esc(fbDraft.min ? mx(fbDraft.min) : '')}">
+             value="${esc(fbImporte(fbDraft.min))}">
       <span class="fb-guion">&mdash;</span>
       <input class="fb-in fb-num" id="fbMax" inputmode="numeric" placeholder="M&#225;ximo"
-             value="${esc(fbDraft.max ? mx(fbDraft.max) : '')}">
+             value="${esc(fbImporte(fbDraft.max))}">
     </div>
     <p class="fb-nota">Pesos, total del inmueble. Lo que el portal publica por m&#178; ya sale
       multiplicado por su superficie. Tocar la operaci&#243;n activa la quita.</p>`;
@@ -693,8 +697,10 @@ document.getElementById('fbPop').addEventListener('click', e => {
   if (seg) {
     // Tocar la operación activa la quita: es la forma más corta de volver a "las dos".
     fbDraft.operacion = fbDraft.operacion === seg.dataset.op ? '' : seg.dataset.op;
-    fbDraft.min = document.getElementById('fbMin').value;
-    fbDraft.max = document.getElementById('fbMax').value;
+    // `fbNum` y no `.value`: el campo se ve como "90,000" y `Number("90,000")` es NaN.
+    // Cambiar de operación borraba los importes y escribía NaN en su lugar.
+    fbDraft.min = fbNum(document.getElementById('fbMin').value);
+    fbDraft.max = fbNum(document.getElementById('fbMax').value);
     fbPintarPop();
   }
 });

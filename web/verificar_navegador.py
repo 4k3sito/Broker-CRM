@@ -121,6 +121,19 @@ with sync_playwright() as pw:
     check("10,000" in etiqueta and etiqueta.index("10,000") < etiqueta.index("90,000"),
           f"mín y máx invertidos se voltean («{etiqueta}»)")
 
+    # Cambiar de operación no puede tocar los importes ya escritos. Se rompió así:
+    # se leía el campo formateado ("90,000") y Number() de eso es NaN.
+    pg.click('.fb-open[data-f="precio"]')
+    pg.click('.fb-seg[data-op="sale"]')
+    mn = pg.eval_on_selector("#fbMin", "e => e.value")
+    mx_ = pg.eval_on_selector("#fbMax", "e => e.value")
+    check("NaN" not in mn + mx_, f"cambiar de operación no escribe NaN (mín «{mn}», máx «{mx_}»)")
+    check((mn, mx_) == ("10,000", "90,000"), f"y conserva los importes (mín «{mn}», máx «{mx_}»)")
+    check(pg.eval_on_selector('.fb-seg[data-op="sale"]', "e => e.classList.contains('on')"),
+          "la operación sí cambia a Venta")
+    pg.click(".fb-aplica")
+    pg.wait_for_timeout(2500)
+
     # ── La ✕ del chip limpia sin abrir ────────────────────────────────────────
     pg.click('.fb-chip[data-f="precio"] .fb-x')
     pg.wait_for_timeout(2500)
