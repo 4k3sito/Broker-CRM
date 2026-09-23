@@ -32,7 +32,7 @@ un socket local y muere al instante.
 
 ## Análisis de mercado — en producción desde el 2026-09-21, **en pausa**
 
-**Guardado en git el 2026-09-23, en la rama `analisis-mercado`.** Hasta ese día el
+**Guardado en git el 2026-09-23, en la rama `produccion`.** Hasta ese día el
 sistema corría en producción sin existir en el historial: el contenedor `api` ya se había
 reconstruido con estos archivos, pero nadie los había commiteado, así que la reversa que
 se describe más abajo no tenía a dónde volver. Ya la tiene.

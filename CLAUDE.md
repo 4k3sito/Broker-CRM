@@ -15,10 +15,20 @@ Idioma de la interfaz y de todos los textos al usuario: **español**. Moneda: MX
 
 - **Sitio en producción: `http://31.220.56.100`** — VPS propio. Sin dominio ni TLS todavía.
 - **GitHub Pages está apagado.** `https://4k3sito.github.io` da 404 desde 2026-08-28.
-- **La rama viva es `main`** (desde 2026-09-18). Antes lo fue `vps-migration`: `main` estaba
-  congelada en la versión de GitHub Pages y se adelantó por fast-forward a `vps-migration`,
-  sin merge ni conflictos porque no tenía ni un commit propio. **`vps-migration` queda
-  congelada** en `7c3b921` como marca del punto de la migración: no se mueve ni se borra.
+- **Las ramas, al 2026-09-23.** El nombre dice dónde está cada una:
+
+  | Rama | Qué es |
+  |---|---|
+  | `produccion` | **La que está puesta en `/srv/officelab`: es lo que ven los asesores.** |
+  | `desarrollo` | La copia de trabajo, `/srv/officelab-dev`. Aquí van los cambios. |
+  | `plan-stack` | La decisión de arquitectura del frontend (`PLAN-STACK.md`). |
+  | `main` | **Quedó atrás y no es lo que corre.** Nada se ha fusionado a ella todavía. |
+  | `vps-migration` | Congelada en `7c3b921` como marca de la migración: no se mueve ni se borra. |
+
+  Hasta el 2026-09-18 la rama viva fue `vps-migration` y luego `main`; desde el 2026-09-23
+  producción corre sobre `produccion`, que nació como `analisis-mercado` y se renombró
+  porque el nombre no decía lo que era. Cuando `main` se ponga al día hay que corregir
+  esta tabla.
 - SSH: `ssh officelab` (ya está en `~/.ssh/config`).
 
 ```
