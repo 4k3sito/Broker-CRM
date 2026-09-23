@@ -33,10 +33,20 @@ const ICON_BUILDING_LG = `<svg width="46" height="46" viewBox="0 0 24 24" fill="
 // Un solo objeto con lo que la API entiende. Los tokens son una vista de esto,
 // no una estructura paralela: así no hay dos verdades que sincronizar.
 const F = {
-  q: '', tipo: '', operacion: '', zona: '', fuente: '',
+  q: '', operacion: '', fuente: '',
   precio_min: '', precio_max: '', m2_min: '', m2_max: '',
   near: '', radio: 2000, orden: 'recientes',
+  // Los tres de la barra fija. `lugares` guarda el objeto completo y no sólo el id
+  // porque el chip tiene que poder decir "Monterrey" sin volver a preguntarle a la API.
+  lugares: [],     // [{ valor:'m40', nombre:'Monterrey', estado:'Nuevo León' }]
+  tipos: [],       // ['local','bodega']
 };
+
+// Los cuatro tipos que ofrece el filtro. `oficina` se queda con cero anuncios por
+// decisión de producto —van a llegar— y `edificio` se fue porque nunca pudo devolver
+// nada: no es un valor que produzca tipo_norm(). Misma lista que TIPOS_COM en la API.
+const TIPOS_COM = ['oficina', 'local', 'bodega', 'terreno'];
+const MAX_LUGARES = 20;          // igual que en la API
 let filterStatus  = 'Todos';
 let filterStarred = false;
 let searchStreet  = '';
@@ -51,21 +61,12 @@ let zonas = [];
 
 // Cada entrada sabe pintarse (`label`) y limpiarse (`clear`). El editor concreto
 // lo resuelve `abrirEditor`; aquí sólo vive lo que comparten.
+// Ubicación, precio y tipo NO están aquí: viven en la barra fija de arriba (`fb-`),
+// que es donde el asesor los busca. La paleta se queda con lo secundario.
 const CAMPOS = {
-  tipo:      { kind: 'Tipo',      grupo: 'Inmueble',  hint: 'oficina, local…',
-               label: () => F.tipo[0].toUpperCase() + F.tipo.slice(1), clear: () => { F.tipo = ''; } },
-  operacion: { kind: 'Operación', grupo: 'Inmueble',  hint: 'renta o venta',
-               label: () => (F.operacion === 'rent' ? 'en renta' : 'en venta'),
-               clear: () => { F.operacion = ''; } },
-  zona:      { kind: 'Zona',      grupo: 'Ubicación', hint: 'municipio',
-               label: () => zonas.find(z => z.norm === F.zona)?.nombre ?? F.zona,
-               clear: () => { F.zona = ''; } },
   radio:     { kind: 'Radio',     grupo: 'Ubicación', hint: 'a N km de un punto',
                label: () => `a ${(F.radio / 1000).toFixed(1).replace(/\.0$/, '')} km de ${F.near}`,
                clear: () => { F.near = ''; } },
-  precio:    { kind: 'Precio',    grupo: 'Números',   hint: 'mín — máx',
-               label: () => rango(F.precio_min, F.precio_max, v => `$${mx(v)}`),
-               clear: () => { F.precio_min = ''; F.precio_max = ''; } },
   m2:        { kind: 'M²',        grupo: 'Números',   hint: 'superficie',
                label: () => rango(F.m2_min, F.m2_max, v => `${mx(v)} m²`),
                clear: () => { F.m2_min = ''; F.m2_max = ''; } },
@@ -86,7 +87,6 @@ function rango(min, max, fmt) {
 // renders, para que un token no salte de sitio al cambiar otro.
 const activos = () => Object.keys(CAMPOS).filter(k =>
   k === 'radio'  ? !!F.near :
-  k === 'precio' ? !!(F.precio_min || F.precio_max) :
   k === 'm2'     ? !!(F.m2_min || F.m2_max) :
   k === 'orden'  ? F.orden !== 'recientes' : !!F[k]);
 
@@ -132,7 +132,8 @@ function adaptListing(l) {
 
 const paramsBase = () => ({
   q: searchStreet || F.q,
-  tipo: F.tipo, operacion: F.operacion, zona: F.zona, fuente: F.fuente,
+  lugar: F.lugares.map(l => l.valor), tipo: F.tipos,
+  operacion: F.operacion, fuente: F.fuente,
   precio_min: F.precio_min, precio_max: F.precio_max,
   m2_min: F.m2_min, m2_max: F.m2_max,
   near: F.near, radio: F.near ? F.radio : '',
@@ -260,9 +261,16 @@ function renderTokens() {
       </button>
       <button class="tok-del" data-campo="${k}" title="Quitar">&times;</button>
     </span>`).join('');
-  document.getElementById('qbar-clear').hidden = !act.length;
-  document.getElementById('qbarSentence').textContent = act.length
-    ? 'Equivale a: ' + act.map(k => `${CAMPOS[k].kind.toLowerCase()}: ${CAMPOS[k].label()}`).join(' + ')
+  // La sentencia tiene que contar TAMBIÉN los tres de la barra fija. Cuando no lo
+  // hacía, la página se contradecía: los chips decían "Monterrey · 2 tipos" y aquí
+  // abajo se leía "Sin filtros: el catálogo completo".
+  const frases = [
+    ...FB_CLAVES.filter(k => fbPuesto[k]()).map(k => `${FB_TITULO[k].toLowerCase()}: ${fbResumen[k]()}`),
+    ...act.map(k => `${CAMPOS[k].kind.toLowerCase()}: ${CAMPOS[k].label()}`),
+  ];
+  document.getElementById('qbar-clear').hidden = !frases.length;
+  document.getElementById('qbarSentence').textContent = frases.length
+    ? 'Equivale a: ' + frases.join(' + ')
     : 'Sin filtros: el catálogo completo.';
 }
 
@@ -400,6 +408,7 @@ async function _render() {
   document.getElementById('footFuentes').textContent =
     `${Object.keys(facetas.por_fuente).length} FUENTES`;
   renderTokens();
+  renderFB();
   renderStats();
   renderStatusPills();
 
@@ -424,6 +433,8 @@ async function _render() {
 
 function limpiarTodo() {
   Object.values(CAMPOS).forEach(c => c.clear());
+  F.lugares = []; F.tipos = []; F.operacion = ''; F.precio_min = ''; F.precio_max = '';
+  fbCerrar();
   F.q = ''; searchStreet = ''; filterStatus = 'Todos'; filterStarred = false;
   document.getElementById('searchInput').value = '';
   document.getElementById('searchChip').hidden = true;
@@ -467,6 +478,259 @@ function exportCSV() {
   a.click();
 }
 
+// ── Barra fija: Ubicación, Precio y Tipo ─────────────────────────────────────
+//
+// Los tres filtros que el asesor usa siempre, visibles sin abrir nada. Lo que los
+// define es el BORRADOR: lo que se toca dentro del popover no filtra hasta pulsar
+// "Aplicar". Sin eso, marcar cuatro tipos dispara cuatro consultas contra 467k filas
+// y la lista brinca bajo el dedo mientras se elige. Esc, un clic fuera o la ✕ del
+// popover descartan el borrador; la ✕ del chip sí limpia de inmediato, porque quitar
+// un filtro no necesita confirmarse.
+
+const FB_CLAVES = ['ubicacion', 'precio', 'tipo'];
+const FB_TITULO = { ubicacion: 'Ubicación', precio: 'Precio', tipo: 'Tipo de inmueble' };
+const cap = s => String(s ?? '').charAt(0).toUpperCase() + String(s ?? '').slice(1);
+
+let fbAbierto = null;     // cuál popover está abierto, o null
+let fbDraft = null;       // el borrador; se tira si no se aplica
+let fbPeticion = 0;       // descarta respuestas del autocompletado que llegan tarde
+
+// Sólo dígitos: el campo se escribe con separadores de miles en vivo.
+const fbNum = v => {
+  const n = Number(String(v ?? '').replace(/\D/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : '';
+};
+
+const fbResumen = {
+  ubicacion: () => !F.lugares.length ? 'Todo México'
+    : F.lugares.length === 1 ? F.lugares[0].nombre
+    : `${F.lugares[0].nombre} +${F.lugares.length - 1}`,
+  precio: () => {
+    const op = { rent: 'Renta', sale: 'Venta' }[F.operacion] ?? '';
+    const r = (F.precio_min || F.precio_max) ? rango(F.precio_min, F.precio_max, v => `$${mx(v)}`) : '';
+    return [op, r].filter(Boolean).join(' · ') || 'Cualquiera';
+  },
+  tipo: () => !F.tipos.length ? 'Todos'
+    : F.tipos.length === 1 ? cap(F.tipos[0]) : `${F.tipos.length} tipos`,
+};
+
+const fbPuesto = {
+  ubicacion: () => F.lugares.length > 0,
+  precio: () => !!(F.operacion || F.precio_min || F.precio_max),
+  tipo: () => F.tipos.length > 0,
+};
+
+function renderFB() {
+  for (const k of FB_CLAVES) {
+    document.getElementById(`fbv-${k}`).textContent = fbResumen[k]();
+    const chip = document.querySelector(`.fb-chip[data-f="${k}"]`);
+    chip.classList.toggle('on', fbPuesto[k]());
+    chip.querySelector('.fb-x').hidden = !fbPuesto[k]();
+  }
+}
+
+function fbCerrar() {
+  fbAbierto = null; fbDraft = null;
+  document.getElementById('fbPop').hidden = true;
+  document.getElementById('fbScrim').hidden = true;
+  document.querySelectorAll('.fb-open').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+
+function fbAbrir(k) {
+  if (fbAbierto === k) return fbCerrar();
+  cerrarEditor(); abrirPaleta(false);
+  fbAbierto = k;
+  // Copia, no referencia: `lugares` y `tipos` se editan dentro del popover y tienen
+  // que poder tirarse enteros al cancelar.
+  fbDraft = { lugares: F.lugares.slice(), tipos: F.tipos.slice(),
+              operacion: F.operacion, min: F.precio_min, max: F.precio_max, sug: [] };
+  const pop = document.getElementById('fbPop');
+  pop.dataset.f = k;
+  pop.hidden = false;
+  document.getElementById('fbScrim').hidden = false;
+  document.querySelector(`.fb-open[data-f="${k}"]`).setAttribute('aria-expanded', 'true');
+  fbPintarPop();
+  pop.querySelector('input:not([type=checkbox])')?.focus();
+}
+
+function fbPintarPop() {
+  const cuerpo = { ubicacion: fbCuerpoUbicacion, precio: fbCuerpoPrecio, tipo: fbCuerpoTipo }[fbAbierto]();
+  document.getElementById('fbPop').innerHTML = `
+    <div class="fb-head">
+      <span class="fb-title">${esc(FB_TITULO[fbAbierto])}</span>
+      <button class="fb-close" data-fb="cerrar" title="Cerrar">&times;</button>
+    </div>
+    ${cuerpo}
+    <div class="fb-foot">
+      <button class="fb-limpia" data-fb="limpia">Limpiar</button>
+      <button class="fb-aplica" data-fb="aplica">Aplicar</button>
+    </div>`;
+  if (fbAbierto === 'ubicacion') { fbPintarSeleccion(); fbPintarSugerencias(); }
+}
+
+// El input vive fuera de lo que se repinta: si se redibujara con cada tecla, el
+// cursor se perdería a media palabra.
+function fbCuerpoUbicacion() {
+  return `
+    <input class="fb-in" id="fbBuscaLugar" type="search" autocomplete="off"
+           placeholder="Municipio: Monterrey, San Pedro&#8230;">
+    <div class="fb-sels" id="fbSels"></div>
+    <div class="fb-sugs" id="fbSugs"></div>
+    <p class="fb-nota" id="fbNota">Por municipio. Para algo m&#225;s fino, usa el buscador de arriba.</p>`;
+}
+
+function fbPintarSeleccion() {
+  document.getElementById('fbSels').innerHTML = fbDraft.lugares.map((l, i) => `
+    <span class="fb-sel">${esc(l.nombre)}<span class="fb-sel-e">${esc(l.estado ?? '')}</span>
+      <button class="fb-sel-x" data-quita="${i}" title="Quitar">&times;</button></span>`).join('');
+  const tope = fbDraft.lugares.length >= MAX_LUGARES;
+  document.getElementById('fbBuscaLugar').disabled = tope;
+  document.getElementById('fbNota').textContent = tope
+    ? `Máximo ${MAX_LUGARES} municipios a la vez.`
+    : 'Por municipio. Para algo más fino, usa el buscador de arriba.';
+}
+
+function fbPintarSugerencias() {
+  document.getElementById('fbSugs').innerHTML = fbDraft.sug.map(s => `
+    <button class="fb-sug" data-add="${esc(s.valor)}">${esc(s.nombre)}<span class="fb-sug-e">${esc(s.estado ?? '')}</span>
+      <span class="fb-sug-n">${mx(s.anuncios)}</span></button>`).join('');
+}
+
+async function fbBuscarLugares(q) {
+  const mio = ++fbPeticion;
+  if (q.length < 2) { fbDraft.sug = []; return fbPintarSugerencias(); }
+  let r = [];
+  try { r = await API.get(`/lugares${API.qs({ q })}`); } catch { r = []; }
+  // Una respuesta vieja que llega tarde no puede pisar a una nueva.
+  if (mio !== fbPeticion || fbAbierto !== 'ubicacion') return;
+  const ya = new Set(fbDraft.lugares.map(l => l.valor));
+  fbDraft.sug = r.filter(s => !ya.has(s.valor));
+  fbPintarSugerencias();
+}
+
+function fbCuerpoPrecio() {
+  const seg = [['rent', 'Renta'], ['sale', 'Venta']].map(([v, l]) =>
+    `<button class="fb-seg${fbDraft.operacion === v ? ' on' : ''}" data-op="${esc(v)}">${esc(l)}</button>`).join('');
+  return `
+    <div class="fb-segs">${seg}</div>
+    <div class="fb-rango">
+      <input class="fb-in fb-num" id="fbMin" inputmode="numeric" placeholder="M&#237;nimo"
+             value="${esc(fbDraft.min ? mx(fbDraft.min) : '')}">
+      <span class="fb-guion">&mdash;</span>
+      <input class="fb-in fb-num" id="fbMax" inputmode="numeric" placeholder="M&#225;ximo"
+             value="${esc(fbDraft.max ? mx(fbDraft.max) : '')}">
+    </div>
+    <p class="fb-nota">Pesos, total del inmueble. Lo que el portal publica por m&#178; ya sale
+      multiplicado por su superficie. Tocar la operaci&#243;n activa la quita.</p>`;
+}
+
+function fbCuerpoTipo() {
+  return '<div class="fb-cajas">' + TIPOS_COM.map(v => `
+    <label class="fb-caja">
+      <input type="checkbox" data-tipo="${esc(v)}"${fbDraft.tipos.includes(v) ? ' checked' : ''}>
+      <span>${esc(cap(v))}</span>
+    </label>`).join('') + '</div>';
+}
+
+function fbLimpiarBorrador() {
+  if (fbAbierto === 'ubicacion') { fbDraft.lugares = []; fbDraft.sug = []; }
+  if (fbAbierto === 'tipo') fbDraft.tipos = [];
+  if (fbAbierto === 'precio') { fbDraft.operacion = ''; fbDraft.min = ''; fbDraft.max = ''; }
+  fbPintarPop();
+}
+
+function fbAplicar() {
+  if (fbAbierto === 'ubicacion') F.lugares = fbDraft.lugares.slice(0, MAX_LUGARES);
+  if (fbAbierto === 'tipo') F.tipos = fbDraft.tipos.slice();
+  if (fbAbierto === 'precio') {
+    let min = fbNum(fbDraft.min), max = fbNum(fbDraft.max);
+    // Un mínimo mayor que el máximo no devuelve nada nunca. Voltearlos es lo que
+    // la persona quiso decir, y decírselo con una pantalla vacía sería peor.
+    if (min && max && min > max) [min, max] = [max, min];
+    F.operacion = fbDraft.operacion; F.precio_min = min || ''; F.precio_max = max || '';
+  }
+  fbCerrar(); page = 1; render();
+}
+
+function fbQuitar(k) {
+  if (k === 'ubicacion') F.lugares = [];
+  if (k === 'tipo') F.tipos = [];
+  if (k === 'precio') { F.operacion = ''; F.precio_min = ''; F.precio_max = ''; }
+  if (fbAbierto === k) fbCerrar();
+  page = 1; render();
+}
+
+document.getElementById('fb').addEventListener('click', e => {
+  const x = e.target.closest('.fb-x');
+  if (x) return fbQuitar(x.dataset.x);
+  const abre = e.target.closest('.fb-open');
+  if (abre) return fbAbrir(abre.dataset.f);
+});
+
+document.getElementById('fbPop').addEventListener('click', e => {
+  const acc = e.target.closest('[data-fb]')?.dataset.fb;
+  if (acc === 'cerrar') return fbCerrar();
+  if (acc === 'limpia') return fbLimpiarBorrador();
+  if (acc === 'aplica') return fbAplicar();
+
+  const add = e.target.closest('.fb-sug');
+  if (add) {
+    const s = fbDraft.sug.find(x => x.valor === add.dataset.add);
+    if (s && fbDraft.lugares.length < MAX_LUGARES) {
+      fbDraft.lugares.push({ valor: s.valor, nombre: s.nombre, estado: s.estado });
+      fbDraft.sug = fbDraft.sug.filter(x => x.valor !== s.valor);
+      document.getElementById('fbBuscaLugar').value = '';
+      fbPintarSeleccion(); fbPintarSugerencias();
+    }
+    return;
+  }
+  const quita = e.target.closest('.fb-sel-x');
+  if (quita) {
+    fbDraft.lugares.splice(Number(quita.dataset.quita), 1);
+    return fbPintarSeleccion();
+  }
+  const seg = e.target.closest('.fb-seg');
+  if (seg) {
+    // Tocar la operación activa la quita: es la forma más corta de volver a "las dos".
+    fbDraft.operacion = fbDraft.operacion === seg.dataset.op ? '' : seg.dataset.op;
+    fbDraft.min = document.getElementById('fbMin').value;
+    fbDraft.max = document.getElementById('fbMax').value;
+    fbPintarPop();
+  }
+});
+
+document.getElementById('fbPop').addEventListener('input', e => {
+  if (e.target.id === 'fbBuscaLugar') return fbBuscarLugares(e.target.value.trim());
+  if (e.target.id === 'fbMin' || e.target.id === 'fbMax') {
+    // Miles en vivo. El cursor va al final a propósito: reponerlo donde estaba
+    // exige contar separadores y aquí se escribe de izquierda a derecha.
+    const n = fbNum(e.target.value);
+    e.target.value = n ? mx(n) : '';
+    fbDraft[e.target.id === 'fbMin' ? 'min' : 'max'] = n;
+  }
+});
+
+document.getElementById('fbPop').addEventListener('change', e => {
+  const c = e.target.closest('input[type=checkbox][data-tipo]');
+  if (!c) return;
+  const v = c.dataset.tipo;
+  fbDraft.tipos = c.checked ? [...new Set([...fbDraft.tipos, v])] : fbDraft.tipos.filter(x => x !== v);
+});
+
+// Enter aplica, Esc descarta: el popover se maneja sin ratón.
+document.getElementById('fbPop').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id !== 'fbBuscaLugar') { e.preventDefault(); fbAplicar(); }
+});
+document.getElementById('fbScrim').addEventListener('click', fbCerrar);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && fbAbierto) fbCerrar(); });
+// `pointerdown` y no `click`, y no es un detalle: elegir una sugerencia repinta la
+// lista, así que para cuando el `click` llega a `document` el elemento clicado ya no
+// está en el árbol y `closest('#fbPop')` devuelve null. El popover se cerraba solo al
+// elegir un municipio. Al bajar el dedo el elemento todavía está donde debe.
+document.addEventListener('pointerdown', e => {
+  if (fbAbierto && !e.target.closest('#fbPop') && !e.target.closest('#fb')) fbCerrar();
+});
+
 // ── Eventos ──────────────────────────────────────────────────────────────────
 
 document.getElementById('qbar').addEventListener('click', e => {
@@ -485,7 +749,7 @@ document.getElementById('qbar').addEventListener('click', e => {
     const campo = document.getElementById('editor').dataset.campo;
     const v = chip.dataset.v;
     // Volver a tocar el chip activo lo quita: es la forma más corta de deshacer.
-    const destino = { tipo: 'tipo', operacion: 'operacion', zona: 'zona', fuente: 'fuente', orden: 'orden' }[campo];
+    const destino = { fuente: 'fuente', orden: 'orden' }[campo];
     F[destino] = (F[destino] === v && campo !== 'orden') ? '' : v;
     if (campo === 'orden' && F.orden === v) F.orden = 'recientes';
     page = 1; render();

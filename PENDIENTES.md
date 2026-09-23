@@ -173,8 +173,16 @@ módulos ES, y que hoy ya son deuda:
 ## Rediseño de la UI — la barra de filtros, en curso
 
 El plan es `ui_change.md`. Su §3 dice que esta etapa "ya está hecha" en un patch que
-**no existe en el repo**: no hay rama, ni commit, ni archivo. Se está rehaciendo desde la
-descripción, en la rama `desarrollo`. El lado de la API ya está; falta la interfaz.
+**no existe en el repo**: no hay rama, ni commit, ni archivo. Se rehízo desde la
+descripción, en la rama `desarrollo`. **API e interfaz están completas y probadas contra
+la copia de trabajo; lo único que falta es desplegar**, y eso incluye reconstruir la API
+(`docker compose up -d --build api`) porque cambió `api/main.py`.
+
+Lo verificado con navegador real (`npm run verificar:navegador`, 25 comprobaciones a 1440
+y 390 px): el borrador no filtra hasta "Aplicar", Esc lo descarta, la ✕ del chip limpia sin
+abrir, mín y máx invertidos se voltean, los miles se escriben solos, y en el teléfono el
+popover es hoja inferior pegada abajo con 211 px de alto útil. Filtrar Monterrey da 16,805
+y Monterrey + local/bodega da 8,164, que es exactamente lo que devuelve la base.
 
 Dos cosas medidas el 2026-09-23 que cambian el plan:
 
