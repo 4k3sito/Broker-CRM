@@ -274,8 +274,13 @@ Marca cuánta RAM se le puede dar a Postgres y si la imagen de scrapers cabe.
 Tabla `zona` (`tipo`, `nombre`, `estado`, `osm_id`, `norm`, `geom geography(MultiPolygon)`),
 cargada por `vps/zonas.py`. Idempotente por `osm_id`: se puede re-sincronizar sin duplicar.
 
-**Fuente: OpenStreetMap, no INEGI.** INEGI no publica "colonias" con nombre — su Marco
-Geoestadístico llega a AGEB *numeradas*, que nadie busca por nombre. Los límites municipales de
+**Fuente: OpenStreetMap, no INEGI.** Para *municipios*, que es lo que carga `zonas.py`.
+
+> ⚠️ **Corregido el 2026-09-23.** Aquí decía que INEGI no publica colonias con nombre y que
+> su Marco Geoestadístico sólo llega a AGEB numeradas. Eso es falso desde 2024: existe
+> *Delimitación de Colonias y otros Asentamientos Humanos* (DCAH), publicado el 12 de
+> noviembre de 2024, con 7,672 localidades y el nombre y tipo de cada asentamiento. Ver
+> "Colonias: la fuente sí existe" más abajo. Los límites municipales de
 México sí están completos en OSM (`admin_level=6`; el 8 son localidades, no municipios). Overpass
 da los ids y **Nominatim devuelve la geometría ya en GeoJSON**, que PostGIS lee directo con
 `ST_GeomFromGeoJSON` — sin shapefiles ni GDAL. El script rota entre 3 espejos de Overpass porque
@@ -410,8 +415,29 @@ sin coordenadas**:
 | `valle oriente` | 68 | 44 |
 
 Los dos filtros se combinan: municipio por polígono (preciso, 63% del inventario) + colonia por
-texto (aproximado, 100%). Si más adelante hacen falta polígonos de colonia de verdad, la fuente
-sería el portal de datos abiertos del municipio, no INEGI ni OSM.
+texto (aproximado, 100%).
+
+### Colonias: la fuente sí existe (corregido el 2026-09-23)
+
+Esta sección decía que los polígonos de colonia tendrían que salir del portal de datos abiertos
+del municipio, "no INEGI ni OSM". Las dos mitades estaban mal medidas:
+
+- **OSM no sirve, y ahora hay número:** Overpass devuelve **17 polígonos** de
+  `place=neighbourhood|suburb|quarter` en todo el municipio de Monterrey. No es una fuente.
+- **INEGI sí publica colonias con nombre.** *Delimitación de Colonias y otros Asentamientos
+  Humanos* ([DCAH](https://www.inegi.org.mx/programas/dcah/)), publicada el 12 de noviembre de
+  2024 con corte 2023: **7,672 localidades**, capa vectorial `AS` en shapefile, con nombre y
+  tipo de asentamiento y clave `CVEGEO` de 13 caracteres (`EEMMMLLLLAAAA`).
+
+Quién la hace importa para entender sus límites: **INEGI no delimita**, sólo integra. Delimitar
+asentamientos es competencia municipal (art. 115 constitucional y LGAHOTDU), así que cada
+municipio entrega y avala sus polígonos. De ahí que la cobertura sea desigual y las fechas
+distintas entre municipios. Se priorizan las localidades de **50 mil habitantes o más y las
+capitales**, que son el **55% de la superficie** con delimitación de área — y ahí cae Monterrey.
+
+Cargarlo no es el camino de `zonas.py`: viene en shapefile con proyección Cónica Conforme de
+Lambert sobre ITRF2008, no en GeoJSON de Nominatim. Hay que reproyectar a 4326 y la
+idempotencia va por `CVEGEO` en vez de `osm_id`.
 
 
 ## Fase 2b: endpoints (2026-08-27)

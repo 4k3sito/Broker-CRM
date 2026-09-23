@@ -191,6 +191,27 @@ Dos cosas medidas el 2026-09-23 que cambian el plan:
   materializarlos como ya se hace con el municipio. El 95.7% de los anuncios tiene
   coordenada, así que `ST_Covers` los asigna solo. La API ya devuelve `clase` en cada
   fila para que ese día el cliente no cambie.
+
+  **Y la fuente ya está identificada (2026-09-23):** INEGI **sí** publica colonias con
+  nombre, al contrario de lo que decían `vps/zonas.py` y `MIGRATION.md` —los dos
+  corregidos—. Es *Delimitación de Colonias y otros Asentamientos Humanos*
+  ([DCAH](https://www.inegi.org.mx/programas/dcah/)), del 12 de noviembre de 2024 con
+  corte 2023: **7,672 localidades**, shapefile, nombre y tipo por asentamiento, clave
+  `CVEGEO`. La delimitan los municipios y INEGI sólo integra, así que la cobertura es
+  desigual; se priorizan las localidades de 50 mil habitantes o más y las capitales, que
+  son el 55% de la superficie delimitada, y ahí cae Monterrey. **Falta confirmarlo
+  bajando el archivo de Nuevo León y contando cuántos de los 16,805 anuncios de Monterrey
+  caen dentro de un polígono** — la misma prueba que se le hizo a los municipios.
+
+  Lo que hay que construir: reproyectar de Cónica Conforme de Lambert (ITRF2008) a 4326,
+  cargar con `tipo='colonia'` e idempotencia por `CVEGEO` en vez de `osm_id`, y
+  materializar una columna en `listings` como ya se hizo con `zona_id`.
+
+  Descartadas y por qué: **OSM** tiene **17 polígonos** de colonia en todo el municipio de
+  Monterrey, medido con Overpass. **Mapbox Boundaries** es de paga y su licencia ata los
+  polígonos al uso con servicios de Mapbox, no a guardarlos en PostGIS propio.
+  **Google Earth Engine** es una plataforma de análisis de imágenes satelitales: sus capas
+  administrativas no bajan de municipio y no tiene colonias mexicanas.
 - **27 anuncios tienen `operation = 'sale'` y `operacion_alt = 'sale'`**: la misma
   operación dos veces, que no significa nada. Es un defecto del colapso de duales en
   `propdb.py`. Son pocos y no estorban al filtro, pero el dato está mal.
