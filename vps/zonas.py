@@ -10,9 +10,19 @@ De dónde salen: los límites municipales de México están completos en OpenStr
 (admin_level=6). Overpass da los ids; Nominatim devuelve la geometría ya en GeoJSON,
 que PostGIS lee directo con ST_GeomFromGeoJSON — sin shapefiles ni GDAL de por medio.
 
-INEGI no publica "colonias" con nombre: su Marco Geoestadístico llega a AGEB numeradas.
-Por eso hoy solo se cargan municipios. Para colonia, la búsqueda por texto sobre `norm`
-cubre el 100% del inventario, incluidos los listings sin coordenadas.
+Hoy solo se cargan municipios, y para colonia se usa la búsqueda por texto sobre `norm`,
+que cubre el 100% del inventario incluidos los listings sin coordenadas.
+
+⚠️ Corregido el 2026-09-23: este archivo decía que "INEGI no publica colonias con nombre".
+**Sí las publica.** El producto es *Delimitación de Colonias y otros Asentamientos
+Humanos* (DCAH, https://www.inegi.org.mx/programas/dcah/), publicado el 12 de noviembre
+de 2024 con corte 2023: 7,672 localidades, en shapefile, con el nombre y el tipo de cada
+asentamiento. No lo delimita INEGI —es competencia de los municipios, que lo entregan y
+lo avalan—, y por eso la cobertura es desigual: se priorizan las localidades de 50 mil
+habitantes o más y las capitales, que son el 55% de la superficie delimitada. Monterrey
+cae en esa prioridad. Cargarlo aquí es otro camino que el de OSM: shapefile en Cónica
+Conforme de Lambert (ITRF2008), no GeoJSON de Nominatim, así que hay que reproyectar a
+4326 y la idempotencia va por CVEGEO, no por osm_id.
 """
 from __future__ import annotations
 
