@@ -407,6 +407,26 @@ ORDENES = {
 }
 
 
+# Tipos comerciales que ofrece el filtro, en el orden en que se muestran. Son valores de
+# la columna generada `tipo` (tipo_norm), no deletreos de portal.
+#
+# `oficina` se queda **aunque hoy tenga cero anuncios en las cinco fuentes**: es una
+# decisión de producto —van a llegar— y `tipo_norm()` ya la contempla, así que agregarlas
+# no obliga a recrear la columna. Lo que se quitó fue `edificio`, que no es un valor que
+# la función produzca y por lo tanto nunca pudo devolver nada: era una opción muerta que
+# le decía al asesor "no hay" cuando lo cierto era "eso no se pregunta así".
+# Medido el 2026-09-23: terreno 337,013 · local 109,689 · bodega 17,955 · oficina 0.
+TIPOS_COM = ("oficina", "local", "bodega", "terreno")
+
+# Todo lo que tipo_norm() puede producir. El filtro ofrece TIPOS_COM, pero la API acepta
+# los siete: rancho, hotel y desarrollo existen en el inventario (670, 378 y 55) y no hay
+# razón para que un cliente no pueda pedirlos.
+TIPOS_VALIDOS = TIPOS_COM + ("rancho", "hotel", "desarrollo")
+
+# Tope de lugares que el filtro de ubicación acepta a la vez, igual en API y cliente.
+MAX_LUGARES = 20
+
+
 def _filtros(a: dict) -> tuple[list[str], list]:
     """WHERE compartido por la lista y su conteo. Siempre parametrizado."""
     w: list[str] = []
@@ -419,25 +439,63 @@ def _filtros(a: dict) -> tuple[list[str], list]:
     if a.get("zona"):
         w.append("z.norm = %s")
         p.append(norm_txt(a["zona"]))
-    if a.get("operacion"):
-        w.append("l.operation = %s")
-        p.append(a["operacion"])
+    # Ubicación múltiple: varios municipios a la vez, unidos con OR. Los valores llegan
+    # como "m<zona_id>" y no como el id pelón para que el día que `zona` tenga polígonos
+    # de colonia (hoy sólo tiene tipo='municipio') se pueda agregar "c<...>" sin romper
+    # el contrato con el cliente.
+    if a.get("lugar"):
+        municipios = [int(v[1:]) for v in a["lugar"]
+                      if isinstance(v, str) and v[:1] == "m" and v[1:].isdigit()]
+        if not municipios:
+            raise HTTPException(422, "lugar debe ser 'm<id de municipio>'")
+        if len(municipios) > MAX_LUGARES:
+            raise HTTPException(422, f"lugar acepta {MAX_LUGARES} valores como máximo")
+        w.append("l.zona_id = ANY(%s)")
+        p.append(municipios)
+    # La operación tiene que encontrar también la oferta alterna: un local ofrecido en
+    # renta Y venta a la vez guarda la segunda en `operacion_alt`, y filtrar "Renta" no
+    # puede esconderlo sólo porque el portal listó la venta primero.
+    op = a.get("operacion")
+    if op:
+        w.append("(l.operation = %s OR l.operacion_alt = %s)")
+        p += [op, op]
     if a.get("tipo"):
-        w.append("l.property_type ILIKE %s")
-        p.append(f"%{a['tipo']}%")
+        tipos = list(a["tipo"]) if isinstance(a["tipo"], (list, tuple)) else [a["tipo"]]
+        malos = [x for x in tipos if x not in TIPOS_VALIDOS]
+        if malos:
+            raise HTTPException(422, f"tipo desconocido: {', '.join(malos)}")
+        # La columna generada, no el deletreo del portal: tipo_norm() ya colapsó los 17
+        # que usan las cinco fuentes.
+        w.append("l.tipo = ANY(%s)")
+        p.append(tipos)
     if a.get("fuente"):
         w.append("l.source = ANY(%s)")
         p.append(a["fuente"])
-    # Filtrar por el precio EFECTIVO: un terreno a $700/m² con 10,744 m² cuesta 7.5 MDP
-    # y no debe aparecer en "hasta $30,000".
-    efectivo = ("CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 "
-                "THEN l.price * l.area_m2 ELSE l.price END")
+    def precio_efectivo() -> tuple[str, list]:
+        """El precio total contra el que se filtra, con sus parámetros.
+
+        Dos correcciones, no una. El precio por m² se multiplica por la superficie: un
+        terreno a $700/m² con 10,744 m² cuesta 7.5 MDP y no cabe en "hasta $30,000". Y
+        si hay operación elegida se mide el precio **de esa operación**, que en un
+        anuncio dual puede ser el de `precio_alt`: comparar una renta contra el precio
+        de venta del mismo local no significa nada.
+        """
+        total = ("CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 "
+                 "THEN l.price * l.area_m2 ELSE l.price END")
+        if not op:
+            return f"({total})", []
+        alt = ("CASE WHEN l.precio_alt_por_m2 AND l.area_m2 > 0 "
+               "THEN l.precio_alt * l.area_m2 ELSE l.precio_alt END")
+        return f"(CASE WHEN l.operation = %s THEN {total} ELSE {alt} END)", [op]
+
     if a.get("precio_min") is not None:
-        w.append(f"{efectivo} >= %s")
-        p.append(a["precio_min"])
+        sql, pp = precio_efectivo()
+        w.append(f"{sql} >= %s")
+        p += pp + [a["precio_min"]]
     if a.get("precio_max") is not None:
-        w.append(f"l.price > 0 AND {efectivo} <= %s")
-        p.append(a["precio_max"])
+        sql, pp = precio_efectivo()
+        w.append(f"{sql} > 0 AND {sql} <= %s")
+        p += pp + pp + [a["precio_max"]]
     if a.get("m2_min") is not None:
         w.append("l.area_m2 >= %s")
         p.append(a["m2_min"])
@@ -469,8 +527,9 @@ def list_listings(
     user: dict = Depends(current_user),
     q: str | None = None,
     zona: str | None = None,
+    lugar: list[str] | None = Query(None),
     operacion: str | None = Query(None, pattern="^(rent|sale)$"),
-    tipo: str | None = None,
+    tipo: list[str] | None = Query(None),
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None,
     precio_max: float | None = None,
@@ -511,7 +570,8 @@ def list_listings(
 def facets(
     user: dict = Depends(current_user),
     q: str | None = None, zona: str | None = None,
-    operacion: str | None = None, tipo: str | None = None,
+    lugar: list[str] | None = Query(None),
+    operacion: str | None = None, tipo: list[str] | None = Query(None),
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None, precio_max: float | None = None,
     m2_min: float | None = None, m2_max: float | None = None,
@@ -577,9 +637,37 @@ def zonas() -> list[dict]:
     """Para poblar el filtro de zona. Solo las que tienen inventario."""
     with POOL.connection() as conn:
         return conn.execute(
-            """SELECT z.nombre, z.norm, count(l.*) AS listings
+            """SELECT z.id, z.nombre, z.norm, z.estado, count(l.*) AS listings
                FROM zona z JOIN listings l ON l.zona_id = z.id
-               GROUP BY z.nombre, z.norm ORDER BY count(l.*) DESC""").fetchall()
+               GROUP BY z.id, z.nombre, z.norm, z.estado
+               ORDER BY count(l.*) DESC""").fetchall()
+
+
+@app.get("/api/lugares")
+def lugares(q: str = Query(min_length=2, max_length=80),
+            user: dict = Depends(current_user)) -> list[dict]:
+    """Autocompletado del filtro de ubicación.
+
+    Devuelve **sólo municipios**, y eso es deliberado. Medido el 2026-09-23: `neighborhood`
+    está poblado en 1,788 de 467,417 anuncios (0.38%), y `location` es texto libre con
+    189,615 variantes distintas —"Cholul, Mérida" y "Cholul, Mérida, Yucatán" son dos—.
+    Una lista de colonias armada con eso sería una promesa falsa: el asesor elegiría una
+    colonia y recibiría una fracción arbitraria de lo que hay en ella.
+
+    El camino bueno, cuando se retome, es cargar polígonos de colonia en `zona` con
+    `tipo='colonia'` y materializarlos como ya se hace con el municipio: el 95.7% de los
+    anuncios tiene coordenada, así que `ST_Covers` los asigna solos. Por eso cada fila ya
+    trae `clase`: el día que existan, esto devuelve los dos niveles y el cliente no cambia.
+    """
+    with POOL.connection() as conn:
+        return conn.execute(
+            """SELECT 'm' AS clase, 'm' || z.id AS valor, z.nombre, z.estado,
+                      count(l.*) AS anuncios
+               FROM zona z JOIN listings l ON l.zona_id = z.id
+               WHERE z.norm LIKE %s
+               GROUP BY z.id, z.nombre, z.estado
+               ORDER BY count(l.*) DESC LIMIT %s""",
+            (f"%{norm_txt(q)}%", MAX_LUGARES)).fetchall()
 
 
 # Fuentes con scraper propio en scrapers/. Lo que aparezca en la tabla y no aquí es
@@ -1223,6 +1311,38 @@ def selfcheck() -> None:
     assert len(w) == 5 and sum(x.count("%s") for x in w) == len(p), (w, p)
     assert p[0] == "%del%" and p[1] == "%valle%"      # cada palabra por separado
     assert "SRID=4326;POINT(-100.3 25.6)" in p
+
+    # Ubicación múltiple: varios municipios en un solo ANY, y nada de ids inventados.
+    w, p = _filtros({"lugar": ["m40", "m47"]})
+    assert w == ["l.zona_id = ANY(%s)"] and p == [[40, 47]], (w, p)
+    for malo in (["basura"], ["m"], ["40"], [f"m{i}" for i in range(MAX_LUGARES + 1)]):
+        try:
+            _filtros({"lugar": malo})
+            raise AssertionError(f"lugar={malo} debió ser 422")
+        except HTTPException as e:
+            assert e.status_code == 422, malo
+
+    # Tipo múltiple contra la columna generada, no contra el deletreo del portal.
+    w, p = _filtros({"tipo": ["local", "bodega"]})
+    assert w == ["l.tipo = ANY(%s)"] and p == [["local", "bodega"]], (w, p)
+    # `oficina` se ofrece aunque hoy tenga cero: es decisión de producto. `edificio` no
+    # existe como valor de tipo_norm y por eso nunca pudo devolver nada.
+    assert "oficina" in TIPOS_COM and "edificio" not in TIPOS_VALIDOS
+    try:
+        _filtros({"tipo": ["edificio"]})
+        raise AssertionError("un tipo desconocido debió ser 422")
+    except HTTPException as e:
+        assert e.status_code == 422
+
+    # Con operación elegida el precio se mide contra el de ESA operación: en un anuncio
+    # ofrecido en renta y venta, el segundo precio vive en `precio_alt`. Sin operación
+    # esa rama no debe aparecer, o el filtro compararía contra un precio que no eligió
+    # nadie.
+    w, p = _filtros({"operacion": "sale", "precio_min": 1000})
+    assert any("precio_alt" in x for x in w), w
+    assert sum(x.count("%s") for x in w) == len(p), (w, p)
+    w, p = _filtros({"precio_min": 1000})
+    assert not any("precio_alt" in x for x in w) and len(p) == 1, (w, p)
 
     # El GROUPING SETS de /api/scrapers: la fila sin día es el resumen de la fuente.
     part = _partir_scrapers([

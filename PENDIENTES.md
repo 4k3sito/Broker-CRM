@@ -170,6 +170,43 @@ módulos ES, y que hoy ya son deuda:
 - No resuelve los `import`, así que un módulo compartido que no esté declarado en el HTML
   queda sin revisar.
 
+## Rediseño de la UI — la barra de filtros, en curso
+
+El plan es `ui_change.md`. Su §3 dice que esta etapa "ya está hecha" en un patch que
+**no existe en el repo**: no hay rama, ni commit, ni archivo. Se está rehaciendo desde la
+descripción, en la rama `desarrollo`. El lado de la API ya está; falta la interfaz.
+
+Dos cosas medidas el 2026-09-23 que cambian el plan:
+
+- **Las colonias no existen como dato y el filtro de ubicación no puede usarlas.**
+  `neighborhood` está poblado en **1,788 de 467,417 anuncios (0.38%)**. `location` sí está
+  casi siempre (99.9%) pero es texto libre con **189,615 variantes** —"Cholul, Mérida" y
+  "Cholul, Mérida, Yucatán" son dos filas distintas—, y derivar la colonia partiendo por
+  la coma da **3,494 valores para los 16,805 anuncios de Monterrey**, con "sin calle"
+  (774), "-" (210) y el propio "monterrey" (288) entre los más comunes. Por eso
+  `GET /api/lugares` devuelve **sólo municipios**, que sí son limpios: 95.6% de cobertura
+  y 2,475 valores de la tabla `zona`.
+  El camino bueno cuando se retome: cargar polígonos de colonia en `zona` con
+  `tipo='colonia'` —la tabla ya tiene la columna `tipo` y hoy sólo guarda `municipio`— y
+  materializarlos como ya se hace con el municipio. El 95.7% de los anuncios tiene
+  coordenada, así que `ST_Covers` los asigna solo. La API ya devuelve `clase` en cada
+  fila para que ese día el cliente no cambie.
+- **27 anuncios tienen `operation = 'sale'` y `operacion_alt = 'sale'`**: la misma
+  operación dos veces, que no significa nada. Es un defecto del colapso de duales en
+  `propdb.py`. Son pocos y no estorban al filtro, pero el dato está mal.
+
+Lo que ya quedó, del lado de la API (rama `desarrollo`, sin desplegar):
+
+- `GET /api/lugares?q=` y `GET /api/zonas` con `id` y `estado`.
+- `lugar` múltiple (`m<zona_id>`, tope `MAX_LUGARES` = 20) y `tipo` múltiple sobre la
+  columna generada.
+- El filtro de operación ahora encuentra la **oferta alterna**. Medido: filtrar Venta
+  pasa de 362,837 a **364,484** anuncios — **1,647 propiedades en venta que el filtro no
+  mostraba**, porque el portal las publicó como renta con la venta en segundo plano.
+  Filtrar Renta no cambia, porque los 1,674 duales tienen todos `operation='rent'`.
+- `TIPOS_COM` = oficina, local, bodega, terreno. Se quitó `edificio`, que nunca pudo
+  devolver nada. `oficina` se queda con cero anuncios por decisión de producto.
+
 ## Seguridad
 
 - **H1 sigue abierto y es crítico**: SSH con contraseña para root, sin firewall ni
