@@ -203,6 +203,30 @@ Dos cosas medidas el 2026-09-23 que cambian el plan:
   - Falta repetir la carga cuando INEGI publique el corte siguiente. El script es
     idempotente por `CVEGEO`, así que es volver a correrlo.
 
+- **Pincali nos dice dos cosas sobre la ubicación y las dos se tiran en la carga.**
+  Analizado el 2026-09-23 a propósito de los anuncios sin colonia:
+  - `pincali_scraper.py` parsea `data-exact-location="false"`, que es Pincali avisando
+    de que **el pin es el centroide de la colonia y no la propiedad**. Lo guarda en
+    `PincaliListing.coordsExact`… y `propdb.py` no lo escribe: `COLS` no lo incluye y
+    nadie más lo toca. Importa más de lo que parece: un pin que ya es el centroide de
+    una colonia siempre va a caer dentro de esa colonia, así que su `colonia_id` es
+    circular —correcto y vacío de información— y hoy **no hay forma de distinguirlo**
+    de un pin real. También contamina el radio del análisis de mercado y el mapa.
+  - `neighborhood` es la única colonia de portal que existe (1,788 filas, todas de
+    Pincali; las otras cuatro fuentes: 0) y **está congelada**: no aparece en `COLS`,
+    ningún script la escribe, y `vps/schema.sql` ya lo dice en su comentario. Lo que
+    hay es residuo de la era anterior al cargador actual.
+  - Cotejada contra los polígonos de INEGI donde hay las dos (1,462 casos): **506
+    idénticas, 226 una dentro de la otra, 730 distintas**. Los desacuerdos casi nunca
+    son errores del cruce: son de granularidad —Pincali dice "Del Valle" u "Obispado",
+    nombres comerciales y coloquiales, donde INEGI tiene la subdivisión legal
+    ("ZONA LOS SABINOS (PARCELACIÓN FAMILIAR)", "CENTRO")— o el campo trae una avenida
+    ("Eugenio Garza Sada", "Lázaro Garza Ayala"), que no es una colonia.
+  - **El hueco de colonia no es culpa de ninguna fuente**: la cobertura es del 55-57%
+    en las cinco, y los Pincali sin colonia están en Yucatán (8,829), Estado de México
+    (8,472) y Querétaro (7,578) — no en Nuevo León, donde Pincali llega al 79.3%. Es
+    cobertura de INEGI por estado, no del scraping.
+
 - **27 anuncios tienen `operation = 'sale'` y `operacion_alt = 'sale'`**: la misma
   operación dos veces, que no significa nada. Es un defecto del colapso de duales en
   `propdb.py`. Son pocos y no estorban al filtro, pero el dato está mal.
