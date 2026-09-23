@@ -1,3 +1,6 @@
 fastapi>=0.115
 uvicorn[standard]>=0.32
 psycopg[binary,pool]>=3.2
+# Render del PDF del análisis de mercado. Pide libpango/libcairo del sistema:
+# ver el apt-get del Dockerfile.
+weasyprint>=62

@@ -30,6 +30,64 @@ de `load` (`propdb.py:379`) y respeta la marca `suspect` que pone `--validate`. 
 exportarle `DATABASE_URL` desde `vps/.env` como hace `cron.sh:16`; sin eso `propdb.py` busca
 un socket local y muere al instante.
 
+## Análisis de mercado — en producción desde el 2026-09-21, **en pausa**
+
+**Guardado en git el 2026-09-23, en la rama `analisis-mercado`.** Hasta ese día el
+sistema corría en producción sin existir en el historial: el contenedor `api` ya se había
+reconstruido con estos archivos, pero nadie los había commiteado, así que la reversa que
+se describe más abajo no tenía a dónde volver. Ya la tiene.
+
+El trabajo queda **en pausa a propósito**, no abandonado. El sistema funciona y se usa; lo
+de abajo es por dónde se retoma cuando se vuelva a él.
+
+El botón está en la ficha, el PDF se genera en la API con WeasyPrint y el historial de
+precios ya está capturando. Lo que **no** quedó cerrado:
+
+- **La narrativa la escribe una plantilla, no un modelo.** No hay `ANTHROPIC_API_KEY` ni
+  en `vps/.env` ni en `scrapers/.env`, y el `hermes` del host no sirve: vive fuera del
+  contenedor y corre como root (H6). `narrativa()` en `api/documento.py` está escrita
+  para que la capa con modelo se encienda cuando exista credencial, y el documento sale
+  completo sin ella. Falta la clave y falta esa capa.
+- **La extracción de atributos del `description` no se hizo.** Se midió el costo: 19,834
+  anuncios usables en el área metropolitana, de los cuales sólo **11,197 traen texto de
+  más de 80 caracteres**, y 2.0M tokens en total — menos de 15 USD una sola vez con
+  Haiku. Pero los atributos aparecen en minorías (estacionamiento en 15%, plaza en 12%,
+  esquina en 4%), así que **no pueden ser eje de comparabilidad**: sirven para describir
+  mejor cada comparable, no para elegirlo. Y buena parte sale con regex, gratis. El orden
+  correcto es regex primero, medir el residuo, y sólo entonces el modelo.
+- **Sin sección de tendencia en el PDF** hasta que `precio_historial` tenga meses. El
+  primer documento que pueda decir "subió o bajó" con sustancia sale por diciembre.
+- **Las oficinas siguen sin existir**: cero filas en las cinco fuentes. `tipo_norm()` ya
+  contempla `'oficina'` para que agregarlas no obligue a recrear la columna generada.
+- **H9** (`SECURITY.md`): el PDF es el primer endpoint con costo de CPU no acotado.
+
+## Hallazgos de paso, ninguno provocado por este trabajo
+
+- **`vps/schema.sql` no puede correr sobre una base vacía.** `tarea` (línea 153)
+  referencia `usuario`, que se crea ~340 líneas más abajo. En una base que ya existe no
+  se nota; sobre un volumen nuevo el `docker-entrypoint-initdb.d` se salta `tarea` y
+  `tarea_comentario` **sin fallar ruidosamente**, y la instalación queda sin el tablero
+  del equipo. Arreglo: mover el bloque de `usuario` arriba de `tarea`.
+- **El 17.5% del inventario usable del área metropolitana son republicaciones entre
+  portales** — 3,480 de 19,834, medido el 2026-09-21 con una rejilla de ~22 m sobre
+  `(tipo, operación, superficie, precio unitario)`. Es un piso, no el total: cuando un
+  portal publica la coordenada exacta y otro el centroide de la colonia, la rejilla no
+  los junta. `deduplicar()` en `api/main.py` los colapsa **sólo dentro del análisis**;
+  el tablero, los conteos de `scrapers.html` y cualquier agregado siguen contándolos por
+  separado. El mock ya pedía un filtro "ocultar duplicados" y ahora hay con qué.
+- **La descripción imprime el marcado del portal como texto.** En
+  `listing.html?id=inmuebles24:143768320` se lee literalmente
+  `$<span class='descripcionDatosAnunciante'><button class='btn btn-link js-verDatos'…`.
+  `esc()` está haciendo su trabajo —no es XSS— pero el texto queda ilegible. Lo que falta
+  es limpiar el HTML del portal al cargar, en `propdb.py`, no al pintar.
+- **`poppler-utils` quedó instalado en el host** (`apt-get install poppler-utils`, el
+  2026-09-21) para poder rasterizar y leer los PDFs. Es la única forma de cumplir la
+  regla de `CLAUDE.md` de leer la captura y no sólo el número. Se quita con
+  `apt-get remove poppler-utils` si estorba.
+- **No hay reversa por imagen del contenedor `api`.** `docker compose build` reemplazó
+  `officelab-api:latest` y la imagen anterior desapareció del almacén local. La reversa
+  real es por git: `git checkout <rev> -- api/ && docker compose up -d --build api`.
+
 ## Degradando datos todos los días
 
 - *(vacío — `liveness` se arregló el 2026-09-21; ver abajo lo que queda por observar)*

@@ -25,6 +25,10 @@ VPS (Docker)
 
 ## El cambio de fondo: una sola tabla `listings`
 
+> Desde el 2026-09-21 el inventario son **dos** tablas: `listings` sigue siendo la foto
+> del mercado y `precio_historial` guarda su serie en el tiempo, que el upsert borraba.
+> Lo de abajo describe por qué `listings` quedó como quedó, y sigue vigente.
+
 Había dos tablas con el mismo nombre y esquemas distintos (dashboard en Supabase vs.
 `propdb.py` en PostGIS). En el VPS **ganó la de PostGIS** — es la que alimentan los
 scrapers y la única que tiene `geom`. La traducción de nombres pasa a ser un `SELECT`

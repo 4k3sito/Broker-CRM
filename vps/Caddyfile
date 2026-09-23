@@ -31,6 +31,22 @@
 
 	handle {
 		root * /srv/site
+
+		# `no-cache` no significa "no guardes": significa "pregunta antes de usar".
+		# Con el ETag que ya manda `file_server`, esa pregunta se contesta con un
+		# 304 sin cuerpo, así que cuesta un viaje y cero bytes.
+		#
+		# Hace falta porque sin `Cache-Control` el navegador aplica caché
+		# HEURÍSTICA: se inventa una frescura de ~10% de la edad del archivo y no
+		# revalida. Un archivo que lleva una semana sin tocarse se queda cacheado
+		# horas. El 2026-09-21 eso sirvió un `api.js` viejo después de desplegar y
+		# la página reventó con "API.pdfAnalisis is not a function", con el archivo
+		# nuevo ya en el disco del servidor.
+		#
+		# Ojo con verificar esto en un navegador automatizado: abre con caché
+		# vacía y nunca reproduce el problema.
+		header Cache-Control "no-cache"
+
 		file_server
 	}
 

@@ -122,7 +122,22 @@ X-Frame-Options: DENY
 Referrer-Policy: no-referrer
 Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()
 Cache-Control: no-store          (sólo /api/*)
+Cache-Control: no-cache          (sólo los estáticos de web/)
 ```
+
+Las dos directivas de caché dicen cosas distintas a propósito. `no-store` en `/api/*` es
+"no guardes nada": las respuestas son por usuario y no deben quedar en disco de nadie.
+`no-cache` en los estáticos es "pregunta antes de usar", que con el `ETag` de
+`file_server` se contesta con un 304 sin cuerpo.
+
+El segundo se añadió el **2026-09-21**, y no es cosmético. Sin ninguna directiva de
+caché, el navegador aplica **frescura heurística** —se inventa un plazo de ~10% de la
+edad del archivo y no revalida—, así que un archivo que llevaba días sin tocarse se
+quedaba servido horas después de desplegar. Ese día se publicó un `api.js` nuevo y la
+ficha reventó con `API.pdfAnalisis is not a function` teniendo el archivo correcto en el
+servidor. Importa para seguridad y no sólo para comodidad: **un parche de frontend no
+llegaba a los navegadores que ya habían visitado el sitio**, que son todos los de los
+asesores.
 
 `script-src 'self'` sin `unsafe-inline` es posible porque el tablero **no tiene ni un
 `<script>` inline ni un `onclick=`**. Por eso el tema oscuro vive en `web/theme.js`
@@ -141,6 +156,32 @@ parámetro del cliente y sólo devuelve **agregados** de `listings` —conteos, 
 y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individual. No
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
+
+### Endpoints (2026-09-21) — análisis de mercado
+
+`GET /api/analisis/{listing_id}` y `GET /api/analisis-pdf/{listing_id}` se suman a la
+lista. Los dos exigen sesión (`Depends(current_user)`) y no tocan `user_listing`, así
+que el seguimiento de un asesor no se filtra a otro. Tres cosas que sí cambian respecto
+a lo que había:
+
+- **Devuelven filas individuales, no agregados.** A diferencia de `/api/scrapers`, el
+  análisis publica título, superficie, precio unitario y distancia de hasta doce
+  anuncios. Todo eso ya es visible en el tablero para cualquier usuario con sesión, así
+  que no amplía lo que un asesor puede ver — pero sí lo empaqueta en un archivo que sale
+  del sistema y que nadie controla una vez enviado. Es una decisión de producto tomada a
+  sabiendas, no un descuido: el documento existe para mandarse.
+- **El nombre del archivo se filtra.** `listing_id` viene de la URL y acaba en la
+  cabecera `Content-Disposition`. Se recorta a `[A-Za-z0-9._-]` y a 60 caracteres
+  (`api/main.py`, `get_analisis_pdf`); sin eso, una comilla o un salto de línea dejan de
+  ser un nombre de archivo y pasan a ser una cabecera inyectada.
+- **Todo lo que escribieron los portales se escapa.** El título y la ubicación de cada
+  anuncio entran al HTML que renderiza WeasyPrint; `api/documento.py` los pasa por
+  `html.escape` y su selfcheck lo comprueba con un título que contiene `<script>`.
+
+La imagen del contenedor `api` suma WeasyPrint y las librerías de Pango. Es superficie
+nueva —un motor de render de HTML/CSS procesando texto de terceros—, acotada por tres
+cosas: el proceso sigue corriendo como `nobody`, el HTML lo genera la propia API y nunca
+viene del cliente, y WeasyPrint no ejecuta JavaScript.
 
 ---
 
@@ -213,6 +254,22 @@ hermes en el VPS —interactivo, o un script nuevo— vuelve a estar expuesto.
 un perfil aparte (`hermes profile create`) sin esas herramientas. No se hizo porque la
 instalación es del usuario y apagarlas le cambia su propio uso interactivo del agente.
 
+### H9 — El PDF es el primer endpoint con costo abierto · **bajo**
+
+`GET /api/analisis-pdf/{listing_id}` es, medido el 2026-09-21, ~450 ms de consulta más
+el render de WeasyPrint: es el único endpoint del producto cuyo costo no está acotado
+por una página de resultados. Un usuario con sesión que lo pida en bucle ocupa CPU del
+VPS y, con `max_size=4` en el pool, puede dejar al resto de la API esperando conexión.
+
+**Lo que no es:** no es anónimo —exige sesión— y hoy hay cinco cuentas, todas de gente
+conocida. La exposición real es que una pestaña abierta con recarga automática, o un
+script de un asesor, tire el tablero sin mala intención.
+
+**Arreglo:** el límite de intentos que ya existe (`rate_limit`, `api/main.py:167`) sólo
+cubre el login. Extenderlo a este endpoint por usuario —unos pocos documentos por
+minuto— es el camino corto. Lo de fondo es que el límite viva en Caddy y no en memoria
+del proceso, que es lo mismo que pide H3.
+
 ### H5 — Sin registro de auditoría · **bajo**
 
 No queda rastro de logins exitosos ni de cambios de contraseña. `reset_token` guarda
@@ -229,6 +286,10 @@ que ve el CRM completo —clientes, fichas y procesos— igual que una persona.
 Su contraseña se generó con `adduser --generar` y se mostró una sola vez; no está en el
 repo ni en ningún archivo del VPS. No caduca, y no hay registro de accesos que permita
 distinguir su uso del de una persona (ver H5).
+
+**Rotada el 2026-09-21** con `passwd --generar`, para verificar en el navegador el botón
+del análisis de mercado; la rotación cerró las 40 sesiones que esa misma cuenta tenía
+abiertas, restos de corridas de verificación anteriores que nadie había cerrado. La cuenta **sigue existiendo** y sigue pendiente de borrarse.
 
 **Arreglo:** borrarla cuando deje de hacer falta —
 `docker compose exec -T api python main.py deluser verificacion-dom@officelab.local`,
