@@ -787,37 +787,49 @@ def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_use
 
 
 # ─────────────────────────────────────────────────────────────────────── CRM
-# Todo filtra por user_id del lado del servidor: es lo que sustituye a las políticas
-# RLS de Supabase. El cliente nunca manda un user_id.
+# Desde el 2026-09-25 el CRM es del EQUIPO, igual que las tareas: clientes, fichas,
+# procesos y documentos los ve y los edita cualquier cuenta con sesión. `user_id` sólo
+# registra quién creó la fila. Antes cada endpoint filtraba por el usuario de la
+# sesión; se quitó a propósito cuando el pipeline del equipo (Google Sheets) pasó al
+# CRM, porque un pipeline que cada asesor ve a medias no sirve. Ver SECURITY.md §5.
+# El cliente sigue sin poder mandar un `user_id`: lo pone la sesión.
 
-def _owned(conn, tabla: str, id_: str | None, user_id) -> None:
-    """404 también cuando el id viene vacío o no es un uuid: un id inválido no debe
-    salir como 500."""
+CLIENTE_COLS = ("nombre", "contacto", "empresa", "requerimientos", "notas",
+                "responsable", "responsable_id")
+FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "fotos", "notas",
+              "tipo", "municipio", "mapa_url", "precio_m2")
+PROCESO_COLS = ("status", "notas", "junta", "numero", "marca", "trae", "trae_id")
+
+
+def _owned(conn, tabla: str, id_: str | None, user_id=None) -> None:
+    """Que la fila exista. 404 también cuando el id viene vacío o no es un uuid: un id
+    inválido no debe salir como 500. `user_id` ya no se usa: el CRM es compartido."""
     if not id_:
         raise HTTPException(422, f"falta el id de {tabla}")
     try:
-        ok = conn.execute(f"SELECT 1 FROM {tabla} WHERE id = %s AND user_id = %s",
-                          (id_, user_id)).fetchone()
+        ok = conn.execute(f"SELECT 1 FROM {tabla} WHERE id = %s", (id_,)).fetchone()
     except psycopg_errors.InvalidTextRepresentation:
-        raise HTTPException(404, "No existe o no es tuyo")
+        raise HTTPException(404, "No existe")
     if not ok:
-        raise HTTPException(404, "No existe o no es tuyo")
+        raise HTTPException(404, "No existe")
 
 
 @app.get("/api/clientes")
-def clientes(user: dict = Depends(current_user)) -> list[dict]:
+def clientes(_: dict = Depends(current_user)) -> list[dict]:
     with POOL.connection() as conn:
         return conn.execute(
-            """SELECT c.*, coalesce(j.procesos, '[]'::json) AS proceso
+            """SELECT c.*, r.nombre AS responsable_nombre,
+                      coalesce(j.procesos, '[]'::json) AS proceso
                FROM cliente c
+               LEFT JOIN usuario r ON r.id = c.responsable_id
                LEFT JOIN LATERAL (
                  SELECT json_agg(json_build_object(
                           'id', p.id, 'status', p.status,
-                          'ficha', json_build_object('id', f.id, 'titulo', f.titulo))) AS procesos
+                          'ficha', json_build_object('id', f.id, 'titulo', f.titulo))
+                          ORDER BY p.numero NULLS LAST, p.created_at) AS procesos
                  FROM proceso p JOIN ficha f ON f.id = p.ficha_id
                  WHERE p.cliente_id = c.id) j ON true
-               WHERE c.user_id = %s ORDER BY c.created_at DESC""",
-            (user["id"],)).fetchall()
+               ORDER BY c.created_at DESC""").fetchall()
 
 
 @app.post("/api/clientes", status_code=201)
@@ -825,14 +837,12 @@ def crear_cliente(body: dict = Body(...), user: dict = Depends(current_user)) ->
     if not (body.get("nombre") or "").strip():
         raise HTTPException(422, "El nombre es obligatorio")
     with POOL.connection() as conn:
-        return _insert(conn, "cliente", body,
-                       ("nombre", "contacto", "empresa", "requerimientos", "notas"), user["id"])
+        return _insert(conn, "cliente", body, CLIENTE_COLS, user["id"])
 
 
 @app.patch("/api/clientes/{cid}")
 def editar_cliente(cid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    return _patch("cliente", cid, body,
-                  ("nombre", "contacto", "empresa", "requerimientos", "notas"), user)
+    return _patch("cliente", cid, body, CLIENTE_COLS, user)
 
 
 @app.delete("/api/clientes/{cid}", status_code=204)
@@ -841,9 +851,9 @@ def borrar_cliente(cid: str, user: dict = Depends(current_user)) -> None:
 
 
 @app.get("/api/fichas")
-def fichas(listing: str | None = None, user: dict = Depends(current_user)) -> list[dict]:
-    q = "SELECT * FROM ficha WHERE user_id = %s"
-    p = [user["id"]]
+def fichas(listing: str | None = None, _: dict = Depends(current_user)) -> list[dict]:
+    q = "SELECT * FROM ficha WHERE true"
+    p = []
     if listing:
         q += " AND source_listing_id = %s"
         p.append(listing)
@@ -855,16 +865,14 @@ def fichas(listing: str | None = None, user: dict = Depends(current_user)) -> li
 def crear_ficha(body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
     with POOL.connection() as conn:
         # Una ficha por listing y por asesor: volver a crearla devuelve la existente.
-        return _insert(conn, "ficha", body,
-                       ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2",
-                        "fotos", "notas"), user["id"],
+        return _insert(conn, "ficha", body, FICHA_COLS, user["id"],
                        extra="ON CONFLICT (user_id, source_listing_id) "
                              "DO UPDATE SET updated_at = now()")
 
 
 @app.patch("/api/fichas/{fid}")
 def editar_ficha(fid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    return _patch("ficha", fid, body, ("titulo", "precio", "moneda", "tamano_m2", "fotos", "notas"), user)
+    return _patch("ficha", fid, body, FICHA_COLS[1:], user)
 
 
 @app.delete("/api/fichas/{fid}", status_code=204)
@@ -873,10 +881,10 @@ def borrar_ficha(fid: str, user: dict = Depends(current_user)) -> None:
 
 
 @app.get("/api/procesos")
-def procesos(ficha_id: str | None = None, user: dict = Depends(current_user)) -> list[dict]:
+def procesos(ficha_id: str | None = None, _: dict = Depends(current_user)) -> list[dict]:
     q = ("SELECT p.*, c.nombre AS cliente_nombre FROM proceso p "
-         "JOIN cliente c ON c.id = p.cliente_id WHERE p.user_id = %s")
-    p_ = [user["id"]]
+         "JOIN cliente c ON c.id = p.cliente_id WHERE true")
+    p_ = []
     if ficha_id:
         q += " AND p.ficha_id = %s"
         p_.append(ficha_id)
@@ -887,19 +895,21 @@ def procesos(ficha_id: str | None = None, user: dict = Depends(current_user)) ->
 @app.post("/api/procesos", status_code=201)
 def crear_proceso(body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
     with POOL.connection() as conn:
-        # Verificar la propiedad de ambos lados evita colgar una ficha ajena a tu cliente.
-        _owned(conn, "cliente", body.get("cliente_id"), user["id"])
-        _owned(conn, "ficha", body.get("ficha_id"), user["id"])
+        # Que existan los dos lados: un 404 claro en vez de un error de llave foránea.
+        _owned(conn, "cliente", body.get("cliente_id"))
+        _owned(conn, "ficha", body.get("ficha_id"))
         try:
             return _insert(conn, "proceso", body,
-                           ("cliente_id", "ficha_id", "status", "notas"), user["id"])
+                           ("cliente_id", "ficha_id", *PROCESO_COLS), user["id"])
+        except psycopg_errors.CheckViolation:
+            raise HTTPException(422, "Esa etapa no existe")
         except psycopg_errors.UniqueViolation:
             raise HTTPException(409, "Ese cliente ya está en seguimiento de esta ficha")
 
 
 @app.patch("/api/procesos/{pid}")
 def editar_proceso(pid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    return _patch("proceso", pid, body, ("status", "notas"), user)
+    return _patch("proceso", pid, body, PROCESO_COLS, user)
 
 
 @app.delete("/api/procesos/{pid}", status_code=204)
@@ -908,11 +918,11 @@ def borrar_proceso(pid: str, user: dict = Depends(current_user)) -> None:
 
 
 @app.get("/api/documentos")
-def documentos(ficha_id: str, user: dict = Depends(current_user)) -> list[dict]:
+def documentos(ficha_id: str, _: dict = Depends(current_user)) -> list[dict]:
     with POOL.connection() as conn:
         return conn.execute(
-            "SELECT * FROM ficha_documento WHERE user_id = %s AND ficha_id = %s ORDER BY created_at",
-            (user["id"], ficha_id)).fetchall()
+            "SELECT * FROM ficha_documento WHERE ficha_id = %s ORDER BY created_at",
+            (ficha_id,)).fetchall()
 
 
 @app.post("/api/documentos", status_code=201)
@@ -920,7 +930,7 @@ def crear_documento(body: dict = Body(...), user: dict = Depends(current_user)) 
     if not (body.get("label") or "").strip():
         raise HTTPException(422, "El nombre del documento es obligatorio")
     with POOL.connection() as conn:
-        _owned(conn, "ficha", body.get("ficha_id"), user["id"])
+        _owned(conn, "ficha", body.get("ficha_id"))
         return _insert(conn, "ficha_documento", dict(body, label=body["label"].strip()),
                        ("ficha_id", "label", "done"), user["id"])
 
@@ -948,7 +958,9 @@ def _insert(conn, tabla: str, body: dict, permitidos: tuple, user_id, extra: str
 
 def _patch(tabla: str, id_: str, body: dict, permitidos: tuple, user: dict) -> dict:
     """UPDATE parcial. La lista blanca de columnas es lo que impide que el cliente
-    escriba user_id o id mandando campos de más."""
+    escriba user_id o id mandando campos de más. Sin filtro por usuario: el CRM es del
+    equipo (ver arriba); `user` queda en la firma porque la sesión sigue siendo
+    obligatoria."""
     campos = {k: v for k, v in body.items() if k in permitidos}
     if not campos:
         raise HTTPException(422, f"nada que actualizar; permitidos: {', '.join(permitidos)}")
@@ -956,19 +968,53 @@ def _patch(tabla: str, id_: str, body: dict, permitidos: tuple, user: dict) -> d
     if tabla != "ficha_documento":       # esta tabla no tiene updated_at
         sets += ", updated_at = now()"
     with POOL.connection() as conn:
-        row = conn.execute(
-            f"UPDATE {tabla} SET {sets} WHERE id = %s AND user_id = %s RETURNING *",
-            [*campos.values(), id_, user["id"]]).fetchone()
+        try:
+            row = conn.execute(
+                f"UPDATE {tabla} SET {sets} WHERE id = %s RETURNING *",
+                [*campos.values(), id_]).fetchone()
+        except psycopg_errors.InvalidTextRepresentation:
+            raise HTTPException(404, "No existe") from None
+        except psycopg_errors.CheckViolation:
+            raise HTTPException(422, "Valor no permitido") from None
+        except psycopg_errors.ForeignKeyViolation:
+            raise HTTPException(422, "Esa persona no existe") from None
     if not row:
-        raise HTTPException(404, "No existe o no es tuyo")
+        raise HTTPException(404, "No existe")
     return row
 
 
 def _delete(tabla: str, id_: str, user: dict) -> None:
     with POOL.connection() as conn:
-        if not conn.execute(f"DELETE FROM {tabla} WHERE id = %s AND user_id = %s",
-                            (id_, user["id"])).rowcount:
-            raise HTTPException(404, "No existe o no es tuyo")
+        try:
+            n = conn.execute(f"DELETE FROM {tabla} WHERE id = %s", (id_,)).rowcount
+        except psycopg_errors.InvalidTextRepresentation:
+            n = 0
+        if not n:
+            raise HTTPException(404, "No existe")
+
+
+# ─────────────────────────────────────────────────────────────────── pipeline
+# Una fila por proceso (cliente × propiedad) con lo que la tarjeta necesita de los dos
+# lados. Son cientos de filas, no el inventario: cabe completo en el navegador.
+
+@app.get("/api/pipeline")
+def pipeline(_: dict = Depends(current_user)) -> list[dict]:
+    with POOL.connection() as conn:
+        return conn.execute(
+            """SELECT p.id, p.status, p.notas, p.junta, p.numero, p.marca,
+                      p.trae, p.trae_id, t.nombre AS trae_nombre,
+                      p.created_at, p.updated_at,
+                      c.id AS cliente_id, c.nombre AS cliente_nombre,
+                      c.responsable, c.responsable_id, r.nombre AS responsable_nombre,
+                      f.id AS ficha_id, f.titulo, f.tipo, f.municipio, f.mapa_url,
+                      f.tamano_m2, f.precio_m2, f.precio, f.notas AS ficha_notas,
+                      f.source_listing_id
+               FROM proceso p
+               JOIN cliente c ON c.id = p.cliente_id
+               JOIN ficha   f ON f.id = p.ficha_id
+               LEFT JOIN usuario t ON t.id = p.trae_id
+               LEFT JOIN usuario r ON r.id = c.responsable_id
+               ORDER BY c.nombre, p.numero NULLS LAST, p.created_at""").fetchall()
 
 
 # ────────────────────────────────────────────────────────────────────── tareas
@@ -979,15 +1025,19 @@ def _delete(tabla: str, id_: str, user: dict) -> None:
 # Registrado en SECURITY.md §5 para que no parezca un descuido del filtro.
 
 TAREA_COLS = ("titulo", "tipo", "prioridad", "columna", "asignado_a",
-              "listing_id", "cliente_id", "descripcion", "vence_el", "adjuntos")
+              "listing_id", "cliente_id", "proceso_id", "descripcion", "vence_el", "adjuntos")
 
 TAREA_SELECT = """
   SELECT t.*, u.nombre AS asignado_nombre, u.email AS asignado_email,
-         c.nombre AS cliente_nombre, l.title AS listing_titulo
+         c.nombre AS cliente_nombre, l.title AS listing_titulo,
+         pf.titulo AS proceso_titulo, pc.nombre AS proceso_cliente, pr.status AS proceso_status
   FROM tarea t
   LEFT JOIN usuario u ON u.id = t.asignado_a
   LEFT JOIN cliente c ON c.id = t.cliente_id
   LEFT JOIN listings l ON l.source || ':' || l.listing_id = t.listing_id
+  LEFT JOIN proceso pr ON pr.id = t.proceso_id
+  LEFT JOIN ficha   pf ON pf.id = pr.ficha_id
+  LEFT JOIN cliente pc ON pc.id = pr.cliente_id
 """
 
 
@@ -1020,7 +1070,10 @@ def crear_tarea(body: dict = Body(...), user: dict = Depends(current_user)) -> d
     if not (body.get("titulo") or "").strip():
         raise HTTPException(422, "El título es obligatorio")
     with POOL.connection() as conn:
-        fila = _insert(conn, "tarea", body, TAREA_COLS, user["id"])
+        try:
+            fila = _insert(conn, "tarea", body, TAREA_COLS, user["id"])
+        except (psycopg_errors.ForeignKeyViolation, psycopg_errors.InvalidTextRepresentation):
+            raise HTTPException(422, "La persona, el cliente o el proceso no existen") from None
         return conn.execute(TAREA_SELECT + " WHERE t.id = %s", (fila["id"],)).fetchone()
 
 
@@ -1032,8 +1085,11 @@ def editar_tarea(tid: str, body: dict = Body(...), _: dict = Depends(current_use
     sets = ", ".join(f"{k} = %s" for k in campos) + ", updated_at = now()"
     with POOL.connection() as conn:
         # Sin `AND user_id = %s`: el tablero es del equipo, no de quien la creó.
-        fila = conn.execute(f"UPDATE tarea SET {sets} WHERE id = %s RETURNING id",
-                            [*campos.values(), tid]).fetchone()
+        try:
+            fila = conn.execute(f"UPDATE tarea SET {sets} WHERE id = %s RETURNING id",
+                                [*campos.values(), tid]).fetchone()
+        except (psycopg_errors.ForeignKeyViolation, psycopg_errors.InvalidTextRepresentation):
+            raise HTTPException(422, "La persona, el cliente o el proceso no existen") from None
         if not fila:
             raise HTTPException(404, "No existe esa tarea")
         return conn.execute(TAREA_SELECT + " WHERE t.id = %s", (tid,)).fetchone()

@@ -26,8 +26,7 @@ let procesos   = [];   // procesos de ESTA ficha, con cliente embebido
 let documentos = [];   // documentos de la propiedad (predial, planos…), colgados de la ficha
 let currentUser = null;
 
-const PROC_STATUS = ['presentado', 'aprobado', 'rechazado'];
-const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+// Las etapas de un proceso vienen de etapas.js, compartido con tareas y clientes.
 
 function parseLocation(loc) {
   if (loc == null) return null;
@@ -163,10 +162,9 @@ function seguimientoHtml() {
   const enSeguimiento = new Set(procesos.map(p => p.cliente_id));
   const disponibles = clientes.filter(c => !enSeguimiento.has(c.id));
   const rows = procesos.map(p => {
-    const opts = PROC_STATUS.map(s => `<option value="${s}"${s === p.status ? ' selected' : ''}>${cap(s)}</option>`).join('');
     return `<div class="proc-row" data-proc="${p.id}">
       <span class="proc-ficha">${esc(p.cliente?.nombre ?? '(cliente)')}</span>
-      <select class="proc-status status-${p.status}" data-proc="${p.id}">${opts}</select>
+      <select class="proc-status e-${esc(p.status)}" data-proc="${p.id}">${etapaOpciones(p.status)}</select>
       <button class="proc-del" data-proc="${p.id}" title="Quitar del seguimiento">&times;</button>
     </div>`;
   }).join('');
@@ -498,7 +496,7 @@ function conectarEventos() {
   document.querySelectorAll('.proc-status').forEach(sel =>
     sel.addEventListener('change', e => {
       setProcesoStatus(e.target.dataset.proc, e.target.value);
-      e.target.className = 'proc-status status-' + e.target.value;
+      e.target.className = 'proc-status e-' + e.target.value;
     }));
   document.querySelectorAll('.proc-del').forEach(btn =>
     btn.addEventListener('click', e => removeProceso(e.currentTarget.dataset.proc)));

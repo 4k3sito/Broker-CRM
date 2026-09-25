@@ -1,6 +1,6 @@
 # Pendientes
 
-Estado al **2026-09-22**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-09-25**. Es una foto, no la verdad: verifica antes de actuar.
 Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
@@ -121,21 +121,53 @@ Dos cosas medidas que conviene no perder de vista:
   a los 52,000 anuncios. Ahora se baja mucho menos cuerpo, así que probablemente mejoró,
   pero nadie lo comprobó. Vale la pena un `ps -o rss=` a media corrida del sábado.
 
+## Pipeline comercial — en `desarrollo` y en el esquema `dev`, **sin desplegar**
+
+El Google Sheet "PIPELINES PROREALTOR" (una pestaña por cliente, una fila por propiedad
+ofrecida) pasó al CRM el 2026-09-25, **sólo en la copia de trabajo**. Pestaña → `cliente`,
+propiedad → `ficha` (una sola aunque esté en varias pestañas), fila → `proceso`. La vista
+**Pipeline** de `tareas.html` (`tareas.html#pipeline`) lo muestra en columnas por etapa.
+Una tarea puede ligarse a un proceso (`tarea.proceso_id`): la tarea abre su tarjeta del
+pipeline, y la tarjeta lista sus tareas y cuenta las abiertas.
+Importado en `dev`: 163 filas del sheet → 9 clientes nuevos (uno se juntó con el que ya
+existía), 122 fichas, 163 procesos. Producción no se tocó: `public.proceso` sigue en 4.
+
+Lo que falta para producción, en este orden:
+
+1. **Decidir el corte con el equipo.** El sheet se sigue editando (entre la primera
+   lectura y la importación le entraron 3 filas). `importar_pipeline.py` **sólo agrega**:
+   se salta los procesos que ya existen, así que no sincroniza cambios de etapa. Hay que
+   importar el día que el equipo deja de usar el sheet, no antes.
+2. Desplegar el código (`git pull` + `docker compose up -d --build api`) y aplicar el
+   bloque "pipeline comercial" de `vps/schema.sql` a `public` (ver CLAUDE.md, el bind
+   mount de archivo). **Código y esquema van juntos**: la API nueva escribe columnas que
+   el esquema viejo no tiene, y el esquema nuevo cambia `ON DELETE` a `SET NULL`.
+3. `python vps/importar_pipeline.py --esquema public --produccion` (con `vps/.env`
+   cargado; `--dry` antes). Necesita `vps/pipeline.local.json` —ID del sheet, pestañas,
+   correos—, que **no está en git** porque el repo es público: existe sólo en
+   `/srv/officelab-dev/vps/`; pásalo con `--config` o cópialo.
+4. **Hay un cliente duplicado** en producción (mismo nombre, dos asesores). El importador usa el
+   más antiguo y avisa; el otro queda vacío y hay que borrarlo o fusionarlo a mano.
+5. Cuando los asesores que hoy sólo están como texto tengan cuenta:
+   `SELECT vincular_asesor('<nombre en el sheet>', '<uuid>');` por persona. Un valor
+   compuesto ("A/B") se queda en texto.
+
+Hay datos del sheet que están mal y se importaron tal cual (links de Maps copiados de
+otra fila, e hipervínculos "Ver Ubicación" que salen sin URL en la exportación): la
+lista se le pasó al equipo el 2026-09-25 para corregirlos en el sheet antes del corte, y
+no se escribe aquí porque el repo es público.
+
 ## `web/tareas.html` — crítica del 2026-09-20, 11/40
 
 Reporte completo en `.impeccable/critique/2026-09-20T18-48-55Z__web-tareas-html.md`
-(no versionado). **Nada de esto está arreglado**, revisado uno por uno el 2026-09-21:
-`.tk-side` sigue con 7 reglas en `hermes.css` y 0 usos en `tareas.js`; `#searchInput`
-existe en `tareas.html:36` y `tareas.js` no lo nombra ni una vez, así que no hay
-listener; `tareas.js:317` sigue pintando `${p.hechas ?? 0}`.
+(no versionado). Los tres P0 y el contraste del avatar se cerraron el 2026-09-25 con el
+pipeline (rama `desarrollo`, sin desplegar): el panel ya tiene estilos de formulario, en
+el teléfono abrir una tarjeta lleva al panel, el buscador filtra, y `.tk-ava` usa
+`--on-accent`. Queda:
 
 | Sev | Qué | Dónde |
 |---|---|---|
-| P0 | El panel de detalle no tiene estilos: las reglas de formulario apuntan a `.tk-side`, con cero usos en el marcado. El panel real usa `.tk-aside`. Widgets nativos, con `border-radius` en los `<select>` contra la regla dura de `DESIGN.md` §4. | `hermes.css:1124+` |
-| P0 | En el teléfono, tocar una tarjeta no da señal: el panel abre ~718 px bajo el pliegue. **Lo introdujo el `adapt` del 2026-09-20** al apilar el panel debajo del tablero. | `tareas.js`, `abrirTarea()` |
-| P0 | El buscador de la topbar no está conectado: `#searchInput` existe, `q` se declara y `visibles()` la lee, pero no hay ningún listener. El patrón correcto está en `app.js:530`. | `tareas.js` |
-| P1 | El tablero es inalcanzable con el teclado: `article.tk` no tiene `tabindex` ni `role`, así que el panel y sus 24 controles no se alcanzan sin ratón. `#searchInput` tiene `outline:none` sin reemplazo. | `tareas.js`, `tarjeta()` |
-| P1 | En oscuro las iniciales del avatar dan 1.34:1. `.tk-ava` usa `color:var(--paper)` sobre `--tono-N`. Con `var(--on-accent)` sube a 11.17:1. Es la trampa que `DESIGN.md` §2 escribe en negritas. | `hermes.css:1075` |
+| P1 | Las tarjetas de **tarea** siguen sin teclado: `article.tk` no tiene `tabindex` ni `role` (las del pipeline sí). `#searchInput` tiene `outline:none` sin reemplazo. | `tareas.js`, `tarjeta()` |
 | P1 | `0 HECHAS` es un dato falso permanente: `/api/equipo` devuelve `abiertas` y nunca `hechas`, y el front pinta `${p.hechas ?? 0}`. Aparte, `listing_titulo` y `cliente_nombre` salen de la API y el front los tira: la tarjeta muestra `EB-UK8480` en vez del nombre del inmueble. | `api/main.py:871,885` · `tareas.js:317` |
 | P2 | Objetivos táctiles: el bloque `@media (pointer: coarse)` sólo cubre la topbar. `.pill-line` 30 px, `.tk-check input` 15×15, el botón de cerrar el panel 7×17. | final de `hermes.css` |
 | P2 | `--faint` da 4.41:1 sobre `--surface` (pasa 4.59:1 sólo sobre `--bg`). `.51` pasa en los dos. | `hermes.css` `:root` |

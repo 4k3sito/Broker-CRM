@@ -92,13 +92,30 @@ cd /srv/officelab-dev && API=http://127.0.0.1:8001 npm run dev
 ```
 
 Esa API se construye desde el `api/` de la copia y usa la **misma base de datos** que
-producción: levantar un duplicado de 1.1 GB para probar un filtro no tiene sentido. Se
-apaga con `docker compose -p officelab-dev -f docker-compose.dev.yml down`.
+producción —levantar un duplicado de 1.1 GB para probar un filtro no tiene sentido—, pero
+con `search_path=dev,public`: **desde el 2026-09-25 las tablas del CRM de la API de dev
+salen del esquema `dev`**, una copia de las de producción (usuarios, sesiones, clientes,
+fichas, procesos, tareas, estado de anuncios), y el inventario se sigue leyendo de
+`public`. Lo que se crea o se mueve en dev ya no lo ven los asesores. Se apaga con
+`docker compose -p officelab-dev -f docker-compose.dev.yml down`.
 
-Aísla el diseño, **no los datos**: el `/api` del previsualizador va al VPS real, así que
-cambiar el estado de un anuncio desde ahí lo cambia para todos. Y el previsualizador
-escucha en todas las interfaces sobre un host sin firewall (H1 en `SECURITY.md`): mientras
-corre, es visible desde internet. Apágalo al terminar.
+```bash
+# Rehacer `dev` como foto de producción (BORRA lo que hubiera en dev)
+docker exec -i officelab-db-1 psql -U officelab -d officelab -v ON_ERROR_STOP=1 \
+  < /srv/officelab-dev/vps/dev-schema.sql
+# …y aplicarle los bloques que la rama agregó a schema.sql; hoy, el del pipeline:
+(echo "SET search_path = dev, public;"; sed -n '/pipeline comercial (2026-09-25)/,$p' vps/schema.sql) \
+  | docker exec -i officelab-db-1 psql -U officelab -d officelab -v ON_ERROR_STOP=1
+```
+
+**Nunca `schema.sql` completo con `search_path=dev`**: su `CREATE TABLE IF NOT EXISTS
+listings` crearía un `dev.listings` vacío que taparía el inventario. Y si el esquema `dev`
+no existe, la API de dev cae a `public` sin avisar.
+
+Sin `API=…`, el previsualizador sigue yendo a la API de **producción**: ahí sí, cambiar el
+estado de un anuncio lo cambia para todos. Y escucha en todas las interfaces sobre un host
+sin firewall (H1 en `SECURITY.md`): mientras corre, es visible desde internet. Apágalo al
+terminar.
 
 ### Scrapers
 

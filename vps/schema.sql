@@ -615,3 +615,82 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ─────────────────────────────────────────────── pipeline comercial (2026-09-25)
+--
+-- El pipeline que el equipo llevaba en Google Sheets ("PIPELINES PROREALTOR": una
+-- pestaña por cliente, una fila por propiedad ofrecida) vive ahora en el CRM con el
+-- modelo que ya existía: la pestaña es un `cliente`, la propiedad es una `ficha` y la
+-- fila es el `proceso` que los cruza. Una propiedad ofrecida a cuatro clientes es UNA
+-- ficha con cuatro procesos, no cuatro filas que hay que actualizar a mano.
+--
+-- Las fichas del sheet no salen de un portal: `source_listing_id` queda NULL.
+--
+-- "Quién lo trae" y "responsable de la cuenta" se guardan como TEXTO (`trae`,
+-- `responsable`) porque la mayoría del equipo todavía no tiene cuenta, más una
+-- referencia opcional a `usuario` (`trae_id`, `responsable_id`) que se llena cuando la
+-- tenga. `vincular_asesor()` hace ese enlace de una vez.
+--
+-- Este bloque es aditivo y se puede correr dos veces. Para aplicarlo a la copia de
+-- trabajo sin tocar producción, ver README.md, "Copia de trabajo".
+
+ALTER TABLE cliente ADD COLUMN IF NOT EXISTS responsable    text;
+ALTER TABLE cliente ADD COLUMN IF NOT EXISTS responsable_id uuid REFERENCES usuario (id) ON DELETE SET NULL;
+
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS tipo      text;      -- Terreno, Local, Bodega…
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS municipio text;
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS mapa_url  text;
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS precio_m2 numeric;   -- `precio` es el monto de salida
+
+ALTER TABLE proceso ADD COLUMN IF NOT EXISTS junta   text;      -- 1ra, 2da… la junta en que se presenta
+ALTER TABLE proceso ADD COLUMN IF NOT EXISTS numero  integer;   -- el N° de la fila en el sheet
+ALTER TABLE proceso ADD COLUMN IF NOT EXISTS marca   text;      -- la marca del cliente a la que va, cuando tiene varias
+ALTER TABLE proceso ADD COLUMN IF NOT EXISTS trae    text;
+ALTER TABLE proceso ADD COLUMN IF NOT EXISTS trae_id uuid REFERENCES usuario (id) ON DELETE SET NULL;
+
+-- Las etapas del pipeline. `presentado`, `aprobado` y `rechazado` conservan su llave
+-- para que los procesos que ya existían no cambien de significado; `pausa` y
+-- `rechazado` son laterales, no pasos del avance.
+ALTER TABLE proceso DROP CONSTRAINT IF EXISTS proceso_status_check;
+ALTER TABLE proceso ADD CONSTRAINT proceso_status_check CHECK (status IN
+  ('prospecto','por_presentar','presentado','aprobado','negociacion','cerrado','pausa','rechazado'));
+
+-- El CRM pasa a ser del equipo (clientes, fichas, procesos y documentos; ver
+-- SECURITY.md §5). Eso cambia qué significa borrar a un asesor: antes `deluser` se
+-- llevaba en cascada todo lo que había creado, y con datos compartidos eso borraría el
+-- pipeline de todos. Ahora `user_id` sólo dice quién lo creó, y al borrar la cuenta
+-- queda en NULL. `user_listing` NO cambia: el estado de un anuncio sí es de cada quien.
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['cliente','ficha','proceso','ficha_documento'] LOOP
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN user_id DROP NOT NULL', t);
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I', t, t || '_user_id_fkey');
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I', t, t || '_user_fk');
+    EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (user_id)
+                    REFERENCES usuario (id) ON DELETE SET NULL', t, t || '_user_fk');
+  END LOOP;
+END $$;
+
+-- Enlaza el texto de "quién lo trae" / "responsable" con la cuenta de esa persona,
+-- el día que la tenga:  SELECT vincular_asesor('<nombre>', '<uuid de su usuario>');
+-- Sólo toca filas sin enlace y compara sin mayúsculas. Un valor compuesto como
+-- compuesto como 'A/B' no se enlaza: se queda como texto.
+CREATE OR REPLACE FUNCTION vincular_asesor(nombre_en_texto text, uid uuid) RETURNS integer AS $$
+DECLARE n integer; m integer;
+BEGIN
+  UPDATE proceso SET trae_id = uid
+   WHERE trae_id IS NULL AND lower(btrim(trae)) = lower(btrim(nombre_en_texto));
+  GET DIAGNOSTICS n = ROW_COUNT;
+  UPDATE cliente SET responsable_id = uid
+   WHERE responsable_id IS NULL AND lower(btrim(responsable)) = lower(btrim(nombre_en_texto));
+  GET DIAGNOSTICS m = ROW_COUNT;
+  RETURN n + m;
+END $$ LANGUAGE plpgsql;
+
+-- Una tarea puede colgar de un proceso del pipeline (cliente × propiedad): "agendar
+-- el QHSE de tal terreno para tal cliente" es trabajo de ESE proceso, no sólo del cliente. Con la liga,
+-- la tarea abre su tarjeta del pipeline y la tarjeta lista sus tareas. Si el proceso se
+-- borra, la tarea se queda (sigue siendo trabajo que alguien hizo o tiene que hacer).
+ALTER TABLE tarea ADD COLUMN IF NOT EXISTS proceso_id uuid REFERENCES proceso (id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS tarea_proceso_idx ON tarea (proceso_id);

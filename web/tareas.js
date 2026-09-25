@@ -102,7 +102,10 @@ function prefijar(ta, marca) {
 
 // ── Datos ────────────────────────────────────────────────────────────────────
 async function cargar() {
-  [tareas, equipo] = await Promise.all([API.get('/tareas'), API.get('/equipo')]);
+  // El pipeline también: el panel de una tarea ofrece ligarla a un proceso, y son
+  // unos cientos de filas.
+  [tareas, equipo] = await Promise.all([API.get('/tareas'), API.get('/equipo'),
+    cargarPipeline().catch(err => console.warn('Carga del pipeline falló:', err.message))]);
   render();
 }
 
@@ -132,6 +135,7 @@ function visibles() {
 async function abrirTarea(id) {
   abierta = id; coments = []; previo = false;
   render();
+  mostrarPanel();
   coments = await API.get(`/tareas/${id}/comentarios`).catch(() => []);
   renderPanel();
 }
@@ -163,7 +167,8 @@ function tarjeta(t) {
       <span class="tk-tipo">${esc(t.tipo ?? 'Tarea')}</span>
     </div>
     <div class="tk-titulo">${esc(t.titulo)}</div>
-    ${t.listing_id || t.cliente_nombre || t.vence_el ? `<div class="tk-meta">
+    ${t.proceso_titulo || t.listing_id || t.cliente_nombre || t.vence_el ? `<div class="tk-meta">
+      ${t.proceso_titulo ? `<span class="tk-cod" title="Propiedad del pipeline">${ICON_COD}${esc(t.proceso_titulo)}</span>` : ''}
       ${t.listing_id ? `<span class="tk-cod">${ICON_COD}${esc(t.listing_id)}</span>` : ''}
       ${t.cliente_nombre ? `<span class="tk-cod">${esc(t.cliente_nombre)}</span>` : ''}
       ${t.vence_el ? `<span class="tk-vence${tarde ? ' tarde' : ''}">${esc(t.vence_el)}</span>` : ''}
@@ -302,7 +307,8 @@ function renderDirectorio() {
 // abierta; cuando la hay, `renderPanel` lo reemplaza por el detalle.
 function renderEquipoAside() {
   const aside = document.getElementById('aside');
-  if (abierta) return;                       // el detalle manda sobre el resumen
+  if (abierta || abiertoProc) return;        // el detalle manda sobre el resumen
+  if (vista === 'pipeline') return renderPipeAside();
   aside.innerHTML = `
     <div class="tk-aside-head">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
@@ -347,7 +353,23 @@ function panelCamposHtml(t, nueva) {
     </div>
     <div><label for="f-asg">Asignada a</label>
       <select id="f-asg"><option value="">Sin asignar</option>${opciones(equipo, t.asignado_a, p => p.id, p => `${esc(p.nombre ?? p.email)}${p.rol ? ' — ' + esc(p.rol) : ''}`)}</select></div>
-    <div><label for="f-listing">Inmueble (source:id)</label><input id="f-listing" value="${esc(t.listing_id ?? '')}" placeholder="pincali:EB-7741"></div>`;
+    <div><label for="f-listing">Inmueble (source:id)</label><input id="f-listing" value="${esc(t.listing_id ?? '')}" placeholder="pincali:EB-7741"></div>
+    ${panelProcesoHtml(t)}`;
+}
+
+// La liga con el pipeline: a qué proceso (cliente × propiedad) pertenece la tarea.
+// Se ofrecen los procesos activos agrupados por cliente, más el que ya tenga aunque
+// esté descartado, para no soltarlo sin querer al guardar.
+function panelProcesoHtml(t) {
+  if (!pipe) return '';
+  const porCliente = {};
+  pipe.filter(p => etapaActiva(p.status) || p.id === t.proceso_id)
+      .forEach(p => (porCliente[p.cliente_nombre] ||= []).push(p));
+  return `<div><label for="f-proc">Propiedad del pipeline</label>
+    <select id="f-proc"><option value="">Sin ligar</option>${Object.entries(porCliente).map(([c, ps]) =>
+      `<optgroup label="${esc(c)}">${ps.map(p =>
+        `<option value="${esc(p.id)}"${p.id === t.proceso_id ? ' selected' : ''}>${esc(p.titulo)} · ${esc(etapaLabel(p.status))}</option>`).join('')}</optgroup>`).join('')}</select>
+    ${t.proceso_id ? '<button class="pp-abrir" id="tkAbrirProc">Abrir en el pipeline →</button>' : ''}</div>`;
 }
 
 function panelChecklistHtml(chk) {
@@ -402,7 +424,16 @@ function panelComentariosHtml() {
 function conectarPanel(t, nueva) {
   const side = document.getElementById('aside');
   const val = id => document.getElementById(id).value.trim();
+  // Ligar a un proceso liga también a su cliente. Sin el <select> (el pipeline no
+  // cargó) no se manda nada: mandar null soltaría la liga que ya tuviera.
+  const liga = () => {
+    const sel = document.getElementById('f-proc');
+    if (!sel) return {};
+    const p = pipe.find(x => x.id === sel.value);
+    return p ? { proceso_id: p.id, cliente_id: p.cliente_id } : { proceso_id: null };
+  };
   const cuerpo = () => ({
+    ...liga(),
     titulo: val('f-titulo'), tipo: val('f-tipo'), prioridad: val('f-prio'),
     columna: val('f-col'), asignado_a: val('f-asg') || null,
     listing_id: val('f-listing') || null, descripcion: document.getElementById('f-desc').value,
@@ -411,6 +442,11 @@ function conectarPanel(t, nueva) {
   });
 
   document.getElementById('tkClose').addEventListener('click', () => { abierta = null; renderPanel(); });
+  document.getElementById('tkAbrirProc')?.addEventListener('click', () => {
+    vista = 'pipeline';
+    abrirProc(t.proceso_id);
+    render();
+  });
   document.getElementById('tkSave').addEventListener('click', async () => {
     const body = cuerpo();
     if (!body.titulo) return alert('El título es obligatorio.');
@@ -462,6 +498,7 @@ function conectarPanel(t, nueva) {
 
 function renderPanel() {
   const side = document.getElementById('aside');
+  if (abiertoProc) return renderProcPanel();
   if (!abierta) return renderEquipoAside();
 
   const nueva = abierta === 'nueva';
@@ -491,18 +528,347 @@ function renderPanel() {
   conectarPanel(t, nueva);
 }
 
+// ── Pipeline comercial ───────────────────────────────────────────────────────
+// Los procesos del CRM (cliente × propiedad) en columnas por etapa: el Google Sheet
+// "PIPELINES PROREALTOR" del equipo, ahora con memoria. Una propiedad ofrecida a
+// cuatro clientes es una sola ficha, así que corregir sus m² aquí los corrige en las
+// cuatro tarjetas. Son cientos de filas, no el inventario: se cargan completas una
+// vez, al abrir la vista, y se vuelven a pedir después de cada guardado.
+let pipe = null, clientesLista = [], cargandoPipe = false;
+let pipeCliente = '', pipeTrae = '', laterales = false;
+let abiertoProc = null;          // id del proceso en el panel, o 'nuevo'
+
+const mxn = n => '$' + Math.round(Number(n)).toLocaleString('es-MX');
+const mxnCorto = n => n >= 1e6 ? '$' + (n / 1e6).toLocaleString('es-MX', { maximumFractionDigits: 1 }) + ' M'
+                    : n >= 1e3 ? '$' + Math.round(n / 1e3).toLocaleString('es-MX') + ' k' : mxn(n);
+const cifra = n => Number(n).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+const hay = v => v !== null && v !== undefined && v !== '';
+// "Quién lo trae" es texto mientras la persona no tenga cuenta; si ya la tiene, manda
+// su nombre de usuario. Un valor como "A/B" son dos personas.
+const traeNombre = p => p.trae_nombre || p.trae || '';
+const traePersonas = p => traeNombre(p).split('/').map(x => x.trim()).filter(Boolean);
+
+async function cargarPipeline() {
+  [pipe, clientesLista] = await Promise.all([API.get('/pipeline'), API.get('/clientes')]);
+  clientesLista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+function pipeVisibles() {
+  return (pipe ?? []).filter(p => {
+    if (!laterales && !etapaActiva(p.status)) return false;
+    if (pipeCliente && p.cliente_id !== pipeCliente) return false;
+    if (pipeTrae && !traePersonas(p).includes(pipeTrae)) return false;
+    if (q && !norm(`${p.titulo} ${p.cliente_nombre} ${p.municipio ?? ''} ${p.notas ?? ''} ` +
+                   `${p.ficha_notas ?? ''} ${traeNombre(p)} ${p.marca ?? ''}`).includes(norm(q))) return false;
+    return true;
+  });
+}
+
+function tarjetaProc(p, clientesDeLaFicha) {
+  const quien = traeNombre(p);
+  const abiertas = tareas.filter(x => x.proceso_id === p.id && x.columna !== 'completado').length;
+  const marcas = [abiertas ? `${abiertas} ${abiertas === 1 ? 'tarea' : 'tareas'}` : '',
+                  clientesDeLaFicha > 1 ? `+${clientesDeLaFicha - 1} ${clientesDeLaFicha > 2 ? 'clientes' : 'cliente'}` : '']
+                 .filter(Boolean).join(' · ');
+  const cifras = [hay(p.tamano_m2) ? `${cifra(p.tamano_m2)} m²` : '',
+                  hay(p.precio_m2) ? `$${cifra(p.precio_m2)}/m²` : ''].filter(Boolean).join(' · ');
+  const art = document.createElement('article');
+  art.className = `tk pp e-${p.status}${arrastrando === p.id ? ' dragging' : ''}`;
+  art.draggable = true;
+  art.tabIndex = 0;
+  art.setAttribute('role', 'button');
+  art.innerHTML = `
+    <div class="tk-top">
+      <span class="pp-cliente">${esc(p.cliente_nombre)}</span>
+      <span class="tk-tipo">${esc([p.tipo, p.junta ? `${p.junta} junta` : '', p.marca].filter(Boolean).join(' · '))}</span>
+    </div>
+    <div class="tk-titulo">${esc(p.titulo)}</div>
+    ${p.municipio ? `<div class="pp-mun">${esc(p.municipio)}</div>` : ''}
+    ${cifras || hay(p.precio) ? `<div class="pp-cifras"><span class="pp-m2">${esc(cifras)}</span>
+      ${hay(p.precio) ? `<span class="pp-monto">${mxn(p.precio)}</span>` : '<span class="pp-monto pend">Monto por definir</span>'}</div>` : ''}
+    ${p.notas ? `<div class="pp-seg">${esc(p.notas)}</div>` : ''}
+    <div class="tk-sep"></div>
+    <div class="tk-foot">
+      <span class="pp-trae"><span class="tk-ava${quien ? '' : ' sin'}" ${quien ? `style="background:${tono(p.trae_id ?? quien)}"` : ''}>${quien ? esc(iniciales({ nombre: quien.replace('/', ' ') })) : '—'}</span>${esc(quien || 'Sin asignar')}</span>
+      ${marcas ? `<span class="pp-comp" title="Tareas abiertas ligadas · otros clientes con la misma propiedad">${marcas}</span>` : ''}
+    </div>`;
+  art.addEventListener('dragstart', e => {
+    arrastrando = p.id;
+    e.dataTransfer.effectAllowed = 'move';
+    art.classList.add('dragging');
+  });
+  art.addEventListener('dragend', () => { arrastrando = null; render(); });
+  art.addEventListener('click', () => abrirProc(p.id));
+  art.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirProc(p.id); } });
+  return art;
+}
+
+function renderPipeline(lista) {
+  if (!pipe) {
+    const div = document.createElement('div');
+    div.className = 'kb-empty';
+    div.textContent = cargandoPipe ? 'Cargando el pipeline…' : 'No se pudo cargar el pipeline.';
+    return div;
+  }
+  const porFicha = {};
+  pipe.forEach(p => { porFicha[p.ficha_id] = (porFicha[p.ficha_id] ?? 0) + 1; });
+  const kb = document.createElement('div');
+  kb.className = 'kb kb-pipe';
+  for (const e of ETAPAS.filter(e => laterales || !e.lateral)) {
+    const items = lista.filter(p => p.status === e.key);
+    const suma = items.reduce((a, p) => a + (Number(p.precio) || 0), 0);
+    const col = document.createElement('div');
+    col.className = `kb-col e-${e.key}`;
+    col.innerHTML = `<div class="kb-head"><span class="kb-dot"></span><span>${e.label}</span>` +
+      `<span class="kb-n">${items.length}</span>` +
+      (suma ? `<span class="kb-sum" title="Suma del monto de salida">${mxnCorto(suma)}</span>` : '') +
+      `</div><div class="kb-ayuda">${esc(e.ayuda)}</div>`;
+    const cont = document.createElement('div');
+    cont.className = 'kb-list';
+    items.forEach(p => cont.appendChild(tarjetaProc(p, porFicha[p.ficha_id])));
+    if (!items.length) cont.innerHTML = '<div class="kb-empty">Nada en esta etapa</div>';
+    col.appendChild(cont);
+    zonaSoltar(col, id => {
+      const p = pipe.find(x => x.id === id);
+      if (p && p.status !== e.key) guardarProc(p, { status: e.key }, {});
+    });
+    kb.appendChild(col);
+  }
+  return kb;
+}
+
+function renderPipeFiltros() {
+  const cuenta = {};
+  (pipe ?? []).filter(p => etapaActiva(p.status)).forEach(p => { cuenta[p.cliente_id] = (cuenta[p.cliente_id] ?? 0) + 1; });
+  const personas = [...new Set((pipe ?? []).flatMap(traePersonas))].sort((a, b) => a.localeCompare(b, 'es'));
+  if (pipeTrae && !personas.includes(pipeTrae)) pipeTrae = '';
+  document.getElementById('f-cliente').innerHTML = '<option value="">Todos los clientes</option>' +
+    clientesLista.filter(c => cuenta[c.id] || c.id === pipeCliente || (pipe ?? []).some(p => p.cliente_id === c.id))
+      .map(c => `<option value="${esc(c.id)}"${c.id === pipeCliente ? ' selected' : ''}>${esc(c.nombre)} (${cuenta[c.id] ?? 0})</option>`).join('');
+  document.getElementById('f-trae').innerHTML = '<option value="">Quién lo trae: todos</option>' +
+    personas.map(n => `<option value="${esc(n)}"${n === pipeTrae ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  document.getElementById('f-laterales').checked = laterales;
+}
+
+// Con el pipeline a la vista y nada abierto, el panel derecho resume a los clientes
+// en vez de al equipo: es lo que se filtra desde aquí.
+function renderPipeAside() {
+  const aside = document.getElementById('aside');
+  const filas = clientesLista.map(c => {
+    const suyos = (pipe ?? []).filter(p => p.cliente_id === c.id);
+    return { c, activos: suyos.filter(p => etapaActiva(p.status)).length, total: suyos.length };
+  }).filter(f => f.total).sort((a, b) => b.activos - a.activos);
+  aside.innerHTML = `
+    <div class="tk-aside-head">Clientes
+      ${pipeCliente ? '<button class="tk-todo" id="verTodos">Ver todos</button>' : ''}
+    </div>
+    ${filas.map(({ c, activos, total }) => `
+      <div class="tk-mini" data-cliente="${esc(c.id)}" tabindex="0" role="button">
+        <span class="tk-ava" style="background:${tono(c.id)}">${esc(iniciales({ nombre: c.nombre }))}</span>
+        <span class="tk-mini-n"><strong>${esc(c.nombre)}</strong><small>Cuenta: ${esc(c.responsable_nombre || c.responsable || '—')}</small></span>
+        <span class="tk-mini-k"><b>${activos}</b><span>activas</span></span>
+        <span class="tk-mini-k"><b>${total}</b><span>total</span></span>
+      </div>`).join('') || '<div class="tk-aside-body"><p class="proc-empty">Todavía no hay procesos.</p></div>'}`;
+  aside.querySelector('#verTodos')?.addEventListener('click', () => { pipeCliente = ''; render(); });
+  aside.querySelectorAll('.tk-mini').forEach(el => {
+    const elegir = () => { pipeCliente = el.dataset.cliente; render(); };
+    el.addEventListener('click', elegir);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') elegir(); });
+  });
+}
+
+function abrirProc(id) {
+  abiertoProc = id;
+  abierta = null;
+  renderPanel();
+  document.getElementById('aside').scrollTop = 0;
+  mostrarPanel();
+}
+
+// En el teléfono el panel queda debajo del tablero: sin esto, tocar una tarjeta no
+// daba ninguna señal (el detalle abría ~700 px bajo el pliegue).
+function mostrarPanel() {
+  if (matchMedia('(max-width: 760px)').matches) document.getElementById('aside').scrollIntoView({ block: 'start' });
+}
+
+const PROC_CAMPOS = ['status', 'notas', 'junta', 'trae', 'trae_id'];
+const FICHA_CAMPOS = ['titulo', 'tipo', 'municipio', 'mapa_url', 'tamano_m2', 'precio_m2', 'precio', 'notas'];
+
+// Guarda los dos lados de una tarjeta: lo del proceso y lo de la ficha, que es de
+// todos los clientes que la tienen. Optimista para la etapa (arrastrar no debe
+// parpadear); después vuelve a pedir el pipeline, que es la fuente de verdad.
+async function guardarProc(p, proc, ficha) {
+  const i = pipe.findIndex(x => x.id === p.id);
+  if (i >= 0 && proc.status) { pipe[i] = { ...pipe[i], status: proc.status }; render(); }
+  try {
+    if (Object.keys(proc).length) await API.patch(`/procesos/${p.id}`, proc);
+    if (Object.keys(ficha).length) await API.patch(`/fichas/${p.ficha_id}`, ficha);
+  } catch (err) {
+    alert(err.message);
+  }
+  await cargarPipeline().catch(() => {});
+  render();
+}
+
+function leerProcPanel() {
+  const val = id => document.getElementById(id).value.trim();
+  const num = (id, nombre) => {
+    const v = val(id).replace(/[$,\s]/g, '');
+    if (!v) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) throw new Error(`${nombre} tiene que ser un número.`);
+    return n;
+  };
+  const trae = val('p-trae');
+  const cuenta = equipo.find(e => norm(e.nombre ?? '') === norm(trae));
+  return {
+    proc: { status: val('p-status'), notas: val('p-notas') || null, junta: val('p-junta') || null,
+            trae: trae || null, trae_id: cuenta?.id ?? null },
+    ficha: { titulo: val('p-titulo'), tipo: val('p-tipo') || null, municipio: val('p-mun') || null,
+             mapa_url: val('p-mapa') || null, tamano_m2: num('p-m2', 'M²'),
+             precio_m2: num('p-pm2', 'Precio x m²'), precio: num('p-monto', 'Monto de salida'),
+             notas: val('p-fnotas') || null },
+  };
+}
+
+// Las tareas ligadas a un proceso, abiertas primero.
+function panelTareasDeProc(p) {
+  const suyas = tareas.filter(x => x.proceso_id === p.id)
+    .sort((a, b) => (a.columna === 'completado') - (b.columna === 'completado'));
+  const n = suyas.filter(x => x.columna !== 'completado').length;
+  return `<div class="pp-grupo"><span class="pp-grupo-t">Tareas · ${n} ${n === 1 ? 'abierta' : 'abiertas'}</span>${
+    suyas.length ? `<div>${suyas.map(x =>
+      `<button class="pp-otro" data-tarea="${esc(x.id)}"><span>${esc(x.titulo)}</span>` +
+      `<span class="pp-col">${esc(COLS.find(c => c.key === x.columna)?.label ?? x.columna)}</span></button>`).join('')}</div>`
+    : '<p class="pp-nota">Sin tareas ligadas a esta propiedad y cliente.</p>'}
+    <button class="pp-nueva" id="ppTarea">+ Crear tarea ligada</button></div>`;
+}
+
+function renderProcPanel() {
+  const side = document.getElementById('aside');
+  const nuevo = abiertoProc === 'nuevo';
+  const p = nuevo ? { status: 'prospecto', cliente_id: pipeCliente } : pipe?.find(x => x.id === abiertoProc);
+  if (!p) { abiertoProc = null; return renderPanel(); }
+  const otros = nuevo ? [] : pipe.filter(x => x.ficha_id === p.ficha_id && x.id !== p.id);
+  const personas = [...new Set([...equipo.map(e => e.nombre).filter(Boolean),
+                                ...(pipe ?? []).flatMap(traePersonas)])].sort((a, b) => a.localeCompare(b, 'es'));
+  const campo = (id, label, valor, extra = '') =>
+    `<div><label for="${id}">${label}</label><input id="${id}" value="${esc(valor ?? '')}" ${extra}></div>`;
+
+  side.innerHTML = `
+    <div class="tk-aside-head">
+      ${nuevo ? 'Agregar propiedad al pipeline' : 'Proceso'}
+      <button class="tk-x" id="ppClose" title="Cerrar">&times;</button>
+    </div>
+    <div class="tk-aside-body">
+      ${nuevo
+        ? `<div><label for="p-cliente">Cliente</label><select id="p-cliente"><option value="">Elige un cliente</option>${
+             clientesLista.map(c => `<option value="${esc(c.id)}"${c.id === p.cliente_id ? ' selected' : ''}>${esc(c.nombre)}</option>`).join('')}</select></div>`
+        : `<h2>${esc(p.titulo)}</h2>
+           <div class="pp-sub">${esc([p.cliente_nombre, p.tipo, p.municipio].filter(Boolean).join(' · '))}</div>
+           <span class="pp-etapa e-${esc(p.status)}">${esc(etapaLabel(p.status))}</span>`}
+      <div class="tk-row">
+        <div><label for="p-status">Etapa</label><select id="p-status">${etapaOpciones(p.status)}</select></div>
+        ${campo('p-junta', 'Junta', p.junta, 'placeholder="1ra, 2da…"')}
+      </div>
+      <div><label for="p-trae">Quién lo trae</label>
+        <input id="p-trae" list="p-personas" value="${esc(traeNombre(p))}" placeholder="Nombre">
+        <datalist id="p-personas">${personas.map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+      <div><label for="p-notas">Seguimiento</label>
+        <textarea id="p-notas" class="pp-corto" placeholder="Siguiente paso con este cliente">${esc(p.notas ?? '')}</textarea></div>
+      ${nuevo ? '' : panelTareasDeProc(p)}
+
+      <div class="pp-grupo">
+        <span class="pp-grupo-t">Propiedad</span>
+        ${otros.length ? `<p class="pp-nota">Estos datos son de la propiedad y los comparten ${otros.length + 1} clientes: cambiarlos aquí los cambia en todos.</p>` : ''}
+        ${campo('p-titulo', 'Nombre de referencia', p.titulo, 'placeholder="Plaza O2, Av. Concordia…"')}
+        <div class="tk-row">
+          <div><label for="p-tipo">Tipo</label><input id="p-tipo" list="p-tipos" value="${esc(p.tipo ?? '')}">
+            <datalist id="p-tipos">${['Terreno', 'Local', 'Bodega', 'Estacionamiento', 'Oficina'].map(t => `<option value="${t}">`).join('')}</datalist></div>
+          ${campo('p-mun', 'Municipio', p.municipio)}
+        </div>
+        <div class="tk-row">
+          ${campo('p-m2', 'M²', p.tamano_m2, 'inputmode="decimal"')}
+          ${campo('p-pm2', 'Precio x m²', p.precio_m2, 'inputmode="decimal"')}
+        </div>
+        ${campo('p-monto', 'Monto de salida', p.precio, 'inputmode="decimal" placeholder="Vacío = por definir"')}
+        <div><label for="p-mapa">Ubicación (Google Maps)</label>
+          <input id="p-mapa" value="${esc(p.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…">
+          ${p.mapa_url ? `<a class="pp-mapa" href="${hrefSeguro(p.mapa_url)}" target="_blank" rel="noopener">Abrir en Google Maps ↗</a>` : ''}</div>
+        <div><label for="p-fnotas">Notas de la propiedad</label>
+          <textarea id="p-fnotas" class="pp-corto">${esc(p.ficha_notas ?? '')}</textarea></div>
+      </div>
+
+      <div class="tk-actions">
+        <button class="btn-solid" id="ppSave">${nuevo ? 'Agregar al pipeline' : 'Guardar'}</button>
+      </div>
+      ${otros.length ? `<div class="pp-grupo"><span class="pp-grupo-t">También ofrecida a</span><div>${
+        otros.map(o => `<button class="pp-otro" data-proc="${esc(o.id)}"><span>${esc(o.cliente_nombre)}</span>` +
+                       `<span class="pp-etapa e-${esc(o.status)}">${esc(etapaLabel(o.status))}</span></button>`).join('')}</div></div>` : ''}
+    </div>`;
+
+  document.getElementById('ppClose').addEventListener('click', () => { abiertoProc = null; renderPanel(); });
+  side.querySelectorAll('.pp-otro[data-proc]').forEach(b => b.addEventListener('click', () => abrirProc(b.dataset.proc)));
+  side.querySelectorAll('.pp-otro[data-tarea]').forEach(b => b.addEventListener('click', () => {
+    vista = 'tablero';
+    abiertoProc = null;
+    abrirTarea(b.dataset.tarea);
+  }));
+  document.getElementById('ppSave').addEventListener('click', async () => {
+    let datos;
+    try { datos = leerProcPanel(); } catch (err) { return alert(err.message); }
+    if (!datos.ficha.titulo) return alert('El nombre de referencia es obligatorio.');
+    if (!nuevo) return guardarProc(p, datos.proc, datos.ficha);
+    const cliente_id = document.getElementById('p-cliente').value;
+    if (!cliente_id) return alert('Elige a qué cliente se le ofrece.');
+    try {
+      const ficha = await API.post('/fichas', datos.ficha);
+      const proc = await API.post('/procesos', { ...datos.proc, cliente_id, ficha_id: ficha.id });
+      await cargarPipeline();
+      abiertoProc = proc.id;
+      render();
+    } catch (err) { alert(err.message); }
+  });
+  document.getElementById('ppTarea')?.addEventListener('click', async () => {
+    try {
+      const t = await API.post('/tareas', {
+        titulo: `${p.cliente_nombre}: ${p.titulo}`, tipo: 'Seguimiento', prioridad: 'media',
+        columna: p.trae_id ? 'asignado' : 'pendiente', asignado_a: p.trae_id ?? null,
+        cliente_id: p.cliente_id, proceso_id: p.id, descripcion: p.notas ? `- [ ] ${p.notas}` : '',
+      });
+      tareas.unshift(t);
+      vista = 'tablero';
+      abiertoProc = null;
+      abrirTarea(t.id);
+    } catch (err) { alert(err.message); }
+  });
+}
+
 function render() {
-  const lista = visibles();
+  const esPipe = vista === 'pipeline';
+  if (esPipe && !pipe && !cargandoPipe) {
+    cargandoPipe = true;
+    cargarPipeline().catch(err => console.warn('Carga del pipeline falló:', err.message))
+                    .finally(() => { cargandoPipe = false; render(); });
+  }
+  const lista = esPipe ? pipeVisibles() : visibles();
   document.getElementById('countNum').textContent = lista.length;
-  document.getElementById('countTotal').textContent = tareas.length;
+  document.getElementById('countTotal').textContent = esPipe ? (pipe?.length ?? 0) : tareas.length;
+  document.getElementById('countQue').textContent = esPipe ? 'procesos' : 'tareas';
+  document.getElementById('nueva-txt').textContent = esPipe ? 'Agregar propiedad' : 'Nueva tarea';
+  document.getElementById('prioGroup').hidden = esPipe;
+  document.getElementById('pipeGroup').hidden = !esPipe;
+  if (esPipe) renderPipeFiltros();
 
   const vp = document.getElementById('viewPills');
   vp.innerHTML = '';
-  [['tablero', 'Tablero'], ['equipo', 'Equipo'], ['persona', 'Persona']].forEach(([k, l]) =>
+  [['tablero', 'Tablero'], ['pipeline', 'Pipeline'], ['equipo', 'Equipo'], ['persona', 'Persona']].forEach(([k, l]) =>
     vp.appendChild(pill(l, vista === k, () => {
       vista = k;
       // La vista de una persona necesita una persona: si no hay, toma la primera.
       if (k === 'persona' && !persona) persona = equipo[0]?.id ?? null;
+      // El panel es de la vista: una tarea abierta no sigue abierta en el pipeline, ni al revés.
+      if (k === 'pipeline') abierta = null; else abiertoProc = null;
       render();
     })));
 
@@ -514,8 +880,8 @@ function render() {
     prio === p, () => { prio = p; render(); })));
 
   const pg = document.getElementById('personaGroup');
-  pg.hidden = vista === 'equipo';
-  if (vista !== 'equipo') {
+  pg.hidden = vista === 'equipo' || esPipe;
+  if (!pg.hidden) {
     const cont = document.getElementById('personaPills');
     cont.innerHTML = '';
     if (vista === 'tablero') cont.appendChild(pill('Todo el equipo', !persona, () => { persona = null; render(); }));
@@ -526,14 +892,27 @@ function render() {
 
   const main = document.getElementById('vista');
   main.innerHTML = '';
-  main.appendChild(vista === 'equipo' ? renderEquipo(lista)
+  main.appendChild(esPipe ? renderPipeline(lista)
+                 : vista === 'equipo' ? renderEquipo(lista)
                  : vista === 'persona' ? renderPersona(lista)
                  : renderTablero(lista));
   renderEquipoAside();
   renderPanel();
 }
-document.getElementById('nueva-btn').addEventListener('click', () => { abierta = 'nueva'; coments = []; previo = false; renderPanel(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && abierta) { abierta = null; renderPanel(); } });
+document.getElementById('nueva-btn').addEventListener('click', () => {
+  if (vista === 'pipeline') return abrirProc('nuevo');
+  abierta = 'nueva'; coments = []; previo = false; renderPanel(); mostrarPanel();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && (abierta || abiertoProc)) { abierta = null; abiertoProc = null; renderPanel(); }
+});
+// El buscador de la topbar existía sin listener: `q` se leía y nunca cambiaba.
+document.getElementById('searchInput').addEventListener('input', e => { q = e.target.value.trim(); render(); });
+document.getElementById('f-cliente').addEventListener('change', e => { pipeCliente = e.target.value; render(); });
+document.getElementById('f-trae').addEventListener('change', e => { pipeTrae = e.target.value; render(); });
+document.getElementById('f-laterales').addEventListener('change', e => { laterales = e.target.checked; render(); });
+// tareas.html#pipeline abre directo en el pipeline.
+if (location.hash === '#pipeline') vista = 'pipeline';
 
 API.me().then(u => {
   document.getElementById('authBox').hidden = true;
