@@ -33,3 +33,7 @@ scrapers/.env
 
 # Logs de corridas sueltas en la raíz
 *.log
+
+# Configuración del importador del pipeline: ID del sheet, clientes y correos
+# del equipo. El repo es público.
+vps/pipeline.local.json

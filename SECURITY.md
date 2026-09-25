@@ -84,15 +84,28 @@ una sola función — el resto del flujo no cambia.
 
 ## 5. Autorización del CRM
 
-No hay RLS (eso murió con Supabase). En su lugar, **cada endpoint filtra por el
-`user_id` de la sesión**, tomado de la cookie: el cliente nunca manda un `user_id`.
-`_patch()` usa lista blanca de columnas, así que mandar campos de más no permite
-escribir `user_id` ni `id`.
+No hay RLS (eso murió con Supabase). Todo endpoint exige sesión, y el `user_id` de lo
+que se crea sale de la cookie: el cliente nunca lo manda. `_patch()` usa lista blanca de
+columnas, así que mandar campos de más no permite escribir `user_id` ni `id`.
 
-Verificado con dos cuentas: A no ve, no edita (404) ni borra (404) los datos de B, y
-B no puede colgar un proceso de una ficha ajena (404).
+**Desde el 2026-09-25 (rama `desarrollo`, sin desplegar) el CRM es del equipo.**
+Clientes, fichas, procesos y documentos de una ficha los ve y los edita cualquier cuenta
+con sesión; `user_id` sólo dice quién creó la fila. Antes cada endpoint filtraba por el
+`user_id` de la sesión (verificado con dos cuentas: A no veía ni editaba lo de B). Se
+cambió a propósito al pasar al CRM el pipeline del equipo, que vivía en un Google Sheet
+compartido: un pipeline que cada asesor ve a medias no sirve, y `PRODUCT.md` ya decía
+que "clientes, fichas y tareas son de la oficina". Consecuencias que hay que tener
+presentes:
 
-**Excepción deliberada: las tareas.** `tarea` NO se filtra por `user_id` — es un tablero
+- **Cualquier cuenta puede borrar cualquier cliente**, y con él sus procesos en cascada.
+  No hay papelera ni historial. Es el mismo riesgo que ya tenían las tareas.
+- **Borrar a un asesor ya no se lleva su CRM**: `cliente`, `ficha`, `proceso` y
+  `ficha_documento` pasan a `ON DELETE SET NULL` sobre `user_id`, porque la cascada
+  borraría datos del equipo. `user_listing` sigue en cascada: el estado de un anuncio
+  sí es de cada quien, y sigue filtrado por usuario.
+- H8 (la cuenta de verificación) pesa más: ahora ve y edita el CRM completo del equipo.
+
+**Excepción deliberada, desde antes: las tareas.** `tarea` NO se filtra por `user_id` — es un tablero
 de equipo, y el diseño muestra la carga de todas las personas. Cualquiera con sesión ve,
 mueve, reasigna y borra cualquier tarea; `user_id` sólo registra quién la creó. Está
 escrito así en `api/main.py` para que no se lea como un filtro olvidado. Si algún día
@@ -308,7 +321,7 @@ abiertas, restos de corridas de verificación anteriores que nadie había cerrad
 
 **Arreglo:** borrarla cuando deje de hacer falta —
 `docker compose exec -T api python main.py deluser verificacion-dom@officelab.local`,
-que arrastra su CRM en cascada— o, si se queda, rotarle la contraseña con la misma
+que arrastra en cascada sus sesiones y el estado de sus anuncios; con el CRM compartido (§5) sus clientes y procesos se quedan— o, si se queda, rotarle la contraseña con la misma
 frecuencia que a una cuenta de persona. Lo correcto de fondo es que la API distinga un
 rol de sólo lectura, que hoy no existe.
 
@@ -354,7 +367,7 @@ proyecto. Es manual y fuera del VPS — nadie puede verificarlo desde aquí.
   que deja que el dueño elija la suya: si el admin la genera, el admin la conoció.
 - **Reset:** `main.py resetlink <correo>`. Entregar por un canal que el destinatario
   controle. El link vence en 30 minutos.
-- **Baja:** `main.py deluser <correo>` — arrastra su CRM en cascada.
+- **Baja:** `main.py deluser <correo>` — arrastra sus sesiones y el estado de sus anuncios; sus clientes, fichas y procesos se quedan una vez desplegado el CRM compartido (§5).
 - **Cron de scrapers (2026-09-10):** corre como **root** desde el crontab del host y lee
   `scrapers/.env` (credenciales del proxy residencial) y `vps/.env` (`DATABASE_URL`). No
   abre puertos ni toca auth, pero hereda H1: quien entre por SSH como root se lleva ambas.

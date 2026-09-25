@@ -7,9 +7,12 @@
 #     -f docker-compose.dev.yml up -d --build
 #   API=http://127.0.0.1:8001 npm run dev      # desde /srv/officelab-dev
 #
-# ⚠️ Usa la MISMA base de datos que producción, porque levantar una copia de 1.1 GB para
-# probar un filtro no tiene sentido. Las lecturas son libres; **las escrituras son
-# reales** y las ven los asesores. Aísla el código, no los datos.
+# Usa la MISMA base de datos que producción, porque levantar una copia de 1.1 GB para
+# probar un filtro no tiene sentido, pero con `search_path=dev,public`: las tablas del
+# CRM (usuarios, sesiones, clientes, fichas, procesos, tareas) salen del esquema `dev`,
+# que es una copia que crea `vps/dev-schema.sql`, y el inventario se sigue leyendo de
+# `public`. Lo que se escribe en dev ya no lo ven los asesores. Si el esquema `dev` no
+# existe, la API cae a `public` sin avisar: créalo antes de levantar esto.
 #
 # Se apaga con:  docker compose -p officelab-dev -f docker-compose.dev.yml down
 name: officelab-dev
@@ -19,7 +22,7 @@ services:
     build: ../api
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?options=-csearch_path%3Ddev%2Cpublic
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
     # Otro puerto que el 8000 de producción, y sólo en loopback.
     ports:

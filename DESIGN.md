@@ -37,7 +37,12 @@ Siempre como custom properties en `:root`. Nunca escribir un hex en un component
 **Estados de seguimiento** (semánticos, no decorativos): Nuevo `#2B3FC4` · Revisado
 `#6B3FB5` · Contactado `#A85F14` · Rentado `#1F6F4A` · Descartado `#83808C`. Cada uno
 con su `--r-*` al 10% para fondos.
-**Estados del proceso comercial:** Presentado `#2B3FC4` · Aprobado `#1F6F4A` · Rechazado `#A83B22`.
+**Etapas del proceso comercial (el pipeline):** Prospecto `#83808C` · Por presentar
+`#6B3FB5` · Presentado `#2B3FC4` · Aprobado `#1F6F4A` · Negociación `#A85F14` · Cerrado
+`#0E4A30` · En pausa `#6B7D6E` · Descartado `#A83B22` (la llave en la base es
+`rechazado`). Tokens `--e-<etapa>` y `--er-<etapa>` al 10%; la clase `.e-<etapa>` los
+baja a `--e` / `--er`, y los componentes (`.proc-status`, `.cliente-etapa`, `.tk.pp`,
+`.pp-etapa`) sólo leen esos dos. La lista y sus etiquetas viven en `web/etapas.js`.
 
 **Regla de acento:** uno solo en toda la app. Los colores de estado son para estado,
 nunca para un CTA.

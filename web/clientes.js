@@ -1,6 +1,4 @@
-
-const PROC_STATUS = ['presentado', 'aprobado', 'rechazado'];
-const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+// Las etapas de un proceso vienen de etapas.js, compartido con tareas y la ficha.
 
 let currentUser  = null;
 let clientes     = [];          // cada uno con .proceso[] embebido
@@ -55,8 +53,6 @@ function setProcesoStatus(procId, status) {
 
 // ── Render ───────────────────────────────────────────────────────────────────
 
-const PROC_COLOR = { presentado: 'var(--s-presentado)', aprobado: 'var(--s-aprobado)',
-                     rechazado: 'var(--s-rechazado)' };
 const ICON_WARN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
 
 // Un cliente pasa el filtro de estado si alguno de sus procesos está en ese estado.
@@ -90,9 +86,17 @@ function renderStatsGlobal(filtrados) {
     `<span class="pg-kpi-l">${label}</span></div>`;
   document.getElementById('kpis').innerHTML =
     kpi(filtrados.length, 'clientes', 'var(--ink)') +
-    kpi(cuenta(procs, 'presentado'), 'en proceso', PROC_COLOR.presentado) +
-    kpi(cuenta(procs, 'aprobado'),   'aprobados',  PROC_COLOR.aprobado) +
-    kpi(cuenta(procs, 'rechazado'),  'rechazados', PROC_COLOR.rechazado);
+    kpi(procs.filter(p => etapaActiva(p.status)).length, 'en proceso', 'var(--e-presentado)') +
+    kpi(cuenta(procs, 'aprobado'),  'aprobados',   'var(--e-aprobado)') +
+    kpi(cuenta(procs, 'rechazado'), 'descartados', 'var(--e-rechazado)');
+}
+
+// Una píldora por etapa, generada de etapas.js en vez de escrita en el HTML: eran
+// tres fijas y el pipeline trae ocho.
+function renderEtapaPills() {
+  document.getElementById('etapaPills').innerHTML = ETAPAS.map(e =>
+    `<button class="pill-line${filterStatus === e.key ? ' active' : ''}" data-status="${e.key}">${e.label} ` +
+    `<span class="pill-count" data-count="${e.key}">0</span></button>`).join('');
 }
 
 function renderPillCounts() {
@@ -107,23 +111,15 @@ function renderPillCounts() {
 
 function procesoRow(p) {
   const titulo = p.ficha?.titulo ?? '(propiedad sin título)';
-  const opts = PROC_STATUS.map(s =>
-    `<option value="${s}"${s === p.status ? ' selected' : ''}>${cap(s)}</option>`).join('');
   return `<div class="proc-row">
     <span class="proc-ficha" title="${esc(titulo)}">${esc(titulo)}</span>
-    <select class="proc-status status-${p.status}" data-proc="${p.id}">${opts}</select>
+    <select class="proc-status e-${esc(p.status)}" data-proc="${p.id}">${etapaOpciones(p.status)}</select>
   </div>`;
 }
 
 // Etapa del cliente: la del proceso más avanzado que tenga. No hay columna
 // `etapa` en la base — el mock la pinta como dato propio, aquí se deriva.
-function etapaDe(c) {
-  const st = (c.proceso ?? []).map(p => p.status);
-  if (st.includes('aprobado')) return 'aprobado';
-  if (st.includes('presentado')) return 'presentado';
-  if (st.includes('rechazado')) return 'rechazado';
-  return null;
-}
+const etapaDe = c => etapaMayor((c.proceso ?? []).map(p => p.status));
 
 // Iniciales para el avatar: dos palabras como mucho, sin emoji ni foto.
 const iniciales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
@@ -137,9 +133,12 @@ function campoRow(c, campo, label, placeholder) {
 
 function clienteCard(c) {
   const todos = c.proceso ?? [];
-  const procs = todos.filter(p => filterStatus === 'all' || p.status === filterStatus);
+  // Sin filtro, lo descartado se cuenta pero no se lista: con el pipeline importado
+  // un cliente grande trae docenas de propiedades ya descartadas.
+  const procs = todos.filter(p => filterStatus === 'all' ? p.status !== 'rechazado' : p.status === filterStatus);
+  const ocultos = filterStatus === 'all' ? cuenta(todos, 'rechazado') : 0;
   const etapa = etapaDe(c);
-  const pend = cuenta(todos, 'presentado');
+  const pend = todos.filter(p => etapaActiva(p.status) && p.status !== 'cerrado').length;
   return `<article class="cliente-card" data-id="${c.id}">
     <div class="cliente-head">
       <span class="cliente-ava">${esc(iniciales(c.nombre))}</span>
@@ -147,21 +146,23 @@ function clienteCard(c) {
         <input class="cliente-nombre cli-in" data-f="nombre" value="${esc(c.nombre)}">
         <input class="cliente-sub cli-in" data-f="empresa" placeholder="Empresa" value="${esc(c.empresa)}">
       </div>
-      ${etapa ? `<span class="cliente-etapa status-${etapa}">${cap(etapa)}</span>` : ''}
+      ${etapa ? `<span class="cliente-etapa e-${etapa}">${etapaLabel(etapa)}</span>` : ''}
       <button class="cliente-del" title="Eliminar cliente">&times;</button>
     </div>
+    ${campoRow(c, 'responsable', 'Cuenta', 'Quién lleva la cuenta')}
     ${campoRow(c, 'contacto', 'Contacto', 'Teléfono o correo')}
     ${campoRow(c, 'requerimientos', 'Qué busca', 'Requerimientos')}
     <div class="card-sep"></div>
     <div class="cliente-foot">
       <span class="cliente-chip">${todos.length} ${todos.length === 1 ? 'inmueble' : 'inmuebles'}</span>
-      <span class="cliente-pend${pend ? '' : ' cero'}">${pend ? `${pend} pendiente${pend === 1 ? '' : 's'}` : 'sin pendientes'}</span>
+      <span class="cliente-pend${pend ? '' : ' cero'}">${pend ? `${pend} en proceso` : 'sin pendientes'}</span>
     </div>
     <div class="cliente-procs">
       ${procs.length ? procs.map(procesoRow).join('')
         : `<div class="proc-empty">${todos.length
              ? 'Sin procesos con este estatus'
              : 'Aún sin propiedades — agrégalas desde una propiedad'}</div>`}
+      ${ocultos ? `<div class="proc-empty">${ocultos} descartada${ocultos === 1 ? '' : 's'} sin mostrar</div>` : ''}
     </div>
   </article>`;
 }
@@ -177,6 +178,7 @@ function render() {
   document.getElementById('countTag').hidden = false;
   document.getElementById('countNum').textContent   = filtrados.length;
   document.getElementById('countTotal').textContent = clientes.length;
+  renderEtapaPills();
   renderPillCounts();
   renderStatsGlobal(filtrados);
 

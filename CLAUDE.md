@@ -64,10 +64,12 @@ git worktree list                      # las dos copias y en qué rama está cad
 cd /srv/officelab-dev && npm run dev    # la copia, en el :3000; producción no la ve
 ```
 
-Dos cosas que esa copia **no** aísla, y conviene tener presentes: `dev-server.js` reenvía
-`/api/*` al VPS, así que escribe en la **base de datos real** —aísla el diseño, no los
-datos—, y escucha en todas las interfaces sobre un host sin firewall (H1), así que
-mientras corre es visible desde internet. Apágalo al terminar.
+Dos cosas que conviene tener presentes. Sin `API=http://127.0.0.1:8001`, `dev-server.js`
+reenvía `/api/*` a producción y escribe en la **base de datos real**; con ella va a la
+API de la copia, que desde el 2026-09-25 lee y escribe el CRM en el **esquema `dev`**
+(copia de producción, ver README "Copia de trabajo" y `vps/dev-schema.sql`) y el
+inventario en `public`. Y escucha en todas las interfaces sobre un host sin firewall
+(H1), así que mientras corre es visible desde internet. Apágalo al terminar.
 
 ## Arquitectura
 
@@ -79,7 +81,8 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   `update-password.html`. `api.js` es la capa de datos (`fetch` contra `/api/*`,
   `credentials: 'same-origin'`); **una sola hoja de estilos, `hermes.css`**; `menu.js`
   inyecta el cajón de navegación y `theme.js` el tema claro/oscuro — ninguna página
-  repite ese marcado. **`texto.js` es el único sitio donde se escapa**: `esc`, `norm` y
+  repite ese marcado. `etapas.js` es la lista de etapas del proceso comercial, compartida
+  por tareas (el pipeline), clientes y la ficha. **`texto.js` es el único sitio donde se escapa**: `esc`, `norm` y
   `hrefSeguro`. Llegó a haber cinco copias de `esc` y por eso `listing.js` se olvidó de
   usarlo con datos de portales; todo lo que entre a `innerHTML` pasa por ahí, y todo
   `href` que venga de un anuncio o de un adjunto, por `hrefSeguro`.

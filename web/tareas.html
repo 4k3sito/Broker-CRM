@@ -51,18 +51,23 @@
     <div class="tk-bar">
       <button class="btn-solid" id="nueva-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Nueva tarea
+        <span id="nueva-txt">Nueva tarea</span>
       </button>
       <span class="tk-bar-sep"></span>
       <span class="statebar-label">Vista</span>
       <span id="viewPills"></span>
       <span class="tk-bar-sep"></span>
-      <span class="statebar-label">Prioridad</span>
-      <span id="prioPills"></span>
+      <span id="prioGroup"><span class="statebar-label">Prioridad</span>
+      <span id="prioPills"></span></span>
       <span id="personaGroup" hidden><span class="statebar-label">Persona</span><span id="personaPills"></span></span>
+      <span class="tk-bar-group" id="pipeGroup" hidden>
+        <select class="tk-bar-select" id="f-cliente" aria-label="Cliente"></select>
+        <select class="tk-bar-select" id="f-trae" aria-label="Quién lo trae"></select>
+        <label class="tk-bar-toggle" for="f-laterales"><input type="checkbox" id="f-laterales"> En pausa y descartadas</label>
+      </span>
       <span class="tk-bar-right">
         <span class="tk-bar-hint">Arrastra una tarjeta a otra columna para cambiar su estado</span>
-        <span class="tk-bar-count"><strong id="countNum">0</strong> de <span id="countTotal">0</span> tareas</span>
+        <span class="tk-bar-count"><strong id="countNum">0</strong> de <span id="countTotal">0</span> <span id="countQue">tareas</span></span>
       </span>
     </div>
     <div id="vista"></div>
@@ -73,6 +78,7 @@
 
 <script src="api.js"></script>
 <script src="texto.js"></script>
+<script src="etapas.js"></script>
 <script src="menu.js"></script>
 <script src="tareas.js"></script>
 </body>
