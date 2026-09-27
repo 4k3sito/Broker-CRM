@@ -88,7 +88,7 @@ No hay RLS (eso murió con Supabase). Todo endpoint exige sesión, y el `user_id
 que se crea sale de la cookie: el cliente nunca lo manda. `_patch()` usa lista blanca de
 columnas, así que mandar campos de más no permite escribir `user_id` ni `id`.
 
-**Desde el 2026-09-25 (rama `desarrollo`, sin desplegar) el CRM es del equipo.**
+**Desde el 2026-09-27 (en producción; `a507832`) el CRM es del equipo.**
 Clientes, fichas, procesos y documentos de una ficha los ve y los edita cualquier cuenta
 con sesión; `user_id` sólo dice quién creó la fila. Antes cada endpoint filtraba por el
 `user_id` de la sesión (verificado con dos cuentas: A no veía ni editaba lo de B). Se
@@ -367,7 +367,7 @@ proyecto. Es manual y fuera del VPS — nadie puede verificarlo desde aquí.
   que deja que el dueño elija la suya: si el admin la genera, el admin la conoció.
 - **Reset:** `main.py resetlink <correo>`. Entregar por un canal que el destinatario
   controle. El link vence en 30 minutos.
-- **Baja:** `main.py deluser <correo>` — arrastra sus sesiones y el estado de sus anuncios; sus clientes, fichas y procesos se quedan una vez desplegado el CRM compartido (§5).
+- **Baja:** `main.py deluser <correo>` — arrastra sus sesiones y el estado de sus anuncios; sus clientes, fichas y procesos se quedan desde el CRM compartido (§5, 2026-09-27).
 - **Cron de scrapers (2026-09-10):** corre como **root** desde el crontab del host y lee
   `scrapers/.env` (credenciales del proxy residencial) y `vps/.env` (`DATABASE_URL`). No
   abre puertos ni toca auth, pero hereda H1: quien entre por SSH como root se lleva ambas.

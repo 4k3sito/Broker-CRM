@@ -1,6 +1,6 @@
 # Pendientes
 
-Estado al **2026-09-25**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-09-27**. Es una foto, no la verdad: verifica antes de actuar.
 Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
@@ -90,9 +90,21 @@ precios ya está capturando. Lo que **no** quedó cerrado:
 
 ## Degradando datos todos los días
 
-- *(vacío — `liveness` se arregló el 2026-09-21; ver abajo lo que queda por observar)*
+- **Ningún scraper carga nada desde el 2026-09-23: el proxy residencial de Apify
+  responde `402 Payment Required`.** Es la cuenta (saldo o plan), no los portales. En
+  `scrapers/data/<fuente>.jsonl.log` se lee `CONNECT tunnel failed, response 402` en cada
+  consulta, con `wire: 0 requests`: la petición nunca sale del proxy. Afectadas:
+  vivanuncios (23), mercadolibre (24), pincali (25) y el `liveness` del 26; inmuebles24
+  (lunes 28) y lamudi (martes 29) van a fallar igual mientras no se pague. Las últimas
+  cargas buenas son inmuebles24 el 21, lamudi el 22, vivanuncios el 16, mercadolibre el
+  17 y pincali el 18: cada día que pasa, el tablero muestra un inventario más viejo sin
+  decirlo. **Arreglo: recargar o renovar el plan de Apify.** No hay que tocar código.
+- **El diagnóstico automático culpa a quien no es.** `cron.sh`/`qa.py` escriben "el portal
+  bloqueó la corrida entera" y dejan en el tablero tarjetas "ROTO" por fuente, cuando la
+  causa es una sola y es de facturación. Un 402 del proxy debería reconocerse y reportarse
+  como tal: una tarjeta, no cinco, y con el motivo correcto.
 
-## `liveness` — arreglado el 2026-09-21, falta verlo correr solo
+## `liveness` — primera corrida real el 2026-09-26, sin proxy
 
 Lo que estaba mal y ya no: la corrida moría por `timeout` habiendo cubierto el 19%,
 gastaba ~19 KB por anuncio y los bloqueos acaparaban la cola para siempre. Medido
@@ -100,13 +112,25 @@ después del cambio, sobre corridas reales: **13.5 KB por petición** (eran 52.8
 muestra equivalente) y **6.1 anuncios/s** con 16 hilos (eran 2.4). Una pasada completa
 del país pasa de ~57 GB a ~6 GB.
 
-Lo que falta es simplemente **mirar la primera corrida de verdad**, el sábado
-**2026-09-26 07:00 UTC**. Qué revisar en `scrapers/logs/liveness-2026-09-26.log`:
+La corrida del sábado 26 (`scrapers/logs/liveness-2026-09-26.log`) salió **sin proxy**
+—el 402 de arriba— y aun así confirmó lo importante:
 
-- Que termine por `presupuesto agotado` y no por `rc=124`.
-- La línea `padrón pincali: N urls vivas`. Si dice "no se pudo bajar el índice", el WAF
-  le cerró la puerta a la IP del servidor y esa noche pincali salió caro: hay reintentos
-  y un respaldo por proxy, pero no está probado en vivo bajo bloqueo.
+- Terminó por `presupuesto agotado` (rc=0, 5.5 h), no por `rc=124`.
+- `padrón pincali: 468,832 urls vivas en 11 sitemaps`: el índice bajó sin proxy, y con
+  él se confirmaron **6,520 vivos sin pedir su página**.
+- **La regla de oro aguantó**: 29,245 `ConnectionError` y **0 bajas**. Los 36,556
+  intentos fallidos quedaron en `intento_at` para el backoff, sin tocar `activo`.
+- No hubo `dominios cortados por bloqueos`: sin proxy no llegó a haber respuestas de los
+  portales. El umbral del `Cortacircuitos` sigue sin probarse contra un bloqueo real.
+
+Lo que sigue pendiente de medir, en la primera corrida **con** proxy:
+
+Lo que estaba mal y ya no: la corrida moría por `timeout` habiendo cubierto el 19%,
+gastaba ~19 KB por anuncio y los bloqueos acaparaban la cola para siempre. Medido
+después del cambio, sobre corridas reales: **13.5 KB por petición** (eran 52.8 en la
+muestra equivalente) y **6.1 anuncios/s** con 16 hilos (eran 2.4). Una pasada completa
+del país pasa de ~57 GB a ~6 GB.
+
 - `dominios cortados por bloqueos`. Si aparece inmuebles24 o vivanuncios todas las
   noches, el umbral del `Cortacircuitos` (50% sobre 40 peticiones) quedó corto.
 
@@ -121,34 +145,35 @@ Dos cosas medidas que conviene no perder de vista:
   a los 52,000 anuncios. Ahora se baja mucho menos cuerpo, así que probablemente mejoró,
   pero nadie lo comprobó. Vale la pena un `ps -o rss=` a media corrida del sábado.
 
-## Pipeline comercial — en `desarrollo` y en el esquema `dev`, **sin desplegar**
+## Pipeline comercial — **desplegado el 2026-09-27, sin importar**
 
 El Google Sheet "PIPELINES PROREALTOR" (una pestaña por cliente, una fila por propiedad
-ofrecida) pasó al CRM el 2026-09-25, **sólo en la copia de trabajo**. Pestaña → `cliente`,
+ofrecida) pasó al CRM el 2026-09-25. **Código y esquema están en producción desde el
+2026-09-27** (`a507832`; el bloque "pipeline comercial" de `schema.sql` se aplicó a
+`public` en una transacción, con respaldo previo de las tablas del CRM en
+`/srv/backups/crm-pre-pipeline-2026-09-27-0046.sql.gz`). **Los datos del sheet no se han
+importado a producción**: el pipeline de producción sólo tiene los 4 procesos que ya
+existían. Pestaña → `cliente`,
 propiedad → `ficha` (una sola aunque esté en varias pestañas), fila → `proceso`. La vista
 **Pipeline** de `tareas.html` (`tareas.html#pipeline`) lo muestra en columnas por etapa.
 Una tarea puede ligarse a un proceso (`tarea.proceso_id`): la tarea abre su tarjeta del
 pipeline, y la tarjeta lista sus tareas y cuenta las abiertas.
 Importado en `dev`: 163 filas del sheet → 9 clientes nuevos (uno se juntó con el que ya
-existía), 122 fichas, 163 procesos. Producción no se tocó: `public.proceso` sigue en 4.
+existía), 122 fichas, 163 procesos.
 
-Lo que falta para producción, en este orden:
+Lo que falta, en este orden:
 
 1. **Decidir el corte con el equipo.** El sheet se sigue editando (entre la primera
    lectura y la importación le entraron 3 filas). `importar_pipeline.py` **sólo agrega**:
    se salta los procesos que ya existen, así que no sincroniza cambios de etapa. Hay que
    importar el día que el equipo deja de usar el sheet, no antes.
-2. Desplegar el código (`git pull` + `docker compose up -d --build api`) y aplicar el
-   bloque "pipeline comercial" de `vps/schema.sql` a `public` (ver CLAUDE.md, el bind
-   mount de archivo). **Código y esquema van juntos**: la API nueva escribe columnas que
-   el esquema viejo no tiene, y el esquema nuevo cambia `ON DELETE` a `SET NULL`.
-3. `python vps/importar_pipeline.py --esquema public --produccion` (con `vps/.env`
+2. `python vps/importar_pipeline.py --esquema public --produccion` (con `vps/.env`
    cargado; `--dry` antes). Necesita `vps/pipeline.local.json` —ID del sheet, pestañas,
    correos—, que **no está en git** porque el repo es público: existe sólo en
    `/srv/officelab-dev/vps/`; pásalo con `--config` o cópialo.
-4. **Hay un cliente duplicado** en producción (mismo nombre, dos asesores). El importador usa el
+3. **Hay un cliente duplicado** en producción (mismo nombre, dos asesores). El importador usa el
    más antiguo y avisa; el otro queda vacío y hay que borrarlo o fusionarlo a mano.
-5. Cuando los asesores que hoy sólo están como texto tengan cuenta:
+4. Cuando los asesores que hoy sólo están como texto tengan cuenta:
    `SELECT vincular_asesor('<nombre en el sheet>', '<uuid>');` por persona. Un valor
    compuesto ("A/B") se queda en texto.
 
@@ -161,7 +186,7 @@ no se escribe aquí porque el repo es público.
 
 Reporte completo en `.impeccable/critique/2026-09-20T18-48-55Z__web-tareas-html.md`
 (no versionado). Los tres P0 y el contraste del avatar se cerraron el 2026-09-25 con el
-pipeline (rama `desarrollo`, sin desplegar): el panel ya tiene estilos de formulario, en
+pipeline (desplegado el 2026-09-27): el panel ya tiene estilos de formulario, en
 el teléfono abrir una tarjeta lleva al panel, el buscador filtra, y `.tk-ava` usa
 `--on-accent`. Queda:
 
@@ -202,13 +227,13 @@ módulos ES, y que hoy ya son deuda:
 - No resuelve los `import`, así que un módulo compartido que no esté declarado en el HTML
   queda sin revisar.
 
-## Rediseño de la UI — la barra de filtros, en curso
+## Rediseño de la UI — la barra de filtros, desplegada el 2026-09-27
 
 El plan es `ui_change.md`. Su §3 dice que esta etapa "ya está hecha" en un patch que
 **no existe en el repo**: no hay rama, ni commit, ni archivo. Se rehízo desde la
-descripción, en la rama `desarrollo`. **API e interfaz están completas y probadas contra
-la copia de trabajo; lo único que falta es desplegar**, y eso incluye reconstruir la API
-(`docker compose up -d --build api`) porque cambió `api/main.py`.
+descripción, en la rama `desarrollo`. **API e interfaz están en producción desde el
+2026-09-27** (`a507832`, con la API reconstruida). Falta probarla en producción con una
+sesión real: la verificación de despliegue se hizo sin sesión.
 
 Lo verificado con navegador real (`npm run verificar:navegador`, 25 comprobaciones a 1440
 y 390 px): el borrador no filtra hasta "Aplicar", Esc lo descarta, la ✕ del chip limpia sin
@@ -237,7 +262,7 @@ Dos cosas medidas el 2026-09-23 que cambian el plan:
 
 - **Pincali nos dice dos cosas sobre la ubicación y las dos se tiran en la carga.**
   Analizado el 2026-09-23 a propósito de los anuncios sin colonia:
-  - ~~`coordsExact` se tiraba en la carga~~ **Resuelto el 2026-09-23**, sin desplegar:
+  - ~~`coordsExact` se tiraba en la carga~~ **Resuelto el 2026-09-23**, desplegado el 2026-09-27:
     `propdb.py` traduce `coordsExact` a `geo_origen` (`portal` / `portal_aprox`) y la
     columna acepta el valor nuevo. Medido sobre `scrapers/data/pincali.jsonl` del
     2026-09-18: **11,173 anuncios (10.9% de los que traen coordenada) están marcados por
@@ -266,7 +291,7 @@ Dos cosas medidas el 2026-09-23 que cambian el plan:
   operación dos veces, que no significa nada. Es un defecto del colapso de duales en
   `propdb.py`. Son pocos y no estorban al filtro, pero el dato está mal.
 
-Lo que ya quedó, del lado de la API (rama `desarrollo`, sin desplegar):
+Lo que ya quedó, del lado de la API (en producción desde el 2026-09-27):
 
 - `GET /api/lugares?q=` y `GET /api/zonas` con `id` y `estado`.
 - `lugar` múltiple (`m<zona_id>`, tope `MAX_LUGARES` = 20) y `tipo` múltiple sobre la
