@@ -675,7 +675,7 @@ END $$;
 -- Enlaza el texto de "quién lo trae" / "responsable" con la cuenta de esa persona,
 -- el día que la tenga:  SELECT vincular_asesor('<nombre>', '<uuid de su usuario>');
 -- Sólo toca filas sin enlace y compara sin mayúsculas. Un valor compuesto como
--- compuesto como 'A/B' no se enlaza: se queda como texto.
+-- 'A/B' no se enlaza: se queda como texto.
 CREATE OR REPLACE FUNCTION vincular_asesor(nombre_en_texto text, uid uuid) RETURNS integer AS $$
 DECLARE n integer; m integer;
 BEGIN
