@@ -3,7 +3,7 @@
 //   sin ?t=  → cambio voluntario: exige la contraseña actual aunque ya haya sesión,
 //              para que una cookie robada no baste para apoderarse de la cuenta.
 //   con ?t=  → recuperación: el token ES la prueba de identidad.
-const MIN_PASSWORD_LENGTH = 15;
+const MIN_PASSWORD_LENGTH = 8;
 const token = new URLSearchParams(location.search).get('t');
 
 const form = document.getElementById('updateForm');
