@@ -39,10 +39,11 @@ from pydantic import BaseModel, Field
 # argon2-cffi. n=2^17 es el mínimo que pide OWASP (r=8, p=1) → ~128 MiB por
 # verificación: encarece el ataque por diccionario sin que un login honesto se note.
 SCRYPT_N, SCRYPT_R, SCRYPT_P, DKLEN = 2**17, 8, 1, 32
-# NIST SP 800-63B Rev.4 (2025): 15 caracteres cuando la contraseña es el único
-# factor. Y prohíbe exigir mayúsculas/números/símbolos — la longitud es lo que
-# aporta entropía, las reglas de composición solo producen "Passw0rd!".
-MIN_PASSWORD = 15
+# 8 por decisión del equipo (2026-09-27), por debajo de los 15 que pide NIST SP
+# 800-63B Rev.4 cuando la contraseña es el único factor; lo compensan el rechazo de
+# filtradas (HIBP) y el límite de intentos. Sin reglas de composición: se acepta
+# cualquier carácter, y exigir mayúsculas/números/símbolos solo produce "Passw0rd!".
+MIN_PASSWORD = 8
 
 
 def _maxmem(n: int, r: int) -> int:

@@ -42,9 +42,12 @@ Implementado en `api/main.py`, sin dependencias externas — todo sale de la std
 - **`DUMMY_HASH`**: cuando el correo no existe se verifica igual contra un hash
   desechable, para que la latencia de la respuesta no delate qué correos están
   registrados.
-- **Mínimo 15 caracteres**, sin reglas de composición. [NIST SP 800-63B Rev.4](https://www.enzoic.com/blog/nist-sp-800-63b-rev4/)
-  (julio 2025) pide 15 cuando la contraseña es el único factor y **prohíbe** exigir
-  mayúsculas/números/símbolos: sólo producen `Passw0rd!`.
+- **Mínimo 8 caracteres**, sin reglas de composición: se acepta cualquier carácter
+  (`.`, `!`, espacios, acentos). Es **menos** de lo que pide [NIST SP 800-63B Rev.4](https://www.enzoic.com/blog/nist-sp-800-63b-rev4/)
+  (julio 2025) —15 cuando la contraseña es el único factor, y aquí lo es—; se bajó de 15
+  a 8 el 2026-09-27 por decisión del equipo. Lo que queda de defensa contra adivinar es
+  el rechazo de filtradas (abajo) y el límite de intentos por IP. NIST sí **prohíbe**
+  exigir mayúsculas/números/símbolos: sólo producen `Passw0rd!`.
 - **Rechazo de contraseñas filtradas** vía Have I Been Pwned por k-anonymity: viajan
   los 5 primeros caracteres hex del SHA-1 y vuelven ~800 sufijos. La contraseña
   nunca sale del servidor. **Falla abierto** a propósito: que un tercero esté caído
@@ -343,6 +346,7 @@ proyecto. Es manual y fuera del VPS — nadie puede verificarlo desde aquí.
 
 | Fecha | Qué | Detalle |
 |---|---|---|
+| 2026-09-27 | Mínimo 15 → 8 caracteres | Decisión del equipo: 15 era demasiado para los asesores. Queda por debajo de NIST SP 800-63B Rev.4 (15 con un solo factor); siguen HIBP y el límite de intentos. `.` y `!` ya se aceptaban: nunca hubo reglas de composición. |
 | 2026-09-20 | Escapado desigual en la ficha, y `href` sin validar esquema | `listing.js` metía a `innerHTML` el título, la dirección, la descripción y las características de un anuncio **sin escapar**, mientras `app.js` sí escapaba esos mismos campos: contenido de portales scrapeados, o sea de terceros. La CSP (`script-src 'self'`, sin `unsafe-inline`) impedía la ejecución, así que era inyección de marcado y no XSS, pero dependía por completo de esa línea del Caddyfile. Había cinco copias del escapador y ninguna con casa; ahora hay una, en `web/texto.js`. Aparte, `<a href>` recibía la URL del anuncio (`listing.js`) y las de adjuntos (`tareas.js`) sólo escapadas: escapar no desarma `javascript:`. Las dos pasan por `hrefSeguro`, que exige http(s). |
 | 2026-08-28 | Los enlaces de recuperación mueren con el cambio de contraseña | `passwd` cerraba las sesiones pero dejaba vivos los `reset_token`: un link emitido minutos antes seguía sirviendo, y servía justo para **deshacer** el cambio que acababa de hacer el admin. Ahora los marca usados y reporta cuántos. |
 | 2026-08-28 | Límite de intentos por visitante | Detrás de Caddy `request.client.host` es siempre el contenedor: el límite era **un cubo compartido**. Diez fallos de cualquiera dejaban a todos fuera 5 min, y un atacante no encontraba límite propio. Ahora lee el primer salto de `X-Forwarded-For` — confiable sólo porque la API escucha en 127.0.0.1 y nada la alcanza sin pasar por Caddy. |
