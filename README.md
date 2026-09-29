@@ -87,7 +87,7 @@ levantarle su propia API, o habría que desplegar para poder probar:
 ```bash
 cd /srv/officelab-dev/vps
 docker compose -p officelab-dev --env-file /srv/officelab/vps/.env \
-  -f docker-compose.dev.yml up -d --build          # API de la copia en 127.0.0.1:8001
+  -f docker-compose.dev.yml up -d --build --remove-orphans   # API de la copia en 127.0.0.1:8001
 cd /srv/officelab-dev && API=http://127.0.0.1:8001 npm run dev
 ```
 
@@ -98,6 +98,10 @@ salen del esquema `dev`**, una copia de las de producción (usuarios, sesiones, 
 fichas, procesos, tareas, estado de anuncios), y el inventario se sigue leyendo de
 `public`. Lo que se crea o se mueve en dev ya no lo ven los asesores. Se apaga con
 `docker compose -p officelab-dev -f docker-compose.dev.yml down`.
+
+**El servicio se llama `api-dev`, nunca `api`.** Comparte la red de producción, y ahí
+compose registra el nombre del servicio como alias DNS: con `api`, Caddy repartía el
+tráfico de los asesores entre las dos APIs (ver SECURITY.md, 2026-09-29).
 
 ```bash
 # Rehacer `dev` como foto de producción (BORRA lo que hubiera en dev)

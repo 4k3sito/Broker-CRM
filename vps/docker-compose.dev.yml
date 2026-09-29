@@ -1,10 +1,17 @@
 # API de la copia de trabajo (/srv/officelab-dev), para poder cambiar endpoints sin
 # desplegar. Levanta un SEGUNDO contenedor de la API, construido desde el `api/` de esta
-# copia, en 127.0.0.1:8001. Caddy no lo conoce: el único que le habla es `dev-server.js`.
+# copia, en 127.0.0.1:8001. El único que le habla es `dev-server.js`.
+#
+# ⚠️ El servicio se llama `api-dev` y NO `api` a propósito. Compose registra el nombre
+# del servicio como alias DNS en la red, y esta red es la de producción: con `api`,
+# el `reverse_proxy api:8000` de Caddy resolvía a los DOS contenedores y repartía el
+# tráfico real entre producción y esta copia. Del 2026-09-25 al 2026-09-29 eso sacaba
+# a los asesores a los segundos de entrar: la sesión nacía en un esquema y la
+# siguiente petición caía en el otro. No le pongas `api` ni ningún alias que Caddy use.
 #
 #   cd /srv/officelab-dev/vps
 #   docker compose -p officelab-dev --env-file /srv/officelab/vps/.env \
-#     -f docker-compose.dev.yml up -d --build
+#     -f docker-compose.dev.yml up -d --build --remove-orphans
 #   API=http://127.0.0.1:8001 npm run dev      # desde /srv/officelab-dev
 #
 # Usa la MISMA base de datos que producción, porque levantar una copia de 1.1 GB para
@@ -18,7 +25,7 @@
 name: officelab-dev
 
 services:
-  api:
+  api-dev:
     build: ../api
     restart: unless-stopped
     environment:

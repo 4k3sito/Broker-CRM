@@ -127,8 +127,10 @@ LISTEN 0.0.0.0:22    sshd
   repo, `/vps/.env` sería descargable desde internet.
 - `docs_url=None, redoc_url=None`: la API no publica su propio esquema.
 - **Segunda API en `127.0.0.1:8001`** desde el 2026-09-23 (`vps/docker-compose.dev.yml`),
-  la de la copia de trabajo `/srv/officelab-dev`. Sólo loopback, Caddy no la conoce, y
-  usa la misma base que producción: lo que escriba ahí es real. Se apaga con
+  la de la copia de trabajo `/srv/officelab-dev`. Sólo loopback, y usa la misma base que
+  producción: lo que escriba ahí es real. **Comparte la red de Docker de producción**, así
+  que su nombre de servicio es un alias DNS que Caddy ve: tiene que llamarse `api-dev`, no
+  `api` (el incidente del 2026-09-29, abajo). Se apaga con
   `docker compose -p officelab-dev -f docker-compose.dev.yml down`.
 - **`GET /api/lugares`** (autocompletado del filtro de ubicación) pide sesión como el
   resto. Devuelve nombres de municipio y de colonia con su conteo de inventario — datos
@@ -346,6 +348,7 @@ proyecto. Es manual y fuera del VPS — nadie puede verificarlo desde aquí.
 
 | Fecha | Qué | Detalle |
 |---|---|---|
+| 2026-09-29 | Caddy repartía el tráfico real entre producción y la API de dev | `docker-compose.dev.yml` llamaba `api` a su servicio y se unía a `officelab_default`. Compose registra el nombre del servicio como alias DNS, así que `reverse_proxy api:8000` resolvía a los dos contenedores desde el 2026-09-25 23:13 UTC. La API de dev lee sesiones y CRM del esquema `dev`: un login creaba la sesión en un esquema y la siguiente petición podía caer en el otro y dar 401, y el asesor salía al login a los segundos. Revisado el log completo de la API de dev: de Caddy recibió 4 logins y lecturas, **ninguna escritura del CRM**, así que no hay datos de asesores varados en `dev`. Pero sí pudo mostrarles el CRM de `dev` (el pipeline importado de prueba) en vez del real. Se apagó el contenedor y el servicio pasó a llamarse `api-dev`. |
 | 2026-09-27 | Mínimo 15 → 8 caracteres | Decisión del equipo: 15 era demasiado para los asesores. Queda por debajo de NIST SP 800-63B Rev.4 (15 con un solo factor); siguen HIBP y el límite de intentos. `.` y `!` ya se aceptaban: nunca hubo reglas de composición. |
 | 2026-09-20 | Escapado desigual en la ficha, y `href` sin validar esquema | `listing.js` metía a `innerHTML` el título, la dirección, la descripción y las características de un anuncio **sin escapar**, mientras `app.js` sí escapaba esos mismos campos: contenido de portales scrapeados, o sea de terceros. La CSP (`script-src 'self'`, sin `unsafe-inline`) impedía la ejecución, así que era inyección de marcado y no XSS, pero dependía por completo de esa línea del Caddyfile. Había cinco copias del escapador y ninguna con casa; ahora hay una, en `web/texto.js`. Aparte, `<a href>` recibía la URL del anuncio (`listing.js`) y las de adjuntos (`tareas.js`) sólo escapadas: escapar no desarma `javascript:`. Las dos pasan por `hrefSeguro`, que exige http(s). |
 | 2026-08-28 | Los enlaces de recuperación mueren con el cambio de contraseña | `passwd` cerraba las sesiones pero dejaba vivos los `reset_token`: un link emitido minutos antes seguía sirviendo, y servía justo para **deshacer** el cambio que acababa de hacer el admin. Ahora los marca usados y reporta cuántos. |
