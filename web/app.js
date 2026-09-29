@@ -16,7 +16,16 @@ const FUENTE_CONFIG = {
   pincali:           { label: 'Pincali'      },
   propiedadesmx:     { label: 'PropiedadesMX'},
   propiedadesmexico: { label: 'PropiedadesMX'},
+  pipeline:          { label: 'Pipeline'     },   // fichas del Google Sheet (ver _origen en la API)
 };
+
+// Dos pestañas, la misma página: Bolsa Inmobiliaria (anuncios sin ficha) e
+// Inmobiliaria (lo que ya tiene ficha o se presentó a un cliente). Sólo cambia
+// `ficha=` en la API; Inmobiliaria suma los filtros de cliente y etapa.
+const TAB = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
+const INMO = TAB === 'inmobiliaria';
+try { sessionStorage.setItem('ol-tab', TAB); } catch { /* sin persistencia */ }
+document.title = `${INMO ? 'Inmobiliaria' : 'Bolsa Inmobiliaria'} · OfficeLab`;
 
 const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
 const TIPOS  = ['oficina', 'local', 'bodega', 'terreno', 'edificio'];
@@ -37,6 +46,8 @@ const F = {
   precio_min: '', precio_max: '', m2_min: '', m2_max: '', ppm_min: '', ppm_max: '',
   near: '', radio: 2000, orden: 'recientes',
   cliente: null,   // { id, nombre } cuando se llegó con ?cliente=<id>: sus criterios son los filtros
+  // Sólo Inmobiliaria: a qué cliente se presentó y en qué etapa va el proceso.
+  pcliente: '', etapas: [],
   // Los tres de la barra fija. `lugares` guarda el objeto completo y no sólo el id
   // porque el chip tiene que poder decir "Monterrey" sin volver a preguntarle a la API.
   lugares: [],     // [{ valor:'m40', nombre:'Monterrey', estado:'Nuevo León' }]
@@ -123,7 +134,7 @@ function adaptListing(l) {
   return {
     id: l.id,
     fuente: l.source ?? 'desconocido',
-    codigo: l.external_id ?? null,
+    codigo: l.source === 'pipeline' ? null : (l.external_id ?? null),   // el uuid de la ficha no es un código
     titulo: l.title ?? l.broker_name ?? null,
     direccion: parseLocation(l.location) ?? l.neighborhood ?? l.zona ?? null,
     precio: l.price_numeric != null ? { monto: l.price_numeric, moneda: l.currency ?? 'MXN' } : null,
@@ -140,7 +151,8 @@ function adaptListing(l) {
     notes: l.notes ?? '',
     tipo: l.property_type ?? null,
     size: l.property_size_m2 ?? null,
-    transaccion: TXN_FROM_API[l.transaction_type] ?? 'Renta',
+    // Las fichas del sheet no dicen si es renta o venta: sin operación, no "Renta".
+    transaccion: TXN_FROM_API[l.transaction_type] ?? (l.source === 'pipeline' ? null : 'Renta'),
     // Coordenadas para el mapa. Se aceptan los nombres más comunes; si la API
     // no las manda, el inmueble simplemente no lleva pin.
     lat: num(l.lat ?? l.latitude ?? l.geo?.lat ?? l.location?.lat),
@@ -158,6 +170,8 @@ const paramsBase = () => ({
   ppm_min: F.ppm_min, ppm_max: F.ppm_max,
   near: F.near, radio: F.near ? F.radio : '',
   favoritos: filterStarred,
+  ficha: INMO ? 'con' : 'sin',
+  pcliente: INMO ? F.pcliente : '', etapa: INMO ? F.etapas : [],
 });
 
 async function cargarPagina() {
@@ -258,7 +272,7 @@ function renderCard(l) {
       ${l.direccion ? `<div class="card-dir">${ICON_PIN}${esc(l.direccion)}</div>` : ''}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
-        <span class="tag-txn">${esc(l.transaccion)}</span>
+        ${l.transaccion ? `<span class="tag-txn">${esc(l.transaccion)}</span>` : ''}
         ${l.codigo ? `<span class="tag-cod">${esc(l.codigo)}</span>` : ''}
       </div>
       <div class="card-sep"></div>
@@ -458,6 +472,7 @@ async function _render() {
 function limpiarTodo() {
   Object.values(CAMPOS).forEach(c => c.clear());
   F.lugares = []; F.tipos = []; F.operacion = ''; F.precio_min = ''; F.precio_max = '';
+  F.pcliente = ''; F.etapas = [];
   fbCerrar();
   F.q = ''; searchStreet = ''; filterStatus = 'Todos'; filterStarred = false;
   document.getElementById('searchInput').value = '';
@@ -511,8 +526,10 @@ function exportCSV() {
 // popover descartan el borrador; la ✕ del chip sí limpia de inmediato, porque quitar
 // un filtro no necesita confirmarse.
 
-const FB_CLAVES = ['ubicacion', 'precio', 'tipo'];
-const FB_TITULO = { ubicacion: 'Ubicación', precio: 'Precio', tipo: 'Tipo de inmueble' };
+const FB_CLAVES = ['ubicacion', 'precio', 'tipo', ...(INMO ? ['cliente', 'etapa'] : [])];
+if (INMO) document.querySelectorAll('.fb-chip[data-f="cliente"], .fb-chip[data-f="etapa"]').forEach(c => { c.hidden = false; });
+const FB_TITULO = { ubicacion: 'Ubicación', precio: 'Precio', tipo: 'Tipo de inmueble',
+                    cliente: 'Presentada a', etapa: 'Etapa del proceso' };
 const cap = s => String(s ?? '').charAt(0).toUpperCase() + String(s ?? '').slice(1);
 
 let fbAbierto = null;     // cuál popover está abierto, o null
@@ -540,12 +557,17 @@ const fbResumen = {
   },
   tipo: () => !F.tipos.length ? 'Todos'
     : F.tipos.length === 1 ? cap(F.tipos[0]) : `${F.tipos.length} tipos`,
+  cliente: () => F.pcliente ? (clientesCache?.find(c => String(c.id) === F.pcliente)?.nombre ?? '1 cliente') : 'Todos',
+  etapa: () => !F.etapas.length ? 'Todas'
+    : F.etapas.length === 1 ? etapaLabel(F.etapas[0]) : `${F.etapas.length} etapas`,
 };
 
 const fbPuesto = {
   ubicacion: () => F.lugares.length > 0,
   precio: () => !!(F.operacion || F.precio_min || F.precio_max),
   tipo: () => F.tipos.length > 0,
+  cliente: () => !!F.pcliente,
+  etapa: () => F.etapas.length > 0,
 };
 
 function renderFB() {
@@ -571,7 +593,8 @@ function fbAbrir(k) {
   // Copia, no referencia: `lugares` y `tipos` se editan dentro del popover y tienen
   // que poder tirarse enteros al cancelar.
   fbDraft = { lugares: F.lugares.slice(), tipos: F.tipos.slice(),
-              operacion: F.operacion, min: F.precio_min, max: F.precio_max, sug: [] };
+              operacion: F.operacion, min: F.precio_min, max: F.precio_max, sug: [],
+              pcliente: F.pcliente, etapas: F.etapas.slice() };
   const pop = document.getElementById('fbPop');
   pop.dataset.f = k;
   pop.hidden = false;
@@ -582,7 +605,8 @@ function fbAbrir(k) {
 }
 
 function fbPintarPop() {
-  const cuerpo = { ubicacion: fbCuerpoUbicacion, precio: fbCuerpoPrecio, tipo: fbCuerpoTipo }[fbAbierto]();
+  const cuerpo = { ubicacion: fbCuerpoUbicacion, precio: fbCuerpoPrecio, tipo: fbCuerpoTipo,
+                   cliente: fbCuerpoCliente, etapa: fbCuerpoEtapa }[fbAbierto]();
   document.getElementById('fbPop').innerHTML = `
     <div class="fb-head">
       <span class="fb-title">${esc(FB_TITULO[fbAbierto])}</span>
@@ -660,7 +684,28 @@ function fbCuerpoTipo() {
     </label>`).join('') + '</div>';
 }
 
+// Inmobiliaria: un cliente a la vez (la pregunta es "¿qué le hemos presentado a X?")
+// y varias etapas, con las mismas casillas que Tipo.
+function fbCuerpoCliente() {
+  const cs = clientesCache ?? [];
+  if (!cs.length) return '<p class="fb-nota">Cargando clientes&#8230;</p>';
+  return '<div class="fb-cajas fb-cajas-lista">' + [{ id: '', nombre: 'Todos los clientes' }, ...cs].map(c => `
+    <label class="fb-caja">
+      <input type="radio" name="fbCliente" data-pcliente="${esc(c.id)}"${String(fbDraft.pcliente) === String(c.id) ? ' checked' : ''}>
+      <span>${esc(c.nombre)}</span>
+    </label>`).join('') + '</div>';
+}
+function fbCuerpoEtapa() {
+  return '<div class="fb-cajas">' + ETAPAS.map(e => `
+    <label class="fb-caja">
+      <input type="checkbox" data-etapa="${esc(e.key)}"${fbDraft.etapas.includes(e.key) ? ' checked' : ''}>
+      <span>${esc(e.label)}</span>
+    </label>`).join('') + '</div>';
+}
+
 function fbLimpiarBorrador() {
+  if (fbAbierto === 'cliente') fbDraft.pcliente = '';
+  if (fbAbierto === 'etapa') fbDraft.etapas = [];
   if (fbAbierto === 'ubicacion') { fbDraft.lugares = []; fbDraft.sug = []; }
   if (fbAbierto === 'tipo') fbDraft.tipos = [];
   if (fbAbierto === 'precio') { fbDraft.operacion = ''; fbDraft.min = ''; fbDraft.max = ''; }
@@ -668,6 +713,8 @@ function fbLimpiarBorrador() {
 }
 
 function fbAplicar() {
+  if (fbAbierto === 'cliente') F.pcliente = fbDraft.pcliente;
+  if (fbAbierto === 'etapa') F.etapas = fbDraft.etapas.slice();
   if (fbAbierto === 'ubicacion') F.lugares = fbDraft.lugares.slice(0, MAX_LUGARES);
   if (fbAbierto === 'tipo') F.tipos = fbDraft.tipos.slice();
   if (fbAbierto === 'precio') {
@@ -683,6 +730,8 @@ function fbAplicar() {
 function fbQuitar(k) {
   if (k === 'ubicacion') F.lugares = [];
   if (k === 'tipo') F.tipos = [];
+  if (k === 'cliente') F.pcliente = '';
+  if (k === 'etapa') F.etapas = [];
   if (k === 'precio') { F.operacion = ''; F.precio_min = ''; F.precio_max = ''; }
   if (fbAbierto === k) fbCerrar();
   page = 1; render();
@@ -741,6 +790,12 @@ document.getElementById('fbPop').addEventListener('input', e => {
 });
 
 document.getElementById('fbPop').addEventListener('change', e => {
+  if (e.target.matches('[data-pcliente]')) { fbDraft.pcliente = e.target.dataset.pcliente; return; }
+  if (e.target.matches('[data-etapa]')) {
+    const v = e.target.dataset.etapa;
+    fbDraft.etapas = e.target.checked ? [...new Set([...fbDraft.etapas, v])] : fbDraft.etapas.filter(x => x !== v);
+    return;
+  }
   const c = e.target.closest('input[type=checkbox][data-tipo]');
   if (!c) return;
   const v = c.dataset.tipo;
@@ -1064,8 +1119,14 @@ API.me().then(async () => {
   document.getElementById('authBox').hidden = true;
   document.getElementById('userBox').hidden = false;
   zonas = await API.get('/zonas').catch(() => []);
-  const cid = new URLSearchParams(location.search).get('cliente');
-  if (cid) await aplicarCliente(cid);
+  const url = new URLSearchParams(location.search);
+  if (url.get('cliente')) await aplicarCliente(url.get('cliente'));
+  // Inmobiliaria: los clientes hacen falta para el filtro y su resumen. Desde la ficha
+  // de un cliente se llega con ?pcliente=<id> ("lo que ya le presentamos").
+  if (INMO) {
+    await cargarClientes();
+    if (url.get('pcliente')) F.pcliente = url.get('pcliente');
+  }
   await render();
 }).catch(err => {
   // El 401 lo maneja api.js redirigiendo al login; aquí sólo quedan fallos reales.

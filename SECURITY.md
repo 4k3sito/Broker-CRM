@@ -199,6 +199,18 @@ la llave a Maps JavaScript API y al dominio del sitio. Hacerlo es un cambio de C
 anotado aquí cuando pase. El rediseño además interpola `style=` en más sitios (barras
 de clientes, progreso de documentos): H4 se vuelve más difícil de cerrar, no más fácil.
 
+### Endpoints (2026-09-29) — Bolsa Inmobiliaria / Inmobiliaria
+
+`GET /api/listings` y `/facets` aceptan `ficha` (`con`|`sin`, validado por patrón),
+`pcliente` (uuid, validado por patrón y casteado en SQL) y `etapa` (lista, va como
+arreglo parametrizado). Con `ficha=con` el FROM es una vista que convierte las fichas
+del Google Sheet en filas de `listings` (`source = 'pipeline'`); esas filas exponen
+sólo lo que la ficha ya mostraba a cualquier asesor (título, precio, m², municipio,
+fotos, notas). `GET /api/listings/pipeline:<uuid>` y `GET /api/fichas?listing=pipeline:<uuid>`
+leen esa misma ficha. El estado Nuevo/Revisado de esas filas vive en `user_listing` con
+la llave `pipeline:<uuid>`, que no tiene llave foránea: si la ficha se borra, la fila
+queda huérfana y no se ve en ningún lado.
+
 ### Endpoints (2026-09-29) — criterios del cliente y $/m²
 
 - `GET /api/listings` y `/api/listings/facets` aceptan `ppm_min` / `ppm_max` (precio por
