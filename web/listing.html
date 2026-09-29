@@ -3,50 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Propiedad · OfficeLab</title>
+<meta name="theme-color" content="#201333">
+<title>Propiedad &#183; OfficeLab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="hermes.css">
 <script src="theme.js"></script>
 </head>
 <body>
 
-<!-- TOPBAR -->
 <header class="topbar">
   <a class="brand-group" href="index.html" aria-label="OfficeLab, propiedades">
-    <svg class="brand-mark" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <svg class="brand-mark" width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <rect x="2" y="2" width="28" height="28" stroke="currentColor" stroke-width="2"/>
       <rect x="9" y="9" width="14" height="14" fill="currentColor"/>
       <rect x="13.5" y="13.5" width="5" height="5" fill="var(--topbar)"/>
     </svg>
-    <span class="brand-text">
-      <span class="brand">Office<i>Lab</i></span>
-      <span class="brand-sub">CRM Inmobiliario · México</span>
-    </span>
+    <span class="brand-text"><span class="brand">Office<i>Lab</i></span></span>
   </a>
   <div class="topbar-right">
-    <a class="btn-ghost back-link" href="index.html">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      Volver al tablero
-    </a>
-    <span id="authBox">
-      <a class="btn-ghost" href="login.html">Entrar</a>
-    </span>
-    <span id="userBox" hidden>
-      <button class="btn-ghost" id="logout-btn">Salir</button>
-    </span>
+    <span id="authBox"><a class="btn-ghost" href="login.html">Entrar</a></span>
+    <span id="userBox" hidden><button class="btn-ghost" id="logout-btn">Salir</button></span>
   </div>
 </header>
 
-
-<main class="detail" id="detail">
-  <p class="empty">Cargando propiedad&#8230;</p>
+<main class="fx" id="detail">
+  <p class="pg-empty" style="margin:40px 20px">Cargando propiedad&#8230;</p>
 </main>
 
-<!-- Hoja imprimible de la ficha (solo visible al imprimir) -->
+<!-- Visor de fotos a pantalla completa -->
+<div class="fx-lb" id="lightbox" hidden>
+  <button class="fx-lb-x" id="lbClose" aria-label="Cerrar">&times;</button>
+  <button class="fx-lb-nav prev" id="lbPrev" aria-label="Anterior">&#8592;</button>
+  <img id="lbImg" alt="">
+  <button class="fx-lb-nav next" id="lbNext" aria-label="Siguiente">&#8594;</button>
+  <span class="fx-lb-n" id="lbN"></span>
+</div>
+
+<!-- Ficha técnica Pro Realtors: sólo visible al imprimir -->
 <div id="ficha-print"></div>
 
+<script src="config.js"></script>
 <script src="api.js"></script>
 <script src="texto.js"></script>
 <script src="etapas.js"></script>

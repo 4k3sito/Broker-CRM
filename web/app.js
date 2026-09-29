@@ -56,6 +56,10 @@ const PAGE_SIZE = 70;
 let listings = [], listingsMap = {}, totalFiltrado = 0;
 let facetas = { total: 0, destacados: 0, por_estado: {}, por_fuente: {} };
 let zonas = [];
+// Selección múltiple: sobrevive a cambios de página y de filtro. Guarda el
+// inmueble completo para que la bandeja no dependa de la página visible.
+const seleccion = new Map();
+const MAX_COMPARAR = 4;
 
 // ── Tokens: la sentencia ─────────────────────────────────────────────────────
 
@@ -65,8 +69,8 @@ let zonas = [];
 // que es donde el asesor los busca. La paleta se queda con lo secundario.
 const CAMPOS = {
   radio:     { kind: 'Radio',     grupo: 'Ubicación', hint: 'a N km de un punto',
-               label: () => `a ${(F.radio / 1000).toFixed(1).replace(/\.0$/, '')} km de ${F.near}`,
-               clear: () => { F.near = ''; } },
+               label: () => `a ${(F.radio / 1000).toFixed(1).replace(/\.0$/, '')} km de ${F.nearTxt || F.near}`,
+               clear: () => { F.near = ''; F.nearTxt = ''; } },
   m2:        { kind: 'M²',        grupo: 'Números',   hint: 'superficie',
                label: () => rango(F.m2_min, F.m2_max, v => `${mx(v)} m²`),
                clear: () => { F.m2_min = ''; F.m2_max = ''; } },
@@ -127,8 +131,13 @@ function adaptListing(l) {
     tipo: l.property_type ?? null,
     size: l.property_size_m2 ?? null,
     transaccion: TXN_FROM_API[l.transaction_type] ?? 'Renta',
+    // Coordenadas para el mapa. Se aceptan los nombres más comunes; si la API
+    // no las manda, el inmueble simplemente no lleva pin.
+    lat: num(l.lat ?? l.latitude ?? l.geo?.lat ?? l.location?.lat),
+    lng: num(l.lng ?? l.lon ?? l.longitude ?? l.geo?.lng ?? l.location?.lng),
   };
 }
+function num(v) { const n = Number(v); return v == null || v === '' || !Number.isFinite(n) ? null : n; }
 
 const paramsBase = () => ({
   q: searchStreet || F.q,
@@ -215,12 +224,14 @@ function renderCard(l) {
       (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + mx(l.size) + ' m²'}</span>` : '')
     : `<div class="card-price"><strong class="no-price">Sin precio</strong></div>`;
 
-  return `<article class="card ${l.starred ? 'starred' : ''} status-${l.status.toLowerCase()}" data-id="${esc(l.id)}">
+  const sel = seleccion.has(l.id);
+  return `<article class="card ${l.starred ? 'starred' : ''}${sel ? ' sel' : ''} status-${l.status.toLowerCase()}" data-id="${esc(l.id)}">
     <div class="card-img">
       ${imgHtml}
       <span class="badge badge-src">${esc(blabel)}</span>
       ${l.fotos?.length ? `<span class="badge badge-foto">FOTO 1/${l.fotos.length}</span>` : ''}
       ${l.size ? `<span class="badge badge-size">${mx(Math.round(l.size))} m&#178;</span>` : ''}
+      <button class="card-chk" title="Seleccionar" aria-pressed="${sel}">${sel ? '&#10003;' : ''}</button>
       <button class="btn-star" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">${l.starred ? '&#9733;' : '&#9734;'}</button>
     </div>
     <div class="card-body">
@@ -404,13 +415,10 @@ async function _render() {
 
   document.getElementById('countNum').textContent = mx(totalFiltrado);
   document.getElementById('countTotal').textContent = mx(facetas.total);
-  document.getElementById('footCount').textContent = `${mx(totalFiltrado)} RESULTADOS`;
-  document.getElementById('footFuentes').textContent =
-    `${Object.keys(facetas.por_fuente).length} FUENTES`;
   renderTokens();
   renderFB();
-  renderStats();
   renderStatusPills();
+  renderTray();
 
   const grid = document.getElementById('grid');
   if (!listings.length) {
@@ -422,6 +430,7 @@ async function _render() {
     </div>`;
     document.getElementById('empty-clear').addEventListener('click', limpiarTodo);
     document.getElementById('pagination').innerHTML = '';
+    Mapa.pintar([]);
     return;
   }
 
@@ -429,6 +438,9 @@ async function _render() {
   if (page > totalPages) { page = totalPages; return _render(); }
   renderPagination(totalPages);
   grid.innerHTML = listings.map(renderCard).join('');
+  // La ficha usa esto para anterior/siguiente sin volver al tablero.
+  try { sessionStorage.setItem('ol-nav', JSON.stringify(listings.map(l => String(l.id)))); } catch { /* sin contexto */ }
+  Mapa.pintar(listings);
 }
 
 function limpiarTodo() {
@@ -765,7 +777,7 @@ document.getElementById('qbar').addEventListener('click', e => {
 document.getElementById('qbar').addEventListener('input', e => {
   if (e.target.id === 'palInput') return renderPalette(e.target.value.trim());
   if (e.target.id === 'edMin' || e.target.id === 'edMax') { F[e.target.dataset.k] = e.target.value; page = 1; return render(); }
-  if (e.target.id === 'edNear') { F.near = e.target.value.trim(); page = 1; return render(); }
+  if (e.target.id === 'edNear') { F.near = e.target.value.trim(); F.nearTxt = ''; page = 1; return render(); }
   if (e.target.id === 'edRadio') {
     F.radio = Number(e.target.value);
     document.getElementById('edRadioTxt').textContent = `${(F.radio / 1000).toFixed(1)} km`;
@@ -784,10 +796,26 @@ document.getElementById('statebar').addEventListener('click', e => {
 
 document.getElementById('grid').addEventListener('click', e => {
   const card = e.target.closest('.card');
-  if (!card || !e.target.closest('.btn-star')) return;
-  setState(card.dataset.id, { starred: !listingsMap[card.dataset.id].starred });
-  render();
+  if (!card) return;
+  const id = card.dataset.id;
+  if (e.target.closest('.btn-star')) {
+    setState(id, { starred: !listingsMap[id].starred });
+    return render();
+  }
+  if (e.target.closest('.card-chk')) return toggleSeleccion(id);
+  if (e.target.closest('select, a, button')) return;
+  // Cmd/Ctrl+clic abre la ficha en otra pestaña, como un enlace normal.
+  const url = `listing.html?id=${encodeURIComponent(id)}`;
+  if (e.metaKey || e.ctrlKey) window.open(url, '_blank'); else location.href = url;
 });
+
+// Hover tarjeta → pin. mouseover burbujea; se ignoran los movimientos internos.
+let hoverId = null;
+document.getElementById('grid').addEventListener('mouseover', e => {
+  const id = e.target.closest('.card')?.dataset.id ?? null;
+  if (id !== hoverId) { hoverId = id; Mapa.resaltar(id); }
+});
+document.getElementById('grid').addEventListener('mouseleave', () => { hoverId = null; Mapa.resaltar(null); });
 
 document.getElementById('grid').addEventListener('change', e => {
   const sel = e.target.closest('.status-select');
@@ -825,7 +853,164 @@ document.getElementById('searchChipClose').addEventListener('click', () => {
 
 document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); abrirPaleta(true); }
-  if (e.key === 'Escape') { abrirPaleta(false); cerrarEditor(); }
+  if (e.key === '/' && !e.target.closest('input, textarea, select')) { e.preventDefault(); searchInput.focus(); }
+  if (e.key === 'Escape') {
+    const abierto = !document.getElementById('palette').hidden || !document.getElementById('editor').hidden;
+    abrirPaleta(false); cerrarEditor();
+    if (!abierto && seleccion.size && !e.target.closest('input, textarea')) { seleccion.clear(); render(); }
+  }
+});
+
+// ── Vista: rejilla sola o rejilla + mapa ─────────────────────────────────────
+
+const inm = document.getElementById('inm');
+function ponerVista(v) {
+  inm.classList.toggle('split', v === 'split');
+  inm.classList.toggle('grid-only', v !== 'split');
+  document.querySelectorAll('.seg [data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === v));
+  try { localStorage.setItem('ol-vista', v); } catch { /* sin persistencia */ }
+  requestAnimationFrame(() => Mapa.resize());
+}
+document.querySelector('.seg').addEventListener('click', e => {
+  const b = e.target.closest('[data-vista]');
+  if (b) ponerVista(b.dataset.vista);
+});
+// Sin llave de Google Maps el mapa sólo mostraría el aviso: se arranca en rejilla.
+const hayLlaveMapa = !!window.OL_CONFIG?.googleMapsKey && !window.OL_CONFIG.googleMapsKey.includes('PEGA_AQUI');
+ponerVista((() => { try { return localStorage.getItem('ol-vista'); } catch { return null; } })()
+           ?? (hayLlaveMapa ? 'split' : 'grid'));
+
+Mapa.init(document.getElementById('map'), {
+  onPin: id => {
+    const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    if (!card) return;
+    const list = document.getElementById('inmList');
+    list.scrollTo({ top: card.offsetTop - 12, behavior: 'smooth' });
+    card.classList.add('on');
+    setTimeout(() => card.classList.remove('on'), 1600);
+  },
+  onPinHover: id => document.querySelectorAll('.card').forEach(c => c.classList.toggle('on', c.dataset.id === id)),
+  onMove: ({ lat, lng, radio }) => {
+    F.near = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    F.nearTxt = 'el centro del mapa';
+    F.radio = radio;
+    page = 1; render();
+  },
+});
+document.getElementById('mapFollow').addEventListener('change', e => Mapa.seguir(e.target.checked));
+
+// ── Selección, bandeja y acciones en lote ────────────────────────────────────
+
+function toggleSeleccion(id) {
+  if (seleccion.has(id)) seleccion.delete(id);
+  else if (listingsMap[id]) seleccion.set(id, listingsMap[id]);
+  const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+  if (card) {
+    const on = seleccion.has(id);
+    card.classList.toggle('sel', on);
+    const chk = card.querySelector('.card-chk');
+    chk.innerHTML = on ? '&#10003;' : '';
+    chk.setAttribute('aria-pressed', on);
+  }
+  renderTray();
+}
+
+function renderTray() {
+  const tray = document.getElementById('tray');
+  const n = seleccion.size;
+  tray.hidden = !n;
+  document.body.classList.toggle('has-tray', n > 0);
+  inm.classList.toggle('selecting', n > 0);
+  if (!n) return;
+  document.getElementById('trayCount').textContent = n === 1 ? '1 seleccionada' : `${n} seleccionadas`;
+  const items = [...seleccion.values()];
+  document.getElementById('trayItems').innerHTML = items.slice(0, MAX_COMPARAR).map(l => {
+    const p = fmtPrice(l.precio, l);
+    return `<span class="tray-item" data-id="${esc(l.id)}">
+      ${l.fotos?.[0] ? `<img src="${esc(l.fotos[0])}" alt="">` : '<span class="tray-thumb"></span>'}
+      <span class="tray-txt"><b>${p ? '$' + p.n : 'Sin precio'}</b><small>${l.size ? mx(Math.round(l.size)) + ' m² · ' : ''}${esc(l.direccion ?? '')}</small></span>
+      <button class="tray-x" title="Quitar">&times;</button>
+    </span>`;
+  }).join('') + (n > MAX_COMPARAR ? `<span class="tray-more">+${n - MAX_COMPARAR}</span>` : '');
+  const cmp = document.getElementById('trayComparar');
+  cmp.disabled = n < 2 || n > MAX_COMPARAR;
+  cmp.title = n < 2 ? 'Selecciona al menos 2' : n > MAX_COMPARAR ? `Máximo ${MAX_COMPARAR}` : '';
+}
+
+let toastTimer = null;
+function toast(msg, deshacer) {
+  const t = document.getElementById('toast');
+  t.innerHTML = `<span>${esc(msg)}</span>` + (deshacer ? '<button id="toastUndo">Deshacer</button>' : '');
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 10000);
+  if (deshacer) document.getElementById('toastUndo').onclick = () => { t.hidden = true; deshacer(); };
+}
+
+document.getElementById('trayItems').addEventListener('click', e => {
+  const it = e.target.closest('.tray-item');
+  if (it && e.target.closest('.tray-x')) toggleSeleccion(it.dataset.id);
+});
+document.getElementById('trayClear').addEventListener('click', () => { seleccion.clear(); render(); });
+document.getElementById('trayComparar').addEventListener('click', () => {
+  location.href = `comparar.html?ids=${[...seleccion.keys()].map(encodeURIComponent).join(',')}`;
+});
+
+document.getElementById('trayEstado').addEventListener('change', e => {
+  const nuevo = e.target.value;
+  e.target.value = '';
+  if (!nuevo) return;
+  const previos = [...seleccion.values()].map(l => [l.id, l.status]);
+  const aplicar = pares => pares.forEach(([id, st]) => {
+    const l = seleccion.get(id) ?? listingsMap[id];
+    Object.assign(l, { status: st });
+    if (listingsMap[id]) listingsMap[id].status = st;
+    API.put(`/listings/${encodeURIComponent(id)}/estado`, {
+      status: STATUS_TO_API[st], starred: l.starred, notes: l.notes,
+    }).catch(err => console.warn('No se pudo guardar el estado:', err.message));
+  });
+  aplicar(previos.map(([id]) => [id, nuevo]));
+  render();
+  toast(`${previos.length} ${previos.length === 1 ? 'inmueble' : 'inmuebles'} → ${nuevo}`, () => { aplicar(previos); render(); });
+});
+
+// Los clientes se piden una sola vez, la primera vez que hace falta.
+let clientesCache = null;
+async function cargarClientes() {
+  if (clientesCache) return clientesCache;
+  clientesCache = (await API.get('/clientes').catch(() => [])).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  document.getElementById('trayCliente').innerHTML = '<option value="">Asignar a cliente…</option>' +
+    clientesCache.map(c => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
+  return clientesCache;
+}
+document.getElementById('trayCliente').addEventListener('focus', cargarClientes);
+document.getElementById('trayCliente').addEventListener('mousedown', cargarClientes);
+
+// Un proceso cuelga de una ficha, no del anuncio. Si el inmueble aún no tiene
+// ficha, se crea con los datos del anuncio (igual que el botón de la ficha).
+async function fichaDe(l) {
+  const fs = await API.get(`/fichas?listing=${encodeURIComponent(l.id)}`).catch(() => []);
+  if (fs[0]) return fs[0];
+  return API.post('/fichas', {
+    source_listing_id: l.id, titulo: l.titulo, precio: l.precio?.monto ?? null,
+    moneda: l.precio?.moneda ?? 'MXN', tamano_m2: l.size, fotos: l.fotos,
+  });
+}
+document.getElementById('trayCliente').addEventListener('change', async e => {
+  const clienteId = e.target.value;
+  e.target.value = '';
+  if (!clienteId) return;
+  const cliente = clientesCache?.find(c => String(c.id) === clienteId);
+  const lista = [...seleccion.values()];
+  toast(`Proponiendo ${lista.length} a ${cliente?.nombre ?? 'cliente'}…`);
+  const res = await Promise.allSettled(lista.map(async l => {
+    const f = await fichaDe(l);
+    return API.post('/procesos', { cliente_id: clienteId, ficha_id: f.id });
+  }));
+  const ok = res.filter(r => r.status === 'fulfilled').length;
+  toast(ok === lista.length
+    ? `${ok} ${ok === 1 ? 'inmueble propuesto' : 'inmuebles propuestos'} a ${cliente?.nombre ?? 'cliente'}`
+    : `${ok} de ${lista.length} propuestos. Los demás fallaron o ya estaban.`);
 });
 // Un clic fuera cierra los popovers; dentro de .qbar los maneja su propio listener.
 document.addEventListener('click', e => {

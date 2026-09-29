@@ -1,233 +1,223 @@
-// Las etapas de un proceso vienen de etapas.js, compartido con tareas y la ficha.
+// Clientes (diseño 1a): lista compacta a la izquierda y, a la derecha, el cliente
+// seleccionado con TODAS sus propuestas en una tabla. Sustituye a la rejilla de
+// tarjetas, que obligaba a hacer scroll para ver las propuestas de cada uno.
 
-let currentUser  = null;
-let clientes     = [];          // cada uno con .proceso[] embebido
+// Las etapas de un proceso vienen de etapas.js (compartido con tareas y la ficha);
+// `esc` y `norm`, de texto.js.
+const mx = n => Number(n).toLocaleString('es-MX');
+
+let currentUser = null;
+let clientes = [];          // cada uno con .proceso[] embebido
 let filterStatus = 'all';
-let searchQ      = '';
+let searchQ = '';
+let selId = decodeURIComponent(location.hash.slice(1)) || null;
 
-// ── Data ─────────────────────────────────────────────────────────────────────
-
+// ── Datos ────────────────────────────────────────────────────────────────────
 async function loadClientes() {
-  clientes = await API.get('/clientes').catch(err => {
-    console.warn('Carga de clientes falló:', err.message);
-    return [];
-  });
+  clientes = await API.get('/clientes').catch(err => { console.warn('Carga de clientes falló:', err.message); return []; });
 }
-
 async function createCliente(patch) {
   try {
-    clientes.unshift(await API.post('/clientes', patch));
-    render();
-  } catch (err) {
-    alert('No se pudo crear el cliente: ' + err.message);
-  }
+    const c = await API.post('/clientes', patch);
+    clientes.unshift({ proceso: [], ...c });
+    seleccionar(c.id);
+  } catch (err) { alert('No se pudo crear el cliente: ' + err.message); }
 }
-
 function saveCliente(id, field, value) {
-  const c = clientes.find(x => x.id === id);
-  if (c) c[field] = value;
-  API.patch(`/clientes/${id}`, { [field]: value })
-    .catch(err => console.warn('No se pudo guardar el cliente:', err.message));
+  const c = clientes.find(x => String(x.id) === String(id));
+  if (!c || c[field] === value) return;
+  c[field] = value;
+  API.patch(`/clientes/${id}`, { [field]: value }).catch(err => console.warn('No se pudo guardar:', err.message));
+  renderLista();
 }
-
 async function deleteCliente(id) {
   if (!confirm('¿Eliminar este cliente y todos sus procesos?')) return;
   try {
     await API.del(`/clientes/${id}`);
-    clientes = clientes.filter(c => c.id !== id);
-    render();
-  } catch (err) {
-    alert('No se pudo eliminar: ' + err.message);
-  }
+    clientes = clientes.filter(c => String(c.id) !== String(id));
+    selId = null; render();
+  } catch (err) { alert('No se pudo eliminar: ' + err.message); }
 }
-
 function setProcesoStatus(procId, status) {
   for (const c of clientes) {
-    const p = (c.proceso ?? []).find(x => x.id === procId);
+    const p = (c.proceso ?? []).find(x => String(x.id) === String(procId));
     if (p) p.status = status;
   }
-  API.patch(`/procesos/${procId}`, { status })
-    .catch(err => console.warn('No se pudo guardar el proceso:', err.message));
+  API.patch(`/procesos/${procId}`, { status }).catch(err => console.warn(err.message));
+  render();
+}
+async function removeProceso(procId) {
+  if (!confirm('¿Quitar esta propuesta?')) return;
+  try {
+    await API.del(`/procesos/${procId}`);
+    for (const c of clientes) c.proceso = (c.proceso ?? []).filter(p => String(p.id) !== String(procId));
+    render();
+  } catch (err) { alert('No se pudo quitar: ' + err.message); }
+}
+
+// ── Derivados ────────────────────────────────────────────────────────────────
+const cuenta = (procs, st) => procs.filter(p => p.status === st).length;
+const iniciales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+// Etapa del cliente: la del proceso más avanzado que tenga (no hay columna `etapa`).
+const etapaDe = c => etapaMayor((c.proceso ?? []).map(p => p.status));
+function pasaFiltro(c) {
+  if (searchQ && !norm(`${c.nombre} ${c.empresa ?? ''} ${c.contacto ?? ''}`).includes(norm(searchQ))) return false;
+  return filterStatus === 'all' || (c.proceso ?? []).some(p => p.status === filterStatus);
+}
+const fecha = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '—';
+const telDe = s => { const d = String(s ?? '').replace(/\D/g, ''); return d.length >= 10 ? d : null; };
+
+function seleccionar(id) {
+  selId = id == null ? null : String(id);
+  history.replaceState(null, '', selId ? `#${encodeURIComponent(selId)}` : location.pathname);
   render();
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
-
-const ICON_WARN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
-
-// Un cliente pasa el filtro de estado si alguno de sus procesos está en ese estado.
-function pasaFiltro(c) {
-  if (searchQ && !norm(c.nombre).includes(norm(searchQ))) return false;
-  if (filterStatus !== 'all' && !(c.proceso ?? []).some(p => p.status === filterStatus)) return false;
-  return true;
-}
-
-function cuenta(procs, estado) {
-  return procs.filter(p => p.status === estado).length;
-}
-
-// aprobados / (aprobados + rechazados). Sin decisiones todavía no hay tasa que dar.
-function tasaAceptacion(aprob, rech) {
-  const decididos = aprob + rech;
-  return decididos ? Math.round((aprob / decididos) * 100) + '%' : '—';
-}
-
-function statCell(n, label, color) {
-  return `<div class="stat"><span class="stat-num" style="color:${color}">${n}</span>` +
-         `<span class="stat-label">${label}</span></div>`;
-}
-
-// Los KPI del encabezado. Cuatro cifras Bodoni separadas por filete, a la derecha
-// del título — no la fila de stats a lo ancho que tenía antes.
-function renderStatsGlobal(filtrados) {
-  const procs = filtrados.flatMap(c => c.proceso ?? []);
-  const kpi = (n, label, color) =>
-    `<div class="pg-kpi"><span class="pg-kpi-n" style="color:${color}">${n}</span>` +
-    `<span class="pg-kpi-l">${label}</span></div>`;
-  document.getElementById('kpis').innerHTML =
-    kpi(filtrados.length, 'clientes', 'var(--ink)') +
-    kpi(procs.filter(p => etapaActiva(p.status)).length, 'en proceso', 'var(--e-presentado)') +
-    kpi(cuenta(procs, 'aprobado'),  'aprobados',   'var(--e-aprobado)') +
-    kpi(cuenta(procs, 'rechazado'), 'descartados', 'var(--e-rechazado)');
-}
-
-// Una píldora por etapa, generada de etapas.js en vez de escrita en el HTML: eran
-// tres fijas y el pipeline trae ocho.
+// Una píldora por etapa, generada de etapas.js: el pipeline trae ocho.
 function renderEtapaPills() {
   document.getElementById('etapaPills').innerHTML = ETAPAS.map(e =>
     `<button class="pill-line${filterStatus === e.key ? ' active' : ''}" data-status="${e.key}">${e.label} ` +
     `<span class="pill-count" data-count="${e.key}">0</span></button>`).join('');
 }
 
-function renderPillCounts() {
-  const base = clientes.filter(c => !searchQ || norm(c.nombre).includes(norm(searchQ)));
+function renderLista() {
+  const box = document.getElementById('clList');
+  renderEtapaPills();
+  const base = clientes.filter(c => !searchQ || norm(`${c.nombre} ${c.empresa ?? ''} ${c.contacto ?? ''}`).includes(norm(searchQ)));
   document.querySelectorAll('.pill-count[data-count]').forEach(el => {
     const k = el.dataset.count;
-    el.textContent = k === 'all'
-      ? base.length
-      : base.filter(c => (c.proceso ?? []).some(p => p.status === k)).length;
+    el.textContent = k === 'all' ? base.length : base.filter(c => (c.proceso ?? []).some(p => p.status === k)).length;
   });
+  const lista = clientes.filter(pasaFiltro);
+  document.getElementById('countTag').hidden = false;
+  document.getElementById('countNum').textContent = lista.length;
+  document.getElementById('countTotal').textContent = clientes.length;
+  if (!lista.length) {
+    box.innerHTML = `<p class="cl-empty">${clientes.length ? 'Ningún cliente coincide.' : 'Aún no hay clientes. Crea el primero con “+”.'}</p>`;
+    return;
+  }
+  box.innerHTML = lista.map(c => {
+    const ps = c.proceso ?? [];
+    const w = n => `${Math.min(n, 8) * 7}px`;
+    return `<button class="cl-item${String(c.id) === selId ? ' on' : ''}" data-id="${esc(c.id)}">
+      <span class="cl-ava">${esc(iniciales(c.nombre))}</span>
+      <span class="cl-txt"><b>${esc(c.nombre)}</b><small>${esc(c.requerimientos || c.empresa || 'Sin requerimientos')}</small></span>
+      <span class="cl-meta">
+        <span class="cl-bars"><i style="width:${w(cuenta(ps, 'presentado'))};background:var(--s-presentado)"></i><i style="width:${w(cuenta(ps, 'aprobado'))};background:var(--s-aprobado)"></i><i style="width:${w(cuenta(ps, 'rechazado'))};background:var(--s-rechazado)"></i></span>
+        <small>${ps.length} prop.</small>
+      </span>
+    </button>`;
+  }).join('');
 }
 
-function procesoRow(p) {
-  const titulo = p.ficha?.titulo ?? '(propiedad sin título)';
-  return `<div class="proc-row">
-    <span class="proc-ficha" title="${esc(titulo)}">${esc(titulo)}</span>
-    <select class="proc-status e-${esc(p.status)}" data-proc="${p.id}">${etapaOpciones(p.status)}</select>
-  </div>`;
-}
-
-// Etapa del cliente: la del proceso más avanzado que tenga. No hay columna
-// `etapa` en la base — el mock la pinta como dato propio, aquí se deriva.
-const etapaDe = c => etapaMayor((c.proceso ?? []).map(p => p.status));
-
-// Iniciales para el avatar: dos palabras como mucho, sin emoji ni foto.
-const iniciales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-
-function campoRow(c, campo, label, placeholder) {
-  return `<div class="cliente-field">
-    <span>${label}</span>
-    <input class="cli-in" data-f="${campo}" placeholder="${placeholder}" value="${esc(c[campo])}">
-  </div>`;
-}
-
-function clienteCard(c) {
-  const todos = c.proceso ?? [];
-  // Sin filtro, lo descartado se cuenta pero no se lista: con el pipeline importado
-  // un cliente grande trae docenas de propiedades ya descartadas.
-  const procs = todos.filter(p => filterStatus === 'all' ? p.status !== 'rechazado' : p.status === filterStatus);
-  const ocultos = filterStatus === 'all' ? cuenta(todos, 'rechazado') : 0;
+function renderDetalle() {
+  const box = document.getElementById('clDetail');
+  const c = clientes.find(x => String(x.id) === selId);
+  document.getElementById('clientes').classList.toggle('has-sel', !!c);
+  if (!c) {
+    box.innerHTML = `<div class="cl-none">${clientes.length ? 'Selecciona un cliente para ver sus propuestas.' : ''}</div>`;
+    return;
+  }
+  const ps = c.proceso ?? [];
   const etapa = etapaDe(c);
-  const pend = todos.filter(p => etapaActiva(p.status) && p.status !== 'cerrado').length;
-  return `<article class="cliente-card" data-id="${c.id}">
-    <div class="cliente-head">
-      <span class="cliente-ava">${esc(iniciales(c.nombre))}</span>
-      <div class="cliente-id">
-        <input class="cliente-nombre cli-in" data-f="nombre" value="${esc(c.nombre)}">
-        <input class="cliente-sub cli-in" data-f="empresa" placeholder="Empresa" value="${esc(c.empresa)}">
+  const tel = telDe(c.contacto);
+  const campo = (f, label, ph, wide) => `<label class="cl-f${wide ? ' wide' : ''}"><span>${label}</span>
+    <input class="cli-in" data-f="${f}" value="${esc(c[f])}" placeholder="${ph}"></label>`;
+  box.innerHTML = `
+    <div class="cl-head">
+      <button class="cl-back" id="clBack">&#8592; Clientes</button>
+      <div class="cl-title">
+        <span class="cl-ava lg">${esc(iniciales(c.nombre))}</span>
+        <div class="cl-names">
+          <input class="cli-in cl-nombre" data-f="nombre" value="${esc(c.nombre)}" aria-label="Nombre">
+          <input class="cli-in cl-empresa" data-f="empresa" value="${esc(c.empresa)}" placeholder="Empresa" aria-label="Empresa">
+        </div>
+        ${etapa ? `<span class="cliente-etapa e-${etapa}">${etapaLabel(etapa)}</span>` : ''}
+        <div class="cl-acts">
+          ${tel ? `<a class="fx-btn" href="https://wa.me/${tel.length === 10 ? '52' + tel : tel}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+          <button class="fx-btn" id="clDel" title="Eliminar cliente">Eliminar</button>
+        </div>
       </div>
-      ${etapa ? `<span class="cliente-etapa e-${etapa}">${etapaLabel(etapa)}</span>` : ''}
-      <button class="cliente-del" title="Eliminar cliente">&times;</button>
+      <div class="cl-fields">
+        ${campo('responsable', 'Cuenta', 'Quién lleva la cuenta')}
+        ${campo('contacto', 'Contacto', 'Teléfono o correo')}
+        ${campo('requerimientos', 'Qué busca', 'Tipo, m², zona, presupuesto…', true)}
+      </div>
     </div>
-    ${campoRow(c, 'responsable', 'Cuenta', 'Quién lleva la cuenta')}
-    ${campoRow(c, 'contacto', 'Contacto', 'Teléfono o correo')}
-    ${campoRow(c, 'requerimientos', 'Qué busca', 'Requerimientos')}
-    <div class="card-sep"></div>
-    <div class="cliente-foot">
-      <span class="cliente-chip">${todos.length} ${todos.length === 1 ? 'inmueble' : 'inmuebles'}</span>
-      <span class="cliente-pend${pend ? '' : ' cero'}">${pend ? `${pend} en proceso` : 'sin pendientes'}</span>
+    <div class="cl-props-head">
+      <h2>Propuestas · ${ps.length}</h2>
+      ${ETAPAS.map(e => cuenta(ps, e.key) ? `<span class="cl-chip e-${e.key}">${cuenta(ps, e.key)} ${e.label.toLowerCase()}</span>` : '').join('')}
+      <a class="cl-proponer" href="index.html">+ Proponer desde el tablero</a>
     </div>
-    <div class="cliente-procs">
-      ${procs.length ? procs.map(procesoRow).join('')
-        : `<div class="proc-empty">${todos.length
-             ? 'Sin procesos con este estatus'
-             : 'Aún sin propiedades — agrégalas desde una propiedad'}</div>`}
-      ${ocultos ? `<div class="proc-empty">${ocultos} descartada${ocultos === 1 ? '' : 's'} sin mostrar</div>` : ''}
-    </div>
-  </article>`;
+    ${ps.length ? `<div class="cl-table">
+      <div class="cl-tr cl-th"><span></span><span>Inmueble</span><span>Precio</span><span>m²</span><span>Estatus</span><span>Fecha</span><span></span></div>
+      ${ps.map(p => {
+        const f = p.ficha ?? {};
+        const foto = f.fotos?.[0];
+        const lid = f.source_listing_id ?? p.listing_id;
+        return `<div class="cl-tr">
+          ${foto ? `<img class="cl-th-img" src="${hrefSeguro(foto)}" alt="">` : '<span class="cl-th-img vacio"></span>'}
+          <span class="cl-inm">${lid ? `<a href="listing.html?id=${encodeURIComponent(lid)}">${esc(f.titulo ?? '(sin título)')}</a>` : esc(f.titulo ?? '(sin título)')}</span>
+          <span class="cl-precio">${f.precio != null ? '$' + mx(Math.round(f.precio)) : '—'}</span>
+          <span class="cl-mono">${f.tamano_m2 ? mx(Math.round(f.tamano_m2)) : '—'}</span>
+          <select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>
+          <span class="cl-mono">${fecha(p.created_at ?? p.creado_el)}</span>
+          <button class="cl-x" data-proc="${esc(p.id)}" title="Quitar propuesta">&times;</button>
+        </div>`;
+      }).join('')}
+    </div>` : `<p class="cl-empty pad">Aún sin propuestas. Selecciona inmuebles en el tablero y usa “Asignar a cliente”.</p>`}`;
+
+  box.querySelectorAll('.cli-in[data-f]').forEach(el => el.addEventListener('blur', e => saveCliente(c.id, e.target.dataset.f, e.target.value)));
+  box.querySelectorAll('.proc-status').forEach(s => s.addEventListener('change', e => setProcesoStatus(e.target.dataset.proc, e.target.value)));
+  box.querySelectorAll('.cl-x').forEach(b => b.addEventListener('click', e => removeProceso(e.currentTarget.dataset.proc)));
+  document.getElementById('clDel').addEventListener('click', () => deleteCliente(c.id));
+  document.getElementById('clBack').addEventListener('click', () => seleccionar(null));
 }
 
 function render() {
-  const main = document.getElementById('clientesBody');
   if (!currentUser) {
-    main.innerHTML = `<p class="pg-empty">Inicia sesión para ver y administrar tus clientes.</p>`;
+    document.getElementById('clList').innerHTML = '<p class="cl-empty">Inicia sesión para ver tus clientes.</p>';
     return;
   }
-  const filtrados = clientes.filter(pasaFiltro);
-
-  document.getElementById('countTag').hidden = false;
-  document.getElementById('countNum').textContent   = filtrados.length;
-  document.getElementById('countTotal').textContent = clientes.length;
-  renderEtapaPills();
-  renderPillCounts();
-  renderStatsGlobal(filtrados);
-
-  if (!filtrados.length) {
-    main.innerHTML = `<p class="pg-empty">${clientes.length
-      ? 'Ningún cliente coincide con la búsqueda.'
-      : 'Aún no tienes clientes — crea el primero con “+ Nuevo cliente”'}</p>`;
-    return;
+  // En escritorio siempre hay un cliente abierto: el primero de la lista si no hay otro.
+  if (!selId && matchMedia('(min-width: 801px)').matches) {
+    const primero = clientes.find(pasaFiltro);
+    if (primero) selId = String(primero.id);
   }
-  main.innerHTML = `<div class="clientes-grid">${filtrados.map(clienteCard).join('')}</div>`;
-
-  main.querySelectorAll('.cliente-card').forEach(card => {
-    const id = card.dataset.id;
-    card.querySelectorAll('.cli-in[data-f]').forEach(el =>
-      el.addEventListener('blur', e => saveCliente(id, e.target.dataset.f, e.target.value)));
-    card.querySelector('.cliente-del').addEventListener('click', () => deleteCliente(id));
-    card.querySelectorAll('.proc-status').forEach(sel =>
-      sel.addEventListener('change', e => setProcesoStatus(e.target.dataset.proc, e.target.value)));
-  });
+  renderLista();
+  renderDetalle();
 }
 
-// ── New client form ──────────────────────────────────────────────────────────
-
-function openNewClient() {
-  if (!currentUser) { alert('Inicia sesión para crear clientes.'); return; }
-  const nombre = prompt('Nombre del cliente:');
-  if (!nombre || !nombre.trim()) return;
-  createCliente({ nombre: nombre.trim() });
-}
-
-// ── Events ───────────────────────────────────────────────────────────────────
-
+// ── Eventos ──────────────────────────────────────────────────────────────────
 document.getElementById('filterbar').addEventListener('click', e => {
   const pill = e.target.closest('.pill-line');
   if (!pill) return;
-  document.querySelectorAll('.pill-line[data-status]').forEach(p => p.classList.remove('active'));
-  pill.classList.add('active');
+  document.querySelectorAll('.pill-line[data-status]').forEach(p => p.classList.toggle('active', p === pill));
   filterStatus = pill.dataset.status;
   render();
 });
+document.getElementById('clList').addEventListener('click', e => {
+  const it = e.target.closest('.cl-item');
+  if (it) seleccionar(it.dataset.id);
+});
 document.getElementById('clientSearch').addEventListener('input', e => { searchQ = e.target.value.trim(); render(); });
-document.getElementById('new-client-btn').addEventListener('click', openNewClient);
-
+document.getElementById('new-client-btn').addEventListener('click', () => {
+  const nombre = prompt('Nombre del cliente:');
+  if (nombre?.trim()) createCliente({ nombre: nombre.trim() });
+});
+// ↑/↓ recorren la lista cuando el foco no está en un campo.
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, select') || !['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  const ids = clientes.filter(pasaFiltro).map(c => String(c.id));
+  const i = ids.indexOf(selId);
+  const j = e.key === 'ArrowDown' ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1);
+  if (ids[j] && j !== i) { e.preventDefault(); seleccionar(ids[j]); }
+});
 document.getElementById('logout-btn').addEventListener('click', async () => {
   await API.logout().catch(() => {});
   location.replace('login.html');
 });
-
-// ── Init ─────────────────────────────────────────────────────────────────────
 
 API.me().then(async user => {
   currentUser = user;
