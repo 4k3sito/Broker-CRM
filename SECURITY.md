@@ -190,13 +190,15 @@ Ningún endpoint nuevo. `GET /api/clientes` agrega a cada proceso embebido su
 primera** foto: la tabla de propuestas del rediseño los pinta. Son columnas que el
 mismo asesor ya lee en `GET /api/fichas`; sigue exigiendo sesión y no toma parámetros.
 
-El frontend del rediseño **no** carga Google Maps todavía: `web/config.js` trae la llave
-vacía y la CSP de Caddy no se tocó, así que el mapa sólo muestra un aviso. Para
-encenderlo hay que abrir `script-src`, `img-src`, `connect-src` y `font-src` a los
-dominios de Google (`maps.googleapis.com`, `*.googleapis.com`, `*.gstatic.com`,
-`*.google.com`, más `worker-src blob:`) y restringir
-la llave a Maps JavaScript API y al dominio del sitio. Hacerlo es un cambio de CSP y va
-anotado aquí cuando pase. El rediseño además interpola `style=` en más sitios (barras
+**Google Maps, encendido el 2026-09-29.** La CSP de Caddy abre `script-src` a
+`maps.googleapis.com` y `maps.gstatic.com`, `connect-src` a `*.googleapis.com`,
+`*.google.com` y `*.gstatic.com`, `img-src` a `blob:` y `worker-src` a `blob:`. Sin
+`'unsafe-eval'`. La llave vive en `web/config.js` **sólo en el disco de producción, sin
+commit**: es una llave de navegador (viaja a cualquier visitante por diseño), pero no
+tiene por qué quedar en el historial de git. **Tiene que estar restringida** en Google
+Cloud a "Sitios web" con el dominio/IP del sitio y sólo a Maps JavaScript API; sin esa
+restricción cualquiera puede gastarla desde otro sitio. `/api/listings` agrega `lat`,
+`lng` y `geo_origen`, y calla la coordenada de las 250 filas `relleno`. El rediseño además interpola `style=` en más sitios (barras
 de clientes, progreso de documentos): H4 se vuelve más difícil de cerrar, no más fácil.
 
 ### Endpoints (2026-09-29) — Bolsa Inmobiliaria / Inmobiliaria

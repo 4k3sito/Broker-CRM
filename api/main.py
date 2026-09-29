@@ -397,7 +397,13 @@ SELECT_LISTING = """
        THEN (l.precio_alt * l.area_m2)::float8 END AS precio_alt_total,
   -- Cuando el precio es por m², el total es lo que el asesor necesita ver y filtrar.
   CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN (l.price * l.area_m2)::float8 END AS precio_total,
-  ul.status, coalesce(ul.starred, false) AS starred, coalesce(ul.notes, '') AS notes
+  ul.status, coalesce(ul.starred, false) AS starred, coalesce(ul.notes, '') AS notes,
+  -- Coordenada para el mapa del tablero. `relleno` es el punto por defecto de ML, que
+  -- no es una ubicación: se calla en vez de pintar un pin que miente. `geo_origen`
+  -- va también para que el mapa pueda distinguir el punto aproximado (colonia).
+  CASE WHEN l.geo_origen IS DISTINCT FROM 'relleno' THEN ST_Y(l.geom::geometry) END AS lat,
+  CASE WHEN l.geo_origen IS DISTINCT FROM 'relleno' THEN ST_X(l.geom::geometry) END AS lng,
+  l.geo_origen
 """
 ORDENES = {
     "recientes": "l.observed_at DESC NULLS LAST",
