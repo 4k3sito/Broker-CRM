@@ -5,12 +5,16 @@
 
 	# Cabeceras de seguridad. Se aplican a todo, incluida la API.
 	header {
-		# El tablero no carga scripts de terceros y no tiene ni un <script> inline
-		# ni un onclick=, así que script-src puede ser estricto de verdad.
+		# Ni un <script> inline ni un onclick=, así que script-src puede ser estricto
+		# de verdad: 'self' y, como único tercero, Google Maps (abajo).
 		# 'unsafe-inline' en style-src sí hace falta: app.js pinta el color de
 		# estado con atributos style= en cada tarjeta.
 		# img-src abierto a https: porque las fotos vienen de los cinco portales.
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+		# Google Maps (mapa del tablero, mapa.js) desde el 2026-09-29: su script y los
+		# que carga él mismo, sus teselas/metadatos por fetch, imágenes blob: de los
+		# marcadores y workers blob: del renderizador. Nada de 'unsafe-eval'. Ver
+		# SECURITY.md, "Endpoints (2026-09-29) — rediseño v0.5".
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com; worker-src blob:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
 		X-Content-Type-Options "nosniff"
 		# frame-ancestors ya lo cubre en navegadores actuales; esto es para los viejos.
 		X-Frame-Options "DENY"
