@@ -704,3 +704,9 @@ CREATE INDEX IF NOT EXISTS tarea_proceso_idx ON tarea (proceso_id);
 --    "lugares":[{"valor":"m40","nombre":"Monterrey","contexto":"Nuevo León"}]}
 -- `requerimientos` (texto libre) se queda para lo que no cabe en una píldora.
 ALTER TABLE cliente ADD COLUMN IF NOT EXISTS criterios jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+-- Cuentas que existen pero no son del equipo: la de verificación de frontend
+-- (SECURITY.md, H8). Pueden entrar, pero /api/equipo no las lista, así que no salen en
+-- los selectores de cuenta ni de asignación, ni en los filtros por persona.
+ALTER TABLE usuario ADD COLUMN IF NOT EXISTS oculto boolean NOT NULL DEFAULT false;
+UPDATE usuario SET oculto = true WHERE email = 'verificacion-dom@officelab.local';

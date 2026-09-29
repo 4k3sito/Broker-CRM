@@ -357,6 +357,23 @@ que arrastra en cascada sus sesiones y el estado de sus anuncios; con el CRM com
 frecuencia que a una cuenta de persona. Lo correcto de fondo es que la API distinga un
 rol de sólo lectura, que hoy no existe.
 
+### H10 — Cuentas de prueba en producción · **bajo**
+
+El 2026-09-29 se crearon en producción `mich@`, `andy@`, `mike@` y `gera@officelab.test`
+con `adduser --generar`, para probar la asignación de cuentas mientras esas personas no
+tienen correo propio. Los correos no existen: nadie puede recuperar esas contraseñas por
+correo, y las generadas se mostraron una sola vez. **Tienen los mismos permisos que un
+asesor** (no hay roles; ver H8) y están ligadas a sus procesos y clientes reales
+(`vincular_asesor`).
+
+**Arreglo:** cuando cada persona tenga correo, cambiarle el `email` a su cuenta (conserva
+los enlaces) y que defina su contraseña con `resetlink`; o `deluser` si ya no hace
+falta, que deja sus procesos en `trae_id = NULL` con el texto intacto.
+
+La cuenta de verificación de H8 se marcó `usuario.oculto = true` el mismo día:
+`/api/equipo` ya no la lista, así que no sale en selectores ni filtros. Puede seguir
+entrando: ocultarla no es desactivarla.
+
 ### H7 — El proyecto de Supabase puede seguir vivo · **bajo**
 
 El repo ya no habla con Supabase por ningún lado (ver §8, 2026-09-19), pero eso sólo

@@ -1074,12 +1074,15 @@ TAREA_SELECT = """
 
 @app.get("/api/equipo")
 def equipo(_: dict = Depends(current_user)) -> list[dict]:
-    """Las personas a las que se puede asignar. Sin password_hash, obviamente."""
+    """Las personas a las que se puede asignar. Sin password_hash, obviamente.
+    Sin las cuentas `oculto` (la de verificación de frontend, H8): no son del equipo
+    y no deben salir en selectores ni filtros."""
     with POOL.connection() as conn:
         return conn.execute(
             "SELECT u.id, u.nombre, u.email, u.rol, "
             "  count(t.id) FILTER (WHERE t.columna <> 'completado') AS abiertas "
             "FROM usuario u LEFT JOIN tarea t ON t.asignado_a = u.id "
+            "WHERE NOT u.oculto "
             "GROUP BY u.id ORDER BY u.nombre NULLS LAST, u.email").fetchall()
 
 
