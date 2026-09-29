@@ -52,6 +52,19 @@
     </button>
     <button class="fb-x" data-x="tipo" title="Quitar tipo" hidden>&times;</button>
   </span>
+  <!-- Sólo en la pestaña Inmobiliaria (app.js los muestra). -->
+  <span class="fb-chip" data-f="cliente" hidden>
+    <button class="fb-open" data-f="cliente" aria-expanded="false" aria-haspopup="dialog">
+      <span class="fb-k">Cliente</span><span class="fb-v" id="fbv-cliente">Todos</span>
+    </button>
+    <button class="fb-x" data-x="cliente" title="Quitar filtro" hidden>&times;</button>
+  </span>
+  <span class="fb-chip" data-f="etapa" hidden>
+    <button class="fb-open" data-f="etapa" aria-expanded="false" aria-haspopup="dialog">
+      <span class="fb-k">Etapa</span><span class="fb-v" id="fbv-etapa">Todas</span>
+    </button>
+    <button class="fb-x" data-x="etapa" title="Quitar filtro" hidden>&times;</button>
+  </span>
 </div>
 <div class="fb-scrim" id="fbScrim" hidden></div>
 <div class="fb-pop" id="fbPop" role="dialog" aria-label="Filtro" hidden></div>
@@ -125,6 +138,7 @@
 <script src="config.js"></script>
 <script src="api.js"></script>
 <script src="texto.js"></script>
+<script src="etapas.js"></script>
 <script src="menu.js"></script>
 <script src="mapa.js"></script>
 <script src="app.js"></script>

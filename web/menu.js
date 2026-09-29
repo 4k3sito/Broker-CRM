@@ -3,12 +3,19 @@
 // aquí para no repetir el marcado en cada HTML.
 (() => {
   const TABS = [
-    { href: 'index.html',    label: 'Inmuebles', de: ['index.html', 'listing.html', 'comparar.html', ''] },
+    // Dos pestañas sobre la misma página (index.html): la ficha y comparar se marcan
+    // con la pestaña de la que se vino, que app.js deja en sessionStorage.
+    { href: 'index.html',                  label: 'Bolsa Inmobiliaria', de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'bolsa' },
+    { href: 'index.html?tab=inmobiliaria', label: 'Inmobiliaria',       de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'inmobiliaria' },
     { href: 'clientes.html', label: 'Clientes',  de: ['clientes.html'] },
     { href: 'tareas.html',   label: 'Tareas',    de: ['tareas.html'], badge: 'tareas' },
     { href: 'scrapers.html', label: 'Scrapers',  de: ['scrapers.html'] },
   ];
   const aqui = location.pathname.split('/').pop();
+  let tab = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
+  if (aqui !== 'index.html' && aqui !== '') {
+    try { tab = sessionStorage.getItem('ol-tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa'; } catch { /* sin persistencia */ }
+  }
 
   document.addEventListener('DOMContentLoaded', () => {
     const topbar = document.querySelector('.topbar');
@@ -18,7 +25,7 @@
     nav.className = 'topbar-nav';
     nav.setAttribute('aria-label', 'Secciones');
     nav.innerHTML = TABS.map(t => {
-      const on = t.de.includes(aqui);
+      const on = t.de.includes(aqui) && (!t.tab || t.tab === tab);
       return `<a href="${t.href}"${on ? ' class="active" aria-current="page"' : ''}>${t.label}` +
              (t.badge ? `<span class="tb-badge" data-badge="${t.badge}" hidden></span>` : '') + `</a>`;
     }).join('');

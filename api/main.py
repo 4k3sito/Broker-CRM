@@ -429,6 +429,59 @@ TIPOS_VALIDOS = TIPOS_COM + ("rancho", "hotel", "desarrollo")
 MAX_LUGARES = 20
 
 
+# ── Bolsa Inmobiliaria / Inmobiliaria ────────────────────────────────────────
+# El tablero tiene dos pestañas con la misma rejilla: `ficha=sin` (Bolsa: anuncios que
+# nadie está trabajando) y `ficha=con` (Inmobiliaria: lo que ya tiene ficha). Medido el
+# 2026-09-29: de 148 fichas sólo 13 son de un anuncio; las otras 135 vienen del Google
+# Sheet del pipeline y no existen en `listings`. Para que Inmobiliaria las muestre con
+# los MISMOS filtros, orden y paginación, esas fichas se vuelven filas del tipo
+# `listings` (jsonb_populate_record) con `source = 'pipeline'` y su uuid como
+# `listing_id`. Lo que no tienen —operación, coordenada, fuente de portal— queda NULL,
+# y un filtro sobre eso simplemente no las incluye.
+_NORM_SQL = "translate(lower({x}), 'áéíóúüñ', 'aeiouun')"
+FICHA_COMO_LISTING = f"""
+  SELECT (jsonb_populate_record(NULL::listings, jsonb_build_object(
+    'source', 'pipeline', 'listing_id', f.id::text, 'title', f.titulo,
+    'price', coalesce(f.precio, f.precio_m2),
+    'price_is_per_m2', f.precio IS NULL AND f.precio_m2 IS NOT NULL,
+    'currency', coalesce(f.moneda, 'MXN'), 'property_type', f.tipo, 'tipo', tipo_norm(f.tipo),
+    'area_m2', f.tamano_m2, 'location', f.municipio, 'maps_url', f.mapa_url,
+    'images', to_jsonb(f.fotos), 'image_url', f.fotos[1], 'description', f.notas,
+    'observed_at', f.updated_at, 'activo', true,
+    'norm', {_NORM_SQL.format(x="concat_ws(' ', f.titulo, f.municipio, f.tipo)")},
+    'zona_id', zm.id))).*
+  FROM ficha f
+  -- El municipio es texto del sheet: se liga a `zona` por nombre para que el filtro de
+  -- ubicación funcione. "Guadalupe" existe en cuatro estados: gana Nuevo León. Una sola
+  -- pasada por los municipios, no una subconsulta por ficha.
+  LEFT JOIN (SELECT DISTINCT ON (norm) id, norm FROM zona WHERE tipo = 'municipio'
+             ORDER BY norm, estado = 'Nuevo León' DESC) zm
+         ON zm.norm = {_NORM_SQL.format(x="btrim(f.municipio)")}
+  WHERE f.source_listing_id IS NULL"""
+# Anuncios con ficha: la llave `source:listing_id` se parte para usar listings_pkey
+# en vez de concatenar sobre 467k filas.
+LISTINGS_CON_FICHA = """
+  SELECT l.* FROM listings l
+  WHERE (l.source, l.listing_id) IN (
+    SELECT split_part(f.source_listing_id, ':', 1),
+           substr(f.source_listing_id, strpos(f.source_listing_id, ':') + 1)
+    FROM ficha f WHERE f.source_listing_id IS NOT NULL)"""
+# La llave con que una fila del tablero encuentra su ficha, sea anuncio o del sheet.
+FICHA_DE_L = ("(f.source_listing_id = l.source || ':' || l.listing_id "
+              "OR (l.source = 'pipeline' AND f.id::text = l.listing_id))")
+
+
+def _origen(ficha: str | None) -> str:
+    """El FROM del tablero según la pestaña. Sin `ficha`, el inventario completo
+    (comparar, CSV y cualquier cliente viejo de la API)."""
+    if ficha == "con":
+        # OFFSET 0 es una barrera: sin ella el planeador empuja el ORDER BY … LIMIT
+        # hacia `listings` y recorre el índice de fechas de 467k filas buscando las
+        # pocas con ficha (4.2 s medido). Con ella junta las ~150 y luego ordena.
+        return f"(SELECT * FROM ({LISTINGS_CON_FICHA} UNION ALL {FICHA_COMO_LISTING}) u OFFSET 0) l"
+    return "listings l"
+
+
 def _filtros(a: dict) -> tuple[list[str], list]:
     """WHERE compartido por la lista y su conteo. Siempre parametrizado."""
     w: list[str] = []
@@ -533,6 +586,23 @@ def _filtros(a: dict) -> tuple[list[str], list]:
             raise HTTPException(422, "near debe ser 'lat,lng'")
         w.append("ST_DWithin(l.geom, %s, %s)")
         p += [f"SRID=4326;POINT({lng} {lat})", a.get("radio", 2000)]
+    if a.get("ficha") == "sin":
+        # Bolsa: nadie le ha hecho ficha. Las del sheet no están en `listings`, así que
+        # aquí sólo se descuentan los 13 anuncios con ficha.
+        w.append("NOT EXISTS (SELECT 1 FROM ficha f "
+                 "WHERE f.source_listing_id = l.source || ':' || l.listing_id)")
+    # Inmobiliaria: a qué cliente se presentó y en qué etapa va. Las dos condiciones
+    # tienen que cumplirse en EL MISMO proceso: "de ALSEA, en negociación" no es "de
+    # ALSEA" y "en negociación con cualquiera".
+    etapas = [e for e in (a.get("etapa") or []) if e]
+    if a.get("pcliente") or etapas:
+        cond = [FICHA_DE_L]
+        if a.get("pcliente"):
+            cond.append("p.cliente_id = %s::uuid"); p.append(a["pcliente"])
+        if etapas:
+            cond.append("p.status = ANY(%s)"); p.append(etapas)
+        w.append("EXISTS (SELECT 1 FROM proceso p JOIN ficha f ON f.id = p.ficha_id WHERE "
+                 + " AND ".join(cond) + ")")
     return w, p
 
 
@@ -556,6 +626,9 @@ def list_listings(
     m2_max: float | None = None,
     ppm_min: float | None = None,
     ppm_max: float | None = None,
+    ficha: str | None = Query(None, pattern="^(con|sin)$"),
+    pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
+    etapa: list[str] | None = Query(None),
     estado: str | None = None,
     favoritos: bool = False,
     near: str | None = None,
@@ -571,7 +644,7 @@ def list_listings(
     w, p = _filtros(locals())
     where = ("WHERE " + " AND ".join(w)) if w else ""
     # El LEFT JOIN de user_listing va parametrizado por usuario: el estado es privado.
-    base = f"""FROM listings l
+    base = f"""FROM {_origen(ficha)}
                LEFT JOIN zona z ON z.id = l.zona_id
                LEFT JOIN user_listing ul ON ul.listing_id = l.source || ':' || l.listing_id
                                         AND ul.user_id = %s
@@ -597,6 +670,9 @@ def facets(
     precio_min: float | None = None, precio_max: float | None = None,
     m2_min: float | None = None, m2_max: float | None = None,
     ppm_min: float | None = None, ppm_max: float | None = None,
+    ficha: str | None = Query(None, pattern="^(con|sin)$"),
+    pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
+    etapa: list[str] | None = Query(None),
     favoritos: bool = False, near: str | None = None, radio: int = 2000,
 ) -> dict:
     """Contadores para las píldoras de filtro. Deliberadamente ignora el filtro de
@@ -608,7 +684,7 @@ def facets(
         rows = conn.execute(f"""
             SELECT coalesce(ul.status, 'new') AS status, l.source,
                    count(*) AS n, count(*) FILTER (WHERE ul.starred) AS destacados
-            FROM listings l
+            FROM {_origen(ficha)}
             LEFT JOIN zona z ON z.id = l.zona_id
             LEFT JOIN user_listing ul ON ul.listing_id = l.source || ':' || l.listing_id
                                      AND ul.user_id = %s
@@ -641,10 +717,13 @@ def ubicaciones(q: str = Query(min_length=2), user: dict = Depends(current_user)
 
 @app.get("/api/listings/{listing_id:path}")
 def get_listing(listing_id: str, user: dict = Depends(current_user)) -> dict:
+    # `pipeline:<uuid>` es una ficha del sheet: se lee de la misma vista que usa la
+    # pestaña Inmobiliaria, así el detalle y la tarjeta dicen lo mismo.
+    origen = f"({FICHA_COMO_LISTING}) l" if listing_id.startswith("pipeline:") else "listings l"
     with POOL.connection() as conn:
         row = conn.execute(
             f"""SELECT {SELECT_LISTING}, l.description, l.features
-                FROM listings l
+                FROM {origen}
                 LEFT JOIN zona z ON z.id = l.zona_id
                 LEFT JOIN user_listing ul ON ul.listing_id = %s AND ul.user_id = %s
                 WHERE l.source || ':' || l.listing_id = %s""",
@@ -879,7 +958,11 @@ def borrar_cliente(cid: str, user: dict = Depends(current_user)) -> None:
 def fichas(listing: str | None = None, _: dict = Depends(current_user)) -> list[dict]:
     q = "SELECT * FROM ficha WHERE true"
     p = []
-    if listing:
+    if listing and listing.startswith("pipeline:"):
+        # Una ficha del sheet vista como fila del tablero: su "listing" es su propio id.
+        q += " AND id::text = %s AND source_listing_id IS NULL"
+        p.append(listing.removeprefix("pipeline:"))
+    elif listing:
         q += " AND source_listing_id = %s"
         p.append(listing)
     with POOL.connection() as conn:

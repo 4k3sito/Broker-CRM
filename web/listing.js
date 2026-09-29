@@ -9,8 +9,10 @@ const STATUS_TO_API   = { Nuevo: 'new', Revisado: 'reviewed', Contactado: 'conta
 const FUENTE_CONFIG = {
   easybroker: 'EasyBroker', inmuebles24: 'Inmuebles24', lamudi: 'Lamudi', vivanuncios: 'Vivanuncios',
   metroscubicos: 'Metros²', mercadolibre: 'MercadoLibre', propiedadesmexico: 'PropiedadesMX',
-  propiedadesmx: 'PropiedadesMX', pincali: 'Pincali',
+  propiedadesmx: 'PropiedadesMX', pincali: 'Pincali', pipeline: 'Pipeline',
 };
+// "Volver" regresa a la pestaña de la que se vino (Bolsa o Inmobiliaria).
+const TABLERO = (() => { try { return sessionStorage.getItem('ol-tab') === 'inmobiliaria' ? 'index.html?tab=inmobiliaria' : 'index.html'; } catch { return 'index.html'; } })();
 const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
 // Las etapas de un proceso vienen de etapas.js (compartido con tareas y clientes);
 // `esc` y `hrefSeguro`, de texto.js.
@@ -36,7 +38,7 @@ function parseLocation(loc) {
 
 function adaptListing(l) {
   return {
-    id: l.id, fuente: l.source ?? 'desconocido', codigo: l.external_id ?? null,
+    id: l.id, fuente: l.source ?? 'desconocido', codigo: l.source === 'pipeline' ? null : (l.external_id ?? null),
     titulo: l.title ?? l.broker_name ?? null,
     direccion: parseLocation(l.location) ?? l.neighborhood ?? null,
     precio: l.price_numeric ?? null, porM2: l.price_is_per_m2 ?? false, precioTotal: l.precio_total ?? null,
@@ -46,7 +48,8 @@ function adaptListing(l) {
     url: l.url ?? null, whatsapp: l.whatsapp ?? null, mapsUrl: l.maps_url ?? null,
     status: STATUS_FROM_API[l.status] ?? 'Nuevo', starred: l.starred ?? false, notes: l.notes ?? '',
     tipo: l.property_type ?? null, size: l.property_size_m2 ?? null,
-    transaccion: TXN_FROM_API[l.transaction_type] ?? 'Renta',
+    // Las fichas del sheet no dicen si es renta o venta: sin operación, no "Renta".
+    transaccion: TXN_FROM_API[l.transaction_type] ?? (l.source === 'pipeline' ? null : 'Renta'),
     descripcion: l.description ?? null, features: l.features ?? [], zona: l.zona ?? null,
     lat: num(l.lat ?? l.latitude ?? l.geo?.lat), lng: num(l.lng ?? l.lon ?? l.longitude ?? l.geo?.lng),
   };
@@ -158,7 +161,7 @@ function mosaicoHtml(l, nav) {
     ${celda(0, 'grande')}
     ${f.length > 1 ? [1, 2, 3].map(i => celda(i, '')).join('') +
       (f[4] ? `<button class="fx-ph" data-i="4"><img src="${esc(f[4])}" alt="" loading="lazy">${f.length > 5 ? `<span class="fx-mas">Ver las ${f.length} fotos</span>` : ''}</button>` : '<span class="fx-ph vacio"></span>') : ''}
-    <a class="fx-over fx-back" href="index.html">&#8592; Volver al tablero</a>
+    <a class="fx-over fx-back" href="${TABLERO}">&#8592; Volver al tablero</a>
     ${nav ? `<span class="fx-over fx-nav">
       <button id="navPrev" ${nav.prev ? '' : 'disabled'} title="Anterior (K)">&#8592;</button>
       <span>${nav.i + 1} / ${nav.n}</span>
@@ -177,7 +180,7 @@ function render() {
     l.size ? ['Superficie', `${mx(Math.round(l.size))} m²`] : null,
     pm ? ['Precio / m²', `$${mx(Math.round(pm))}`] : null,
     l.tipo ? ['Tipo', cap(l.tipo)] : null,
-    ['Operación', l.transaccion],
+    l.transaccion ? ['Operación', l.transaccion] : null,
     l.zona ? ['Municipio', l.zona] : null,
     l.codigo ? ['Código', l.codigo] : null,
   ].filter(Boolean);
@@ -347,9 +350,9 @@ document.addEventListener('keydown', e => {
 // Maps. Si hay más fotos van en una segunda hoja, dos por fila.
 function tituloPdf(l) {
   const tipo = (l.tipo ?? 'Inmueble').toUpperCase();
-  const op = l.transaccion === 'Venta' ? 'EN VENTA' : 'EN RENTA';
+  const op = { Venta: 'EN VENTA', Renta: 'EN RENTA' }[l.transaccion] ?? '';
   const calle = (l.direccion ?? '').split(',')[0].trim();
-  return `${tipo} ${op}${calle ? ' EN ' + calle.toUpperCase() : ''}`;
+  return [tipo, op].filter(Boolean).join(' ') + (calle ? ' EN ' + calle.toUpperCase() : '');
 }
 function folioSugerido() {
   const d = new Date();
@@ -380,7 +383,7 @@ function imprimirFicha() {
         <img class="pr-logo" src="img/prorealtors-logo.png" alt="Pro Realtors">
       </header>
       <div class="pr-rule"></div>
-      <div class="pr-precio"><b>${precio != null ? '$' + mx(Math.round(precio)) : 'Precio a consultar'}</b><span>${l.transaccion === 'Venta' ? 'EN VENTA' : 'EN RENTA'}</span></div>
+      <div class="pr-precio"><b>${precio != null ? '$' + mx(Math.round(precio)) : 'Precio a consultar'}</b><span>${{ Venta: 'EN VENTA', Renta: 'EN RENTA' }[l.transaccion] ?? ''}</span></div>
       ${l.direccion ? `<div class="pr-colonia">${esc(l.direccion)}.</div>` : ''}
       <h1 class="pr-titulo">${esc((f.titulo ?? tituloPdf(l)).toUpperCase())}</h1>
       ${fotos[0] ? `<img class="pr-foto" src="${esc(fotos[0])}" alt="">` : ''}
