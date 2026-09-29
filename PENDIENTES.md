@@ -1,6 +1,6 @@
 # Pendientes
 
-Estado al **2026-09-27**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-09-29**. Es una foto, no la verdad: verifica antes de actuar.
 Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
@@ -145,37 +145,41 @@ Dos cosas medidas que conviene no perder de vista:
   a los 52,000 anuncios. Ahora se baja mucho menos cuerpo, así que probablemente mejoró,
   pero nadie lo comprobó. Vale la pena un `ps -o rss=` a media corrida del sábado.
 
-## Pipeline comercial — **desplegado el 2026-09-27, sin importar**
+## Pipeline comercial — **en producción e importado el 2026-09-29**
 
 El Google Sheet "PIPELINES PROREALTOR" (una pestaña por cliente, una fila por propiedad
-ofrecida) pasó al CRM el 2026-09-25. **Código y esquema están en producción desde el
-2026-09-27** (`a507832`; el bloque "pipeline comercial" de `schema.sql` se aplicó a
-`public` en una transacción, con respaldo previo de las tablas del CRM en
-`/srv/backups/crm-pre-pipeline-2026-09-27-0046.sql.gz`). **Los datos del sheet no se han
-importado a producción**: el pipeline de producción sólo tiene los 4 procesos que ya
-existían. Pestaña → `cliente`,
+ofrecida) está en el CRM de producción. Código y esquema desde el 2026-09-27 (`a507832`);
+**los datos se importaron el 2026-09-29** a `public`: 196 filas de 11 pestañas → 9
+clientes nuevos (otros dos ya existían en el CRM y se reutilizaron), 135 fichas y 196
+procesos, sumados a los 4 que había. Respaldo previo de las tablas del CRM en
+`/srv/backups/crm-pre-import-pipeline-2026-09-29-0318.sql.gz`. Pestaña → `cliente`,
 propiedad → `ficha` (una sola aunque esté en varias pestañas), fila → `proceso`. La vista
 **Pipeline** de `tareas.html` (`tareas.html#pipeline`) lo muestra en columnas por etapa.
 Una tarea puede ligarse a un proceso (`tarea.proceso_id`): la tarea abre su tarjeta del
 pipeline, y la tarjeta lista sus tareas y cuenta las abiertas.
-Importado en `dev`: 163 filas del sheet → 9 clientes nuevos (uno se juntó con el que ya
-existía), 122 fichas, 163 procesos.
 
-Lo que falta, en este orden:
+Antes de importar hubo que arreglar el importador (`6621f4e`): el sheet había cambiado
+de forma desde la prueba en `dev` y lo leía corrido una columna, y una pestaña
+renombrada le habría metido a un cliente las filas de otro. **El esquema `dev` quedó
+con la importación vieja, la mala**: no sirve de referencia hasta volver a copiarlo.
 
-1. **Decidir el corte con el equipo.** El sheet se sigue editando (entre la primera
-   lectura y la importación le entraron 3 filas). `importar_pipeline.py` **sólo agrega**:
-   se salta los procesos que ya existen, así que no sincroniza cambios de etapa. Hay que
-   importar el día que el equipo deja de usar el sheet, no antes.
-2. `python vps/importar_pipeline.py --esquema public --produccion` (con `vps/.env`
-   cargado; `--dry` antes). Necesita `vps/pipeline.local.json` —ID del sheet, pestañas,
-   correos—, que **no está en git** porque el repo es público: existe sólo en
-   `/srv/officelab-dev/vps/`; pásalo con `--config` o cópialo.
-3. **Hay un cliente duplicado** en producción (mismo nombre, dos asesores). El importador usa el
-   más antiguo y avisa; el otro queda vacío y hay que borrarlo o fusionarlo a mano.
+Lo que queda:
+
+1. **El sheet y el CRM ya no se sincronizan.** `importar_pipeline.py` **sólo agrega**:
+   se salta los procesos que ya existen, así que no lleva cambios de etapa, notas ni
+   filas borradas. Si el equipo sigue editando el sheet, el CRM se va quedando atrás.
+   Hay que acordar que desde ahora se trabaja en el CRM.
+2. **Hay un cliente duplicado** en producción (mismo nombre, dos asesores). El importador
+   usó el más antiguo; el otro sigue vacío y hay que borrarlo o fusionarlo a mano.
+3. **Un cliente quedó sin responsable**: su pestaña no lo trae entre paréntesis como las
+   demás. Se asigna desde el CRM.
 4. Cuando los asesores que hoy sólo están como texto tengan cuenta:
    `SELECT vincular_asesor('<nombre en el sheet>', '<uuid>');` por persona. Un valor
    compuesto ("A/B") se queda en texto.
+
+`vps/pipeline.local.json` (ID del sheet, pestañas, correos) **no está en git** porque el
+repo es público: existe sólo en `/srv/officelab-dev/vps/`. Si se vuelve a correr,
+`--dry` primero y `--config` apuntando a ese archivo.
 
 Hay datos del sheet que están mal y se importaron tal cual (links de Maps copiados de
 otra fila, e hipervínculos "Ver Ubicación" que salen sin URL en la exportación): la
