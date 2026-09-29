@@ -7,6 +7,27 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Rediseño v0.5: lo que quedó sin encender
+
+Desplegado el 2026-09-29 (`c56841b`). Tres cosas del rediseño no funcionan todavía
+porque dependen de algo fuera del frontend:
+
+- **Mapa del tablero.** `web/config.js` trae `googleMapsKey: 'PEGA_AQUI_TU_LLAVE'`, así
+  que el tablero arranca en Rejilla y "Rejilla + mapa" sólo muestra un aviso. Hace falta
+  la llave (Maps JavaScript API, restringida al dominio), un Map ID propio en vez de
+  `DEMO_MAP_ID`, y abrir la CSP de Caddy a Google (ver SECURITY.md, "Endpoints
+  (2026-09-29)"). Los pines salen de `lat`/`lng` de `/api/listings`: confirmar que la API
+  los manda antes de dar el mapa por bueno.
+- **ID de la ficha PDF.** El campo "ID" guarda en `ficha.folio`, que no existe:
+  `PATCH /api/fichas/:id` responde 422 y el PDF usa un folio sugerido con la fecha
+  (`PR-DDMMAA-1`). Falta la columna en `schema.sql` (y en `dev`) y sumarla a `FICHA_COLS`.
+- **WhatsApp del asesor en la ficha PDF.** Sale de `/me` (`whatsapp`, `telefono` o
+  `celular`), que hoy no trae ninguno: el PDF sale sin esa línea.
+
+Y va contra DESIGN.md a propósito: el rediseño usa `box-shadow` (pestaña activa,
+tarjeta seleccionada, cliente seleccionado) y un `border-radius:0` sobre controles de
+Maps. Se integró fiel por decisión del dueño.
+
 ## Geocodificación: cerrada en 95.7%, queda la cola dura
 
 `ml_geo` terminó el 2026-09-21 03:08 UTC y sus 52,999 coordenadas limpias ya están en la
