@@ -1704,7 +1704,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .brand { font-size:17px; }
 .brand-sub, .topbar-rule, .mn-btn { display:none; }
 .brand-mark { width:22px; height:22px; }
-.topbar-nav a { height:52px; padding:0 14px; font-size:13px; }
+.topbar-nav a { height:52px; padding:0 14px; font-size:13px; white-space:nowrap; }
 .topbar-nav a.active { border-bottom:none; box-shadow:inset 0 -2px 0 var(--paper); }
 .tb-badge {
   font-family:var(--font-mono); font-size:10px; font-weight:700; line-height:1;
@@ -2208,6 +2208,9 @@ tr.igual.ocultar { display:none; }
 .cl-chip.status-presentado { background:var(--r-presentado); color:var(--s-presentado); }
 .cl-chip.status-aprobado { background:var(--r-aprobado); color:var(--s-aprobado); }
 .cl-chip.status-rechazado { background:var(--r-rechazado); color:var(--s-rechazado); }
+.cl-proponer-2 { margin-left:14px !important; }
+/* Filtro "Presentada a" en Inmobiliaria: la lista de clientes puede ser larga. */
+.fb-cajas-lista { grid-template-columns:1fr; max-height:320px; overflow-y:auto; }
 .cl-proponer { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--muted); text-decoration:none; }
 .cl-table { margin:0 22px 30px; background:var(--surface); border:1px solid var(--border); }
 .cl-tr {

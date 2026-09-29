@@ -312,7 +312,8 @@ function renderDetalle() {
     <div class="cl-props-head">
       <h2>Propuestas · ${ps.length}</h2>
       ${ETAPAS.map(e => cuenta(ps, e.key) ? `<span class="cl-chip e-${e.key}">${cuenta(ps, e.key)} ${e.label.toLowerCase()}</span>` : '').join('')}
-      <a class="cl-proponer" href="index.html">+ Proponer desde el tablero</a>
+      ${ps.length ? `<a class="cl-proponer" href="index.html?tab=inmobiliaria&amp;pcliente=${encodeURIComponent(c.id)}">Ver en Inmobiliaria</a>` : ''}
+      <a class="cl-proponer${ps.length ? ' cl-proponer-2' : ''}" href="index.html">+ Proponer desde Bolsa</a>
     </div>
     ${ps.length ? `<div class="cl-table">
       <div class="cl-tr cl-th"><span></span><span>Inmueble</span><span>Presentó</span><span>Precio</span><span>m²</span><span>Estatus</span><span>Fecha</span><span></span></div>
