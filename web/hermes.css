@@ -2154,8 +2154,54 @@ tr.igual.ocultar { display:none; }
 .cl-fields { display:grid; grid-template-columns:1fr 2fr; border:1px solid var(--border); }
 .cl-f { display:flex; flex-direction:column; gap:2px; padding:7px 10px 6px; }
 .cl-f + .cl-f { border-left:1px solid var(--border); }
-.cl-f span { font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.cl-f > span { font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
 .cl-f .cli-in { font-size:13px; }
+/* Cuenta: selector del equipo, con la misma presencia que los campos de texto. */
+.cl-sel { height:26px; border:none; background:transparent; padding:0; font-family:var(--font-ui); font-size:13px; color:var(--ink); cursor:pointer; }
+.cl-sel:focus { outline:1px solid var(--accent); outline-offset:2px; }
+.tb-ava, .cl-sel { cursor:pointer; }
+
+/* Qué busca: píldoras de criterios + menú fijo. Ocupa el renglón entero. */
+.cl-f.wide { grid-column:1 / -1; border-left:none; border-top:1px solid var(--border); }
+.crit-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:4px 0 2px; }
+.cl-f .crit-pill { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 4px 0 10px;
+  border:1px solid var(--accent); background:var(--accent-soft); color:var(--ink);
+  font-family:var(--font-ui); font-size:12.5px; font-weight:600; letter-spacing:0; text-transform:none; }
+.crit-pill b { font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); }
+.crit-x { width:20px; height:20px; border:none; background:transparent; color:var(--muted); font-size:15px; line-height:1; cursor:pointer; }
+.crit-x:hover { color:var(--ink); }
+.cl-f .crit-wrap { position:relative; font-family:var(--font-ui); font-size:inherit; letter-spacing:0; text-transform:none; color:inherit; }
+.crit-add { height:28px; padding:0 11px; border:1px dashed var(--border-2); background:transparent; color:var(--muted);
+  font-family:var(--font-ui); font-size:12.5px; font-weight:600; cursor:pointer; }
+.crit-add:hover { border-color:var(--accent); color:var(--ink); }
+.crit-buscar { margin-left:auto; height:28px; display:inline-flex; align-items:center; padding:0 12px;
+  background:var(--accent); color:var(--on-accent); font-size:12.5px; font-weight:600; text-decoration:none; }
+.crit-nota { margin-top:4px; }
+.crit-pop { position:absolute; top:calc(100% + 4px); left:0; z-index:70; min-width:230px;
+  display:flex; flex-direction:column; gap:8px; padding:10px;
+  background:var(--surface); border:1px solid var(--accent); box-shadow:3px 3px 0 var(--accent); }
+.crit-pop[role=menu] { gap:0; padding:4px; }
+.crit-opt { height:32px; padding:0 10px; border:none; background:transparent; text-align:left;
+  font-family:var(--font-ui); font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; }
+.crit-opt:hover { background:var(--accent-soft); }
+.crit-pop-t { font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.crit-chips { display:flex; flex-wrap:wrap; gap:6px 12px; }
+.crit-chips label { display:inline-flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; }
+.crit-rango { display:flex; align-items:center; gap:6px; }
+.crit-in { width:100%; height:32px; padding:0 9px; border:1px solid var(--border-2); background:var(--surface);
+  font-family:var(--font-ui); font-size:13px; color:var(--ink); outline:none; }
+.crit-rango .crit-in { width:100px; }
+.crit-in:focus { border-color:var(--accent); }
+.crit-sugs { display:flex; flex-direction:column; max-height:220px; overflow-y:auto; }
+.crit-sug { display:flex; flex-direction:column; align-items:flex-start; padding:6px 8px; border:none; background:transparent;
+  font-family:var(--font-ui); font-size:13px; font-weight:600; color:var(--ink); text-align:left; cursor:pointer; }
+.crit-sug small { font-size:11px; font-weight:400; color:var(--muted); }
+.crit-sug:hover { background:var(--accent-soft); }
+.crit-vacio { font-size:12px; color:var(--muted); margin:4px 0; }
+.crit-pop-f { display:flex; justify-content:flex-end; gap:6px; }
+.crit-cancel, .crit-ok { height:30px; padding:0 12px; font-family:var(--font-ui); font-size:12.5px; font-weight:600; cursor:pointer; }
+.crit-cancel { border:1px solid var(--border-2); background:transparent; color:var(--ink); }
+.crit-ok { border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); }
 .cl-props-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:14px 22px 8px; }
 .cl-props-head h2 { font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-right:8px; }
 .cl-chip { padding:3px 8px; font-size:11.5px; font-weight:600; }
@@ -2165,7 +2211,7 @@ tr.igual.ocultar { display:none; }
 .cl-proponer { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--muted); text-decoration:none; }
 .cl-table { margin:0 22px 30px; background:var(--surface); border:1px solid var(--border); }
 .cl-tr {
-  display:grid; grid-template-columns:48px minmax(140px,1fr) 96px 56px 130px 60px 22px; gap:10px;
+  display:grid; grid-template-columns:48px minmax(140px,1fr) 150px 96px 56px 130px 60px 22px; gap:10px;
   align-items:center; padding:6px 12px; min-height:48px; border-bottom:1px solid var(--border);
 }
 .cl-tr:last-child { border-bottom:none; }
@@ -2177,9 +2223,14 @@ tr.igual.ocultar { display:none; }
 .cl-inm a:hover { text-decoration:underline; }
 .cl-precio { font-family:var(--font-display); font-size:16px; }
 .cl-mono { font-family:var(--font-mono); font-size:11px; color:var(--muted); }
+/* Quién presentó: avatar de tono (el mismo del pipeline) + nombre. */
+.cl-trae { display:flex; align-items:center; gap:8px; min-width:0; }
+.cl-trae .tk-ava { width:24px; height:24px; font-size:9.5px; }
+.cl-trae-n { font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cl-trae-n.sin { font-weight:400; color:var(--faint); }
 .cl-x { width:24px; height:24px; border:none; background:transparent; color:var(--faint); font-size:16px; cursor:pointer; }
 .cl-x:hover { color:var(--s-rechazado); }
-@media (max-width: 1150px) { .cl-tr { grid-template-columns:48px minmax(120px,1fr) 90px 120px 22px; } .cl-tr > .cl-mono, .cl-th { display:none; } }
+@media (max-width: 1150px) { .cl-tr { grid-template-columns:48px minmax(120px,1fr) 130px 90px 120px 22px; } .cl-tr > .cl-mono, .cl-th { display:none; } }
 @media (max-width: 800px) {
   /* minmax(0,1fr): con `1fr` a secas las píldoras de etapa empujaban la lista 8 px
      más allá de la pantalla. */
@@ -2194,6 +2245,7 @@ tr.igual.ocultar { display:none; }
   .cl-th { display:none; }
   .cl-tr > .cl-precio, .cl-tr > .cl-mono { display:none; }
   .cl-tr > .proc-status { grid-column:2; justify-self:start; }
+  .cl-tr > .cl-trae { grid-column:2; }
   .cl-tr > .cl-x { grid-column:3; grid-row:1; }
   .cl-table, .cl-empty.pad { margin:0 12px 24px; }
   .cl-head, .cl-props-head { padding-left:14px; padding-right:14px; }

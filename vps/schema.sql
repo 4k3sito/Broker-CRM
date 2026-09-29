@@ -694,3 +694,13 @@ END $$ LANGUAGE plpgsql;
 -- borra, la tarea se queda (sigue siendo trabajo que alguien hizo o tiene que hacer).
 ALTER TABLE tarea ADD COLUMN IF NOT EXISTS proceso_id uuid REFERENCES proceso (id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS tarea_proceso_idx ON tarea (proceso_id);
+
+-- Criterios de búsqueda del cliente: lo que en "Qué busca" se captura como píldoras
+-- (tipo, operación, m², $/m², precio total, ubicación). Estructurado y no texto porque
+-- el tablero lo aplica como filtro: `index.html?cliente=<id>`. Las llaves son las
+-- mismas que entiende GET /api/listings, más `lugares` con el objeto completo del
+-- autocompletado para poder pintar el nombre sin volver a preguntar:
+--   {"tipos":["oficina"], "operacion":"rent", "m2_min":100, "ppm_max":10,
+--    "lugares":[{"valor":"m40","nombre":"Monterrey","contexto":"Nuevo León"}]}
+-- `requerimientos` (texto libre) se queda para lo que no cabe en una píldora.
+ALTER TABLE cliente ADD COLUMN IF NOT EXISTS criterios jsonb NOT NULL DEFAULT '{}'::jsonb;

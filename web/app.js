@@ -34,8 +34,9 @@ const ICON_BUILDING_LG = `<svg width="46" height="46" viewBox="0 0 24 24" fill="
 // no una estructura paralela: así no hay dos verdades que sincronizar.
 const F = {
   q: '', operacion: '', fuente: '',
-  precio_min: '', precio_max: '', m2_min: '', m2_max: '',
+  precio_min: '', precio_max: '', m2_min: '', m2_max: '', ppm_min: '', ppm_max: '',
   near: '', radio: 2000, orden: 'recientes',
+  cliente: null,   // { id, nombre } cuando se llegó con ?cliente=<id>: sus criterios son los filtros
   // Los tres de la barra fija. `lugares` guarda el objeto completo y no sólo el id
   // porque el chip tiene que poder decir "Monterrey" sin volver a preguntarle a la API.
   lugares: [],     // [{ valor:'m40', nombre:'Monterrey', estado:'Nuevo León' }]
@@ -74,6 +75,14 @@ const CAMPOS = {
   m2:        { kind: 'M²',        grupo: 'Números',   hint: 'superficie',
                label: () => rango(F.m2_min, F.m2_max, v => `${mx(v)} m²`),
                clear: () => { F.m2_min = ''; F.m2_max = ''; } },
+  ppm:       { kind: '$/m²',      grupo: 'Números',   hint: 'precio por metro cuadrado',
+               label: () => rango(F.ppm_min, F.ppm_max, v => `$${mx(v)}/m²`),
+               clear: () => { F.ppm_min = ''; F.ppm_max = ''; } },
+  // No se ofrece en la paleta: sólo aparece cuando se llega desde un cliente. Quitarlo
+  // quita los filtros que trajo; editarlo lleva al cliente.
+  cliente:   { kind: 'Cliente',   grupo: 'CRM',       hint: '', oculto: true,
+               label: () => F.cliente?.nombre ?? '',
+               clear: () => { if (F.cliente) quitarCriterios(); } },
   fuente:    { kind: 'Fuente',    grupo: 'Origen',    hint: 'portal de origen',
                label: () => FUENTE_CONFIG[F.fuente]?.label ?? F.fuente,
                clear: () => { F.fuente = ''; } },
@@ -92,6 +101,7 @@ function rango(min, max, fmt) {
 const activos = () => Object.keys(CAMPOS).filter(k =>
   k === 'radio'  ? !!F.near :
   k === 'm2'     ? !!(F.m2_min || F.m2_max) :
+  k === 'ppm'    ? !!(F.ppm_min || F.ppm_max) :
   k === 'orden'  ? F.orden !== 'recientes' : !!F[k]);
 
 console.assert(activos().length === 0, 'sin filtros no debe haber tokens');
@@ -145,6 +155,7 @@ const paramsBase = () => ({
   operacion: F.operacion, fuente: F.fuente,
   precio_min: F.precio_min, precio_max: F.precio_max,
   m2_min: F.m2_min, m2_max: F.m2_max,
+  ppm_min: F.ppm_min, ppm_max: F.ppm_max,
   near: F.near, radio: F.near ? F.radio : '',
   favoritos: filterStarred,
 });
@@ -288,7 +299,7 @@ function renderTokens() {
 function renderPalette(q = '') {
   const n = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const hit = k => !q || n(CAMPOS[k].kind + ' ' + CAMPOS[k].grupo + ' ' + CAMPOS[k].hint).includes(n(q));
-  const items = Object.keys(CAMPOS).filter(hit);
+  const items = Object.keys(CAMPOS).filter(k => !CAMPOS[k].oculto && hit(k));
   document.getElementById('palList').innerHTML = items.length
     ? items.map((k, i) => `
         <button class="qpop-item${i === 0 ? ' sel' : ''}" data-campo="${k}">
@@ -331,8 +342,9 @@ function cuerpoEditor(campo) {
       <input type="range" min="500" max="12000" step="500" value="${F.radio}" id="edRadio" style="width:132px;accent-color:var(--accent)">
       <span class="qpop-title" id="edRadioTxt">${(F.radio / 1000).toFixed(1)} km</span>
     </div>`;
-  const [min, max, fmt] = campo === 'precio'
-    ? ['precio_min', 'precio_max', 'M&#237;n'] : ['m2_min', 'm2_max', 'M&#237;n m&#178;'];
+  const [min, max, fmt] = campo === 'precio' ? ['precio_min', 'precio_max', 'M&#237;n']
+    : campo === 'ppm' ? ['ppm_min', 'ppm_max', 'M&#237;n $/m&#178;']
+    : ['m2_min', 'm2_max', 'M&#237;n m&#178;'];
   return `
     <div class="qpop-row">
       <input class="qpop-num" type="number" id="edMin" value="${esc(F[min])}" placeholder="${fmt}" data-k="${min}">
@@ -755,6 +767,7 @@ document.getElementById('qbar').addEventListener('click', e => {
   const del = e.target.closest('.tok-del');
   if (del) { CAMPOS[del.dataset.campo].clear(); page = 1; cerrarEditor(); return render(); }
   const edit = e.target.closest('.tok-edit');
+  if (edit?.dataset.campo === 'cliente') { location.href = `clientes.html#${encodeURIComponent(F.cliente.id)}`; return; }
   if (edit) return abrirEditor(edit.dataset.campo);
   const pal = e.target.closest('.qpop-item');
   if (pal) return abrirEditor(pal.dataset.campo);
@@ -1024,10 +1037,35 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
+// ── Buscar para un cliente ───────────────────────────────────────────────────
+// `index.html?cliente=<id>` llega desde "Buscar inmuebles" en clientes.html: los
+// criterios que se capturaron como píldoras en "Qué busca" se vuelven los filtros.
+// Las llaves son las mismas que entiende /api/listings (ver cliente.criterios en
+// schema.sql), así que aquí sólo se copian.
+async function aplicarCliente(id) {
+  const cs = await API.get('/clientes').catch(() => []);
+  const c = cs.find(x => String(x.id) === String(id));
+  if (!c) { toast('Ese cliente ya no existe'); return; }
+  const cr = c.criterios ?? {};
+  F.cliente = { id: c.id, nombre: c.nombre };
+  F.tipos = (cr.tipos ?? []).filter(t => TIPOS_COM.includes(t));
+  F.operacion = ['rent', 'sale'].includes(cr.operacion) ? cr.operacion : '';
+  F.lugares = (cr.lugares ?? []).slice(0, MAX_LUGARES);
+  for (const k of ['m2_min', 'm2_max', 'ppm_min', 'ppm_max', 'precio_min', 'precio_max'])
+    F[k] = cr[k] ?? '';
+}
+function quitarCriterios() {
+  F.cliente = null; F.tipos = []; F.operacion = ''; F.lugares = [];
+  for (const k of ['m2_min', 'm2_max', 'ppm_min', 'ppm_max', 'precio_min', 'precio_max']) F[k] = '';
+  history.replaceState(null, '', location.pathname);
+}
+
 API.me().then(async () => {
   document.getElementById('authBox').hidden = true;
   document.getElementById('userBox').hidden = false;
   zonas = await API.get('/zonas').catch(() => []);
+  const cid = new URLSearchParams(location.search).get('cliente');
+  if (cid) await aplicarCliente(cid);
   await render();
 }).catch(err => {
   // El 401 lo maneja api.js redirigiendo al login; aquí sólo quedan fallos reales.
