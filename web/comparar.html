@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#201333">
-<title>Propiedad &#183; OfficeLab</title>
+<title>Comparar &#183; OfficeLab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="hermes.css">
 <script src="theme.js"></script>
 </head>
-<body>
+<body class="cmp-page">
 
 <header class="topbar">
   <a class="brand-group" href="index.html" aria-label="OfficeLab, propiedades">
@@ -28,27 +28,22 @@
   </div>
 </header>
 
-<main class="fx" id="detail">
-  <p class="pg-empty" style="margin:40px 20px">Cargando propiedad&#8230;</p>
+<main class="cmp">
+  <div class="cmp-head">
+    <a class="cmp-back" href="index.html">&#8592; Volver al tablero</a>
+    <h1 class="cmp-title" id="cmpTitle">Comparar</h1>
+    <div class="cmp-tools">
+      <label><input type="checkbox" id="optMejor" checked> Resaltar mejor valor</label>
+      <label><input type="checkbox" id="optIguales"> Ocultar iguales</label>
+      <button class="btn-solid" id="btnImprimir">PDF comparativo</button>
+    </div>
+  </div>
+  <div class="cmp-scroll" id="cmpBody"><p class="pg-empty">Cargando&#8230;</p></div>
 </main>
 
-<!-- Visor de fotos a pantalla completa -->
-<div class="fx-lb" id="lightbox" hidden>
-  <button class="fx-lb-x" id="lbClose" aria-label="Cerrar">&times;</button>
-  <button class="fx-lb-nav prev" id="lbPrev" aria-label="Anterior">&#8592;</button>
-  <img id="lbImg" alt="">
-  <button class="fx-lb-nav next" id="lbNext" aria-label="Siguiente">&#8594;</button>
-  <span class="fx-lb-n" id="lbN"></span>
-</div>
-
-<!-- Ficha técnica Pro Realtors: sólo visible al imprimir -->
-<div id="ficha-print"></div>
-
-<script src="config.js"></script>
 <script src="api.js"></script>
 <script src="texto.js"></script>
-<script src="etapas.js"></script>
 <script src="menu.js"></script>
-<script src="listing.js"></script>
+<script src="comparar.js"></script>
 </body>
 </html>

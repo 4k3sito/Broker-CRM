@@ -19,8 +19,40 @@ function clearError() {
 
 function setLoading(loading) {
   submitButton.disabled = loading;
-  submitButton.querySelector('span').textContent = loading ? 'Iniciando sesión…' : 'Iniciar sesión';
+  submitButton.querySelector('span').textContent = loading ? 'Entrando…' : 'Entrar';
 }
+
+// Mostrar/ocultar contraseña y aviso de Bloq Mayús. Se cuelgan de cualquier
+// input[type=password] de la página, así sirven también en recuperar/actualizar.
+function mejorarPassword(input) {
+  const wrap = document.createElement('div');
+  wrap.className = 'pw-wrap';
+  input.replaceWith(wrap);
+  wrap.appendChild(input);
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'pw-toggle'; btn.textContent = 'Mostrar';
+  btn.addEventListener('click', () => {
+    const ver = input.type === 'password';
+    input.type = ver ? 'text' : 'password';
+    btn.textContent = ver ? 'Ocultar' : 'Mostrar';
+    input.focus();
+  });
+  wrap.appendChild(btn);
+  const caps = document.createElement('p');
+  caps.className = 'pw-caps'; caps.hidden = true; caps.textContent = 'Bloq Mayús activado';
+  wrap.after(caps);
+  const ver = e => { caps.hidden = !e.getModifierState?.('CapsLock'); };
+  input.addEventListener('keydown', ver);
+  input.addEventListener('keyup', ver);
+  input.addEventListener('blur', () => { caps.hidden = true; });
+}
+document.querySelectorAll('input[type="password"]').forEach(mejorarPassword);
+
+// El correo se recuerda en este equipo (nunca la contraseña).
+try {
+  const g = localStorage.getItem('ol-email');
+  if (g && !emailInput.value) { emailInput.value = g; passwordInput.focus(); }
+} catch { /* modo privado */ }
 
 function validateCredentials() {
   if (!emailInput.checkValidity()) {
@@ -47,6 +79,7 @@ form.addEventListener('submit', async event => {
   setLoading(true);
   try {
     await API.login(emailInput.value.trim(), passwordInput.value);
+    try { localStorage.setItem('ol-email', emailInput.value.trim()); } catch { /* sin persistencia */ }
     location.replace('index.html');
   } catch (err) {
     // 429 del limitador trae su propio mensaje; el resto se generaliza para no

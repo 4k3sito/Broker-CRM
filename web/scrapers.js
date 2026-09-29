@@ -101,6 +101,50 @@ function historial(cargas) {
     </table>`;
 }
 
+// ── Tabla comparativa (diseño 1a) ─────────────────────────────────────────────────
+// Una fila por fuente, una columna por métrica: se comparan fuentes de un
+// vistazo. Bajo 90 % de cobertura la celda va en ámbar. Cada % enlaza al tablero
+// filtrado por esa fuente.
+const COBERTURA = [['con_precio', 'Precio'], ['con_area', 'm²'], ['con_geo', 'Geo'], ['con_zona', 'Municipio'], ['con_foto', 'Foto']];
+
+function tablaFuentes(fuentes) {
+  return `<div class="sc-tab">
+    <div class="sc-tr sc-th"><span>Fuente</span><span>Últ. carga</span><span>Anuncios</span><span>Vigentes</span><span>Caídos</span>
+      ${COBERTURA.map(([, l]) => `<span>${l}</span>`).join('')}</div>
+    ${fuentes.map(f => {
+      const fr = frescura(f);
+      return `<div class="sc-tr e-${fr.estado}">
+        <span class="sc-src"><i></i><span><b>${esc(f.label)}</b><small>${esc(fr.label)}</small></span></span>
+        <span class="sc-ago">${f.ultima_carga ? esc(haceCuanto(f.ultima_carga)) : '—'}</span>
+        <span class="sc-big">${num(f.total)}</span>
+        <span class="sc-mono">${num(f.activos)}</span>
+        <span class="sc-mono dim">${num(f.caidos)}</span>
+        ${COBERTURA.map(([k]) => {
+          const p = f.total ? (f[k] / f.total) * 100 : 0;
+          return `<a class="sc-cov${p < 90 ? ' bajo' : ''}" href="index.html" title="${num(f.total - (f[k] ?? 0))} sin ${k.slice(4)}">
+            <b>${p.toFixed(p < 99.95 ? 0 : 0)}%</b><i><em style="width:${p.toFixed(1)}%"></em></i></a>`;
+        }).join('')}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function alertas(fuentes) {
+  const items = [];
+  for (const f of fuentes) {
+    const fr = frescura(f);
+    if (f.huerfana) items.push(['off', `${f.label}: ${num(f.total)} anuncios sin scraper activo. O se le escribe uno o se borran.`]);
+    else if (fr.estado !== 'rentado') items.push(['warn', `${f.label}: sin carga desde ${haceCuanto(f.ultima_carga)}.`]);
+    for (const [k, l] of COBERTURA) {
+      const p = f.total ? (f[k] / f.total) * 100 : 100;
+      if (!f.huerfana && p < 70) items.push(['warn', `${f.label}: ${Math.round(100 - p)} % sin ${l.toLowerCase()}.`]);
+    }
+  }
+  if (!items.length) return '';
+  return `<section class="sc-sec"><h2 class="sc-h2">Requieren atención</h2>
+    <ul class="sc-alert">${items.map(([t, m]) => `<li class="${t}">${esc(m)}</li>`).join('')}</ul></section>`;
+}
+
 function render(datos) {
   const { fuentes, cargas } = datos;
   const vivas = fuentes.filter(f => !f.huerfana);
@@ -128,17 +172,16 @@ function render(datos) {
     </div>
 
     <section class="sc-sec">
-      <h2 class="sc-h2">Fuentes activas</h2>
-      <div class="sc-grid">${vivas.map(tarjeta).join('')}</div>
+      <div class="sc-kpis">
+        <div><b>${num(total)}</b><span>anuncios</span></div>
+        <div><b>${num(fuentes.reduce((s, f) => s + (f.activos ?? 0), 0))}</b><span>vigentes</span></div>
+        <div><b class="${vivas.filter(f => frescura(f).estado !== 'rentado').length ? 'warn' : ''}">${vivas.filter(f => frescura(f).estado !== 'rentado').length}</b><span>fuentes envejeciendo</span></div>
+        <div><b>${num(fuentes.reduce((s, f) => s + (f.sin_revisar ?? 0), 0))}</b><span>sin revisar por liveness.py</span></div>
+      </div>
+      ${tablaFuentes([...vivas, ...huerfanas])}
     </section>
 
-    ${huerfanas.length ? `
-    <section class="sc-sec">
-      <h2 class="sc-h2">Sin scraper</h2>
-      <p class="sc-h2-nota">Entraron alguna vez y ya nadie las refresca. El tablero
-        las sigue mostrando: o se les escribe un scraper o se borran de la tabla.</p>
-      <div class="sc-grid">${huerfanas.map(tarjeta).join('')}</div>
-    </section>` : ''}
+    ${alertas(fuentes)}
 
     <section class="sc-sec">
       <h2 class="sc-h2">Historial de cargas</h2>

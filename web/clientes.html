@@ -14,7 +14,7 @@
 
 <header class="topbar">
   <a class="brand-group" href="index.html" aria-label="OfficeLab, propiedades">
-    <svg class="brand-mark" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <svg class="brand-mark" width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <rect x="2" y="2" width="28" height="28" stroke="currentColor" stroke-width="2"/>
       <rect x="9" y="9" width="14" height="14" fill="currentColor"/>
       <rect x="13.5" y="13.5" width="5" height="5" fill="var(--topbar)"/>
@@ -47,23 +47,16 @@
   </div>
 </header>
 
-<main class="pg" id="clientes">
-  <header class="pg-head">
-    <div>
-      <p class="pg-eyebrow">Prospectos y seguimiento</p>
-      <h1 class="pg-title">Clientes</h1>
+<main class="cl" id="clientes">
+  <aside class="cl-list">
+    <div class="cl-list-head" id="filterbar">
+      <button class="pill-line active" data-status="all">Todos <span class="pill-count" data-count="all">0</span></button>
+      <span id="etapaPills"></span>
+      <button class="cl-new" id="new-client-btn" title="Nuevo cliente">+</button>
     </div>
-    <div class="pg-kpis" id="kpis"></div>
-  </header>
-
-  <div class="pg-filters" id="filterbar">
-    <span class="statebar-label">Etapa</span>
-    <button class="pill-line active" data-status="all">Todas <span class="pill-count" data-count="all">0</span></button>
-    <span id="etapaPills"></span>
-    <button class="btn-solid" id="new-client-btn">&#43; Nuevo cliente</button>
-  </div>
-
-  <div id="clientesBody"><p class="pg-empty">Cargando clientes&#8230;</p></div>
+    <div class="cl-items" id="clList"><p class="pg-empty">Cargando clientes&#8230;</p></div>
+  </aside>
+  <section class="cl-detail" id="clDetail"></section>
 </main>
 <script src="api.js"></script>
 <script src="texto.js"></script>

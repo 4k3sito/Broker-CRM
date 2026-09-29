@@ -308,7 +308,13 @@ function renderDirectorio() {
 function renderEquipoAside() {
   const aside = document.getElementById('aside');
   if (abierta || abiertoProc) return;        // el detalle manda sobre el resumen
-  if (vista === 'pipeline') return renderPipeAside();
+  // En el pipeline el panel es el filtro por cliente: se queda a la vista.
+  if (vista === 'pipeline') { aside.classList.add('open'); return renderPipeAside(); }
+  // Diseño 1c: sin tarea abierta, el panel se oculta y el tablero usa todo el
+  // ancho. El equipo vive en la vista "Equipo" y en el filtro de persona.
+  aside.classList.remove('open');
+  aside.innerHTML = '';
+  return;
   aside.innerHTML = `
     <div class="tk-aside-head">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
@@ -500,6 +506,7 @@ function renderPanel() {
   const side = document.getElementById('aside');
   if (abiertoProc) return renderProcPanel();
   if (!abierta) return renderEquipoAside();
+  side.classList.add('open');
 
   const nueva = abierta === 'nueva';
   const t = nueva
@@ -749,6 +756,7 @@ function renderProcPanel() {
   const nuevo = abiertoProc === 'nuevo';
   const p = nuevo ? { status: 'prospecto', cliente_id: pipeCliente } : pipe?.find(x => x.id === abiertoProc);
   if (!p) { abiertoProc = null; return renderPanel(); }
+  side.classList.add('open');
   const otros = nuevo ? [] : pipe.filter(x => x.ficha_id === p.ficha_id && x.id !== p.id);
   const personas = [...new Set([...equipo.map(e => e.nombre).filter(Boolean),
                                 ...(pipe ?? []).flatMap(traePersonas)])].sort((a, b) => a.localeCompare(b, 'es'));

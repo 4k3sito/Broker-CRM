@@ -183,6 +183,22 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Endpoints (2026-09-29) — rediseño v0.5
+
+Ningún endpoint nuevo. `GET /api/clientes` agrega a cada proceso embebido su
+`created_at` y, de la ficha, `precio`, `tamano_m2`, `source_listing_id` y **sólo la
+primera** foto: la tabla de propuestas del rediseño los pinta. Son columnas que el
+mismo asesor ya lee en `GET /api/fichas`; sigue exigiendo sesión y no toma parámetros.
+
+El frontend del rediseño **no** carga Google Maps todavía: `web/config.js` trae la llave
+vacía y la CSP de Caddy no se tocó, así que el mapa sólo muestra un aviso. Para
+encenderlo hay que abrir `script-src`, `img-src`, `connect-src` y `font-src` a los
+dominios de Google (`maps.googleapis.com`, `*.googleapis.com`, `*.gstatic.com`,
+`*.google.com`, más `worker-src blob:`) y restringir
+la llave a Maps JavaScript API y al dominio del sitio. Hacerlo es un cambio de CSP y va
+anotado aquí cuando pase. El rediseño además interpola `style=` en más sitios (barras
+de clientes, progreso de documentos): H4 se vuelve más difícil de cerrar, no más fácil.
+
 ### Endpoints (2026-09-21) — análisis de mercado
 
 `GET /api/analisis/{listing_id}` y `GET /api/analisis-pdf/{listing_id}` se suman a la

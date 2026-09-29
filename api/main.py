@@ -825,8 +825,13 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                LEFT JOIN usuario r ON r.id = c.responsable_id
                LEFT JOIN LATERAL (
                  SELECT json_agg(json_build_object(
-                          'id', p.id, 'status', p.status,
-                          'ficha', json_build_object('id', f.id, 'titulo', f.titulo))
+                          'id', p.id, 'status', p.status, 'created_at', p.created_at,
+                          -- La tabla de propuestas de clientes.html pinta foto, precio
+                          -- y m²; de las fotos va sólo la primera, que es la que usa.
+                          'ficha', json_build_object('id', f.id, 'titulo', f.titulo,
+                                                     'precio', f.precio, 'tamano_m2', f.tamano_m2,
+                                                     'fotos', f.fotos[1:1],
+                                                     'source_listing_id', f.source_listing_id))
                           ORDER BY p.numero NULLS LAST, p.created_at) AS procesos
                  FROM proceso p JOIN ficha f ON f.id = p.ficha_id
                  WHERE p.cliente_id = c.id) j ON true
