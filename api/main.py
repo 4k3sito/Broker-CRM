@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Body, Cookie, Depends, FastAPI, HTTPException, Query, Request, Response
 from psycopg import errors as psycopg_errors
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 # Local: la maqueta del PDF. No importa WeasyPrint al cargarse —eso pasa dentro
@@ -504,6 +505,16 @@ def _filtros(a: dict) -> tuple[list[str], list]:
         sql, pp = precio_efectivo()
         w.append(f"{sql} > 0 AND {sql} <= %s")
         p += pp + pp + [a["precio_max"]]
+    # Precio por m²: el total efectivo entre la superficie. Sin superficie no hay
+    # unitario que comparar y el anuncio queda fuera, igual que con `m2_min`.
+    if a.get("ppm_min") is not None:
+        sql, pp = precio_efectivo()
+        w.append(f"l.area_m2 > 0 AND {sql} / l.area_m2 >= %s")
+        p += pp + [a["ppm_min"]]
+    if a.get("ppm_max") is not None:
+        sql, pp = precio_efectivo()
+        w.append(f"l.area_m2 > 0 AND {sql} > 0 AND {sql} / l.area_m2 <= %s")
+        p += pp + pp + [a["ppm_max"]]
     if a.get("m2_min") is not None:
         w.append("l.area_m2 >= %s")
         p.append(a["m2_min"])
@@ -543,6 +554,8 @@ def list_listings(
     precio_max: float | None = None,
     m2_min: float | None = None,
     m2_max: float | None = None,
+    ppm_min: float | None = None,
+    ppm_max: float | None = None,
     estado: str | None = None,
     favoritos: bool = False,
     near: str | None = None,
@@ -583,6 +596,7 @@ def facets(
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None, precio_max: float | None = None,
     m2_min: float | None = None, m2_max: float | None = None,
+    ppm_min: float | None = None, ppm_max: float | None = None,
     favoritos: bool = False, near: str | None = None, radio: int = 2000,
 ) -> dict:
     """Contadores para las píldoras de filtro. Deliberadamente ignora el filtro de
@@ -796,7 +810,7 @@ def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_use
 # El cliente sigue sin poder mandar un `user_id`: lo pone la sesión.
 
 CLIENTE_COLS = ("nombre", "contacto", "empresa", "requerimientos", "notas",
-                "responsable", "responsable_id")
+                "responsable", "responsable_id", "criterios")
 FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "fotos", "notas",
               "tipo", "municipio", "mapa_url", "precio_m2")
 PROCESO_COLS = ("status", "notas", "junta", "numero", "marca", "trae", "trae_id")
@@ -826,6 +840,10 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                LEFT JOIN LATERAL (
                  SELECT json_agg(json_build_object(
                           'id', p.id, 'status', p.status, 'created_at', p.created_at,
+                          -- Quién trajo/presentó la propiedad: la cuenta si está
+                          -- ligada, y el texto del sheet si todavía no.
+                          'trae', p.trae, 'trae_id', p.trae_id,
+                          'trae_nombre', tu.nombre,
                           -- La tabla de propuestas de clientes.html pinta foto, precio
                           -- y m²; de las fotos va sólo la primera, que es la que usa.
                           'ficha', json_build_object('id', f.id, 'titulo', f.titulo,
@@ -834,6 +852,7 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                                                      'source_listing_id', f.source_listing_id))
                           ORDER BY p.numero NULLS LAST, p.created_at) AS procesos
                  FROM proceso p JOIN ficha f ON f.id = p.ficha_id
+                 LEFT JOIN usuario tu ON tu.id = p.trae_id
                  WHERE p.cliente_id = c.id) j ON true
                ORDER BY c.created_at DESC""").fetchall()
 
@@ -951,10 +970,16 @@ def borrar_documento(did: str, user: dict = Depends(current_user)) -> None:
     _delete("ficha_documento", did, user)
 
 
+def _adaptar(v):
+    """Un objeto JSON va a una columna jsonb (`cliente.criterios`). Las listas NO se
+    envuelven: `ficha.fotos` es text[] y psycopg ya adapta una lista a arreglo."""
+    return Jsonb(v) if isinstance(v, dict) else v
+
+
 def _insert(conn, tabla: str, body: dict, permitidos: tuple, user_id, extra: str = "") -> dict:
     """INSERT solo con las columnas que vinieron en el body: mandar None explícito
     pisaría el DEFAULT de la columna (`fotos text[] NOT NULL DEFAULT '{}'` reventaba)."""
-    campos = {k: v for k, v in body.items() if k in permitidos and v is not None}
+    campos = {k: _adaptar(v) for k, v in body.items() if k in permitidos and v is not None}
     cols = ["user_id", *campos]
     return conn.execute(
         f"INSERT INTO {tabla} ({', '.join(cols)}) "
@@ -967,7 +992,7 @@ def _patch(tabla: str, id_: str, body: dict, permitidos: tuple, user: dict) -> d
     escriba user_id o id mandando campos de más. Sin filtro por usuario: el CRM es del
     equipo (ver arriba); `user` queda en la firma porque la sesión sigue siendo
     obligatoria."""
-    campos = {k: v for k, v in body.items() if k in permitidos}
+    campos = {k: _adaptar(v) for k, v in body.items() if k in permitidos}
     if not campos:
         raise HTTPException(422, f"nada que actualizar; permitidos: {', '.join(permitidos)}")
     sets = ", ".join(f"{k} = %s" for k in campos)

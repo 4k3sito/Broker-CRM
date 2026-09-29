@@ -199,6 +199,17 @@ la llave a Maps JavaScript API y al dominio del sitio. Hacerlo es un cambio de C
 anotado aquí cuando pase. El rediseño además interpola `style=` en más sitios (barras
 de clientes, progreso de documentos): H4 se vuelve más difícil de cerrar, no más fácil.
 
+### Endpoints (2026-09-29) — criterios del cliente y $/m²
+
+- `GET /api/listings` y `/api/listings/facets` aceptan `ppm_min` / `ppm_max` (precio por
+  m²). Son `float` validados por FastAPI y van como parámetros de la consulta, igual que
+  `m2_min`: no hay texto del cliente interpolado en el SQL.
+- `cliente.criterios` (jsonb) entra a `CLIENTE_COLS`, así que `PATCH /api/clientes/:id`
+  lo acepta. Se guarda tal cual (`Jsonb`): nadie lo interpola en SQL, y el frontend lo
+  pinta con `esc`. No tiene tope de tamaño, igual que `notas`.
+- `GET /api/clientes` agrega a cada proceso `trae`, `trae_id` y `trae_nombre` (el nombre
+  de la cuenta, nunca el correo ni el hash).
+
 ### Endpoints (2026-09-21) — análisis de mercado
 
 `GET /api/analisis/{listing_id}` y `GET /api/analisis-pdf/{listing_id}` se suman a la
