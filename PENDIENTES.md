@@ -12,10 +12,9 @@ Lo cerrado se borra de aquí, no se tacha.
 Desplegado el 2026-09-29 (`c56841b`). Tres cosas del rediseño no funcionan todavía
 porque dependen de algo fuera del frontend:
 
-- **Mapa del tablero: encendido el 2026-09-29.** Queda `googleMapId: 'DEMO_MAP_ID'`,
-  que Google da para pruebas: crear un Map ID propio en Google Cloud → Map Management y
-  ponerlo en `web/config.js` de producción. Y confirmar que la llave está restringida
-  al sitio (SECURITY.md).
+- **Mapa del tablero: encendido el 2026-09-29**, con Map ID propio. Llave y Map ID viven
+  en `web/config.js` de producción, sin commit. Falta confirmar que la llave está
+  restringida al sitio y a Maps JavaScript API (SECURITY.md).
 - **ID de la ficha PDF.** El campo "ID" guarda en `ficha.folio`, que no existe:
   `PATCH /api/fichas/:id` responde 422 y el PDF usa un folio sugerido con la fecha
   (`PR-DDMMAA-1`). Falta la columna en `schema.sql` (y en `dev`) y sumarla a `FICHA_COLS`.
