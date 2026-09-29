@@ -134,6 +134,24 @@ def etapa(status, comentario):
     return "prospecto"
 
 
+def pestanas_del_sheet():
+    """Los nombres de las pestañas que tiene el sheet hoy.
+
+    Hace falta porque gviz, cuando se le pide una pestaña que no existe, NO da error:
+    devuelve la primera. El 2026-09-29 el equipo corrigió una errata en el nombre de una
+    pestaña, y el importador habría cargado las 47 filas de la primera pestaña como si
+    fueran de otro cliente."""
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/htmlview"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        pagina = r.read().decode("utf-8", "replace")
+    # Vienen como literales de JavaScript: `name: "CLIENTE (Resp)", pageUrl`.
+    nombres = re.findall(r'name: ("(?:[^"\\]|\\.)*"), pageUrl', pagina)
+    if not nombres:
+        sys.exit("no pude leer la lista de pestañas del sheet: ¿cambió htmlview o se cerró el acceso?")
+    return [json.loads(n) for n in nombres]
+
+
 def bajar(pestana):
     url = (f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&headers=0"
            f"&sheet={urllib.parse.quote(pestana)}")
@@ -141,22 +159,59 @@ def bajar(pestana):
         return list(csv.reader(io.StringIO(r.read().decode("utf-8"))))
 
 
+# Encabezado del sheet (sin acentos, minúsculas) → campo. Cada pestaña trae su propio
+# orden y no todas tienen todas las columnas, así que se lee por nombre, nunca por
+# posición: al leer por posición, quitar la columna «Junta» de ocho pestañas corrió todo
+# un lugar y el municipio acababa de título y la URL del mapa de municipio.
+COLUMNAS = {
+    "reunion": "junta", "junta": "junta",
+    "tipo de propiedad": "tipo", "nombre": "nombre", "nombre referencia": "nombre",
+    "municipio": "municipio", "marca": "marca", "ubicacion google maps": "mapa",
+    "m2": "m2", "m2 disponible": "m2", "precio x m2": "pm2",
+    "monto de salida": "monto", "precio de salida": "monto",
+    "notas": "notas", "a cargo": "trae", "status": "status", "comentarios": "comentarios",
+}
+
+
+def columnas(encabezado):
+    """{campo: índice} a partir de la fila de encabezado."""
+    h = [re.sub(r"\s+", " ", sin_acentos(c).lower()).strip() for c in encabezado]
+    col = {}
+    for i, c in enumerate(h):
+        if c in COLUMNAS and COLUMNAS[c] not in col:
+            col[COLUMNAS[c]] = i
+    for campo in ("tipo", "nombre", "municipio", "status"):
+        if campo not in col:
+            raise ValueError(f"no encuentro la columna «{campo}» en {encabezado}")
+    # El número de fila va justo antes del tipo, con encabezado vacío o «N°».
+    if col["tipo"] > 0 and h[col["tipo"] - 1] in ("", "n°", "no", "#"):
+        col["numero"] = col["tipo"] - 1
+    # Una pestaña dejó sin título M2 y Precio x m2: si entre el mapa y el
+    # monto quedan justo dos columnas sin nombre, son ésas.
+    if "m2" not in col and "mapa" in col and "monto" in col \
+            and col["monto"] - col["mapa"] == 3 and h[col["mapa"] + 1] == h[col["mapa"] + 2] == "":
+        col["m2"], col["pm2"] = col["mapa"] + 1, col["mapa"] + 2
+    return col
+
+
 def filas(pestana, cliente, responsable):
     """Las filas de una pestaña, ya normalizadas. El encabezado no está en la misma
     línea en todas las pestañas, así que se busca."""
     datos = [[c.strip() for c in f] for f in bajar(pestana)]
     ini = next(i for i, f in enumerate(datos) if any(c.lower() == "tipo de propiedad" for c in f))
+    col = columnas(datos[ini])
     junta = None
     for f in datos[ini + 1:]:
-        f = f + [""] * 14
-        if "Marca" in datos[ini]:   # otra forma: sin junta ni notas, con Marca y "A cargo"
-            n, tp, nom, mun, marca, mapa, m2, pm2, monto, st, trae = f[:11]
-            jn, notas, com = "", "", st        # su Status es texto libre: es el seguimiento
-        else:
-            jn, n, tp, nom, mun, mapa, m2, pm2, monto, notas, trae, st, com = f[:13]
-            marca = ""
-        if jn:
-            junta = re.sub(r"\.$", "", jn).replace(" (sin enseñar)", "")
+        def v(campo):
+            i = col.get(campo)
+            return f[i] if i is not None and i < len(f) else ""
+        n, tp, nom, mun, mapa = v("numero"), v("tipo"), v("nombre"), v("municipio"), v("mapa")
+        st, trae = v("status"), v("trae")
+        # Sin columna de comentarios (la forma con «Marca»), el Status es texto libre: es
+        # el seguimiento.
+        com = v("comentarios") if "comentarios" in col else st
+        if v("junta"):
+            junta = re.sub(r"\.$", "", v("junta")).replace(" (sin enseñar)", "")
         if not nom and not tp:
             continue
         mun_n = municipio(mun)
@@ -165,8 +220,8 @@ def filas(pestana, cliente, responsable):
             "numero": int(n) if n.isdigit() else None,
             "titulo": nom.strip() or "(sin nombre)", "tipo": tipo(tp), "municipio": mun_n,
             "mapa_url": mapa if mapa.startswith("http") else None,
-            "tamano_m2": numero(m2), "precio_m2": numero(pm2), "precio": numero(monto),
-            "ficha_notas": texto(notas), "marca": texto(marca),
+            "tamano_m2": numero(v("m2")), "precio_m2": numero(v("pm2")), "precio": numero(v("monto")),
+            "ficha_notas": texto(v("notas")), "marca": texto(v("marca")),
             "trae": texto(trae.capitalize() if trae.isupper() else trae),
             "status": etapa(st, com), "notas": texto(com),
             "llave": llave(nom, mun_n),
@@ -193,6 +248,14 @@ def main():
     global SHEET_ID, ALIAS, AMBIGUOS
     SHEET_ID, ALIAS, AMBIGUOS = cfg["sheet_id"], cfg.get("alias", {}), set(cfg.get("ambiguos", []))
     PESTANAS, CUENTAS = [tuple(p) for p in cfg["pestanas"]], cfg.get("cuentas", {})
+
+    en_sheet = pestanas_del_sheet()
+    faltan = [p[0] for p in PESTANAS if p[0] not in en_sheet]
+    if faltan:
+        sys.exit(f"el sheet ya no tiene {faltan}; hoy tiene {en_sheet}. Corrige {a.config}")
+    for p in en_sheet:
+        if p not in {q[0] for q in PESTANAS}:
+            print(f"  ! la pestaña «{p}» no está en {a.config}: no se importa")
 
     todas = [r for p in PESTANAS for r in filas(*p)]
     print(f"{len(todas)} filas en {len(PESTANAS)} pestañas, "
@@ -228,12 +291,12 @@ def main():
                 clientes[nombre] = prev[0]["id"]
                 conn.execute("UPDATE cliente SET responsable = coalesce(responsable, %s), "
                              "responsable_id = coalesce(responsable_id, %s) WHERE id = %s",
-                             (resp, cuentas.get(resp.lower()), prev[0]["id"]))
+                             (resp, cuentas.get((resp or "").lower()), prev[0]["id"]))
             else:
                 clientes[nombre] = conn.execute(
                     "INSERT INTO cliente (user_id, nombre, responsable, responsable_id) "
                     "VALUES (%s, %s, %s, %s) RETURNING id",
-                    (creador, nombre, resp, cuentas.get(resp.lower()))).fetchone()["id"]
+                    (creador, nombre, resp, cuentas.get((resp or "").lower()))).fetchone()["id"]
                 n_cli += 1
 
         # Una ficha por propiedad: sus datos salen de la fila que más trae.
