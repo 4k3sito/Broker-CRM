@@ -159,9 +159,35 @@ async function saveFicha(field, value) {
     return;
   }
   await asegurarFicha().catch(() => null);
-  if (!ficha) return;
+  if (!ficha || (ficha[field] ?? null) === val) return;
   ficha[field] = val;
-  API.patch(`/fichas/${ficha.id}`, { [field]: val }).catch(err => console.warn(err.message));
+  if (!esPropia(listing)) {
+    API.patch(`/fichas/${ficha.id}`, { [field]: val }).catch(err => console.warn(err.message));
+    return;
+  }
+  // En una propiedad propia la ficha ES la propiedad: el encabezado, el precio y los
+  // datos de arriba salen de aquí, así que se vuelven a pedir y a pintar.
+  try {
+    // La respuesta trae también lo que la API calculó: con dos de precio / m² / $/m²
+    // sale el tercero (derivar_precio en main.py).
+    Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, { [field]: val })));
+    listing = adaptListing(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+    repintar();
+  } catch (err) { alert('No se pudo guardar: ' + err.message); }
+}
+// Postgres manda los `numeric` como texto ("45800.00"): se vuelven número para que el
+// formulario no enseñe decimales que nadie escribió.
+function numeros(f) {
+  for (const k of ['precio', 'tamano_m2', 'precio_m2']) if (f[k] != null) f[k] = Number(f[k]);
+  return f;
+}
+// render() reescribe el formulario entero: sin esto, al pasar con Tab de un campo al
+// siguiente el guardado del primero le quitaría el foco al segundo.
+function repintar() {
+  const f = document.activeElement?.dataset?.f;
+  pdfAbierto = true;
+  render();
+  if (f) document.querySelector(`#pdfData [data-f="${f}"]`)?.focus();
 }
 
 // ── Fichas guardadas ─────────────────────────────────────────────────────────
@@ -211,9 +237,9 @@ async function saveBase(field, crudo) {
   else patch = { [field]: crudo.trim() === '' ? null : crudo.trim() };
   if (JSON.stringify(patch[field]) === JSON.stringify(ficha[field] ?? null)) return;
   try {
-    Object.assign(ficha, await API.patch(`/fichas/${ficha.id}`, patch));
+    Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, patch)));
     listing = adaptListing(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
-    render();
+    repintar();
     pintarUbicacion();
   } catch (err) { alert('No se pudo guardar: ' + err.message); }
 }
@@ -272,6 +298,8 @@ function render() {
   // La versión cargada en el formulario, y de dónde salen sus valores.
   const vSel = versiones.find(v => String(v.id) === versionSel) ?? null;
   const d = vSel ? vSel.datos : (ficha ?? {});
+  // Propiedad propia: sus datos y los de la ficha técnica van en un solo desplegable.
+  const propia = esPropia(l) && !!ficha;
   const respDe = cid => { const c = clientes.find(x => String(x.id) === String(cid)); return c ? (c.responsable_nombre || c.responsable || null) : null; };
 
   document.getElementById('detail').innerHTML = `
@@ -306,16 +334,6 @@ function render() {
         <dl class="fx-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
         ${l.descripcion ? `<p class="fx-desc">${esc(l.descripcion)}</p>` : ''}
         ${l.features.length ? `<ul class="fx-feat">${l.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
-        ${esPropia(l) && ficha ? `<details class="fx-pdfdata" id="baseData"${l.tipo && l.zona ? '' : ' open'}>
-          <summary>Datos de la propiedad</summary>
-          <div class="fx-row">
-            <label>Tipo<input class="base-in" data-f="tipo" value="${esc(ficha.tipo ?? '')}" placeholder="Local, terreno…"></label>
-            <label>Municipio<input class="base-in" data-f="municipio" value="${esc(ficha.municipio ?? '')}"></label>
-            <label>Precio por m²<input type="number" class="base-in" data-f="precio_m2" value="${ficha.precio_m2 ?? ''}"></label>
-          </div>
-          <label>Liga del mapa<input class="base-in" data-f="mapa_url" value="${esc(ficha.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…"></label>
-          <label>Fotos (una liga por renglón)<textarea class="base-in" data-f="fotos" rows="3" placeholder="https://…">${esc((ficha.fotos ?? []).join('\n'))}</textarea></label>
-        </details>` : ''}
         <div class="fx-vers">
           <h2>Fichas PDF <span class="fx-n">${versiones.length + 1}</span></h2>
           <div class="fx-ver${vSel ? '' : ' on'}">
@@ -335,15 +353,23 @@ function render() {
             <option value="__otro">Otro nombre…</option>
           </select>
         </div>
-        <details class="fx-pdfdata" id="pdfData"${pdfAbierto ? ' open' : ''}>
-          <summary>Datos de ${esc(nombrePdf(vSel))}.pdf</summary>
+        <details class="fx-pdfdata" id="pdfData"${pdfAbierto || (propia && !(l.tipo && l.zona)) ? ' open' : ''}>
+          <summary>${propia && !vSel ? 'Datos de la propiedad' : `Datos de ${esc(nombrePdf(vSel))}.pdf`}</summary>
           <label>Título<input class="ficha-in" data-f="titulo" value="${esc(d.titulo ?? tituloPdf(l))}"></label>
           <div class="fx-row">
             <label>Precio<input type="number" class="ficha-in" data-f="precio" value="${d.precio ?? (vSel ? '' : (total != null ? Math.round(total) : ''))}"></label>
             <label>m²<input type="number" class="ficha-in" data-f="tamano_m2" value="${d.tamano_m2 ?? (vSel ? '' : (l.size ?? ''))}"></label>
             <label>ID<input class="ficha-in" data-f="folio" value="${esc(d.folio ?? '')}" placeholder="${folioSugerido()}"></label>
           </div>
-          <label>Descripción para el cliente<textarea class="ficha-in" data-f="notas" rows="4" placeholder="Si se deja vacía se usa la descripción ${esPropia(l) ? 'de la propiedad' : 'del anuncio'}.">${esc(d.notas ?? '')}</textarea></label>
+          <label>Descripción para el cliente<textarea class="ficha-in" data-f="notas" rows="4" placeholder="Si se deja vacía se usa la descripción ${propia ? 'de la propiedad' : 'del anuncio'}.">${esc(d.notas ?? '')}</textarea></label>
+          ${propia ? `${vSel ? '<p class="fx-hint">Lo de abajo es de la propiedad: es igual en todas sus fichas.</p>' : ''}
+          <div class="fx-row">
+            <label>Tipo<input class="base-in" data-f="tipo" value="${esc(ficha.tipo ?? '')}" placeholder="Local, terreno…"></label>
+            <label>Municipio<input class="base-in" data-f="municipio" value="${esc(ficha.municipio ?? '')}"></label>
+            <label>Precio por m²<input type="number" class="base-in" data-f="precio_m2" value="${ficha.precio_m2 ?? ''}"></label>
+          </div>
+          <label>Liga del mapa<input class="base-in" data-f="mapa_url" value="${esc(ficha.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…"></label>
+          <label>Fotos (una liga por renglón)<textarea class="base-in" data-f="fotos" rows="3" placeholder="https://…">${esc((ficha.fotos ?? []).join('\n'))}</textarea></label>` : ''}
         </details>
       </section>
 

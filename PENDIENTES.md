@@ -25,6 +25,10 @@ Con este despliegue salió también a producción el análisis de mercado comple
   La lista filtra por quién lleva la cuenta y muestra su avatar en cada cliente.
 - **Ficha:** fichas PDF guardadas (General más una por cliente o por nombre), mapa de
   ubicación y de comparables, y quién lleva la cuenta de cada cliente.
+- **Precio, m² y $/m² (2026-10-02):** con dos, la API calcula el tercero
+  (`derivar_precio`). Si están los tres y cambia la superficie, se conserva el $/m² y se
+  recalcula el total. En la ficha de una propiedad propia hay un solo desplegable,
+  "Datos de la propiedad", con sus datos y los de la ficha técnica.
 - **Inmobiliaria:** "+ Nueva propiedad" da de alta una ficha sin anuncio y sin cliente;
   "+ Inmobiliaria" (en la ficha y en la bandeja de la Bolsa) guarda un anuncio sin asignarlo.
 
