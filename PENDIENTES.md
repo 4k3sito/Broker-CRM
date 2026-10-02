@@ -7,10 +7,16 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
-## Clientes editables, fichas guardadas y mapa — **en la copia de trabajo, sin desplegar** (2026-10-01)
+## Clientes editables, fichas guardadas y mapas sin Google — **en producción desde el 2026-10-02**
 
-Hecho en `desarrollo` y verificado en navegador contra la API de la copia (:8001), a
-1440 y 390 px:
+Desplegado con el commit `c011692`: esquema aplicado en `public`, API reconstruida,
+Caddy recreado con la CSP nueva y `geofichas` corrido (**92 de 93** fichas con liga
+quedaron ubicadas). Los mapas se verificaron detrás de Caddy, con la CSP real, en el
+tablero y en la ficha. Respaldo previo del CRM en
+`/srv/backups/crm-pre-despliegue-2026-10-02-0214.sql.gz`.
+
+Con este despliegue salió también a producción el análisis de mercado completo del
+2026-09-29 (sección de abajo), que venía en la misma copia de trabajo.
 
 - **Clientes:** cada propiedad del cliente es una fila numerada que se arrastra del asa
   para reordenar, y al hacer clic despliega un panel con todos sus datos editables.
@@ -18,30 +24,18 @@ Hecho en `desarrollo` y verificado en navegador contra la API de la copia (:8001
   quién presentó, alta de filas a mano, y tareas ligadas al cliente o a una propiedad.
   La lista filtra por quién lleva la cuenta y muestra su avatar en cada cliente.
 - **Ficha:** fichas PDF guardadas (General más una por cliente o por nombre), mapa de
-  ubicación con MapLibre + OpenFreeMap, y quién lleva la cuenta de cada cliente.
+  ubicación y de comparables, y quién lleva la cuenta de cada cliente.
 - **Inmobiliaria:** "+ Nueva propiedad" da de alta una ficha sin anuncio y sin cliente;
   "+ Inmobiliaria" (en la ficha y en la bandeja de la Bolsa) guarda un anuncio sin asignarlo.
 
-Para desplegar, en este orden:
-
-1. El bloque nuevo de `vps/schema.sql` ("fichas guardadas, ubicación y bolsa propia")
-   en `public`. En `dev` ya está aplicado. Ojo con el bind mount de archivo (CLAUDE.md).
-2. `docker compose up -d --build api`.
-3. Recargar Caddy para la CSP nueva (`connect-src` suma `tiles.openfreemap.org`). **Sin
-   esto el mapa de la ficha sale en blanco en producción**; en la copia no se nota
-   porque `dev-server.js` no manda CSP.
-
-4. `docker compose exec -T api python main.py geofichas`, para ubicar las fichas que
-   ya tienen liga del mapa.
-
 Lo que falta o conviene saber:
 
-- **La CSP con el mapa no se ha probado**: sólo corre detrás de Caddy. Verificarla en el
-  primer despliegue leyendo la consola del navegador.
+- **La llave de Google Maps del navegador ya no se usa.** Producción la traía en
+  `web/config.js` como cambio local sin commit; quedó una copia en
+  `/srv/backups/config.js.prod-2026-10-02-0214`. Conviene desactivarla en Google Cloud.
 - **La ubicación sale de la liga del mapa.** Al guardar `mapa_url`, la API sigue la
   redirección de la liga corta de Google y guarda la coordenada (`resolver_mapa`). Para
-  las que ya existían: `python main.py geofichas`. En `dev` ubicó **91 de 92** (2026-10-01);
-  la que falta ("Bodega San Nicolas") es una liga a un negocio por nombre, sin coordenada
+  las que ya existían: `python main.py geofichas`. La única que falta ("Bodega San Nicolas") es una liga a un negocio por nombre, sin coordenada
   en la URL, y se fija a mano con "Fijar ubicación". Las 28 fichas propias sin liga
   también quedan a mano.
 - **Arrastrar no funciona con el dedo** (arrastre nativo de HTML): en el teléfono la fila
@@ -98,7 +92,7 @@ de `load` (`propdb.py:379`) y respeta la marca `suspect` que pone `--validate`. 
 exportarle `DATABASE_URL` desde `vps/.env` como hace `cron.sh:16`; sin eso `propdb.py` busca
 un socket local y muere al instante.
 
-## Análisis de mercado completo — **en la copia de trabajo, sin desplegar** (2026-09-29)
+## Análisis de mercado completo — **en producción desde el 2026-10-02**, sin llave de Google
 
 Retoma el análisis que estaba en pausa (sección siguiente). En `desarrollo`, verificado
 contra datos reales con la API de la copia (:8001) y en navegador:
