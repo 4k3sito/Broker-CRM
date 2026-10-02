@@ -97,9 +97,23 @@ function guardarCampo(c, p, tabla, f, crudo) {
     if (f === 'titulo' && v == null) return;
     if ((p.ficha[f] ?? null) === v) return;
     // La misma ficha puede estar con otro cliente: que diga lo mismo en todos.
-    for (const x of clientes) for (const q of x.proceso ?? [])
-      if (String(q.ficha?.id) === String(p.ficha.id)) q.ficha[f] = v;
-    API.patch(`/fichas/${p.ficha.id}`, { [f]: v }).catch(fallo);
+    const poner = datos => { for (const x of clientes) for (const q of x.proceso ?? [])
+      if (String(q.ficha?.id) === String(p.ficha.id)) Object.assign(q.ficha, datos); };
+    poner({ [f]: v });
+    API.patch(`/fichas/${p.ficha.id}`, { [f]: v }).then(fila => {
+      if (!NUMERICOS.includes(f)) return;
+      // Con dos de precio / m² / $/m² la API calcula el tercero (derivar_precio): se
+      // trae de vuelta a la fila y a los campos del panel, sin repintarlo.
+      const antes = { ...p.ficha };
+      poner(Object.fromEntries(NUMERICOS.map(k => [k, fila[k] == null ? null : Number(fila[k])])));
+      refrescarFila(c, p);
+      const panel = document.querySelector(`#clDetail .cl-exp[data-proc="${CSS.escape(String(p.id))}"]`);
+      for (const k of NUMERICOS) {
+        const el = panel?.querySelector(`.cl-ein[data-f="${k}"]`);
+        // El campo con el foco sólo se toca si la persona no ha escrito nada en él.
+        if (el && (el !== document.activeElement || el.value === String(antes[k] ?? ''))) el.value = p.ficha[k] ?? '';
+      }
+    }).catch(fallo);
   } else {
     let patch = { [f]: v };
     if (f === 'trae_id') {

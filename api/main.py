@@ -996,6 +996,52 @@ def _con_coordenada(body: dict) -> dict:
     return body
 
 
+# ── Precio, superficie y precio por m²: con dos se calcula el tercero ─────────
+# El asesor captura lo que sabe —a veces el total, a veces el $/m²— y el que falta
+# sale solo. Vive en la API y no en el navegador porque la ficha se edita desde dos
+# páginas (la ficha y el panel del cliente) y las dos tienen que dar el mismo número.
+#
+# Qué se recalcula depende de qué se acaba de escribir:
+#   precio      → $/m² = precio / m²
+#   $/m²        → precio = $/m² × m²
+#   superficie  → precio = $/m² × m² si hay $/m² (es la base con que se cotiza un
+#                 terreno); si no, $/m² = precio / m²
+#   precio y $/m² sin superficie → m² = precio / $/m²
+# Lo que el usuario mandó nunca se pisa, y borrar un campo no calcula nada.
+PRECIO_CAMPOS = ("precio", "tamano_m2", "precio_m2")
+
+
+def derivar_precio(actual: dict, body: dict) -> dict:
+    """`body` con el campo derivado agregado, si se puede calcular. `actual` es la fila
+    como está guardada (vacía al crear)."""
+    tocados = [k for k in PRECIO_CAMPOS if k in body]
+    if not tocados:
+        return body
+    try:
+        v = {k: (float(body[k]) if body.get(k) is not None else None) if k in body
+                else (float(actual[k]) if actual.get(k) is not None else None)
+             for k in PRECIO_CAMPOS}
+    except (TypeError, ValueError):
+        return body                                # un valor no numérico: que falle el UPDATE
+    precio, m2, ppm = v["precio"], v["tamano_m2"], v["precio_m2"]
+    extra = {}
+    if all(body.get(k) is None for k in tocados):
+        pass                                       # sólo se borró algo
+    elif m2 and m2 > 0:
+        if "precio" in body and "precio_m2" not in body and precio is not None:
+            extra["precio_m2"] = round(precio / m2, 2)
+        elif "precio_m2" in body and "precio" not in body and ppm is not None:
+            extra["precio"] = round(ppm * m2, 2)
+        elif tocados == ["tamano_m2"]:
+            if ppm is not None:
+                extra["precio"] = round(ppm * m2, 2)
+            elif precio is not None:
+                extra["precio_m2"] = round(precio / m2, 2)
+    elif "tamano_m2" not in body and precio and ppm and ppm > 0:
+        extra["tamano_m2"] = round(precio / ppm, 2)
+    return dict(body, **extra) if extra else body
+
+
 def _owned(conn, tabla: str, id_: str | None, user_id=None) -> None:
     """Que la fila exista. 404 también cuando el id viene vacío o no es un uuid: un id
     inválido no debe salir como 500. `user_id` ya no se usa: el CRM es compartido."""
@@ -1105,13 +1151,21 @@ def crear_ficha(body: dict = Body(...), user: dict = Depends(current_user)) -> d
         raise HTTPException(422, "El título es obligatorio")
     with POOL.connection() as conn:
         # Una ficha por listing y por asesor: volver a crearla devuelve la existente.
-        return _insert(conn, "ficha", _con_coordenada(body), FICHA_COLS, user["id"],
+        return _insert(conn, "ficha", derivar_precio({}, _con_coordenada(body)), FICHA_COLS, user["id"],
                        extra="ON CONFLICT (user_id, source_listing_id) "
                              "DO UPDATE SET updated_at = now()")
 
 
 @app.patch("/api/fichas/{fid}")
 def editar_ficha(fid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
+    if any(k in body for k in PRECIO_CAMPOS):
+        with POOL.connection() as conn:
+            try:
+                actual = conn.execute("SELECT precio, tamano_m2, precio_m2 FROM ficha WHERE id = %s",
+                                      (fid,)).fetchone()
+            except psycopg_errors.InvalidTextRepresentation:
+                actual = None
+        body = derivar_precio(actual or {}, body)
     return _patch("ficha", fid, _con_coordenada(body), FICHA_COLS[1:], user)
 
 
@@ -1794,6 +1848,19 @@ def selfcheck() -> None:
     # Con varios saltos manda el primero: el cliente, no los proxies que siguen.
     assert ip_cliente(_Req({"x-forwarded-for": "203.0.113.9, 10.0.0.2"})) == "203.0.113.9"
     assert ip_cliente(_Req({})) == "?"
+
+    # Con dos de precio / superficie / $/m² sale el tercero, según cuál se escribió.
+    assert derivar_precio({"tamano_m2": 500}, {"precio": 250000}) == {"precio": 250000, "precio_m2": 500.0}
+    assert derivar_precio({"tamano_m2": 500}, {"precio_m2": 91.6}) == {"precio_m2": 91.6, "precio": 45800.0}
+    assert derivar_precio({"precio_m2": 100, "precio": 1}, {"tamano_m2": 300}) == {"tamano_m2": 300, "precio": 30000.0}
+    assert derivar_precio({"precio": 30000}, {"tamano_m2": 300}) == {"tamano_m2": 300, "precio_m2": 100.0}
+    assert derivar_precio({"precio": 30000}, {"precio_m2": 100}) == {"precio_m2": 100, "tamano_m2": 300.0}
+    assert derivar_precio({}, {"precio": 30000, "precio_m2": 100}) == {"precio": 30000, "precio_m2": 100, "tamano_m2": 300.0}
+    # Lo que se mandó no se pisa; borrar no calcula; sin superficie no se divide.
+    assert derivar_precio({"tamano_m2": 500}, {"precio": 1000, "precio_m2": 7}) == {"precio": 1000, "precio_m2": 7}
+    assert derivar_precio({"tamano_m2": 500, "precio_m2": 9}, {"precio": None}) == {"precio": None}
+    assert derivar_precio({"tamano_m2": 0}, {"precio": 1000}) == {"precio": 1000}
+    assert derivar_precio({}, {"titulo": "x"}) == {"titulo": "x"}
 
     # La coordenada de una liga de Google Maps, en las formas en que llega. El pin
     # (!3d!4d) gana sobre el centro de la vista (@).
