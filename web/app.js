@@ -943,10 +943,8 @@ document.querySelector('.seg').addEventListener('click', e => {
   const b = e.target.closest('[data-vista]');
   if (b) ponerVista(b.dataset.vista);
 });
-// Sin llave de Google Maps el mapa sólo mostraría el aviso: se arranca en rejilla.
-const hayLlaveMapa = !!window.OL_CONFIG?.googleMapsKey && !window.OL_CONFIG.googleMapsKey.includes('PEGA_AQUI');
-ponerVista((() => { try { return localStorage.getItem('ol-vista'); } catch { return null; } })()
-           ?? (hayLlaveMapa ? 'split' : 'grid'));
+// El mapa ya no depende de una llave (mapa.js): la vista por defecto es rejilla + mapa.
+ponerVista((() => { try { return localStorage.getItem('ol-vista'); } catch { return null; } })() ?? 'split');
 
 Mapa.init(document.getElementById('map'), {
   onPin: id => {
@@ -1080,6 +1078,32 @@ document.getElementById('trayCliente').addEventListener('change', async e => {
     ? `${ok} ${ok === 1 ? 'inmueble propuesto' : 'inmuebles propuestos'} a ${cliente?.nombre ?? 'cliente'}`
     : `${ok} de ${lista.length} propuestos. Los demás fallaron o ya estaban.`);
 });
+// ── Bolsa propia: guardar sin asignar ────────────────────────────────────────
+// Inmobiliaria es "lo que tiene ficha". Una propiedad entra ahí de dos formas sin
+// pasar por un cliente: guardando un anuncio de la Bolsa (se le crea su ficha) o
+// dándola de alta a mano, que es una ficha sin anuncio detrás; el resto de sus datos
+// se captura en su página.
+document.getElementById('trayInmo').hidden = INMO;
+document.getElementById('trayInmo').addEventListener('click', async () => {
+  const lista = [...seleccion.values()];
+  const res = await Promise.allSettled(lista.map(fichaDe));
+  const ok = res.filter(r => r.status === 'fulfilled').length;
+  toast(ok === lista.length
+    ? `${ok} ${ok === 1 ? 'inmueble guardado' : 'inmuebles guardados'} en Inmobiliaria`
+    : `${ok} de ${lista.length} guardados en Inmobiliaria. Los demás fallaron.`);
+  seleccion.clear();
+  render();
+});
+document.getElementById('nueva-prop').hidden = !INMO;
+document.getElementById('nueva-prop').addEventListener('click', async () => {
+  const titulo = prompt('Nombre de la propiedad:');
+  if (!titulo?.trim()) return;
+  try {
+    const f = await API.post('/fichas', { titulo: titulo.trim() });
+    location.href = `listing.html?id=${encodeURIComponent('pipeline:' + f.id)}`;
+  } catch (err) { toast('No se pudo crear la propiedad: ' + err.message); }
+});
+
 // Un clic fuera cierra los popovers; dentro de .qbar los maneja su propio listener.
 document.addEventListener('click', e => {
   if (!e.target.closest('.qbar')) { abrirPaleta(false); cerrarEditor(); }

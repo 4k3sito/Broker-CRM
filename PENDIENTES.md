@@ -7,6 +7,56 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Clientes editables, fichas guardadas y mapa — **en la copia de trabajo, sin desplegar** (2026-10-01)
+
+Hecho en `desarrollo` y verificado en navegador contra la API de la copia (:8001), a
+1440 y 390 px:
+
+- **Clientes:** cada propiedad del cliente es una fila numerada que se arrastra del asa
+  para reordenar, y al hacer clic despliega un panel con todos sus datos editables.
+  Columnas que se prenden y apagan (se guardan por navegador), filtro por etapa y por
+  quién presentó, alta de filas a mano, y tareas ligadas al cliente o a una propiedad.
+  La lista filtra por quién lleva la cuenta y muestra su avatar en cada cliente.
+- **Ficha:** fichas PDF guardadas (General más una por cliente o por nombre), mapa de
+  ubicación con MapLibre + OpenFreeMap, y quién lleva la cuenta de cada cliente.
+- **Inmobiliaria:** "+ Nueva propiedad" da de alta una ficha sin anuncio y sin cliente;
+  "+ Inmobiliaria" (en la ficha y en la bandeja de la Bolsa) guarda un anuncio sin asignarlo.
+
+Para desplegar, en este orden:
+
+1. El bloque nuevo de `vps/schema.sql` ("fichas guardadas, ubicación y bolsa propia")
+   en `public`. En `dev` ya está aplicado. Ojo con el bind mount de archivo (CLAUDE.md).
+2. `docker compose up -d --build api`.
+3. Recargar Caddy para la CSP nueva (`connect-src` suma `tiles.openfreemap.org`). **Sin
+   esto el mapa de la ficha sale en blanco en producción**; en la copia no se nota
+   porque `dev-server.js` no manda CSP.
+
+4. `docker compose exec -T api python main.py geofichas`, para ubicar las fichas que
+   ya tienen liga del mapa.
+
+Lo que falta o conviene saber:
+
+- **La CSP con el mapa no se ha probado**: sólo corre detrás de Caddy. Verificarla en el
+  primer despliegue leyendo la consola del navegador.
+- **La ubicación sale de la liga del mapa.** Al guardar `mapa_url`, la API sigue la
+  redirección de la liga corta de Google y guarda la coordenada (`resolver_mapa`). Para
+  las que ya existían: `python main.py geofichas`. En `dev` ubicó **91 de 92** (2026-10-01);
+  la que falta ("Bodega San Nicolas") es una liga a un negocio por nombre, sin coordenada
+  en la URL, y se fija a mano con "Fijar ubicación". Las 28 fichas propias sin liga
+  también quedan a mano.
+- **Arrastrar no funciona con el dedo** (arrastre nativo de HTML): en el teléfono la fila
+  no trae asa. Si hace falta reordenar ahí, pide otra interacción.
+- **Las fichas guardadas son datos, no archivos**: el PDF lo imprime el navegador. Si se
+  necesita el PDF tal como se mandó, hay que generarlo en el servidor como el análisis.
+- Editar una propiedad desde un cliente cambia la ficha, que es la misma para todos los
+  clientes a los que se presentó. El panel lo dice.
+- `dev-schema.sql` no copia `ficha_version` (no existe en `public` todavía): al
+  rehacer `dev` hay que volver a aplicarle el bloque.
+- Los tres mapas (tablero, ubicación y comparables) son MapLibre + OpenFreeMap: el
+  frontend ya no pide nada a Google Maps y la CSP del `Caddyfile` lo quitó. Lo único de
+  Google que queda es el PDF del análisis (`api/entorno.py`, Static Maps y Places), que
+  sin llave de servidor sale sin esas dos secciones.
+
 ## Rediseño v0.5: lo que quedó sin encender
 
 Desplegado el 2026-09-29 (`c56841b`). Tres cosas del rediseño no funcionan todavía
@@ -47,6 +97,29 @@ luego `propdb.py load`, nunca al revés ni por separado: `patch_coords()` sólo 
 de `load` (`propdb.py:379`) y respeta la marca `suspect` que pone `--validate`. Y hay que
 exportarle `DATABASE_URL` desde `vps/.env` como hace `cron.sh:16`; sin eso `propdb.py` busca
 un socket local y muere al instante.
+
+## Análisis de mercado completo — **en la copia de trabajo, sin desplegar** (2026-09-29)
+
+Retoma el análisis que estaba en pausa (sección siguiente). En `desarrollo`, verificado
+contra datos reales con la API de la copia (:8001) y en navegador:
+
+- **Arreglo de moneda (afecta a producción hoy):** el motor mezclaba anuncios en USD con
+  los de MXN sin convertir. Son 12,419 anuncios activos de locales, bodegas y terrenos
+  (6%). Ahora sólo compara contra la moneda del sujeto.
+- **Renta contra venta:** rendimiento bruto de lista del submercado, cruzando los dos
+  mercados alrededor de la propiedad con la misma escalera de radios y el mismo mínimo
+  de 15. Medido: 7.4% en Los Doctores (Monterrey), 8.2% en San Agustín (San Pedro).
+- **Antigüedad del anuncio** del sujeto contra la mediana del mercado, y **mediana de la
+  colonia** (INEGI) cuando junta 15 dentro del radio — que en la práctica es poco común.
+- **Mapa** (Static Maps) y **entorno a 500 m** (Places) en el PDF, con caché en
+  `google_cache`. **Falta la llave**: sin `GOOGLE_MAPS_SERVER_KEY` el PDF sale sin esas dos
+  secciones y no se han visto con datos reales de Google.
+- **Tarjeta "Mercado comparable" en la ficha**, con mapa de comparables (llave del
+  navegador, la de producción).
+
+Para desplegar: `google_cache` ya existe en la base (se creó el 2026-09-29); falta
+crear la llave de servidor, ponerla en `vps/.env`, y `docker compose up -d --build api`.
+El PDF con Google no se ha visto rasterizado: hacerlo antes de mandarle uno a un cliente.
 
 ## Análisis de mercado — en producción desde el 2026-09-21, **en pausa**
 

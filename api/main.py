@@ -20,6 +20,8 @@ import secrets
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -33,6 +35,7 @@ from psycopg_pool import ConnectionPool
 # Local: la maqueta del PDF. No importa WeasyPrint al cargarse —eso pasa dentro
 # de documento.pdf()—, así que no encarece el arranque de la API.
 import documento
+import entorno
 from pydantic import BaseModel, Field
 
 # ─────────────────────────────────────────────────────────────────── contraseñas
@@ -454,6 +457,11 @@ FICHA_COMO_LISTING = f"""
     'area_m2', f.tamano_m2, 'location', f.municipio, 'maps_url', f.mapa_url,
     'images', to_jsonb(f.fotos), 'image_url', f.fotos[1], 'description', f.notas,
     'observed_at', f.updated_at, 'activo', true,
+    -- La ubicación que el asesor fijó en el mapa de la ficha (ficha.lat/lng). Va como
+    -- EWKT porque jsonb_populate_record la convierte con el parser de `geography`.
+    'geom', CASE WHEN f.lat IS NOT NULL AND f.lng IS NOT NULL
+                 THEN 'SRID=4326;POINT(' || f.lng || ' ' || f.lat || ')' END,
+    'geo_origen', CASE WHEN f.lat IS NOT NULL AND f.lng IS NOT NULL THEN 'portal' END,
     'norm', {_NORM_SQL.format(x="concat_ws(' ', f.titulo, f.municipio, f.tipo)")},
     'zona_id', zm.id))).*
   FROM ficha f
@@ -897,8 +905,95 @@ def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_use
 CLIENTE_COLS = ("nombre", "contacto", "empresa", "requerimientos", "notas",
                 "responsable", "responsable_id", "criterios")
 FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "fotos", "notas",
-              "tipo", "municipio", "mapa_url", "precio_m2")
+              "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng")
+# Lo que guarda una ficha PDF con nombre (ficha_version.datos): sólo lo que imprime.
+VERSION_DATOS = ("titulo", "precio", "tamano_m2", "folio", "notas")
 PROCESO_COLS = ("status", "notas", "junta", "numero", "marca", "trae", "trae_id")
+
+
+# ── La coordenada que trae la liga del mapa ──────────────────────────────────
+# El equipo captura la ubicación como una liga corta de Google Maps
+# (maps.app.goo.gl/…). La liga no dice dónde está, pero su redirección sí: Google
+# contesta 302 hacia una URL larga con la coordenada escrita. Se sigue esa redirección
+# —sin llave y sin leer la página— y se guarda en ficha.lat / ficha.lng.
+#
+# Es la API pidiendo una URL que escribió un usuario (SSRF), así que va amarrada: sólo
+# https, sólo a hosts de Google Maps, cada salto se revisa contra la misma lista, y de
+# la respuesta se lee nada más la cabecera `Location`.
+MAPA_HOSTS = ("maps.app.goo.gl", "goo.gl", "maps.google.com", "www.google.com", "google.com",
+              "www.google.com.mx", "google.com.mx")
+_NUM = r"(-?\d{1,3}\.\d{3,})"
+# En orden de confianza: `!3d…!4d…` es el pin del lugar; `@…` es sólo el centro de la
+# vista y puede quedar a cuadras del pin, por eso va al final.
+_COORD_RES = [re.compile(p) for p in (
+    rf"!3d{_NUM}!4d{_NUM}",
+    rf"/maps/(?:search|place|dir)/{_NUM},(?:\+|%20|\s)*{_NUM}",
+    rf"[?&](?:q|query|ll|destination|center)=(?:loc:)?{_NUM}(?:,|%2C)(?:\+|%20)*{_NUM}",
+    rf"@{_NUM},{_NUM}",
+)]
+
+
+def coords_de_url(url: str | None) -> tuple[float, float] | None:
+    """(lat, lng) si la URL trae la coordenada a la vista. Sin red."""
+    for rx in _COORD_RES:
+        m = rx.search(url or "")
+        if m:
+            lat, lng = float(m.group(1)), float(m.group(2))
+            if -90 <= lat <= 90 and -180 <= lng <= 180:
+                return lat, lng
+    return None
+
+
+def _host_de_mapa(url: str) -> bool:
+    from urllib.parse import urlsplit
+    try:
+        u = urlsplit(url)
+    except ValueError:
+        return False
+    return u.scheme == "https" and (u.hostname or "").lower() in MAPA_HOSTS
+
+
+class _SinRedireccion(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):      # que urllib no siga nada por su cuenta
+        return None
+
+
+def resolver_mapa(url: str | None, saltos: int = 4) -> tuple[float, float] | None:
+    """La coordenada de una liga de Google Maps, siguiendo sus redirecciones si es
+    corta. None si no es de Google, si no contesta o si la URL final no trae coordenada
+    (pasa con ligas a un negocio por nombre). Nunca lanza: una liga sin resolver no
+    debe impedir guardar la ficha."""
+    url = (url or "").strip()
+    abridor = urllib.request.build_opener(_SinRedireccion)
+    for _ in range(saltos + 1):
+        c = coords_de_url(url)
+        if c:
+            return c
+        if not _host_de_mapa(url):
+            return None
+        try:
+            # El User-Agent de curl es a propósito: con uno de navegador Google contesta
+            # una página de consentimiento en vez de la redirección.
+            abridor.open(urllib.request.Request(url, headers={"User-Agent": "curl/8"}), timeout=6)
+            return None                       # 200: llegó a una página y no hubo coordenada
+        except urllib.error.HTTPError as e:
+            destino = e.headers.get("Location") if e.code in (301, 302, 303, 307, 308) else None
+            if not destino:
+                return None
+            url = urllib.parse.urljoin(url, destino)
+        except Exception:
+            return None
+    return None
+
+
+def _con_coordenada(body: dict) -> dict:
+    """Si viene una liga del mapa y no viene coordenada, la saca de la liga. Una liga
+    que no se pudo resolver deja la coordenada que hubiera."""
+    if body.get("mapa_url") and "lat" not in body and "lng" not in body:
+        c = resolver_mapa(body["mapa_url"])
+        if c:
+            body = dict(body, lat=c[0], lng=c[1])
+    return body
 
 
 def _owned(conn, tabla: str, id_: str | None, user_id=None) -> None:
@@ -925,6 +1020,8 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                LEFT JOIN LATERAL (
                  SELECT json_agg(json_build_object(
                           'id', p.id, 'status', p.status, 'created_at', p.created_at,
+                          'numero', p.numero, 'junta', p.junta, 'marca', p.marca,
+                          'notas', p.notas,
                           -- Quién trajo/presentó la propiedad: la cuenta si está
                           -- ligada, y el texto del sheet si todavía no.
                           'trae', p.trae, 'trae_id', p.trae_id,
@@ -934,7 +1031,12 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                           'ficha', json_build_object('id', f.id, 'titulo', f.titulo,
                                                      'precio', f.precio, 'tamano_m2', f.tamano_m2,
                                                      'fotos', f.fotos[1:1],
-                                                     'source_listing_id', f.source_listing_id))
+                                                     'source_listing_id', f.source_listing_id,
+                                                     -- Las columnas opcionales de la tabla y
+                                                     -- el panel que se abre bajo la fila.
+                                                     'tipo', f.tipo, 'municipio', f.municipio,
+                                                     'precio_m2', f.precio_m2, 'moneda', f.moneda,
+                                                     'mapa_url', f.mapa_url, 'notas', f.notas))
                           ORDER BY p.numero NULLS LAST, p.created_at) AS procesos
                  FROM proceso p JOIN ficha f ON f.id = p.ficha_id
                  LEFT JOIN usuario tu ON tu.id = p.trae_id
@@ -960,6 +1062,26 @@ def borrar_cliente(cid: str, user: dict = Depends(current_user)) -> None:
     _delete("cliente", cid, user)
 
 
+@app.put("/api/clientes/{cid}/orden")
+def ordenar_procesos(cid: str, body: dict = Body(...), _: dict = Depends(current_user)) -> dict:
+    """El orden de las propuestas de un cliente, tal como quedó al arrastrar las filas:
+    `ids` es la lista completa de procesos y `numero` pasa a ser la posición (1, 2, 3…).
+    Una sola sentencia: o se renumeran todos o ninguno. El `AND cliente_id` impide que
+    un id de otro cliente colado en la lista le cambie el número."""
+    ids = body.get("ids")
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        raise HTTPException(422, "ids debe ser la lista de procesos en su orden nuevo")
+    with POOL.connection() as conn:
+        try:
+            n = conn.execute(
+                """UPDATE proceso p SET numero = o.pos, updated_at = now()
+                   FROM unnest(%s::uuid[]) WITH ORDINALITY AS o(id, pos)
+                   WHERE p.id = o.id AND p.cliente_id = %s""", (ids, cid)).rowcount
+        except psycopg_errors.InvalidTextRepresentation:
+            raise HTTPException(404, "No existe") from None
+    return {"ok": True, "n": n}
+
+
 @app.get("/api/fichas")
 def fichas(listing: str | None = None, _: dict = Depends(current_user)) -> list[dict]:
     q = "SELECT * FROM ficha WHERE true"
@@ -977,16 +1099,20 @@ def fichas(listing: str | None = None, _: dict = Depends(current_user)) -> list[
 
 @app.post("/api/fichas", status_code=201)
 def crear_ficha(body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
+    # Sin anuncio de origen es una propiedad que el equipo da de alta a mano en
+    # Inmobiliaria: lo mínimo es que tenga nombre, o la tarjeta sale en blanco.
+    if not body.get("source_listing_id") and not (body.get("titulo") or "").strip():
+        raise HTTPException(422, "El título es obligatorio")
     with POOL.connection() as conn:
         # Una ficha por listing y por asesor: volver a crearla devuelve la existente.
-        return _insert(conn, "ficha", body, FICHA_COLS, user["id"],
+        return _insert(conn, "ficha", _con_coordenada(body), FICHA_COLS, user["id"],
                        extra="ON CONFLICT (user_id, source_listing_id) "
                              "DO UPDATE SET updated_at = now()")
 
 
 @app.patch("/api/fichas/{fid}")
 def editar_ficha(fid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    return _patch("ficha", fid, body, FICHA_COLS[1:], user)
+    return _patch("ficha", fid, _con_coordenada(body), FICHA_COLS[1:], user)
 
 
 @app.delete("/api/fichas/{fid}", status_code=204)
@@ -994,10 +1120,71 @@ def borrar_ficha(fid: str, user: dict = Depends(current_user)) -> None:
     _delete("ficha", fid, user)
 
 
+# ── Fichas guardadas ─────────────────────────────────────────────────────────
+# "Ficha-General" son los datos de la ficha; cada versión es una copia editable para
+# presentarla a un cliente (ver ficha_version en schema.sql).
+
+def _datos_version(d) -> dict:
+    if not isinstance(d, dict):
+        raise HTTPException(422, "datos debe ser un objeto")
+    return {k: v for k, v in d.items() if k in VERSION_DATOS}
+
+
+VERSION_SELECT = """SELECT v.*, u.nombre AS autor, c.nombre AS cliente_nombre
+                    FROM ficha_version v
+                    LEFT JOIN usuario u ON u.id = v.user_id
+                    LEFT JOIN cliente c ON c.id = v.cliente_id"""
+
+
+@app.get("/api/fichas/{fid}/versiones")
+def versiones(fid: str, _: dict = Depends(current_user)) -> list[dict]:
+    with POOL.connection() as conn:
+        try:
+            return conn.execute(VERSION_SELECT + " WHERE v.ficha_id = %s ORDER BY v.created_at",
+                                (fid,)).fetchall()
+        except psycopg_errors.InvalidTextRepresentation:
+            raise HTTPException(404, "No existe") from None
+
+
+@app.post("/api/fichas/{fid}/versiones", status_code=201)
+def crear_version(fid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
+    nombre = (body.get("nombre") or "").strip()
+    if not nombre:
+        raise HTTPException(422, "El nombre de la ficha es obligatorio")
+    with POOL.connection() as conn:
+        _owned(conn, "ficha", fid)
+        try:
+            fila = _insert(conn, "ficha_version",
+                           {"ficha_id": fid, "nombre": nombre[:80],
+                            "cliente_id": body.get("cliente_id"),
+                            "datos": _datos_version(body.get("datos") or {})},
+                           ("ficha_id", "nombre", "cliente_id", "datos"), user["id"])
+        except (psycopg_errors.ForeignKeyViolation, psycopg_errors.InvalidTextRepresentation):
+            raise HTTPException(422, "Ese cliente no existe") from None
+        return conn.execute(VERSION_SELECT + " WHERE v.id = %s", (fila["id"],)).fetchone()
+
+
+@app.patch("/api/versiones/{vid}")
+def editar_version(vid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
+    if "datos" in body:
+        body = dict(body, datos=_datos_version(body["datos"]))
+    if "nombre" in body and not (body["nombre"] or "").strip():
+        raise HTTPException(422, "El nombre de la ficha es obligatorio")
+    return _patch("ficha_version", vid, body, ("nombre", "datos"), user)
+
+
+@app.delete("/api/versiones/{vid}", status_code=204)
+def borrar_version(vid: str, user: dict = Depends(current_user)) -> None:
+    _delete("ficha_version", vid, user)
+
+
 @app.get("/api/procesos")
 def procesos(ficha_id: str | None = None, _: dict = Depends(current_user)) -> list[dict]:
-    q = ("SELECT p.*, c.nombre AS cliente_nombre FROM proceso p "
-         "JOIN cliente c ON c.id = p.cliente_id WHERE true")
+    # Con quién lleva la cuenta de cada cliente: la ficha lo pinta junto al nombre.
+    q = ("SELECT p.*, c.nombre AS cliente_nombre, c.responsable_id, "
+         "coalesce(r.nombre, c.responsable) AS responsable_nombre FROM proceso p "
+         "JOIN cliente c ON c.id = p.cliente_id "
+         "LEFT JOIN usuario r ON r.id = c.responsable_id WHERE true")
     p_ = []
     if ficha_id:
         q += " AND p.ficha_id = %s"
@@ -1177,8 +1364,13 @@ def equipo(_: dict = Depends(current_user)) -> list[dict]:
 
 @app.get("/api/tareas")
 def tareas(listing: str | None = None, asignado: str | None = None,
+           cliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
            _: dict = Depends(current_user)) -> list[dict]:
     w, p = [], []
+    if cliente:
+        # Las del cliente y las de cualquiera de sus propiedades: una tarea ligada a
+        # un proceso es trabajo de ese cliente aunque no traiga `cliente_id`.
+        w.append("(t.cliente_id = %s::uuid OR pr.cliente_id = %s::uuid)"); p += [cliente, cliente]
     if listing:
         w.append("t.listing_id = %s"); p.append(listing)
     if asignado:
@@ -1294,26 +1486,45 @@ _UNITARIO = "(CASE WHEN {t}.price_is_per_m2 THEN {t}.price ELSE {t}.price / NULL
 SQL_SUJETO = f"""
 SELECT l.source, l.listing_id, l.title, l.location, l.url, l.tipo, l.operation,
        l.area_m2::float8 AS area_m2, l.price::float8 AS price, l.currency,
-       l.price_is_per_m2, l.geom IS NOT NULL AS tiene_geom,
-       z.nombre AS municipio, {_UNITARIO.format(t='l')} AS unitario
+       l.price_is_per_m2, l.geom IS NOT NULL AS tiene_geom, l.geo_origen,
+       ST_Y(l.geom::geometry)::float8 AS lat, ST_X(l.geom::geometry)::float8 AS lng,
+       z.nombre AS municipio, l.colonia_id, col.nombre AS colonia,
+       (EXTRACT(epoch FROM now() - l.listed_at) / 86400)::float8 AS dias,
+       {_UNITARIO.format(t='l')} AS unitario
 FROM listings l LEFT JOIN zona z ON z.id = l.zona_id
+                LEFT JOIN zona col ON col.id = l.colonia_id
 WHERE l.source || ':' || l.listing_id = %s
 """
 
 # Trae de una vez todo lo que cabe en el radio más ancho; la escalera la resuelve
 # `elegir_radio()` en Python. Son ~115 filas en la mediana y 542 en el peor caso
 # medido: no vale un viaje a la base por cada peldaño.
+#
+# La operación va como parámetro y no amarrada a la del sujeto porque la misma
+# consulta sirve para el mercado de la contraparte: los locales en VENTA alrededor
+# de un local en renta, que es lo que permite hablar de rendimiento.
+#
+# **Misma moneda que el sujeto.** Hasta el 2026-09-29 no se filtraba y el 6% del
+# inventario de locales, bodegas y terrenos que se publica en dólares (12,419
+# anuncios activos) entraba a la mediana como si fueran pesos: un local de
+# US$1,500/m² votaba como $1,500 MXN/m² y jalaba la cifra hacia abajo. Convertir
+# exigiría un tipo de cambio con fecha y fuente, y el documento tendría que
+# declararlo; excluirlos es exacto y cuesta muestra sólo en el margen. Una moneda
+# vacía se lee como MXN, que es lo que publica el portal cuando no la escribe.
 SQL_COMPARABLES = f"""
 SELECT c.source || ':' || c.listing_id AS id, c.title, c.url, c.currency,
-       c.area_m2::float8 AS area_m2, z.nombre AS municipio,
+       c.area_m2::float8 AS area_m2, z.nombre AS municipio, c.colonia_id,
        {_UNITARIO.format(t='c')} AS unitario,
-       ST_Distance(c.geom, s.geom)::float8 AS dist_m
+       ST_Distance(c.geom, s.geom)::float8 AS dist_m,
+       ST_Y(c.geom::geometry)::float8 AS lat, ST_X(c.geom::geometry)::float8 AS lng,
+       (EXTRACT(epoch FROM now() - c.listed_at) / 86400)::float8 AS dias
 FROM listings c
-CROSS JOIN (SELECT geom, area_m2, tipo, operation FROM listings
+CROSS JOIN (SELECT geom, area_m2, tipo, currency FROM listings
             WHERE source = %s AND listing_id = %s) s
 LEFT JOIN zona z ON z.id = c.zona_id
 WHERE c.activo
-  AND c.tipo = s.tipo AND c.operation = s.operation
+  AND c.tipo = s.tipo AND c.operation = %s
+  AND COALESCE(NULLIF(c.currency, ''), 'MXN') = COALESCE(NULLIF(s.currency, ''), 'MXN')
   AND c.geom IS NOT NULL AND c.price > 0 AND c.area_m2 > 0
   AND c.area_m2 BETWEEN s.area_m2 * %s AND s.area_m2 * %s
   AND NOT (c.source = %s AND c.listing_id = %s)
@@ -1388,7 +1599,8 @@ def deduplicar(comparables: list[dict], area_sujeto: float,
     return unicas
 
 
-def resumen(sujeto_unitario: float | None, comparables: list[dict]) -> dict:
+def resumen(sujeto_unitario: float | None, comparables: list[dict],
+            colonia_id: int | None = None) -> dict:
     """La estadística del documento. Mediana y percentiles, nunca promedio: entre
     precios de portal siempre hay un anuncio con el precio mal capturado, y un
     promedio se lo cree. Con percentiles ese anuncio es un voto perdido."""
@@ -1410,6 +1622,18 @@ def resumen(sujeto_unitario: float | None, comparables: list[dict]) -> dict:
     if sujeto_unitario is not None:
         bajo = sum(1 for u in unitarios if u <= sujeto_unitario)
         posicion = round(100 * bajo / len(unitarios))
+    # Antigüedad del ANUNCIO, no tiempo en el mercado: un portal reinicia la fecha
+    # cuando el anunciante republica, así que es un piso. Sirve para comparar al
+    # sujeto contra su mercado con la misma vara, no como cifra absoluta.
+    dias = sorted(c["dias"] for c in dentro if c.get("dias") is not None and c["dias"] >= 0)
+    # La colonia sólo se nombra con cifra propia cuando junta el mismo mínimo que
+    # el análisis entero; si no, una mediana de colonia de cuatro anuncios se
+    # leería con la misma autoridad que la del radio.
+    colonia = None
+    if colonia_id is not None:
+        en_col = sorted(c["unitario"] for c in dentro if c.get("colonia_id") == colonia_id)
+        colonia = {"n": len(en_col),
+                   "mediana": percentil(en_col, .50) if len(en_col) >= MIN_COMPARABLES else None}
     return {
         "suficiente": True,
         "n": len(dentro),
@@ -1421,14 +1645,68 @@ def resumen(sujeto_unitario: float | None, comparables: list[dict]) -> dict:
         "area_mediana": percentil(areas, .50),
         "percentil_sujeto": posicion,
         "municipios": [{"nombre": n, "n": k} for n, k in municipios],
+        "dias_mediana": percentil(dias, .50) if len(dias) >= MIN_COMPARABLES else None,
+        "colonia": colonia,
     }
 
 
-def analisis(conn, listing_id: str) -> dict:
+CONTRAPARTE = {"rent": "sale", "sale": "rent"}
+
+
+def mercado(conn, s: dict, operation: str) -> list[dict]:
+    """Los comparables deduplicados de `s` para una operación, del más cercano al
+    más lejano, hasta el radio más ancho."""
+    filas = conn.execute(
+        SQL_COMPARABLES,
+        (s["source"], s["listing_id"], operation, 1 - BANDA, 1 + BANDA,
+         s["source"], s["listing_id"], max(RADIOS))).fetchall()
+    # El sujeto sólo se descarta de su propia operación: en la contraparte su
+    # firma no puede aparecer, porque el precio unitario de una renta y el de una
+    # venta nunca coinciden.
+    propio = s["unitario"] if operation == s["operation"] else None
+    return deduplicar(filas, s["area_m2"], propio)
+
+
+def rendimiento(s: dict, r: dict, contra: dict) -> dict | None:
+    """Renta anual entre precio de venta, por m², con las medianas de los dos
+    mercados alrededor de la propiedad. Es la cifra que un inversionista pregunta
+    primero y que los portales no publican, porque exige cruzar dos mercados.
+
+    Se da **bruto** —sin vacancia, mantenimiento ni predial— y sobre precios de
+    lista de los dos lados; el documento lo dice. Y sólo cuando los dos mercados
+    juntan el mínimo: un rendimiento con un denominador de seis anuncios es la
+    misma mediana indefendible que el análisis ya se niega a publicar.
+    """
+    if not (r["suficiente"] and contra["suficiente"]):
+        return None
+    if s["operation"] == "rent":
+        renta_m, venta = r["unitario"]["mediana"], contra["unitario"]["mediana"]
+    else:
+        renta_m, venta = contra["unitario"]["mediana"], r["unitario"]["mediana"]
+    if not venta:
+        return None
+    sujeto = None
+    if s["unitario"]:
+        # El del sujeto, contra la mediana del otro lado: si se renta, qué renta
+        # anual representa sobre lo que se vende lo parecido; si se vende, qué
+        # renta le da el mercado sobre el precio que pide.
+        sujeto = (12 * s["unitario"] / venta if s["operation"] == "rent"
+                  else 12 * renta_m / s["unitario"])
+    return {"mercado": 12 * renta_m / venta, "sujeto": sujeto,
+            "renta_m2": renta_m, "venta_m2": venta,
+            "n_contraparte": contra["n"], "radio_contraparte_m": contra["radio_m"]}
+
+
+def analisis(conn, listing_id: str, *, google: bool = False) -> dict:
     """El análisis completo de una propiedad. Levanta 404 si no existe y 422 con
     el motivo exacto cuando la propiedad no se puede analizar: sin coordenada, sin
     superficie o sin precio no hay comparable posible, y decirlo es más útil que
-    devolver un documento vacío."""
+    devolver un documento vacío.
+
+    `google=True` es sólo para el PDF: consulta el entorno a Places si no está en
+    caché. La ficha lo abre en cada visita con `google=False` y recibe el entorno
+    únicamente si ya se pagó antes (ver entorno.py).
+    """
     s = conn.execute(SQL_SUJETO, (listing_id,)).fetchone()
     if not s:
         raise HTTPException(404, "No existe ese listing")
@@ -1441,20 +1719,30 @@ def analisis(conn, listing_id: str) -> dict:
     if falta:
         raise HTTPException(422, "Sin " + ", ".join(falta) + " no se puede comparar "
                                  "esta propiedad con el mercado")
-    comparables = conn.execute(
-        SQL_COMPARABLES,
-        (s["source"], s["listing_id"], 1 - BANDA, 1 + BANDA,
-         s["source"], s["listing_id"], max(RADIOS))).fetchall()
-    comparables = deduplicar(comparables, s["area_m2"], s["unitario"])
-    r = resumen(s["unitario"], comparables)
+    comparables = mercado(conn, s, s["operation"])
+    r = resumen(s["unitario"], comparables, s["colonia_id"])
     cercanos = comparables                       # deduplicar() ya los ordenó
     if r["suficiente"]:
         cercanos = [c for c in cercanos if c["dist_m"] <= r["radio_m"]]
-    return {"sujeto": s, "resumen": r,
+    rend = None
+    if s["operation"] in CONTRAPARTE:
+        contra = resumen(None, mercado(conn, s, CONTRAPARTE[s["operation"]]))
+        rend = rendimiento(s, r, contra)
+    # El entorno a 500 m describe la propiedad sólo si el punto es suyo. Con el
+    # centroide de la colonia (`colonia`, `portal_aprox`) describe la colonia, y el
+    # documento lo dice; con `relleno` el punto no es de nadie y no se consulta.
+    ent = None
+    if s["geo_origen"] != "relleno":
+        ent = entorno.entorno(conn, s["lat"], s["lng"], consultar=google)
+        if ent is not None:
+            ent = {**ent, "aproximado": s["geo_origen"] in ("colonia", "portal_aprox")}
+    return {"sujeto": s, "resumen": r, "rendimiento": rend, "entorno": ent,
             # Los que se imprimen en la tabla del documento. Doce caben en una
             # página sin apretar y son suficientes para que el cliente vea de
             # dónde salieron las cifras sin recibir un directorio.
             "comparables": cercanos[:12],
+            # Todos los del radio, sólo con su posición, para los mapas.
+            "puntos": [(c["lat"], c["lng"]) for c in cercanos],
             "generado_at": datetime.now(timezone.utc).isoformat()}
 
 
@@ -1475,7 +1763,10 @@ def get_analisis_pdf(listing_id: str, user: dict = Depends(current_user)) -> Res
     `/pdf` y la ruta nunca haría match.
     """
     with POOL.connection() as conn:
-        d = analisis(conn, listing_id)
+        d = analisis(conn, listing_id, google=True)
+        suj = d["sujeto"]
+        d["mapa_png"] = entorno.mapa(conn, (suj["lat"], suj["lng"]), d["puntos"],
+                                     d["resumen"]["radio_m"], documento.TINTA)
     # El nombre del archivo se arma con lo que venga en la URL, así que se filtra
     # a un juego seguro: una comilla o un salto de línea en Content-Disposition
     # deja de ser un nombre de archivo y pasa a ser una cabecera inyectada.
@@ -1503,6 +1794,21 @@ def selfcheck() -> None:
     # Con varios saltos manda el primero: el cliente, no los proxies que siguen.
     assert ip_cliente(_Req({"x-forwarded-for": "203.0.113.9, 10.0.0.2"})) == "203.0.113.9"
     assert ip_cliente(_Req({})) == "?"
+
+    # La coordenada de una liga de Google Maps, en las formas en que llega. El pin
+    # (!3d!4d) gana sobre el centro de la vista (@).
+    assert coords_de_url("https://www.google.com/maps/search/25.702294,+-100.231341?entry=tts") == (25.702294, -100.231341)
+    assert coords_de_url("https://www.google.com/maps/place/X/@25.6700,-100.3100,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x1!8m2!3d25.671234!4d-100.309876") == (25.671234, -100.309876)
+    assert coords_de_url("https://www.google.com/maps/@25.6712,-100.3098,17z") == (25.6712, -100.3098)
+    assert coords_de_url("https://maps.google.com/?q=25.6712,-100.3098") == (25.6712, -100.3098)
+    assert coords_de_url("https://maps.app.goo.gl/pX4FqkXATvcTdidq8") is None
+    assert coords_de_url("https://www.google.com/maps/search/250.5,+-100.2") is None   # fuera de rango
+    # Sólo https y sólo Google Maps: la API no sale a buscar cualquier URL.
+    assert _host_de_mapa("https://maps.app.goo.gl/abc") and _host_de_mapa("https://www.google.com/maps/x")
+    assert not _host_de_mapa("http://maps.app.goo.gl/abc")
+    assert not _host_de_mapa("https://169.254.169.254/latest/meta-data")
+    assert not _host_de_mapa("https://maps.app.goo.gl.evil.example/abc")
+    assert resolver_mapa("https://evil.example/maps") is None and resolver_mapa(None) is None
 
     # Una contraseña generada tiene que pasar la política que exigimos a las demás.
     assert len(generar_pw()) >= MIN_PASSWORD and generar_pw() != generar_pw()
@@ -1642,6 +1948,7 @@ def selfcheck() -> None:
     # geometría de la tira y —lo que más importa— que todo lo que escribieron los
     # portales salga escapado.
     documento.selfcheck()
+    entorno.selfcheck()
 
     print("ok")
 
@@ -1655,6 +1962,8 @@ def _cli() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("selfcheck")
     sub.add_parser("lsusers")
+    sub.add_parser("geofichas", help="saca la coordenada de la liga del mapa de las "
+                                     "fichas que tienen liga y no tienen ubicación")
     for name in ("adduser", "passwd", "deluser", "resetlink"):
         sub.add_parser(name).add_argument("email")
     sub.choices["adduser"].add_argument("--nombre")
@@ -1682,6 +1991,19 @@ def _cli() -> int:
         if a.cmd == "lsusers":
             for u in conn.execute("SELECT email, nombre, created_at FROM usuario ORDER BY email"):
                 print(f"{u['email']:<32} {u['nombre'] or '—':<20} {u['created_at']:%Y-%m-%d}")
+        elif a.cmd == "geofichas":
+            filas = conn.execute("SELECT id, titulo, mapa_url FROM ficha WHERE mapa_url IS NOT NULL "
+                                 "AND lat IS NULL ORDER BY created_at").fetchall()
+            ok = 0
+            for f in filas:
+                c = resolver_mapa(f["mapa_url"])
+                if c:
+                    conn.execute("UPDATE ficha SET lat = %s, lng = %s WHERE id = %s", (*c, f["id"]))
+                    ok += 1
+                else:
+                    print(f"  sin coordenada: {f['titulo']}  {f['mapa_url']}")
+                time.sleep(0.4)               # 94 ligas seguidas a Google, sin prisa
+            print(f"{ok} de {len(filas)} fichas ubicadas")
         elif a.cmd == "adduser":
             email = a.email.strip().lower()
             pw = generar_pw() if a.generar else ask()

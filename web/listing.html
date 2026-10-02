@@ -32,6 +32,31 @@
   <p class="pg-empty" style="margin:40px 20px">Cargando propiedad&#8230;</p>
 </main>
 
+<!-- Ubicación: fuera de #detail por lo mismo que el mercado comparable. El mapa es
+     MapLibre con teselas de OpenFreeMap (ubicacion.js): sin llave de Google. -->
+<section class="mk" id="ubicacion" hidden>
+  <div class="fx-card">
+    <h2>Ubicaci&#243;n <span class="fx-n" id="ubNota"></span></h2>
+    <div class="ub-mapa">
+      <div id="ubMap"></div>
+      <div class="ub-zoom">
+        <button id="ubMas" aria-label="Acercar">+</button>
+        <button id="ubMenos" aria-label="Alejar">&#8722;</button>
+      </div>
+      <div class="map-note" id="ubAviso" hidden></div>
+    </div>
+    <p class="ub-pie">
+      <button class="fx-btn" id="ubFijar" hidden>Fijar ubicaci&#243;n</button>
+      <a class="fx-btn" id="ubGmaps" href="#" target="_blank" rel="noopener" hidden>Abrir en Google Maps &#8599;</a>
+      <span>&#169; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &#183; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> &#183; <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a></span>
+    </p>
+  </div>
+</section>
+
+<!-- Mercado comparable: fuera de #detail porque render() reescribe ese bloque
+     entero en cada cambio y se llevaría el mapa con él. -->
+<section class="mk" id="mercado" hidden></section>
+
 <!-- Visor de fotos a pantalla completa -->
 <div class="fx-lb" id="lightbox" hidden>
   <button class="fx-lb-x" id="lbClose" aria-label="Cerrar">&times;</button>
@@ -49,6 +74,8 @@
 <script src="texto.js"></script>
 <script src="etapas.js"></script>
 <script src="menu.js"></script>
+<script src="vendor/maplibre-gl.js"></script>
+<script src="ubicacion.js"></script>
 <script src="listing.js"></script>
 </body>
 </html>

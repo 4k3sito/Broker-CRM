@@ -1,15 +1,17 @@
-// Mapa de Google Maps sincronizado con la rejilla. Pinta un pin con el precio por
-// cada inmueble de la página visible; el hover en una tarjeta resalta su pin y
-// el clic en un pin resalta su tarjeta. Con "Buscar al mover el mapa" activo, el
-// centro y el radio visibles se vuelven el filtro `near`/`radio` que ya entiende
-// la API — no hace falta un endpoint nuevo.
+// Mapa del tablero, sincronizado con la rejilla. Pinta un pin con el precio por cada
+// inmueble de la página visible; el hover en una tarjeta resalta su pin y el clic en
+// un pin resalta su tarjeta. Con "Buscar al mover el mapa" activo, el centro y el
+// radio visibles se vuelven el filtro `near`/`radio` que ya entiende la API — no hace
+// falta un endpoint nuevo.
 //
-// El script de Google se carga desde aquí (no desde el HTML) para poder mostrar
-// un aviso claro si falta la llave, y porque la CSP no permite scripts inline.
+// Es MapLibre GL con teselas de OpenFreeMap, igual que los mapas de la ficha
+// (ubicacion.js): sin llave y sin Google. Hasta el 2026-10-01 fue Google Maps; el
+// contrato del objeto `Mapa` no cambió, así que app.js no se enteró del cambio.
+// MapLibre va vendorizado (web/vendor/) y sin su hoja de estilos: el zoom y la
+// atribución son marcado propio de index.html.
 const Mapa = (() => {
   const cfg = window.OL_CONFIG ?? {};
-  let map = null, pins = new Map(), opts = {}, seguir = false, ignorarMov = false;
-  let Marker = null, pendiente = null;
+  let map = null, pins = new Map(), opts = {}, seguir = false;
 
   const corto = n => n >= 1e6 ? `$${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`
                    : n >= 1e3 ? `$${(n / 1e3).toFixed(1).replace(/\.0$/, '')}k` : `$${n}`;
@@ -27,48 +29,35 @@ const Mapa = (() => {
     n.hidden = !txt; n.textContent = txt ?? '';
   }
 
-  function cargarGoogle() {
-    return new Promise((ok, mal) => {
-      if (window.google?.maps?.importLibrary) return ok();
-      window.__olMapsListo = () => ok();
-      const s = document.createElement('script');
-      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(cfg.googleMapsKey)}` +
-              `&v=weekly&loading=async&language=es&region=MX&callback=__olMapsListo`;
-      s.async = true;
-      s.onerror = () => mal(new Error('No se pudo cargar Google Maps'));
-      document.head.appendChild(s);
-    });
-  }
-
-  async function init(el, o = {}) {
+  function init(el, o = {}) {
     opts = o;
-    if (!cfg.googleMapsKey || cfg.googleMapsKey.includes('PEGA_AQUI')) { nota('Falta la llave de Google Maps en config.js.'); return; }
-    try { await cargarGoogle(); } catch (e) { nota(e.message + '. Revisa la llave o la CSP.'); return; }
-    const { Map: GMap } = await google.maps.importLibrary('maps');
-    ({ AdvancedMarkerElement: Marker } = await google.maps.importLibrary('marker'));
-    const [lng, lat] = cfg.centro ?? [-100.36, 25.66];
+    if (!window.maplibregl) { nota('No se pudo cargar el mapa.'); return; }
     const oscuro = document.documentElement.getAttribute('data-theme') === 'dark';
-    map = new GMap(el, {
-      center: { lat, lng }, zoom: cfg.zoom ?? 11,
-      mapId: cfg.googleMapId ?? 'DEMO_MAP_ID',
-      colorScheme: oscuro ? 'DARK' : 'LIGHT',
-      disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy',
-    });
-    map.addListener('idle', () => {
-      if (ignorarMov) { ignorarMov = false; return; }
-      if (!seguir || !opts.onMove) return;
+    try {
+      map = new maplibregl.Map({
+        container: el,
+        style: `https://tiles.openfreemap.org/styles/${oscuro ? 'dark' : 'positron'}`,
+        center: cfg.centro ?? [-100.36, 25.66], zoom: cfg.zoom ?? 11,
+        attributionControl: false, dragRotate: false, pitchWithRotate: false,
+      });
+    } catch (e) { nota('Este navegador no puede dibujar el mapa.'); return; }
+    map.touchZoomRotate.disableRotation();
+    map.on('error', e => { if (!map.isStyleLoaded()) nota('No se pudo cargar el mapa base.'); console.warn('mapa:', e.error?.message ?? e); });
+    // Sólo los movimientos de la persona disparan la búsqueda: los que hace el propio
+    // tablero al encuadrar los resultados no traen `originalEvent` ni `usuario`.
+    map.on('moveend', e => {
+      if (!seguir || !opts.onMove || !(e.originalEvent || e.usuario)) return;
       const c = map.getCenter(), b = map.getBounds();
-      if (!c || !b) return;
-      const radio = Math.round(metros({ lat: c.lat(), lng: c.lng() }, { lat: c.lat(), lng: b.getNorthEast().lng() }) / 100) * 100;
-      opts.onMove({ lat: c.lat(), lng: c.lng(), radio: Math.max(500, Math.min(12000, radio)) });
+      const radio = Math.round(metros({ lat: c.lat, lng: c.lng }, { lat: c.lat, lng: b.getEast() }) / 100) * 100;
+      opts.onMove({ lat: c.lat, lng: c.lng, radio: Math.max(500, Math.min(12000, radio)) });
     });
-    // Si la rejilla ya pintó antes de que cargara Google, se pinta ahora.
-    if (pendiente) { const p = pendiente; pendiente = null; pintar(p); }
+    document.getElementById('mapMas')?.addEventListener('click', () => map.zoomIn({}, { usuario: true }));
+    document.getElementById('mapMenos')?.addEventListener('click', () => map.zoomOut({}, { usuario: true }));
   }
 
   function pintar(lista) {
-    if (!map || !Marker) { pendiente = lista; return; }
-    pins.forEach(p => { p.marker.map = null; });
+    if (!map) return;
+    pins.forEach(p => p.marker.remove());
     pins = new Map();
     const conGeo = lista.filter(l => Number.isFinite(l.lat) && Number.isFinite(l.lng));
     for (const l of conGeo) {
@@ -78,32 +67,29 @@ const Mapa = (() => {
       el.title = l.titulo ?? '';
       el.addEventListener('mouseenter', () => opts.onPinHover?.(l.id));
       el.addEventListener('mouseleave', () => opts.onPinHover?.(null));
-      const marker = new Marker({ map, position: { lat: l.lat, lng: l.lng }, content: el, gmpClickable: true });
-      marker.addListener('click', () => opts.onPin?.(l.id));
-      pins.set(l.id, { el, marker });
+      el.addEventListener('click', () => opts.onPin?.(l.id));
+      pins.set(l.id, { el, marker: new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([l.lng, l.lat]).addTo(map) });
     }
     const sin = lista.length - conGeo.length;
     nota(sin ? `${sin} de ${lista.length} sin ubicación en esta página` : null);
     // Si el usuario está navegando el mapa, no se le mueve la cámara.
     if (!seguir && conGeo.length) {
-      const b = new google.maps.LatLngBounds();
-      conGeo.forEach(l => b.extend({ lat: l.lat, lng: l.lng }));
-      ignorarMov = true;
-      if (conGeo.length === 1) { map.setCenter(b.getCenter()); map.setZoom(15); }
-      else map.fitBounds(b, 60);
+      if (conGeo.length === 1) map.jumpTo({ center: [conGeo[0].lng, conGeo[0].lat], zoom: 15 });
+      else map.fitBounds(conGeo.reduce((b, l) => b.extend([l.lng, l.lat]), new maplibregl.LngLatBounds()),
+                         { padding: 60, maxZoom: 16, animate: false });
     }
   }
 
   function resaltar(id) {
     pins.forEach((p, k) => {
       p.el.classList.toggle('on', k === id);
-      p.marker.zIndex = k === id ? 10 : null;
+      p.el.style.zIndex = k === id ? '10' : '';
     });
   }
 
   return {
     init, pintar, resaltar,
     seguir: v => { seguir = v; },
-    resize: () => { if (map) google.maps.event.trigger(map, 'resize'); },
+    resize: () => { map?.resize(); },
   };
 })();
