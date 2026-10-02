@@ -16,6 +16,7 @@ la casa encima, es una afirmación que nadie quiere tener que defender.
 """
 from __future__ import annotations
 
+import base64
 import os
 from datetime import datetime, timezone
 from html import escape
@@ -179,6 +180,113 @@ def narrativa(d: dict) -> list[str]:
     ]
 
 
+MENORES = {"de", "del", "la", "las", "los", "el", "y", "e"}
+
+
+def nombre_propio(n: str) -> str:
+    """Las colonias de INEGI vienen en mayúsculas. `str.title()` escribe
+    "2Do Sector" porque capitaliza después de cada dígito; esto capitaliza sólo la
+    primera letra de cada palabra y deja en minúscula los artículos."""
+    palabras = n.lower().split()
+    return " ".join(p if i and p in MENORES else p[:1].upper() + p[1:]
+                    for i, p in enumerate(palabras))
+
+
+def porciento(x: float | None) -> str:
+    return "—" if x is None else f"{100 * x:.1f}%"
+
+
+def dias_txt(n: float | None) -> str:
+    if n is None:
+        return "—"
+    n = round(n)
+    return "1 día" if n == 1 else f"{n:,} días"
+
+
+def seccion_mapa(d: dict) -> str:
+    """El mapa de Static Maps, embebido. Sin imagen (sin llave, sin red o sin
+    muestra) no hay sección: un recuadro vacío con "mapa no disponible" en un
+    documento que se entrega a un cliente se ve peor que no tener mapa."""
+    png = d.get("mapa_png")
+    if not png:
+        return ""
+    r = d["resumen"]
+    radio = (f" y el radio de {r['radio_m'] / 1000:.0f} km con que se calculó"
+             if r["suficiente"] else "")
+    n = len(d.get("puntos") or [])
+    return f"""
+<section class="evitar-corte">
+  <h2>Ubicación y comparables</h2>
+  <img class="mapa" alt="" src="data:image/png;base64,{base64.b64encode(png).decode()}">
+  <p class="pie-mapa">La propiedad (marcador grande), {n} comparables{radio}. Mapa © Google.</p>
+</section>"""
+
+
+def seccion_rendimiento(d: dict) -> str:
+    """Renta contra venta en el mismo submercado. Se presenta como lo que es: un
+    cociente de medianas de precios de lista, bruto. No dice si conviene."""
+    y = d.get("rendimiento")
+    if not y:
+        return ""
+    s = d["sujeto"]
+    # Del sujeto, contra la mediana del otro lado. Si se renta: su renta anual
+    # sobre lo que se pide por vender algo parecido. Si se vende: lo que el
+    # mercado pagaría de renta sobre el precio que pide.
+    etiqueta = ("Esta renta, sobre la venta mediana" if s["operation"] == "rent"
+                else "La renta mediana, sobre este precio")
+    fila_sujeto = ""
+    if y["sujeto"] is not None:
+        fila_sujeto = (f'<tr><th>{etiqueta}</th>'
+                       f'<td>{escape(porciento(y["sujeto"]))} anual</td></tr>')
+    return f"""
+<section class="evitar-corte">
+  <h2>Renta contra venta</h2>
+  <p>Alrededor de la propiedad se publican también {y['n_contraparte']} anuncios
+  comparables en {'venta' if s['operation'] == 'rent' else 'renta'}, a menos de
+  {y['radio_contraparte_m'] / 1000:.0f} km. Cruzar los dos mercados da la renta anual
+  que se pide por cada peso que se pide en venta: el rendimiento bruto de lista del
+  submercado.</p>
+  <table class="cifras">
+    <tr><th>Renta mediana</th><td>{escape(pesos(y['renta_m2']))} / m² al mes</td></tr>
+    <tr><th>Venta mediana</th><td>{escape(pesos(y['venta_m2']))} / m²</td></tr>
+    <tr><th>Rendimiento bruto del submercado</th><td class="dato">{escape(porciento(y['mercado']))} anual</td></tr>
+    {fila_sujeto}
+  </table>
+</section>"""
+
+
+def seccion_entorno(d: dict) -> str:
+    """Qué hay a 500 m, de Google Places. Cuenta y nombra; no califica la zona."""
+    e = d.get("entorno")
+    if not e:
+        return ""
+    filas = []
+    for g in e["grupos"]:
+        n = f"{g['n']} o más" if g["tope"] else str(g["n"])
+        cerca = f"{g['mas_cercano_m']:,} m" if g["mas_cercano_m"] is not None else "—"
+        anclas = ", ".join(f"{a['nombre']} ({a['dist_m']:,} m)" for a in g["anclas"])
+        filas.append(f"""
+    <tr><td>{escape(g['nombre'])}</td><td class="num">{escape(n)}</td>
+        <td class="num">{escape(cerca)}</td><td>{escape(anclas) or '—'}</td></tr>""")
+    aviso = ""
+    if e.get("aproximado"):
+        aviso = ("<p class=\"sutil\">El portal publica una ubicación aproximada de esta "
+                 "propiedad, así que el conteo describe los alrededores de ese punto "
+                 "—típicamente el centro de la colonia— y no necesariamente la cuadra.</p>")
+    return f"""
+<section class="evitar-corte">
+  <h2>Entorno a {e['radio_m']} m</h2>
+  <p class="sutil">Lugares registrados en Google Maps a menos de {e['radio_m']} m de la
+  propiedad, una distancia que se recorre a pie.</p>
+  {aviso}
+  <table class="lista">
+    <thead><tr><th>Categoría</th><th class="num">Lugares</th>
+               <th class="num">El más cercano</th><th>Referencias</th></tr></thead>
+    <tbody>{"".join(filas)}</tbody>
+  </table>
+</section>"""
+
+
 RADIOS_TXT = (1, 2, 3, 5)
 
 
@@ -202,6 +310,21 @@ def html(d: dict) -> str:
     precio = pesos(total)
 
     parrafos = "".join(f"<p>{escape(t)}</p>" for t in narrativa(d))
+    nota_extra = ""
+    if d.get("rendimiento"):
+        nota_extra += ("<li><b>Rendimiento bruto</b> es la renta anual de lista entre el "
+                       "precio de venta de lista, por m², con las medianas de los dos "
+                       "mercados. No descuenta vacancia, mantenimiento, predial ni "
+                       "comisiones, y no es una proyección de lo que rendirá la propiedad."
+                       "</li>")
+    if r.get("dias_mediana") is not None:
+        nota_extra += ("<li><b>Antigüedad</b> es el tiempo desde la fecha de publicación que "
+                       "muestra el portal. Un anunciante que republica reinicia esa fecha, "
+                       "así que es un mínimo y no el tiempo real en el mercado.</li>")
+    if d.get("entorno"):
+        nota_extra += ("<li><b>Entorno:</b> lugares registrados en Google Maps a la fecha de "
+                       "consulta. Cada categoría cuenta hasta 20; \"20 o más\" significa que "
+                       "se alcanzó ese tope.</li>")
     # Las notas metodológicas se imprimen también cuando no hubo muestra, así que
     # el radio tiene que poder contarse sin haberse elegido nunca.
     radio_txt = (f"a menos de {r['radio_m'] / 1000:.0f} km de ella"
@@ -209,6 +332,17 @@ def html(d: dict) -> str:
 
     if r["suficiente"]:
         u = r["unitario"]
+        extra = ""
+        col = r.get("colonia")
+        if col and col["mediana"] is not None and s.get("colonia"):
+            extra += (f"<tr><th>Mediana en {escape(nombre_propio(s['colonia']))}</th>"
+                      f"<td>{escape(pesos(col['mediana']))} / m² · {col['n']} anuncios</td></tr>")
+        if r.get("dias_mediana") is not None:
+            extra += (f"<tr><th>Antigüedad mediana de los anuncios</th>"
+                      f"<td>{escape(dias_txt(r['dias_mediana']))}</td></tr>")
+            if s.get("dias") is not None and s["dias"] >= 0:
+                extra += (f"<tr><th>Antigüedad del anuncio de esta propiedad</th>"
+                          f"<td>{escape(dias_txt(s['dias']))}</td></tr>")
         cuerpo = f"""
 <section>
   <h2>El mercado comparable</h2>
@@ -219,6 +353,7 @@ def html(d: dict) -> str:
     <tr><th>Rango amplio (p10–p90)</th><td>{escape(pesos(u['p10']))} – {escape(pesos(u['p90']))} / m²</td></tr>
     <tr><th>Superficie mediana</th><td>{escape(metros(r['area_mediana']))}</td></tr>
     <tr><th>Comparables considerados</th><td>{r['n']} anuncios vigentes en {r['radio_m'] / 1000:.0f} km</td></tr>
+    {extra}
   </table>
 </section>
 <section class="evitar-corte">
@@ -278,7 +413,10 @@ def html(d: dict) -> str:
   <td><span>Por m²</span><strong>{escape(unitario_sujeto)}</strong></td>
 </tr></table>
 {cuerpo}
+{seccion_mapa(d)}
+{seccion_rendimiento(d)}
 {tabla}
+{seccion_entorno(d)}
 <section class="notas">
   <h2>Cómo se calculó</h2>
   <ul>
@@ -293,6 +431,10 @@ def html(d: dict) -> str:
     {r['minimo']} comparables.</li>
     <li><b>Mediana y percentiles, nunca promedio.</b> Entre precios de portal
     siempre hay alguno mal capturado, y un promedio se lo cree.</li>
+    <li><b>Misma moneda.</b> Sólo se comparan anuncios publicados en la moneda de
+    esta propiedad ({escape(s.get('currency') or 'MXN')}); los que se anuncian en otra
+    moneda se excluyen en vez de convertirse con un tipo de cambio.</li>
+    {nota_extra}
     <li><b>Vigencia:</b> se consideran sólo los anuncios verificados como publicados.
     El inventario se revisa de forma continua y se actualiza cada noche.</li>
     <li><b>Corte:</b> {escape(hoy)}. Las cifras cambian con el inventario.</li>
@@ -362,6 +504,29 @@ def selfcheck() -> None:
                                     "minimo": 15}})
     assert "este bodega" not in sin_muestra and "esta propiedad" in sin_muestra
     assert "veredicto" not in h.lower()
+
+    # Sin Google ni contraparte, el documento sale igual y sin esas secciones.
+    assert "Renta contra venta" not in h and "Entorno a" not in h and "Mapa ©" not in h
+    completo = {**base,
+                "sujeto": {**base["sujeto"], "colonia": "CUMBRES 2DO SECTOR", "dias": 40.0},
+                "resumen": {**base["resumen"], "dias_mediana": 95.0,
+                            "colonia": {"n": 18, "mediana": 280.0}},
+                "rendimiento": {"mercado": 0.0842, "sujeto": 0.09, "renta_m2": 250.0,
+                                "venta_m2": 35625.0, "n_contraparte": 22,
+                                "radio_contraparte_m": 3000},
+                "entorno": {"radio_m": 500, "aproximado": True, "grupos": [
+                    {"clave": "comercio", "nombre": "Comercio y autoservicio", "n": 20,
+                     "tope": True, "mas_cercano_m": 80,
+                     "anclas": [{"nombre": "H-E-B <Cumbres>", "dist_m": 180}]}]},
+                "puntos": [(25.7, -100.4)] * 3, "mapa_png": b"\x89PNG"}
+    hc = html(completo)
+    assert "8.4% anual" in hc and "9.0% anual" in hc and "Esta renta" in hc
+    assert "Mediana en Cumbres 2do Sector" in hc
+    assert nombre_propio("VALLE DE LAS BRISAS") == "Valle de las Brisas"
+    assert "95 días" in hc and "40 días" in hc
+    assert "20 o más" in hc and "&lt;Cumbres&gt;" in hc, "Places también se escapa"
+    assert "ubicación aproximada" in hc and "data:image/png;base64," in hc
+    assert "No descuenta vacancia" in hc
 
     flaco = {**base, "resumen": {"suficiente": False, "n": 6, "radio_m": None,
                                  "minimo": 15}}

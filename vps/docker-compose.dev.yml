@@ -31,6 +31,9 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?options=-csearch_path%3Ddev%2Cpublic
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      # Llave de servidor para Static Maps y Places (api/entorno.py). Vacía, el
+      # análisis sale sin mapa ni entorno; nunca es la de web/config.js.
+      GOOGLE_MAPS_SERVER_KEY: ${GOOGLE_MAPS_SERVER_KEY:-}
     # Otro puerto que el 8000 de producción, y sólo en loopback.
     ports:
       - "127.0.0.1:8001:8000"

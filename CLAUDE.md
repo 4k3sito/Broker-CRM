@@ -262,17 +262,46 @@ cualquier `psql` a mano, que hacen una sola escritura definitiva.
 
 Las 464,014 filas que ya existían recibieron su punto de partida el 2026-09-21 (91 MB).
 
+### CRM: fichas, procesos y versiones
+
+Una **ficha** es la propiedad dentro del CRM y hay dos clases: la de un anuncio
+(`source_listing_id`) y la **propia** (sin anuncio: las del sheet y las que se dan de alta
+en Inmobiliaria), que la API presenta como `pipeline:<uuid>`. Un **proceso** es cliente ×
+ficha. Lo que no es obvio:
+
+- **Los datos del inmueble son de la ficha, no del proceso.** Editarlos desde la tabla de
+  un cliente los cambia para todos los clientes a los que se presentó. De ESE cliente son
+  `status`, `numero`, `junta`, `marca`, `notas` y `trae`.
+- **`proceso.numero` es el orden** en la tabla del cliente. Lo escribe
+  `PUT /api/clientes/{id}/orden` con la lista completa, en una sola sentencia.
+- **`ficha_version`** son las fichas PDF guardadas. "General" no tiene fila; cada versión
+  es una copia editable de sus datos. Se guardan datos, no el PDF.
+- **`ficha.lat` / `ficha.lng`** sólo aplican a fichas propias: las fija el asesor en el
+  mapa. `FICHA_COMO_LISTING` las convierte en `geom` para que la ficha se lea igual que
+  un anuncio.
+- **Ningún mapa del sitio es Google**: `web/mapa.js` (tablero) y `web/ubicacion.js`
+  (ficha: ubicación y comparables) son MapLibre vendorizado en `web/vendor/` + teselas
+  de OpenFreeMap, sin llave. No carga la hoja de MapLibre; sus cuatro
+  reglas están en `hermes.css`. `verificar.py` no revisa `vendor/`.
+
 ### Análisis de mercado
 
 `GET /api/analisis/{id}` y `GET /api/analisis-pdf/{id}`: comparables de una propiedad y
 el PDF que el asesor le manda a su cliente. Un comparable es mismo `tipo`, misma
 `operation`, superficie ±50% y **radio en escalera 1→2→3→5 km**, que para en cuanto junta
-15; por debajo de 15 el documento **no publica cifra**. Dos cosas que no son obvias:
+15; por debajo de 15 el documento **no publica cifra**. Lo que no es obvio:
 
 - **`deduplicar()` cuenta propiedades, no anuncios.** Medido el 2026-09-21: **el 17.5%
   del inventario usable del área metropolitana de Monterrey son republicaciones entre
   portales** (3,480 de 19,834). Sin colapsarlas, quien paga cinco portales recibe cinco
   votos en la mediana — y la propia propiedad aparecía como comparable de sí misma.
+- **Sólo compara en la moneda del sujeto.** Hasta el 2026-09-29 los anuncios en USD (6%
+  de locales/bodegas/terrenos) entraban a la mediana como pesos.
+- **Renta contra venta y Google.** `mercado()` corre la misma consulta para la operación
+  contraria y `rendimiento()` cruza las medianas. `api/entorno.py` trae el mapa (Static
+  Maps) y el entorno a 500 m (Places) con `GOOGLE_MAPS_SERVER_KEY`, cacheados en
+  `google_cache`; sólo el PDF consulta a Google, la ficha lee la caché. Sin llave o sin
+  red, el PDF sale sin esas secciones: nunca depende de que Google conteste.
 - **El documento no emite veredicto de precio.** Ubica la propiedad en la distribución y
   deja la conclusión al asesor. Y declara siempre que son **precios de lista, no de
   cierre**. Si alguien pide "dile al cliente que está 18% arriba", esa es una decisión de

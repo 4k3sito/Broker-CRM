@@ -159,3 +159,9 @@ p { margin: 0 0 10px; }
 .notas ul { margin: 0; padding-left: 16px; }
 .notas li { font-size: 9pt; color: var(--muted); margin-bottom: 8px; line-height: 1.5; }
 .notas b { color: var(--ink); }
+
+/* ─────────────────────────────────────────────── mapa de comparables */
+/* La imagen llega de Static Maps en gris (ver entorno.url_mapa): la tinta plena
+   queda para el marcador del sujeto, el mismo patrón de énfasis de la tira. */
+.mapa { display: block; width: 100%; border: 1px solid var(--border); }
+.pie-mapa { margin-top: 6px; font-size: 8.5pt; color: var(--faint); }

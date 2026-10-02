@@ -710,3 +710,55 @@ ALTER TABLE cliente ADD COLUMN IF NOT EXISTS criterios jsonb NOT NULL DEFAULT '{
 -- los selectores de cuenta ni de asignación, ni en los filtros por persona.
 ALTER TABLE usuario ADD COLUMN IF NOT EXISTS oculto boolean NOT NULL DEFAULT false;
 UPDATE usuario SET oculto = true WHERE email = 'verificacion-dom@officelab.local';
+
+-- ─────────────────────────────────────────────────────────────── google_cache
+--
+-- Lo que el análisis de mercado le pide a Google (api/entorno.py): el entorno a
+-- 500 m de Places (`datos`, jsonb) y el mapa de Static Maps (`png`). Cada consulta
+-- se paga una sola vez: el entorno se indexa por una rejilla de ~110 m y vive 180
+-- días; el mapa, por el hash de su URL sin llave. Es caché, no dato: se puede
+-- vaciar entera sin perder nada que no se pueda volver a pedir. Vive en `public`
+-- para que la API de la copia de trabajo (search_path dev,public) la comparta.
+CREATE TABLE IF NOT EXISTS google_cache (
+  clave     text PRIMARY KEY,
+  tipo      text NOT NULL,             -- 'entorno' | 'mapa'
+  datos     jsonb,
+  png       bytea,
+  creado_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- ───────────────────── fichas guardadas, ubicación y bolsa propia (2026-10-01)
+--
+-- Tres cosas que pidió el equipo sobre la ficha:
+--
+-- 1. `folio`: el ID que sale en la ficha PDF. El formulario ya lo capturaba, pero la
+--    columna no existía y el PATCH respondía 422 en silencio.
+-- 2. `lat` / `lng`: la ubicación de una ficha que NO viene de un portal (las del sheet
+--    y las que el equipo da de alta a mano en Inmobiliaria). El asesor la fija con un
+--    clic en el mapa de la ficha. Las fichas de un anuncio no la usan: su coordenada
+--    es la del anuncio.
+-- 3. `ficha_version`: las fichas PDF que se generan de una misma propiedad. "General"
+--    no tiene fila —son los datos de la ficha tal cual—; cada versión guardada
+--    (Ficha-Alsea, Ficha-…) es una copia editable de esos datos, hecha para
+--    presentarla a un cliente. `datos` trae sólo lo que el PDF imprime:
+--      {"titulo": "...", "precio": 0, "tamano_m2": 0, "folio": "...", "notas": "..."}
+--    Se guardan los DATOS y no el PDF: el PDF lo imprime el navegador (listing.js) y
+--    no hay almacenamiento de archivos en el stack.
+--
+-- Aditivo y se puede correr dos veces. En la copia de trabajo se aplica con
+-- `search_path=dev,public` (ver README.md, "Copia de trabajo").
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS folio text;
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS lat   double precision;
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS lng   double precision;
+
+CREATE TABLE IF NOT EXISTS ficha_version (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid REFERENCES usuario (id) ON DELETE SET NULL,      -- quien la generó
+  ficha_id   uuid NOT NULL REFERENCES ficha (id) ON DELETE CASCADE,
+  cliente_id uuid REFERENCES cliente (id) ON DELETE SET NULL,      -- para quién se hizo, si aplica
+  nombre     text NOT NULL,                                        -- "Alsea" → Ficha-Alsea.pdf
+  datos      jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ficha_version_ficha_idx ON ficha_version (ficha_id, created_at);

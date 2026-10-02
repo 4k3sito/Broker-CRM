@@ -19,7 +19,7 @@ RUN fc-cache -f
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY main.py documento.py documento.css ./
+COPY main.py documento.py documento.css entorno.py ./
 
 # `nobody` no tiene HOME y fontconfig intenta escribir su caché por usuario en
 # cada render: sin esto, cada PDF sale precedido de "No writable cache

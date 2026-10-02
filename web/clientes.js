@@ -14,6 +14,13 @@ let selId = decodeURIComponent(location.hash.slice(1)) || null;
 let equipo = [];            // personas con cuenta, para el selector de "Cuenta"
 let critAbierto = null;     // qué criterio se está editando en el menú de "Qué busca"
 let lugarSugs = [];         // sugerencias del autocompletado de ubicación
+let filterCuenta = 'all';   // lista: 'all' | 'none' (sin asignar) | id de quien lleva la cuenta
+let abierto = null;         // id del proceso cuya fila está desplegada
+let colsAbierto = false;    // el menú de "Columnas"
+let propEtapa = 'all';      // tabla de propiedades: filtro por etapa…
+let propTrae = 'all';       // …y por quién la presentó
+let tareas = [];            // las tareas del cliente abierto (suyas y de sus propiedades)
+let tareasDe = null;        // de qué cliente son: evita pedirlas en cada render
 
 // ── Datos ────────────────────────────────────────────────────────────────────
 async function loadClientes() {
@@ -54,8 +61,106 @@ async function removeProceso(procId) {
   try {
     await API.del(`/procesos/${procId}`);
     for (const c of clientes) c.proceso = (c.proceso ?? []).filter(p => String(p.id) !== String(procId));
+    if (abierto === String(procId)) abierto = null;
     render();
   } catch (err) { alert('No se pudo quitar: ' + err.message); }
+}
+
+// Una fila nueva escrita a mano: una ficha sin anuncio de origen (queda en
+// Inmobiliaria como propiedad propia) más su proceso con este cliente. Se abre
+// desplegada para capturarle el resto.
+async function agregarPropiedad(c, titulo) {
+  titulo = (titulo ?? '').trim();
+  if (!titulo) return;
+  try {
+    const f = await API.post('/fichas', { titulo });
+    const p = await API.post('/procesos', {
+      cliente_id: c.id, ficha_id: f.id, status: 'prospecto', numero: (c.proceso ?? []).length + 1,
+    });
+    c.proceso = [...(c.proceso ?? []), { ...p, trae_nombre: null, ficha: f }];
+    abierto = String(p.id);
+    propEtapa = 'all'; propTrae = 'all';
+    render();
+  } catch (err) { alert('No se pudo agregar la propiedad: ' + err.message); }
+}
+
+// Un campo del panel desplegado. Los de la propiedad van a la ficha (que es la misma
+// para todos los clientes a los que se presentó); junta, marca, notas y quién la
+// presentó son de ESTE proceso. No vuelve a pintar el panel —perdería el foco al
+// pasar de un campo a otro—, sólo la fila.
+const NUMERICOS = ['tamano_m2', 'precio', 'precio_m2'];
+function guardarCampo(c, p, tabla, f, crudo) {
+  let v = NUMERICOS.includes(f) ? (crudo === '' ? null : Number(crudo)) : (crudo.trim() === '' ? null : crudo.trim());
+  if (Number.isNaN(v)) return;
+  const fallo = err => alert('No se pudo guardar: ' + err.message);
+  if (tabla === 'ficha') {
+    if (f === 'titulo' && v == null) return;
+    if ((p.ficha[f] ?? null) === v) return;
+    // La misma ficha puede estar con otro cliente: que diga lo mismo en todos.
+    for (const x of clientes) for (const q of x.proceso ?? [])
+      if (String(q.ficha?.id) === String(p.ficha.id)) q.ficha[f] = v;
+    API.patch(`/fichas/${p.ficha.id}`, { [f]: v }).catch(fallo);
+  } else {
+    let patch = { [f]: v };
+    if (f === 'trae_id') {
+      const quien = equipo.find(x => String(x.id) === v);
+      patch = { trae_id: v, trae: quien ? nombreDe(quien) : null };
+      p.trae_nombre = quien ? nombreDe(quien) : null;
+    }
+    if (Object.keys(patch).every(k => (p[k] ?? null) === patch[k])) return;
+    Object.assign(p, patch);
+    API.patch(`/procesos/${p.id}`, patch).catch(fallo);
+  }
+  refrescarFila(c, p);
+}
+
+// El orden que quedó al soltar una fila: `numero` pasa a ser la posición.
+function reordenar(c, deId, aId, despues) {
+  const ps = c.proceso ?? [];
+  const de = ps.findIndex(p => String(p.id) === deId);
+  if (de < 0 || deId === aId) return;
+  const [fila] = ps.splice(de, 1);
+  let a = ps.findIndex(p => String(p.id) === aId);
+  if (a < 0) { ps.splice(de, 0, fila); return; }
+  ps.splice(a + (despues ? 1 : 0), 0, fila);
+  ps.forEach((p, i) => { p.numero = i + 1; });
+  API.put(`/clientes/${c.id}/orden`, { ids: ps.map(p => p.id) })
+    .catch(err => alert('No se pudo guardar el orden: ' + err.message));
+  renderDetalle();
+}
+
+// ── Tareas del cliente ───────────────────────────────────────────────────────
+// Una tarea es del cliente (`cliente_id`) y, si se generó desde una propiedad, también
+// de ese proceso (`proceso_id`). Son las mismas del tablero de tareas.html.
+async function cargarTareas(cid) {
+  tareasDe = cid;
+  tareas = [];
+  const ts = await API.get(`/tareas${API.qs({ cliente: cid })}`).catch(() => []);
+  if (tareasDe !== cid) return;        // ya se cambió de cliente mientras llegaba
+  tareas = ts;
+  renderDetalle();
+}
+async function crearTarea(c, form) {
+  const v = n => form.querySelector(`[data-t="${n}"]`)?.value ?? '';
+  const titulo = v('titulo').trim();
+  if (!titulo) return;
+  const asignado = v('asignado') || null;
+  try {
+    tareas.unshift(await API.post('/tareas', {
+      titulo, tipo: 'Seguimiento', prioridad: 'media',
+      columna: asignado ? 'asignado' : 'pendiente', asignado_a: asignado,
+      cliente_id: c.id, proceso_id: form.dataset.proc || v('proceso') || null,
+      vence_el: v('vence') || null,
+    }));
+    renderDetalle();
+  } catch (err) { alert('No se pudo crear la tarea: ' + err.message); }
+}
+function completarTarea(id, hecha) {
+  const t = tareas.find(x => String(x.id) === String(id));
+  if (!t) return;
+  t.columna = hecha ? 'completado' : (t.asignado_a ? 'asignado' : 'pendiente');
+  API.patch(`/tareas/${id}`, { columna: t.columna }).catch(err => alert('No se pudo guardar: ' + err.message));
+  renderDetalle();
 }
 
 // ── Derivados ────────────────────────────────────────────────────────────────
@@ -74,10 +179,13 @@ function traeHtml(p) {
 }
 // Etapa del cliente: la del proceso más avanzado que tenga (no hay columna `etapa`).
 const etapaDe = c => etapaMayor((c.proceso ?? []).map(p => p.status));
-function pasaFiltro(c) {
+// Búsqueda y "quién lleva la cuenta": la base sobre la que cuentan las píldoras de etapa.
+function pasaBase(c) {
   if (searchQ && !norm(`${c.nombre} ${c.empresa ?? ''} ${c.contacto ?? ''}`).includes(norm(searchQ))) return false;
-  return filterStatus === 'all' || (c.proceso ?? []).some(p => p.status === filterStatus);
+  if (filterCuenta === 'none') return !c.responsable_id && !c.responsable;
+  return filterCuenta === 'all' || String(c.responsable_id) === filterCuenta;
 }
+const pasaFiltro = c => pasaBase(c) && (filterStatus === 'all' || (c.proceso ?? []).some(p => p.status === filterStatus));
 const fecha = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '—';
 const telDe = s => { const d = String(s ?? '').replace(/\D/g, ''); return d.length >= 10 ? d : null; };
 
@@ -248,7 +356,12 @@ function renderEtapaPills() {
 function renderLista() {
   const box = document.getElementById('clList');
   renderEtapaPills();
-  const base = clientes.filter(c => !searchQ || norm(`${c.nombre} ${c.empresa ?? ''} ${c.contacto ?? ''}`).includes(norm(searchQ)));
+  const fc = document.getElementById('fCuenta');
+  fc.innerHTML = `<option value="all">Cuenta: todas</option><option value="none">Sin asignar</option>` +
+    equipo.map(p => `<option value="${esc(p.id)}">${esc(nombreDe(p))}</option>`).join('');
+  fc.value = filterCuenta;
+  fc.classList.toggle('on', filterCuenta !== 'all');
+  const base = clientes.filter(pasaBase);
   document.querySelectorAll('.pill-count[data-count]').forEach(el => {
     const k = el.dataset.count;
     el.textContent = k === 'all' ? base.length : base.filter(c => (c.proceso ?? []).some(p => p.status === k)).length;
@@ -264,6 +377,7 @@ function renderLista() {
   box.innerHTML = lista.map(c => {
     const ps = c.proceso ?? [];
     const w = n => `${Math.min(n, 8) * 7}px`;
+    const resp = c.responsable_nombre || c.responsable;
     return `<button class="cl-item${String(c.id) === selId ? ' on' : ''}" data-id="${esc(c.id)}">
       <span class="cl-ava">${esc(iniciales(c.nombre))}</span>
       <span class="cl-txt"><b>${esc(c.nombre)}</b><small>${esc(pildoras(c.criterios ?? {}).map(p => p.txt).join(' · ') || c.requerimientos || c.empresa || 'Sin requerimientos')}</small></span>
@@ -271,8 +385,186 @@ function renderLista() {
         <span class="cl-bars"><i style="width:${w(cuenta(ps, 'presentado'))};background:var(--s-presentado)"></i><i style="width:${w(cuenta(ps, 'aprobado'))};background:var(--s-aprobado)"></i><i style="width:${w(cuenta(ps, 'rechazado'))};background:var(--s-rechazado)"></i></span>
         <small>${ps.length} prop.</small>
       </span>
+      ${resp ? `<span class="tk-ava cl-resp" style="background:${tono(c.responsable_id ?? resp)}" title="Cuenta: ${esc(resp)}">${esc(iniciales(resp.replace('/', ' ')))}</span>`
+             : '<span class="tk-ava cl-resp sin" title="Sin asignar">&#8212;</span>'}
     </button>`;
   }).join('');
+}
+
+// ── Tabla de propiedades del cliente ─────────────────────────────────────────
+// Cada fila es un proceso (cliente × propiedad). Lleva su número a la izquierda, se
+// arrastra del asa para cambiar el orden, y al hacer clic despliega debajo un panel
+// con todos los datos de la propiedad, editables, y las tareas ligadas a ella.
+const lidDe = p => p.ficha?.source_listing_id ?? (p.ficha?.id ? `pipeline:${p.ficha.id}` : null);
+const dinero = n => n != null ? '$' + mx(Math.round(n)) : '—';
+const ppmDe = f => f.precio_m2 ?? (f.precio && f.tamano_m2 ? f.precio / f.tamano_m2 : null);
+const texto = v => esc(v ?? '—');
+
+// Las columnas que se pueden prender y apagar. `w` es el ancho en px: la rejilla de la
+// fila se arma con las que estén prendidas (ver rejilla()).
+const COLS = [
+  { k: 'presento',  label: 'Presentó',  w: 150, html: p => traeHtml(p) },
+  { k: 'tipo',      label: 'Tipo',      w: 84,  html: p => texto(p.ficha.tipo) },
+  { k: 'municipio', label: 'Municipio', w: 120, html: p => texto(p.ficha.municipio) },
+  { k: 'precio',    label: 'Precio',    w: 104, cls: 'cl-precio', html: p => dinero(p.ficha.precio) },
+  { k: 'm2',        label: 'm²',        w: 64,  cls: 'cl-mono', html: p => p.ficha.tamano_m2 ? mx(Math.round(p.ficha.tamano_m2)) : '—' },
+  { k: 'ppm',       label: '$/m²',      w: 76,  cls: 'cl-mono', html: p => dinero(ppmDe(p.ficha)) },
+  { k: 'junta',     label: 'Junta',     w: 56,  cls: 'cl-mono', html: p => texto(p.junta) },
+  { k: 'marca',     label: 'Marca',     w: 100, html: p => texto(p.marca) },
+  { k: 'notas',     label: 'Notas',     w: 200, html: p => texto(p.notas || p.ficha.notas) },
+  { k: 'estatus',   label: 'Estatus',   w: 132, html: p => `<select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>` },
+  { k: 'fecha',     label: 'Fecha',     w: 60,  cls: 'cl-mono', html: p => fecha(p.created_at ?? p.creado_el) },
+];
+// Qué columnas ve cada quien se queda en su navegador: es gusto, no dato del equipo.
+let colsOn = ['presento', 'precio', 'm2', 'estatus', 'fecha'];
+try {
+  const g = JSON.parse(localStorage.getItem('ol-cl-cols') ?? 'null');
+  if (Array.isArray(g)) colsOn = g.filter(k => COLS.some(c => c.k === k));
+} catch { /* sin persistencia */ }
+const colsVisibles = () => COLS.filter(c => colsOn.includes(c.k));
+// asa · número · foto · inmueble · [columnas] · tareas · quitar
+function rejilla() {
+  const anchos = [18, 26, 48, 180, ...colsVisibles().map(c => c.w), 30, 22];
+  const cols = anchos.map((w, i) => i === 3 ? `minmax(${w}px,1fr)` : `${w}px`).join(' ');
+  return `--cl-cols:${cols};--cl-min:${anchos.reduce((a, b) => a + b, 0) + (anchos.length - 1) * 10 + 24}px`;
+}
+
+const traeKey = p => String(p.trae_id ?? p.trae ?? '');
+const filtrando = () => propEtapa !== 'all' || propTrae !== 'all';
+const tareasAbiertas = procId => tareas.filter(t => String(t.proceso_id) === String(procId) && t.columna !== 'completado').length;
+
+function filaHtml(c, p) {
+  const f = p.ficha ?? {};
+  const foto = f.fotos?.[0];
+  const pos = (c.proceso ?? []).indexOf(p) + 1;
+  const n = tareasAbiertas(p.id);
+  return `<div class="cl-tr${abierto === String(p.id) ? ' open' : ''}" data-proc="${esc(p.id)}">
+    <span class="cl-grip${filtrando() ? ' off' : ''}" title="${filtrando() ? 'Quita los filtros para reordenar' : 'Arrastra para cambiar el orden'}" aria-hidden="true">&#8942;&#8942;</span>
+    <span class="cl-num">${pos}</span>
+    ${foto ? `<img class="cl-th-img" src="${hrefSeguro(foto)}" alt="">` : '<span class="cl-th-img vacio"></span>'}
+    <span class="cl-inm">${esc(f.titulo ?? '(sin título)')}</span>
+    ${colsVisibles().map(col => `<span class="cl-c ${col.cls ?? ''}" data-c="${col.k}">${col.html(p)}</span>`).join('')}
+    <span class="cl-tn${n ? ' on' : ''}" title="${n ? `${n} ${n === 1 ? 'tarea abierta' : 'tareas abiertas'}` : 'Sin tareas abiertas'}">${n || ''}</span>
+    <button class="cl-x" data-proc="${esc(p.id)}" title="Quitar propuesta">&times;</button>
+  </div>`;
+}
+function refrescarFila(c, p) {
+  const fila = document.querySelector(`#clDetail .cl-tr[data-proc="${CSS.escape(String(p.id))}"]`);
+  if (fila) fila.outerHTML = filaHtml(c, p);
+}
+
+function tareaHtml(t, conPropiedad) {
+  const hecha = t.columna === 'completado';
+  return `<div class="cl-tarea${hecha ? ' done' : ''}">
+    <input type="checkbox" class="cl-tchk" data-id="${esc(t.id)}"${hecha ? ' checked' : ''} aria-label="Completada">
+    <span class="cl-tt">${esc(t.titulo)}</span>
+    ${conPropiedad && t.proceso_titulo ? `<span class="cl-tprop">${esc(t.proceso_titulo)}</span>` : ''}
+    <span class="cl-tmeta">${esc(t.asignado_nombre ?? t.asignado_email ?? 'Sin asignar')}${t.vence_el ? ` · vence ${fecha(t.vence_el + 'T12:00')}` : ''}</span>
+  </div>`;
+}
+// El alta rápida. Con `procId` la tarea nace ligada a esa propiedad; sin él se elige
+// —o se deja "del cliente", que es una tarea que no cuelga de ninguna propiedad.
+function tareaFormHtml(c, procId) {
+  return `<form class="cl-tadd" data-proc="${esc(procId ?? '')}">
+    <input data-t="titulo" placeholder="+ Nueva tarea${procId ? ' para esta propiedad' : ''}…" aria-label="Nueva tarea">
+    ${procId ? '' : `<select data-t="proceso" aria-label="Propiedad"><option value="">Del cliente, sin propiedad</option>
+      ${(c.proceso ?? []).map(p => `<option value="${esc(p.id)}">${esc(p.ficha?.titulo ?? '(sin título)')}</option>`).join('')}</select>`}
+    <select data-t="asignado" aria-label="Asignar a"><option value="">Sin asignar</option>
+      ${equipo.map(u => `<option value="${esc(u.id)}"${String(u.id) === String(c.responsable_id) ? ' selected' : ''}>${esc(nombreDe(u))}</option>`).join('')}</select>
+    <input type="date" data-t="vence" aria-label="Vence">
+    <button>Agregar</button>
+  </form>`;
+}
+
+function panelHtml(c, p) {
+  const f = p.ficha ?? {};
+  const lid = lidDe(p);
+  const suyas = tareas.filter(t => String(t.proceso_id) === String(p.id))
+    .sort((a, b) => (a.columna === 'completado') - (b.columna === 'completado'));
+  const campo = (tb, k, label, v, { tipo = 'text', wide = false, ph = '' } = {}) =>
+    `<label class="cl-ef${wide ? ' wide' : ''}"><span>${label}</span>
+      <input class="cl-ein" type="${tipo}" data-tb="${tb}" data-f="${k}" value="${esc(v ?? '')}" placeholder="${ph}"${tipo === 'number' ? ' min="0" step="any"' : ''}></label>`;
+  const area = (tb, k, label, v, ph) =>
+    `<label class="cl-ef wide"><span>${label}</span>
+      <textarea class="cl-ein" rows="3" data-tb="${tb}" data-f="${k}" placeholder="${ph}">${esc(v ?? '')}</textarea></label>`;
+  return `<div class="cl-exp" data-proc="${esc(p.id)}">
+    <div class="cl-exp-main">
+      ${f.fotos?.[0] ? `<img class="cl-exp-foto" src="${hrefSeguro(f.fotos[0])}" alt="">` : ''}
+      <div class="cl-exp-grid">
+        ${campo('ficha', 'titulo', 'Inmueble', f.titulo, { wide: true })}
+        ${campo('ficha', 'tipo', 'Tipo', f.tipo, { ph: 'Local, terreno…' })}
+        ${campo('ficha', 'municipio', 'Municipio', f.municipio)}
+        ${campo('ficha', 'tamano_m2', 'Superficie m²', f.tamano_m2, { tipo: 'number' })}
+        ${campo('ficha', 'precio', 'Precio', f.precio, { tipo: 'number' })}
+        ${campo('ficha', 'precio_m2', 'Precio por m²', f.precio_m2, { tipo: 'number' })}
+        ${campo('proceso', 'junta', 'Junta', p.junta, { ph: '1ra, 2da…' })}
+        ${campo('proceso', 'marca', 'Marca', p.marca, { ph: 'Marca del cliente' })}
+        <label class="cl-ef"><span>Presentó</span>
+          <select class="cl-ein" data-tb="proceso" data-f="trae_id">
+            <option value="">${!p.trae_id && p.trae ? `${esc(p.trae)} · sin cuenta` : 'Sin asignar'}</option>
+            ${equipo.map(u => `<option value="${esc(u.id)}"${String(u.id) === String(p.trae_id) ? ' selected' : ''}>${esc(nombreDe(u))}</option>`).join('')}
+          </select></label>
+        ${campo('ficha', 'mapa_url', 'Liga del mapa', f.mapa_url, { wide: true, ph: 'https://maps.app.goo.gl/…' })}
+        ${area('ficha', 'notas', 'Descripción de la propiedad', f.notas, 'Lo que se sabe del inmueble.')}
+        ${area('proceso', 'notas', 'Notas con este cliente', p.notas, 'Qué dijo, qué falta, condiciones…')}
+      </div>
+    </div>
+    <div class="cl-exp-links">
+      ${lid ? `<a href="listing.html?id=${encodeURIComponent(lid)}">Abrir ficha completa &#8594;</a>` : ''}
+      ${f.mapa_url ? `<a href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener">Ver en mapa &#8599;</a>` : ''}
+      <span>Los datos del inmueble son de la ficha: cambian para todos los clientes a los que se presentó.</span>
+    </div>
+    <div class="cl-exp-tareas">
+      <h3>Tareas de esta propiedad · ${suyas.filter(t => t.columna !== 'completado').length}</h3>
+      ${suyas.map(t => tareaHtml(t, false)).join('')}
+      ${tareaFormHtml(c, p.id)}
+    </div>
+  </div>`;
+}
+
+function propiedadesHtml(c) {
+  const ps = c.proceso ?? [];
+  const visibles = ps.filter(p => (propEtapa === 'all' || p.status === propEtapa) && (propTrae === 'all' || traeKey(p) === propTrae));
+  // Quién ha presentado algo a este cliente, para el filtro. Sin repetir.
+  const quienes = [...new Map(ps.filter(p => traeKey(p)).map(p => [traeKey(p), p.trae_nombre || p.trae])).entries()];
+  return `
+    <div class="cl-props-head">
+      <h2>Propiedades · ${filtrando() ? `${visibles.length} de ${ps.length}` : ps.length}</h2>
+      ${ETAPAS.map(e => cuenta(ps, e.key) ? `<button class="cl-chip e-${e.key}${propEtapa === e.key ? ' on' : ''}" data-etapa="${e.key}" title="Filtrar por etapa">${cuenta(ps, e.key)} ${e.label.toLowerCase()}</button>` : '').join('')}
+      ${quienes.length ? `<select class="cl-fsel${propTrae !== 'all' ? ' on' : ''}" id="propTrae" aria-label="Filtrar por quién presentó">
+        <option value="all">Presentó: todos</option>
+        ${quienes.map(([k, n]) => `<option value="${esc(k)}"${propTrae === k ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : ''}
+      <span class="cl-colswrap">
+        <button class="cl-btn" id="colsBtn" aria-expanded="${colsAbierto}">Columnas</button>
+        ${colsAbierto ? `<div class="crit-pop cl-colspop">${COLS.map(col =>
+          `<label><input type="checkbox" class="cl-colchk" value="${col.k}"${colsOn.includes(col.k) ? ' checked' : ''}>${col.label}</label>`).join('')}</div>` : ''}
+      </span>
+      ${ps.length ? `<a class="cl-proponer" href="index.html?tab=inmobiliaria&amp;pcliente=${encodeURIComponent(c.id)}">Ver en Inmobiliaria</a>` : ''}
+      <a class="cl-proponer${ps.length ? ' cl-proponer-2' : ''}" href="index.html">+ Proponer desde Bolsa</a>
+    </div>
+    <div class="cl-table" style="${rejilla()}">
+      ${ps.length ? `<div class="cl-tr cl-th"><span></span><span>N°</span><span></span><span>Inmueble</span>
+        ${colsVisibles().map(col => `<span>${col.label}</span>`).join('')}<span></span><span></span></div>` : ''}
+      ${visibles.map(p => filaHtml(c, p) + (abierto === String(p.id) ? panelHtml(c, p) : '')).join('')}
+      ${ps.length && !visibles.length ? '<p class="cl-empty">Ninguna propiedad pasa el filtro.</p>' : ''}
+      <form class="cl-addrow" id="addProp">
+        <input placeholder="+ Agregar propiedad: escribe el nombre y Enter…" aria-label="Agregar propiedad">
+        <button>Agregar</button>
+      </form>
+    </div>`;
+}
+
+function tareasClienteHtml(c) {
+  const orden = tareas.slice().sort((a, b) => (a.columna === 'completado') - (b.columna === 'completado'));
+  return `
+    <div class="cl-props-head">
+      <h2>Tareas · ${tareas.filter(t => t.columna !== 'completado').length} abiertas</h2>
+      <a class="cl-proponer" href="tareas.html">Abrir tablero de tareas &#8594;</a>
+    </div>
+    <div class="cl-tareas">
+      ${orden.map(t => tareaHtml(t, true)).join('') || '<p class="cl-empty">Sin tareas para este cliente.</p>'}
+      ${tareaFormHtml(c, null)}
+    </div>`;
 }
 
 function renderDetalle() {
@@ -283,7 +575,11 @@ function renderDetalle() {
     box.innerHTML = `<div class="cl-none">${clientes.length ? 'Selecciona un cliente para ver sus propuestas.' : ''}</div>`;
     return;
   }
-  const ps = c.proceso ?? [];
+  // Al cambiar de cliente: sin fila desplegada, sin filtros de tabla, y sus tareas.
+  if (tareasDe !== String(c.id)) {
+    abierto = null; propEtapa = 'all'; propTrae = 'all'; colsAbierto = false;
+    cargarTareas(String(c.id));
+  }
   const etapa = etapaDe(c);
   const tel = telDe(c.contacto);
   const campo = (f, label, ph, wide) => `<label class="cl-f${wide ? ' wide' : ''}"><span>${label}</span>
@@ -309,36 +605,12 @@ function renderDetalle() {
         ${queBuscaHtml(c)}
       </div>
     </div>
-    <div class="cl-props-head">
-      <h2>Propuestas · ${ps.length}</h2>
-      ${ETAPAS.map(e => cuenta(ps, e.key) ? `<span class="cl-chip e-${e.key}">${cuenta(ps, e.key)} ${e.label.toLowerCase()}</span>` : '').join('')}
-      ${ps.length ? `<a class="cl-proponer" href="index.html?tab=inmobiliaria&amp;pcliente=${encodeURIComponent(c.id)}">Ver en Inmobiliaria</a>` : ''}
-      <a class="cl-proponer${ps.length ? ' cl-proponer-2' : ''}" href="index.html">+ Proponer desde Bolsa</a>
-    </div>
-    ${ps.length ? `<div class="cl-table">
-      <div class="cl-tr cl-th"><span></span><span>Inmueble</span><span>Presentó</span><span>Precio</span><span>m²</span><span>Estatus</span><span>Fecha</span><span></span></div>
-      ${ps.map(p => {
-        const f = p.ficha ?? {};
-        const foto = f.fotos?.[0];
-        const lid = f.source_listing_id ?? p.listing_id;
-        return `<div class="cl-tr">
-          ${foto ? `<img class="cl-th-img" src="${hrefSeguro(foto)}" alt="">` : '<span class="cl-th-img vacio"></span>'}
-          <span class="cl-inm">${lid ? `<a href="listing.html?id=${encodeURIComponent(lid)}">${esc(f.titulo ?? '(sin título)')}</a>` : esc(f.titulo ?? '(sin título)')}</span>
-          ${traeHtml(p)}
-          <span class="cl-precio">${f.precio != null ? '$' + mx(Math.round(f.precio)) : '—'}</span>
-          <span class="cl-mono">${f.tamano_m2 ? mx(Math.round(f.tamano_m2)) : '—'}</span>
-          <select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>
-          <span class="cl-mono">${fecha(p.created_at ?? p.creado_el)}</span>
-          <button class="cl-x" data-proc="${esc(p.id)}" title="Quitar propuesta">&times;</button>
-        </div>`;
-      }).join('')}
-    </div>` : `<p class="cl-empty pad">Aún sin propuestas. Selecciona inmuebles en el tablero y usa “Asignar a cliente”.</p>`}`;
+    ${propiedadesHtml(c)}
+    ${tareasClienteHtml(c)}`;
 
   box.querySelectorAll('.cli-in[data-f]').forEach(el => el.addEventListener('blur', e => saveCliente(c.id, e.target.dataset.f, e.target.value)));
   box.querySelector('#clCuenta').addEventListener('change', e => asignarCuenta(c, e.target.value));
   conectarCriterios(c, box);
-  box.querySelectorAll('.proc-status').forEach(s => s.addEventListener('change', e => setProcesoStatus(e.target.dataset.proc, e.target.value)));
-  box.querySelectorAll('.cl-x').forEach(b => b.addEventListener('click', e => removeProceso(e.currentTarget.dataset.proc)));
   document.getElementById('clDel').addEventListener('click', () => deleteCliente(c.id));
   document.getElementById('clBack').addEventListener('click', () => seleccionar(null));
 }
@@ -365,6 +637,93 @@ document.getElementById('filterbar').addEventListener('click', e => {
   filterStatus = pill.dataset.status;
   render();
 });
+// ── Tabla de propiedades y tareas: un solo juego de listeners ────────────────
+// #clDetail se reescribe en cada render y las filas se repintan sueltas (refrescarFila),
+// así que estos eventos se delegan en el contenedor, que es el que no cambia.
+const detalle = document.getElementById('clDetail');
+const cSel = () => clientes.find(x => String(x.id) === selId);
+const procDe = el => { const id = el.closest('[data-proc]')?.dataset.proc; return (cSel()?.proceso ?? []).find(p => String(p.id) === id); };
+
+detalle.addEventListener('click', e => {
+  const t = e.target;
+  if (t.closest('.cl-x')) return removeProceso(t.closest('.cl-x').dataset.proc);
+  if (t.closest('#colsBtn')) { colsAbierto = !colsAbierto; return renderDetalle(); }
+  const chip = t.closest('.cl-chip[data-etapa]');
+  if (chip) { propEtapa = propEtapa === chip.dataset.etapa ? 'all' : chip.dataset.etapa; return renderDetalle(); }
+  // Clic en la fila (no en sus controles): despliega o recoge el panel.
+  const fila = t.closest('.cl-tr[data-proc]');
+  if (fila && !t.closest('select, button, a, input, .cl-grip')) {
+    abierto = abierto === fila.dataset.proc ? null : fila.dataset.proc;
+    renderDetalle();
+  }
+});
+detalle.addEventListener('change', e => {
+  const t = e.target, c = cSel();
+  if (!c) return;
+  if (t.matches('.proc-status')) return setProcesoStatus(t.dataset.proc, t.value);
+  if (t.matches('.cl-tchk')) return completarTarea(t.dataset.id, t.checked);
+  if (t.id === 'propTrae') { propTrae = t.value; return renderDetalle(); }
+  if (t.matches('.cl-colchk')) {
+    colsOn = COLS.map(col => col.k).filter(k => k === t.value ? t.checked : colsOn.includes(k));
+    try { localStorage.setItem('ol-cl-cols', JSON.stringify(colsOn)); } catch { /* sin persistencia */ }
+    return renderDetalle();
+  }
+  if (t.matches('.cl-ein')) { const p = procDe(t); if (p) guardarCampo(c, p, t.dataset.tb, t.dataset.f, t.value); }
+});
+detalle.addEventListener('submit', e => {
+  e.preventDefault();
+  const c = cSel();
+  if (!c) return;
+  if (e.target.id === 'addProp') return agregarPropiedad(c, e.target.querySelector('input').value);
+  if (e.target.matches('.cl-tadd')) crearTarea(c, e.target);
+});
+document.addEventListener('click', e => {
+  if (colsAbierto && !e.target.closest('.cl-colswrap')) { colsAbierto = false; renderDetalle(); }
+});
+
+// Reordenar arrastrando. La fila sólo es arrastrable mientras se sostiene el asa: si
+// lo fuera siempre, seleccionar texto o usar el <select> de etapa iniciaría un arrastre.
+let arrastrando = null;
+const limpiarMarcas = () => detalle.querySelectorAll('.drop-a, .drop-b').forEach(f => f.classList.remove('drop-a', 'drop-b'));
+detalle.addEventListener('mousedown', e => {
+  const asa = e.target.closest('.cl-grip:not(.off)');
+  if (asa) asa.closest('.cl-tr').draggable = true;
+});
+detalle.addEventListener('mouseup', () => detalle.querySelectorAll('.cl-tr[draggable="true"]').forEach(f => { f.draggable = false; }));
+detalle.addEventListener('dragstart', e => {
+  const fila = e.target.closest?.('.cl-tr[data-proc]');
+  if (!fila?.draggable) return;
+  arrastrando = fila.dataset.proc;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', arrastrando);
+  fila.classList.add('dragging');
+});
+detalle.addEventListener('dragover', e => {
+  const fila = e.target.closest?.('.cl-tr[data-proc]');
+  if (!arrastrando || !fila) return;
+  e.preventDefault();
+  const r = fila.getBoundingClientRect();
+  limpiarMarcas();
+  if (fila.dataset.proc !== arrastrando) fila.classList.add(e.clientY > r.top + r.height / 2 ? 'drop-b' : 'drop-a');
+});
+detalle.addEventListener('drop', e => {
+  const fila = e.target.closest?.('.cl-tr[data-proc]');
+  const c = cSel();
+  if (!arrastrando || !fila || !c) return;
+  e.preventDefault();
+  const r = fila.getBoundingClientRect();
+  const de = arrastrando;
+  arrastrando = null;
+  reordenar(c, de, fila.dataset.proc, e.clientY > r.top + r.height / 2);
+});
+detalle.addEventListener('dragend', () => {
+  arrastrando = null;
+  limpiarMarcas();
+  detalle.querySelectorAll('.cl-tr.dragging').forEach(f => { f.classList.remove('dragging'); f.draggable = false; });
+});
+
+document.getElementById('fCuenta').addEventListener('change', e => { filterCuenta = e.target.value; render(); });
+
 // El cliente abierto vive en la URL (#id): atrás/adelante y una liga a otro cliente
 // desde esta misma página sólo cambian el hash, que no recarga.
 window.addEventListener('hashchange', () => {

@@ -6,15 +6,17 @@
 	# Cabeceras de seguridad. Se aplican a todo, incluida la API.
 	header {
 		# Ni un <script> inline ni un onclick=, así que script-src puede ser estricto
-		# de verdad: 'self' y, como único tercero, Google Maps (abajo).
+		# de verdad: sólo 'self', sin ningún tercero.
 		# 'unsafe-inline' en style-src sí hace falta: app.js pinta el color de
 		# estado con atributos style= en cada tarjeta.
 		# img-src abierto a https: porque las fotos vienen de los cinco portales.
-		# Google Maps (mapa del tablero, mapa.js) desde el 2026-09-29: su script y los
-		# que carga él mismo, sus teselas/metadatos por fetch, imágenes blob: de los
-		# marcadores y workers blob: del renderizador. Nada de 'unsafe-eval'. Ver
-		# SECURITY.md, "Endpoints (2026-09-29) — rediseño v0.5".
-		Content-Security-Policy "default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com; worker-src blob:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+		# Mapas (mapa.js, ubicacion.js) desde el 2026-10-01: MapLibre vendorizado en
+		# web/vendor/ con teselas de OpenFreeMap. Pide estilo, teselas, fuentes y
+		# sprites por fetch (connect-src), pinta imágenes blob: y su renderizador corre
+		# en un worker blob:. Nada de 'unsafe-eval'. Google Maps salió de la política
+		# ese día: del 2026-09-29 al 2026-10-01 script-src y connect-src lo incluían.
+		# Ver SECURITY.md, "Endpoints (2026-10-01)".
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; connect-src 'self' https://tiles.openfreemap.org; worker-src blob:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
 		X-Content-Type-Options "nosniff"
 		# frame-ancestors ya lo cubre en navegadores actuales; esto es para los viejos.
 		X-Frame-Options "DENY"

@@ -87,7 +87,10 @@ def paginas():
     """
     for html in sorted(WEB.glob('*.html')):
         texto = html.read_text(encoding='utf-8')
-        js = [WEB / s for s in re.findall(r'<script src="([^"]+)"', texto)]
+        # `vendor/` es código de terceros (MapLibre): sus clases no son del sistema de
+        # diseño y no tienen por qué tener regla en hermes.css.
+        js = [WEB / s for s in re.findall(r'<script src="([^"]+)"', texto)
+              if not s.startswith('vendor/')]
         yield html, [html] + [j for j in js if j.exists()]
 
 

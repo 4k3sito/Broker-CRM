@@ -183,6 +183,67 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Endpoints (2026-10-01) — tabla de clientes, fichas guardadas y mapa (copia de trabajo)
+
+Todos piden sesión y siguen la regla del CRM compartido (§5): cualquier cuenta del
+equipo los usa; `user_id` sólo registra quién creó la fila.
+
+| Ruta | Qué hace | Qué valida |
+|---|---|---|
+| `PUT /api/clientes/{id}/orden` | renumera las propuestas de un cliente | `ids` es lista de texto; el `AND cliente_id` impide renumerar procesos de otro cliente (probado: `n: 0`) |
+| `GET/POST /api/fichas/{id}/versiones` | fichas PDF guardadas | nombre obligatorio (80 máx.); `datos` pasa por lista blanca (`VERSION_DATOS`), un campo de más se descarta |
+| `PATCH/DELETE /api/versiones/{id}` | editar o borrar una versión | lista blanca `nombre`, `datos` |
+| `GET /api/tareas?cliente=` | tareas de un cliente y de sus procesos | el parámetro es un uuid por patrón |
+
+`POST /api/fichas` sin `source_listing_id` ahora exige `titulo`. `FICHA_COLS` suma
+`folio`, `lat` y `lng`.
+
+**La API sale a internet con una URL que escribió un usuario** (`resolver_mapa`): al
+guardar la liga del mapa de una ficha sigue su redirección para sacar la coordenada. Es
+la forma de un SSRF, así que está amarrada: sólo `https`, sólo los hosts de `MAPA_HOSTS`
+(Google Maps), cada salto se vuelve a revisar contra esa lista, máximo 4 saltos, 6 s de
+espera, y de la respuesta sólo se lee la cabecera `Location`; el cuerpo nunca se usa ni
+se devuelve. `selfcheck` cubre que rechace `http://`, una IP de metadatos y un host que
+sólo *empieza* con el nombre permitido.
+
+**Dependencia vendorizada: MapLibre GL JS 5.24.0** (`web/vendor/maplibre-gl.js`), para
+el mapa de ubicación de la ficha. Es la primera del frontend, y es la deuda que
+`PLAN-STACK.md` §4 describe: no hay `npm audit` que avise, se revisa a mano.
+
+| | |
+|---|---|
+| Origen | `https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js` |
+| sha256 | `45a9b07a9189ce56054c620a947ccf41e291e58c95e9b61533b740aaa65ee5cb` |
+| Licencia | BSD de 3 cláusulas |
+| `eval` / `new Function` | ninguno (`grep` da 0): `script-src 'self'` no se toca |
+
+**CSP:** `connect-src` suma `https://tiles.openfreemap.org` (estilo, teselas, fuentes y
+sprites del mapa base, todo por `fetch`) y el worker de MapLibre usa `worker-src blob:`.
+**Google Maps salió de la política**: los tres mapas del sitio (tablero, ubicación y
+comparables) son MapLibre, así que `script-src` vuelve a ser sólo `'self'` y
+`connect-src` ya no lista dominios de Google. `web/config.js` ya no trae llave.
+Quedan las fuentes de Google en `style-src` / `font-src`. OpenFreeMap es un tercero nuevo en tiempo de ejecución:
+ve la IP del asesor y qué zona del mapa mira, nada del CRM. Sin llave, así que no hay
+secreto que cuidar.
+
+### Endpoints (2026-09-29) — análisis de mercado completo (copia de trabajo)
+
+`GET /api/analisis/{id}` ahora también se consume desde la ficha (tarjeta "Mercado
+comparable") y devuelve coordenadas del sujeto y de sus comparables; todo eso ya lo
+expone `/api/listings` a cualquier sesión, así que no abre nada nuevo. Lo que sí es
+nuevo:
+
+- **Segunda llave de Google, `GOOGLE_MAPS_SERVER_KEY`**, en `vps/.env` y nunca en el
+  repo ni en `web/`. Es de servidor: se restringe en Google Cloud **por IP** (la del VPS)
+  y **sólo a Places API (New) y Maps Static API**. No se reutiliza la de `config.js`:
+  ésa está publicada por diseño y su restricción es por dominio.
+- **La API sale a internet** por primera vez hacia un tercero (`places.googleapis.com`,
+  `maps.googleapis.com`), con tiempo límite de 6 s por llamada. Una falla o un timeout
+  quitan la sección del PDF; nunca lo tumban.
+- **Texto de Places dentro del PDF** (nombres de comercios): pasa por `escape()` igual
+  que los títulos de los portales. Lo prueba `documento.selfcheck()`.
+- **Tabla `google_cache`** en `public`: sólo caché, sin datos de usuario.
+
 ### Endpoints (2026-09-29) — rediseño v0.5
 
 Ningún endpoint nuevo. `GET /api/clientes` agrega a cada proceso embebido su
@@ -338,6 +399,16 @@ VPS y, con `max_size=4` en el pool, puede dejar al resto de la API esperando con
 **Lo que no es:** no es anónimo —exige sesión— y hoy hay cinco cuentas, todas de gente
 conocida. La exposición real es que una pestaña abierta con recarga automática, o un
 script de un asesor, tire el tablero sin mala intención.
+
+**Desde el 2026-09-29 además cuesta dinero** (copia de trabajo; en producción cuando se
+despliegue): el PDF consulta Google Places y Static Maps con `GOOGLE_MAPS_SERVER_KEY`
+(`api/entorno.py`). El gasto está acotado por la caché, no por el número de peticiones:
+el entorno se paga una vez por celda de ~110 m cada 180 días y el mapa una vez por
+conjunto de comparables, así que pedir el mismo PDF en bucle cuesta CPU pero no dinero.
+Lo que sí gasta es recorrer muchas propiedades distintas: ~6 consultas de Nearby Search
+(~0.2 USD) por ubicación nueva. `GET /api/analisis/{id}`, que la ficha abre en cada
+visita, **nunca** consulta a Google: sólo lee la caché. Tope duro recomendado: una cuota
+diaria de Places en Google Cloud (p. ej. 600 consultas/día = 100 ubicaciones).
 
 **Arreglo:** el límite de intentos que ya existe (`rate_limit`, `api/main.py:167`) sólo
 cubre el login. Extenderlo a este endpoint por usuario —unos pocos documentos por

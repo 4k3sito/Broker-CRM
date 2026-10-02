@@ -1780,7 +1780,6 @@ body.inm-page { height:100vh; display:flex; flex-direction:column; overflow:hidd
   font-family:var(--font-mono); font-size:10.5px; font-weight:700; white-space:nowrap; cursor:pointer;
 }
 .map-pin:hover, .map-pin.on { background:var(--accent); color:var(--on-accent); z-index:3; }
-.inm-map .gm-style .gm-bundled-control button { border-radius:0 !important; }
 
 /* Rejilla compacta */
 .grid { grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; padding:12px 20px 16px; }
@@ -2212,12 +2211,82 @@ tr.igual.ocultar { display:none; }
 /* Filtro "Presentada a" en Inmobiliaria: la lista de clientes puede ser larga. */
 .fb-cajas-lista { grid-template-columns:1fr; max-height:320px; overflow-y:auto; }
 .cl-proponer { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--muted); text-decoration:none; }
-.cl-table { margin:0 22px 30px; background:var(--surface); border:1px solid var(--border); }
+/* La rejilla de la fila la arma clientes.js (rejilla()) con las columnas prendidas y la
+   pasa en --cl-cols; --cl-min es su ancho mínimo, para que con muchas columnas la tabla
+   se recorra de lado en vez de aplastar el nombre del inmueble. */
+.cl-table { margin:0 22px 30px; background:var(--surface); border:1px solid var(--border); overflow-x:auto; }
 .cl-tr {
-  display:grid; grid-template-columns:48px minmax(140px,1fr) 150px 96px 56px 130px 60px 22px; gap:10px;
+  display:grid; grid-template-columns:var(--cl-cols); gap:10px; min-width:var(--cl-min);
   align-items:center; padding:6px 12px; min-height:48px; border-bottom:1px solid var(--border);
 }
-.cl-tr:last-child { border-bottom:none; }
+.cl-tr[data-proc] { cursor:pointer; }
+.cl-tr[data-proc]:hover { background:var(--accent-soft); }
+.cl-tr.open { background:var(--accent-soft); border-bottom-color:transparent; }
+.cl-tr.dragging { opacity:.4; }
+.cl-tr.drop-a { border-top:2px solid var(--accent); }
+.cl-tr.drop-b { border-bottom:2px solid var(--accent); }
+.cl-grip { font-size:12px; letter-spacing:-3px; color:var(--faint); cursor:grab; user-select:none; text-align:center; }
+.cl-grip:hover { color:var(--ink); }
+.cl-grip.off { opacity:.3; cursor:not-allowed; }
+.cl-num { font-family:var(--font-mono); font-size:11px; font-weight:700; color:var(--muted); text-align:right; }
+.cl-c { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
+.cl-tn { font-family:var(--font-mono); font-size:10px; font-weight:700; text-align:center; color:var(--faint); }
+.cl-tn.on { padding:2px 0; background:var(--accent); color:var(--on-accent); }
+
+/* El panel que se despliega bajo la fila: la propiedad completa, editable, y sus tareas. */
+.cl-exp { min-width:var(--cl-min); padding:14px 16px 16px 46px; border-bottom:1px solid var(--border); background:var(--bg); display:flex; flex-direction:column; gap:12px; cursor:default; }
+.cl-exp-main { display:flex; gap:14px; align-items:flex-start; }
+.cl-exp-foto { width:200px; height:140px; object-fit:cover; flex-shrink:0; border:1px solid var(--border); }
+.cl-exp-grid { flex:1; min-width:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 10px; }
+.cl-ef { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.cl-ef.wide { grid-column:1 / -1; }
+.cl-ef > span, .cl-exp-tareas h3 { font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700; }
+.cl-ein, .cl-tadd input, .cl-tadd select, .cl-addrow input {
+  width:100%; min-height:32px; padding:5px 9px; border:1px solid var(--border-2); background:var(--surface);
+  color:var(--ink); font-family:var(--font-ui); font-size:13px; outline:none;
+}
+textarea.cl-ein { resize:vertical; line-height:1.5; }
+.cl-ein:focus, .cl-tadd input:focus, .cl-tadd select:focus, .cl-addrow input:focus { border-color:var(--accent); }
+.cl-exp-links { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; font-size:12.5px; }
+.cl-exp-links a { font-weight:600; color:var(--accent); text-decoration:none; }
+.cl-exp-links a:hover { text-decoration:underline; }
+.cl-exp-links span { color:var(--faint); font-size:11.5px; }
+.cl-exp-tareas { display:flex; flex-direction:column; gap:6px; padding-top:10px; border-top:1px solid var(--border); }
+
+/* Tareas: las de una propiedad (dentro del panel) y las del cliente (bajo la tabla). */
+.cl-tareas { margin:0 22px 40px; padding:10px 12px; background:var(--surface); border:1px solid var(--border); display:flex; flex-direction:column; gap:6px; }
+.cl-tareas .cl-empty { padding:6px 0; }
+.cl-tarea { display:flex; align-items:center; gap:9px; min-height:28px; font-size:13px; }
+.cl-tchk { width:15px; height:15px; flex-shrink:0; accent-color:var(--s-rentado); cursor:pointer; }
+.cl-tt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cl-tarea.done .cl-tt { color:var(--faint); text-decoration:line-through; }
+.cl-tprop { max-width:220px; padding:2px 7px; border:1px solid var(--border); font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cl-tmeta { flex-shrink:0; font-family:var(--font-mono); font-size:10.5px; color:var(--muted); }
+.cl-tadd, .cl-addrow { display:flex; gap:6px; }
+.cl-tadd { margin-top:4px; }
+.cl-tadd input[data-t=titulo], .cl-addrow input { flex:1; min-width:120px; }
+.cl-tadd select { width:auto; max-width:190px; }
+.cl-tadd input[type=date] { width:140px; }
+.cl-tadd button, .cl-addrow button { padding:0 12px; border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); font-family:var(--font-ui); font-size:12.5px; font-weight:600; cursor:pointer; }
+.cl-addrow { padding:8px 12px; min-width:var(--cl-min); }
+.cl-addrow input { border-style:dashed; }
+
+/* Filtros: quién lleva la cuenta (lista) y quién presentó (tabla); el botón de columnas. */
+.cl-fsel, .cl-btn {
+  height:26px; padding:0 8px; border:1px solid var(--border-2); background:transparent; color:var(--muted);
+  font-family:var(--font-ui); font-size:11.5px; font-weight:600; cursor:pointer;
+}
+.cl-fsel option { color:var(--ink); background:var(--surface); }
+.cl-fsel:hover, .cl-btn:hover { border-color:var(--accent); color:var(--ink); }
+.cl-fsel.on { border-color:var(--accent); background:var(--accent); color:var(--on-accent); }
+.cl-list-head .cl-fsel { max-width:150px; }
+.cl-colswrap { position:relative; }
+.cl-colspop { left:auto; right:0; min-width:170px; gap:6px; }
+.cl-colspop label { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }
+.cl-colchk { accent-color:var(--accent); }
+button.cl-chip { border:1px solid transparent; font-family:var(--font-ui); cursor:pointer; }
+button.cl-chip.on { border-color:currentColor; }
+.cl-resp { width:22px; height:22px; font-size:9px; }
 .cl-th { min-height:28px; font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
 .cl-th-img { width:52px; height:36px; object-fit:cover; display:block; }
 .cl-th-img.vacio { background:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0 1px,transparent 1px 7px),var(--blue); }
@@ -2233,7 +2302,6 @@ tr.igual.ocultar { display:none; }
 .cl-trae-n.sin { font-weight:400; color:var(--faint); }
 .cl-x { width:24px; height:24px; border:none; background:transparent; color:var(--faint); font-size:16px; cursor:pointer; }
 .cl-x:hover { color:var(--s-rechazado); }
-@media (max-width: 1150px) { .cl-tr { grid-template-columns:48px minmax(120px,1fr) 130px 90px 120px 22px; } .cl-tr > .cl-mono, .cl-th { display:none; } }
 @media (max-width: 800px) {
   /* minmax(0,1fr): con `1fr` a secas las píldoras de etapa empujaban la lista 8 px
      más allá de la pantalla. */
@@ -2244,12 +2312,21 @@ tr.igual.ocultar { display:none; }
   .cl-item { min-height:56px; }
   .cl-fields { grid-template-columns:1fr; }
   .cl-f + .cl-f { border-left:none; border-top:1px solid var(--border); }
-  .cl-tr { grid-template-columns:44px minmax(0,1fr) auto; grid-template-areas:none; }
-  .cl-th { display:none; }
-  .cl-tr > .cl-precio, .cl-tr > .cl-mono { display:none; }
-  .cl-tr > .proc-status { grid-column:2; justify-self:start; }
-  .cl-tr > .cl-trae { grid-column:2; }
-  .cl-tr > .cl-x { grid-column:3; grid-row:1; }
+  /* En el teléfono la fila es número, foto, nombre y etapa; lo demás está en el panel
+     que se despliega al tocarla. Sin asa: arrastrar con el dedo no funciona aquí. */
+  .cl-tr { grid-template-columns:20px 44px minmax(0,1fr) 22px; min-width:0; }
+  .cl-th, .cl-tr > .cl-grip, .cl-tr > .cl-tn, .cl-tr > .cl-c { display:none; }
+  .cl-tr > .cl-c[data-c=estatus] { display:block; grid-column:3; overflow:visible; }
+  .cl-tr > .cl-x { grid-column:4; grid-row:1; }
+  .cl-exp { min-width:0; padding:12px; }
+  .cl-exp-main { flex-direction:column; }
+  .cl-exp-foto { width:100%; height:160px; }
+  .cl-exp-grid { grid-template-columns:1fr 1fr; width:100%; }
+  .cl-addrow { min-width:0; }
+  .cl-tadd { flex-wrap:wrap; }
+  .cl-tadd select, .cl-tadd input[type=date] { flex:1; max-width:none; width:auto; }
+  .cl-tarea { flex-wrap:wrap; }
+  .cl-tareas { margin:0 12px 90px; }
   .cl-table, .cl-empty.pad { margin:0 12px 24px; }
   .cl-head, .cl-props-head { padding-left:14px; padding-right:14px; }
 }
@@ -2352,3 +2429,76 @@ tr.igual.ocultar { display:none; }
 .tk-aside-body input:focus, .tk-aside-body select:focus, .tk-aside-body textarea:focus { border-color:var(--accent); }
 .tk-aside-body .tk-check label { display:flex; font-family:var(--font-ui); font-size:13px; font-weight:400; letter-spacing:0; text-transform:none; color:var(--ink); }
 .tk-aside-body .tk-check input { width:15px; height:15px; padding:0; }
+
+/* Mercado comparable en la ficha (listing.js, cargarMercado). Fuera de .fx-cols
+   porque vive fuera de #detail; el padding repite el de .fx-cols para alinear. */
+/* El margen negativo se come el padding inferior de .fx-cols (40px; 90px en
+   móvil, que es el hueco de la barra fija) para dejar el mismo gap de 14px. */
+.mk { padding:0 24px 40px; margin-top:-26px; }
+.mk-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:16px; }
+.mk-datos { display:flex; flex-direction:column; gap:10px; min-width:0; }
+.mk-mapa { position:relative; min-height:280px; border:1px solid var(--border); background:var(--bg); }
+#mkMap { position:absolute; inset:0; }
+@media (max-width: 700px) {
+  .mk { padding:0 12px 90px; margin-top:-78px; }
+  .mk-grid { grid-template-columns:1fr; }
+}
+
+/* Ubicación de la ficha (ubicacion.js): MapLibre sin su hoja de estilos. Estas cuatro
+   reglas `maplibregl-*` son lo único que el motor necesita para acomodar el lienzo y el
+   marcador; el resto de su CSS son controles que aquí no se usan. */
+.ub-mapa { position:relative; height:340px; border:1px solid var(--border); background:var(--bg); }
+#ubMap { position:absolute; inset:0; }
+.maplibregl-map { overflow:hidden; -webkit-tap-highlight-color:transparent; }
+.maplibregl-canvas { position:absolute; left:0; top:0; outline:none; }
+.maplibregl-canvas-container.maplibregl-interactive { cursor:grab; }
+.maplibregl-marker { position:absolute; top:0; left:0; will-change:transform; }
+/* MapLibre mide este elemento para saber si "su" CSS cargó; sin la regla avisa en
+   consola en cada mapa. No se ve nunca: es un canario, no un color del sistema. */
+.maplibregl-canary { background-color:salmon; }
+/* El aviso de "usa ctrl + rueda" de cooperativeGestures. */
+.maplibregl-cooperative-gesture-screen {
+  position:absolute; inset:0; z-index:3; display:flex; align-items:center; justify-content:center;
+  padding:16px; background:var(--surface); color:var(--ink); font-size:14px; font-weight:600; text-align:center;
+  opacity:0; pointer-events:none; transition:opacity .4s;
+}
+.maplibregl-cooperative-gesture-screen.maplibregl-show { opacity:.9; }
+.maplibregl-mobile-message { display:none; }
+@media (hover:none) { .maplibregl-desktop-message { display:none; } .maplibregl-mobile-message { display:block; } }
+.maplibregl-control-container { display:none; }
+.ub-cruz { cursor:crosshair; }
+/* El rombo va en ::after: MapLibre coloca el marcador con `transform` sobre el propio
+   elemento, y girarlo ahí giraría también su traslación (el pin caía fuera del mapa). */
+.ub-pin { width:18px; height:18px; }
+.ub-pin::after { content:''; position:absolute; inset:0; background:var(--accent); border:3px solid var(--surface); outline:1px solid var(--accent); rotate:45deg; }
+.ub-zoom { position:absolute; top:12px; right:12px; z-index:2; display:flex; flex-direction:column; border:1px solid var(--border-2); background:var(--surface); }
+.ub-zoom button { width:32px; height:32px; border:none; background:transparent; color:var(--ink); font-size:17px; line-height:1; cursor:pointer; }
+.ub-zoom button + button { border-top:1px solid var(--border-2); }
+.ub-zoom button:hover { background:var(--accent-soft); }
+/* La atribución del mapa de comparables, que no tiene pie propio. */
+.ub-attr { position:absolute; right:0; bottom:0; z-index:2; padding:2px 6px; background:var(--surface); font-size:10px; color:var(--muted); }
+.ub-attr a { color:var(--muted); }
+.ub-pie { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:11.5px; color:var(--faint); }
+.ub-pie .fx-btn { height:30px; font-size:12.5px; }
+.ub-pie .fx-btn.on { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+.ub-pie span { margin-left:auto; }
+.ub-pie span a { color:var(--muted); }
+
+/* Fichas PDF guardadas (listing.js): la General y una por cliente o por nombre. */
+.fx-vers { border-top:1px solid var(--border); padding-top:10px; display:flex; flex-direction:column; gap:4px; }
+.fx-vers h2 { margin-bottom:4px; }
+.fx-ver { display:flex; align-items:center; gap:8px; min-height:30px; padding:0 6px; border:1px solid transparent; }
+.fx-ver.on { border-color:var(--accent); background:var(--accent-soft); }
+.fx-ver-n { border:none; background:transparent; padding:0; color:var(--ink); font-family:var(--font-mono); font-size:11.5px; font-weight:700; cursor:pointer; text-align:left; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fx-ver-n:hover { color:var(--accent); }
+.fx-ver small { flex:1; min-width:0; font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fx-ver-pdf { height:22px; padding:0 8px; border:1px solid var(--border-2); background:var(--surface); color:var(--ink); font-family:var(--font-mono); font-size:10px; font-weight:700; cursor:pointer; }
+.fx-ver-pdf:hover { border-color:var(--accent); color:var(--accent); }
+.fx-ver-del { width:22px; height:22px; border:none; background:transparent; color:var(--faint); font-size:15px; cursor:pointer; }
+.fx-ver-del:hover { color:var(--s-rechazado); }
+.fx-vers .fx-asignar { margin-top:4px; }
+textarea.base-in { resize:vertical; }
+.fx-tag { display:inline-flex; align-items:center; height:36px; padding:0 10px; border:1px dashed var(--border-2); font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+/* Quién lleva la cuenta de cada cliente al que se propuso la propiedad. */
+.fx-resp { width:22px; height:22px; font-size:9px; font-style:normal; }
+.fx-proc > span small { display:block; font-size:10.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }

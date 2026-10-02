@@ -100,6 +100,8 @@
       <button data-vista="grid">Rejilla</button>
       <button data-vista="split">Rejilla + mapa</button>
     </div>
+    <!-- Sólo en Inmobiliaria (app.js lo muestra): alta de una propiedad propia. -->
+    <button class="btn-clear" id="nueva-prop" hidden>+ Nueva propiedad</button>
     <button class="btn-clear" id="export-btn">CSV</button>
     <span class="count-tag"><strong id="countNum">0</strong> / <span id="countTotal">0</span></span>
   </div>
@@ -113,7 +115,12 @@
   <div class="inm-map">
     <div id="map"></div>
     <label class="map-follow"><input type="checkbox" id="mapFollow"> Buscar al mover el mapa</label>
+    <div class="ub-zoom">
+      <button id="mapMas" aria-label="Acercar">+</button>
+      <button id="mapMenos" aria-label="Alejar">&#8722;</button>
+    </div>
     <div class="map-note" id="mapNote" hidden></div>
+    <div class="ub-attr">&#169; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &#183; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> &#183; <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a></div>
   </div>
 </div>
 
@@ -129,6 +136,8 @@
     <select class="tray-btn" id="trayCliente" aria-label="Asignar a cliente">
       <option value="">Asignar a cliente&#8230;</option>
     </select>
+    <!-- Sólo en Bolsa: guarda la selección en la bolsa propia sin asignarla a nadie. -->
+    <button class="tray-btn" id="trayInmo">+ Inmobiliaria</button>
     <button class="tray-btn" id="trayClear">Quitar selecci&#243;n</button>
     <button class="tray-btn solid" id="trayComparar">Comparar &#8594;</button>
   </div>
@@ -140,6 +149,7 @@
 <script src="texto.js"></script>
 <script src="etapas.js"></script>
 <script src="menu.js"></script>
+<script src="vendor/maplibre-gl.js"></script>
 <script src="mapa.js"></script>
 <script src="app.js"></script>
 </body>
