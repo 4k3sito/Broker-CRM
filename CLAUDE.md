@@ -276,6 +276,15 @@ ficha. Lo que no es obvio:
   `PUT /api/clientes/{id}/orden` con la lista completa, en una sola sentencia.
 - **`ficha_version`** son las fichas PDF guardadas. "General" no tiene fila; cada versión
   es una copia editable de sus datos. Se guardan datos, no el PDF.
+- **`archivo`** guarda lo que se sube (bytea, en la base y no en disco): adjuntos de un
+  documento (`documento_id`) y fotos de una propiedad (`documento_id` NULL; su liga
+  `/api/archivos/<id>` va en `ficha.fotos`, junto a las ligas http de siempre). El tipo
+  sale de los bytes (`tipo_real`), nunca de lo que diga quien sube, y sólo imágenes y
+  PDF se sirven en la pestaña: lee SECURITY.md "Endpoints (2026-10-05)" antes de tocarlo.
+  Un `src` de foto pasa por `srcSeguro` (`texto.js`), no por `hrefSeguro`.
+- **`cliente.estatus`** (activo / contactando / por_contactar / inactivo, o NULL) lo
+  marca el asesor y **no es la etapa**, que sale de los procesos. **`cliente.orden`** es
+  la posición en la lista, compartida por el equipo (`PUT /api/clientes/orden`).
 - **`ficha.lat` / `ficha.lng`** sólo aplican a fichas propias: las fija el asesor en el
   mapa. `FICHA_COMO_LISTING` las convierte en `geom` para que la ficha se lea igual que
   un anuncio.

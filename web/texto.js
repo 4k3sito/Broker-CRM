@@ -18,3 +18,7 @@ const norm = s => (s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '
 // Un `href` que sólo acepta http(s). Escapar no basta: `javascript:…` sobrevive
 // intacto al escapado y se ejecuta al hacer clic.
 const hrefSeguro = u => /^https?:/i.test(String(u ?? '').trim()) ? esc(u) : '#';
+
+// El `src` de una foto: http(s) o una foto subida al CRM (`/api/archivos/<id>`, ver
+// "Archivos" en main.py). Lo demás no se pinta.
+const srcSeguro = u => /^(https?:|\/api\/archivos\/)/i.test(String(u ?? '').trim()) ? esc(u) : '';

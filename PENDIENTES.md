@@ -1,11 +1,58 @@
 # Pendientes
 
-Estado al **2026-09-29**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-10-05**. Es una foto, no la verdad: verifica antes de actuar.
 Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
 
 - *(nada)*
+
+## Estatus y orden de clientes, archivos y fotos subidas — **en la copia de trabajo, SIN desplegar** (2026-10-05)
+
+Cinco cosas que pidió el equipo. Probadas en `/srv/officelab-dev` contra la API de dev
+(esquema `dev`) con navegador; **producción no se ha tocado**.
+
+- **Clientes → filtro "Estatus"** (Activo, Contactando, Por contactar, Inactivo, Sin
+  estatus) junto al de Cuenta, y el selector "Estatus" en la ficha del cliente
+  (`cliente.estatus`). Los clientes que ya existen quedan **sin estatus**: nadie los
+  clasificó. Para ponerlos todos en Activo de una vez:
+  `UPDATE cliente SET estatus = 'activo' WHERE estatus IS NULL;`
+- **Clientes → orden de la lista**: se arrastra del asa que aparece al pasar el cursor
+  (`cliente.orden`, `PUT /api/clientes/orden`). El orden es del equipo, no de cada
+  quien. Con un filtro puesto se reordena entre los que se ven. Un cliente nuevo sale
+  arriba. En el teléfono no hay asa (misma limitación que las propiedades).
+- **Inmobiliaria → "Sin cliente asignado"**: es la segunda opción del filtro Cliente
+  (`?sin_cliente=true`). También sirve `index.html?tab=inmobiliaria&pcliente=sin`.
+- **Ficha → archivos en los documentos**: "Adjuntar" en cada documento, "Archivos…" al
+  dar de alta (con nombre escrito van todos a ese documento; sin nombre, un documento
+  por archivo) o arrastrándolos a la tarjeta. Hasta 20 MB cada uno. Adjuntar marca el
+  documento como conseguido.
+- **Ficha → fotos**: en "Datos de la propiedad" (propiedades propias) las fotos son
+  miniaturas con quitar y "de portada"; se suben del equipo, se arrastran o se pegan
+  con Ctrl+V. Las grandes se reducen a 2,400 px en el navegador antes de subir. Las
+  ligas se siguen pudiendo pegar.
+
+**Para desplegar** (en este orden; el frontend nuevo contra la API vieja falla):
+
+1. Respaldo del CRM y `git merge desarrollo` en `produccion`.
+2. Esquema: `docker compose cp schema.sql db:/tmp/` y `psql -f` (el bloque del
+   2026-10-05 es aditivo: dos columnas en `cliente` y la tabla `archivo`).
+3. `docker compose up -d --build api`.
+4. **Recrear Caddy** (`docker compose up -d --force-recreate caddy`): el `Caddyfile`
+   cambió una línea (`header ?Cache-Control`) y es bind mount de archivo.
+5. Comprobar detrás de Caddy que `GET /api/archivos/<foto>` trae **una sola** cabecera
+   `Cache-Control` (`private…`) y que `/api/me` sigue con `no-store`. Es lo único que no
+   se pudo probar en la copia, porque dev no pasa por Caddy.
+
+Lo que conviene saber:
+
+- **Los archivos viven en la base** (tabla `archivo`, bytea), no en disco: entran solos
+  al respaldo nocturno, que va a crecer con ellos. Ver SECURITY.md, "Endpoints
+  (2026-10-05)", para lo que se cuidó al servir contenido subido.
+- Las fotos subidas sólo se ofrecen en propiedades **propias**: en la ficha de un
+  anuncio las fotos son las del portal y no hay dónde editarlas.
+- `dev-schema.sql` tampoco copia `archivo`: al rehacer `dev` hay que volver a aplicarle
+  el bloque del 2026-10-05, igual que el de `ficha_version`.
 
 ## Clientes editables, fichas guardadas y mapas sin Google — **en producción desde el 2026-10-02**
 

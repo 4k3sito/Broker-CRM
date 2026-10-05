@@ -31,7 +31,11 @@
 
 	handle /api/* {
 		# Las respuestas de la API son por usuario: que no las guarde ningún caché.
-		header Cache-Control "no-store"
+		# Con `?` es un valor por defecto: sólo se pone si la API no mandó el suyo, y la
+		# única que lo manda es GET /api/archivos/<id> para las fotos subidas (`private`,
+		# en el navegador de quien tiene sesión). Sin el `?` saldrían las dos cabeceras y
+		# el navegador obedece a la más estricta: cada foto se bajaría en cada vista.
+		header ?Cache-Control "no-store"
 		reverse_proxy api:8000
 	}
 

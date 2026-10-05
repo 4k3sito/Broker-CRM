@@ -762,3 +762,43 @@ CREATE TABLE IF NOT EXISTS ficha_version (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ficha_version_ficha_idx ON ficha_version (ficha_id, created_at);
+
+-- ──────────────── estatus y orden de clientes, archivos adjuntos (2026-10-05)
+--
+-- Tres cosas que pidió el equipo:
+--
+-- 1. `cliente.estatus`: en qué va la relación con el cliente (activo, inactivo,
+--    contactando, por contactar). No es la etapa: la etapa sale de sus procesos; esto
+--    lo marca el asesor y la lista de clientes filtra por ello. NULL es "sin estatus":
+--    los clientes que ya existían no se clasificaron solos.
+-- 2. `cliente.orden`: la posición en la lista de clientes, que se arrastra igual que
+--    las propiedades de un cliente (`proceso.numero`). Es del equipo, no de cada quien.
+--    NULL va arriba: un cliente nuevo aparece primero hasta que alguien lo acomode.
+-- 3. `archivo`: los archivos que se suben. Hasta hoy "no había almacenamiento de
+--    archivos en el stack" (ver ficha_version): un documento era sólo un nombre con
+--    casilla y una foto era una liga. Un archivo cuelga de una ficha y es una de dos
+--    cosas: adjunto de un documento (`documento_id`) o foto de la propiedad
+--    (`documento_id` NULL; su liga `/api/archivos/<id>` va en `ficha.fotos`).
+--    Viven en la base y no en disco a propósito: entran al respaldo nocturno sin tocar
+--    el cron, la copia de trabajo los aísla con su esquema `dev`, y la API (que corre
+--    como `nobody`) no necesita un volumen. El tope por archivo lo pone la API.
+--
+-- Aditivo y se puede correr dos veces. En la copia de trabajo se aplica con
+-- `search_path=dev,public` (ver README.md, "Copia de trabajo").
+ALTER TABLE cliente ADD COLUMN IF NOT EXISTS estatus text
+  CHECK (estatus IN ('activo','inactivo','contactando','por_contactar'));
+ALTER TABLE cliente ADD COLUMN IF NOT EXISTS orden integer;
+
+CREATE TABLE IF NOT EXISTS archivo (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid REFERENCES usuario (id) ON DELETE SET NULL,      -- quien lo subió
+  ficha_id     uuid NOT NULL REFERENCES ficha (id) ON DELETE CASCADE,
+  documento_id uuid REFERENCES ficha_documento (id) ON DELETE CASCADE,  -- NULL: es una foto
+  nombre       text NOT NULL,
+  mime         text NOT NULL,
+  tamano       integer NOT NULL,
+  datos        bytea NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS archivo_documento_idx ON archivo (documento_id);
+CREATE INDEX IF NOT EXISTS archivo_ficha_idx ON archivo (ficha_id);

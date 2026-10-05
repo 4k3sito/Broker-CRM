@@ -183,6 +183,50 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Endpoints (2026-10-05) — archivos subidos, estatus y orden de clientes (copia de trabajo)
+
+Es la primera vez que el sitio **guarda y sirve contenido que sube un usuario**. Todo
+con sesión; nada nuevo es público.
+
+| Endpoint | Qué hace | Lo que se cuidó |
+|---|---|---|
+| `POST /api/documentos/{id}/archivos` | Adjunta un archivo a un documento de la ficha | El cuerpo es el archivo (sin multipart). Tope de **20 MB**, cortado mientras llega (`_cuerpo`), no después de leerlo. El nombre pasa por `nombre_archivo()`: sin ruta ni caracteres de control. |
+| `POST /api/fichas/{id}/fotos` | Sube una foto y la agrega a `ficha.fotos` | Sólo JPG, PNG, WEBP o GIF **según sus bytes** (`tipo_real`), 415 si no. Tope de 40 fotos por ficha. |
+| `GET /api/archivos/{id}` | Devuelve el archivo | Ver abajo. |
+| `DELETE /api/archivos/{id}` | Lo borra (y lo quita de `ficha.fotos` si era foto) | |
+| `PUT /api/clientes/orden` | Guarda el orden de la lista de clientes | Sólo escribe `cliente.orden`. |
+| `PATCH /api/clientes/{id}` | Acepta además `estatus` | CHECK en la base: un valor fuera de los cuatro da 422. |
+| `GET /api/listings?sin_cliente=true` | Inmobiliaria: fichas sin ningún proceso | Booleano, sin parámetros en el SQL. |
+
+**XSS almacenado.** Un archivo subido se sirve desde el mismo origen que el sitio, y la
+CSP (`script-src 'self'`) no protege de eso: un `.html` subido ES `'self'`. Por eso:
+
+- El tipo **nunca** se le cree al navegador ni a la extensión. `tipo_real()` lo lee de
+  los primeros bytes y sólo reconoce JPEG, PNG, GIF, WEBP y PDF.
+- Sólo esos cinco se sirven `inline` con su tipo. **Todo lo demás** (HTML, SVG, Office,
+  lo que sea) baja como `application/octet-stream` con `Content-Disposition: attachment`
+  y `X-Content-Type-Options: nosniff`: el navegador lo descarga, no lo interpreta. SVG
+  queda fuera de las imágenes a propósito: puede traer `<script>`.
+- `ficha.fotos` acaba en un `src`: `_fotos_validas()` sólo deja pasar `http(s)://` y
+  `/api/archivos/<uuid>`, y en el navegador pasa por `srcSeguro()` (`texto.js`).
+- `selfcheck` cubre las cuatro cosas.
+
+**Quién puede leerlos.** Cualquier cuenta con sesión, igual que el resto del CRM (§5):
+no hay permisos por archivo. Sin sesión, 401. El id es un uuid, pero la protección es
+la sesión, no que el id sea difícil de adivinar. Predial y escrituras viven ahora en la
+base: **H1 y H2 pesan más** (quien entre al VPS o lea el tráfico en claro los obtiene).
+
+**Caché.** Las fotos salen con `Cache-Control: private, max-age=1 año` (se pintan en
+cada tarjeta); los adjuntos de documentos con `no-store`, para que no se queden en el
+disco de una computadora compartida. Para que la cabecera de la API llegue al navegador,
+el `Caddyfile` pasó de `header Cache-Control "no-store"` a `header ?Cache-Control …`
+(valor por defecto): el resto de la API sigue saliendo con `no-store`.
+
+**Costo.** Los archivos viven en la tabla `archivo` (bytea) y entran al respaldo
+nocturno. No hay cuota por usuario ni por ficha más allá de los topes de arriba: una
+cuenta puede llenar el disco subiendo archivos de 20 MB. Con cuentas sólo del equipo
+se acepta; vigilar el tamaño de `/srv/backups`.
+
 ### Endpoints (2026-10-01) — tabla de clientes, fichas guardadas y mapa (copia de trabajo)
 
 Todos piden sesión y siguen la regla del CRM compartido (§5): cualquier cuenta del

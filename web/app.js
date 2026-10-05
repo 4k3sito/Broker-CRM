@@ -171,7 +171,9 @@ const paramsBase = () => ({
   near: F.near, radio: F.near ? F.radio : '',
   favoritos: filterStarred,
   ficha: INMO ? 'con' : 'sin',
-  pcliente: INMO ? F.pcliente : '', etapa: INMO ? F.etapas : [],
+  // 'sin' no es un cliente: es "lo que no se le ha presentado a nadie".
+  pcliente: INMO && F.pcliente !== 'sin' ? F.pcliente : '', sin_cliente: INMO && F.pcliente === 'sin',
+  etapa: INMO ? F.etapas : [],
 });
 
 async function cargarPagina() {
@@ -557,7 +559,7 @@ const fbResumen = {
   },
   tipo: () => !F.tipos.length ? 'Todos'
     : F.tipos.length === 1 ? cap(F.tipos[0]) : `${F.tipos.length} tipos`,
-  cliente: () => F.pcliente ? (clientesCache?.find(c => String(c.id) === F.pcliente)?.nombre ?? '1 cliente') : 'Todos',
+  cliente: () => F.pcliente === 'sin' ? 'Sin cliente' : F.pcliente ? (clientesCache?.find(c => String(c.id) === F.pcliente)?.nombre ?? '1 cliente') : 'Todos',
   etapa: () => !F.etapas.length ? 'Todas'
     : F.etapas.length === 1 ? etapaLabel(F.etapas[0]) : `${F.etapas.length} etapas`,
 };
@@ -688,8 +690,9 @@ function fbCuerpoTipo() {
 // y varias etapas, con las mismas casillas que Tipo.
 function fbCuerpoCliente() {
   const cs = clientesCache ?? [];
-  if (!cs.length) return '<p class="fb-nota">Cargando clientes&#8230;</p>';
-  return '<div class="fb-cajas fb-cajas-lista">' + [{ id: '', nombre: 'Todos los clientes' }, ...cs].map(c => `
+  if (!clientesCache) return '<p class="fb-nota">Cargando clientes&#8230;</p>';
+  const fijos = [{ id: '', nombre: 'Todos los clientes' }, { id: 'sin', nombre: 'Sin cliente asignado' }];
+  return '<div class="fb-cajas fb-cajas-lista">' + [...fijos, ...cs].map(c => `
     <label class="fb-caja">
       <input type="radio" name="fbCliente" data-pcliente="${esc(c.id)}"${String(fbDraft.pcliente) === String(c.id) ? ' checked' : ''}>
       <span>${esc(c.nombre)}</span>
@@ -713,7 +716,13 @@ function fbLimpiarBorrador() {
 }
 
 function fbAplicar() {
-  if (fbAbierto === 'cliente') F.pcliente = fbDraft.pcliente;
+  if (fbAbierto === 'cliente') {
+    F.pcliente = fbDraft.pcliente;
+    // Sin cliente no hay proceso, y sin proceso no hay etapa: las dos juntas no
+    // devolverían nada nunca.
+    if (F.pcliente === 'sin') F.etapas = [];
+  }
+  if (fbAbierto === 'etapa' && fbDraft.etapas.length && F.pcliente === 'sin') F.pcliente = '';
   if (fbAbierto === 'etapa') F.etapas = fbDraft.etapas.slice();
   if (fbAbierto === 'ubicacion') F.lugares = fbDraft.lugares.slice(0, MAX_LUGARES);
   if (fbAbierto === 'tipo') F.tipos = fbDraft.tipos.slice();
