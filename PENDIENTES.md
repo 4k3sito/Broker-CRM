@@ -7,10 +7,14 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
-## Estatus y orden de clientes, archivos y fotos subidas — **en la copia de trabajo, SIN desplegar** (2026-10-05)
+## Estatus y orden de clientes, archivos y fotos subidas — **en producción desde el 2026-10-05**
 
-Cinco cosas que pidió el equipo. Probadas en `/srv/officelab-dev` contra la API de dev
-(esquema `dev`) con navegador; **producción no se ha tocado**.
+Desplegado con el commit `e895908`: bloque del esquema aplicado en `public` (dos
+columnas en `cliente` y la tabla `archivo`), API reconstruida y Caddy recreado con
+`header ?Cache-Control`. Respaldo previo del CRM en
+`/srv/backups/crm-pre-despliegue-2026-10-05-2253.sql.gz`. Probado antes en la copia de
+trabajo con navegador; en producción se comprobó sin sesión (rutas nuevas en 401, API
+con un solo `Cache-Control: no-store`, estáticos idénticos a los del repo).
 
 - **Clientes → filtro "Estatus"** (Activo, Contactando, Por contactar, Inactivo, Sin
   estatus) junto al de Cuenta, y el selector "Estatus" en la ficha del cliente
@@ -32,17 +36,11 @@ Cinco cosas que pidió el equipo. Probadas en `/srv/officelab-dev` contra la API
   con Ctrl+V. Las grandes se reducen a 2,400 px en el navegador antes de subir. Las
   ligas se siguen pudiendo pegar.
 
-**Para desplegar** (en este orden; el frontend nuevo contra la API vieja falla):
-
-1. Respaldo del CRM y `git merge desarrollo` en `produccion`.
-2. Esquema: `docker compose cp schema.sql db:/tmp/` y `psql -f` (el bloque del
-   2026-10-05 es aditivo: dos columnas en `cliente` y la tabla `archivo`).
-3. `docker compose up -d --build api`.
-4. **Recrear Caddy** (`docker compose up -d --force-recreate caddy`): el `Caddyfile`
-   cambió una línea (`header ?Cache-Control`) y es bind mount de archivo.
-5. Comprobar detrás de Caddy que `GET /api/archivos/<foto>` trae **una sola** cabecera
-   `Cache-Control` (`private…`) y que `/api/me` sigue con `no-store`. Es lo único que no
-   se pudo probar en la copia, porque dev no pasa por Caddy.
+**Falta comprobar con sesión, detrás de Caddy:** que `GET /api/archivos/<foto>` llegue
+con **una sola** cabecera `Cache-Control: private, max-age=…` (en DevTools → Red, sobre
+la primera foto que alguien suba). Dev no pasa por Caddy y no se abrió una sesión en
+producción para probarlo. Si salieran dos cabeceras, las fotos se ven igual pero se
+bajan en cada vista.
 
 Lo que conviene saber:
 
