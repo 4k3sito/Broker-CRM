@@ -21,7 +21,7 @@ WEB = pathlib.Path(__file__).parent
 
 # Prefijos que se generan solos y nunca están escritos tal cual en el CSS:
 # `status-<estado>` en las tarjetas, y los tokens de estado `s-`, `e-`, `p-`.
-GENERADOS = ('status-', 's-', 'e-', 'p-')
+GENERADOS = ('status-', 's-', 'e-', 'p-', 'est-')
 
 # Lo que quedó del sistema terracota. Si algo de esto vuelve, el tema oscuro se
 # rompe en silencio o la marca queda a medias.

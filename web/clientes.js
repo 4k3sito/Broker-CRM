@@ -15,6 +15,7 @@ let equipo = [];            // personas con cuenta, para el selector de "Cuenta"
 let critAbierto = null;     // qué criterio se está editando en el menú de "Qué busca"
 let lugarSugs = [];         // sugerencias del autocompletado de ubicación
 let filterCuenta = 'all';   // lista: 'all' | 'none' (sin asignar) | id de quien lleva la cuenta
+let filterEstatus = 'all';  // lista: 'all' | 'none' (sin estatus) | llave de ESTATUS
 let abierto = null;         // id del proceso cuya fila está desplegada
 let colsAbierto = false;    // el menú de "Columnas"
 let propEtapa = 'all';      // tabla de propiedades: filtro por etapa…
@@ -193,11 +194,32 @@ function traeHtml(p) {
 }
 // Etapa del cliente: la del proceso más avanzado que tenga (no hay columna `etapa`).
 const etapaDe = c => etapaMayor((c.proceso ?? []).map(p => p.status));
-// Búsqueda y "quién lleva la cuenta": la base sobre la que cuentan las píldoras de etapa.
+// Estatus del cliente: en qué va la relación con él. No es la etapa —esa sale de sus
+// propiedades—; lo marca el asesor en la ficha del cliente (`cliente.estatus`).
+const ESTATUS = [
+  { key: 'activo',        label: 'Activo' },
+  { key: 'contactando',   label: 'Contactando' },
+  { key: 'por_contactar', label: 'Por contactar' },
+  { key: 'inactivo',      label: 'Inactivo' },
+];
+const estatusLabel = k => ESTATUS.find(e => e.key === k)?.label ?? null;
+// Búsqueda, estatus y "quién lleva la cuenta": la base sobre la que cuentan las
+// píldoras de etapa.
 function pasaBase(c) {
   if (searchQ && !norm(`${c.nombre} ${c.empresa ?? ''} ${c.contacto ?? ''}`).includes(norm(searchQ))) return false;
+  if (filterEstatus !== 'all' && (c.estatus ?? 'none') !== filterEstatus) return false;
   if (filterCuenta === 'none') return !c.responsable_id && !c.responsable;
   return filterCuenta === 'all' || String(c.responsable_id) === filterCuenta;
+}
+// Cuántos clientes hay de cada estatus con lo demás aplicado (el propio filtro de
+// estatus no cuenta: si contara, las otras opciones dirían siempre 0).
+function cuentaEstatus() {
+  const puesto = filterEstatus;
+  filterEstatus = 'all';
+  const n = {};
+  for (const c of clientes.filter(pasaBase)) n[c.estatus ?? 'none'] = (n[c.estatus ?? 'none'] ?? 0) + 1;
+  filterEstatus = puesto;
+  return n;
 }
 const pasaFiltro = c => pasaBase(c) && (filterStatus === 'all' || (c.proceso ?? []).some(p => p.status === filterStatus));
 const fecha = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '—';
@@ -221,6 +243,13 @@ function cuentaHtml(c) {
     <select class="cl-sel" id="clCuenta">
       <option value="">${suelto ? `${esc(c.responsable)} · sin cuenta` : 'Sin asignar'}</option>
       ${equipo.map(p => `<option value="${esc(p.id)}"${String(p.id) === String(c.responsable_id) ? ' selected' : ''}>${esc(nombreDe(p))}</option>`).join('')}
+    </select></label>`;
+}
+function estatusHtml(c) {
+  return `<label class="cl-f"><span>Estatus</span>
+    <select class="cl-sel${c.estatus ? ` est-${esc(c.estatus)}` : ''}" id="clEstatus">
+      <option value="">Sin estatus</option>
+      ${ESTATUS.map(e => `<option value="${e.key}"${e.key === c.estatus ? ' selected' : ''}>${e.label}</option>`).join('')}
     </select></label>`;
 }
 function asignarCuenta(c, uid) {
@@ -375,6 +404,14 @@ function renderLista() {
     equipo.map(p => `<option value="${esc(p.id)}">${esc(nombreDe(p))}</option>`).join('');
   fc.value = filterCuenta;
   fc.classList.toggle('on', filterCuenta !== 'all');
+  // Cuántos hay de cada estatus, con la búsqueda y la cuenta ya aplicadas.
+  const fe = document.getElementById('fEstatus');
+  const sinEst = cuentaEstatus();
+  fe.innerHTML = `<option value="all">Estatus: todos</option>` +
+    ESTATUS.map(e => `<option value="${e.key}">${e.label} (${sinEst[e.key] ?? 0})</option>`).join('') +
+    `<option value="none">Sin estatus (${sinEst.none ?? 0})</option>`;
+  fe.value = filterEstatus;
+  fe.classList.toggle('on', filterEstatus !== 'all');
   const base = clientes.filter(pasaBase);
   document.querySelectorAll('.pill-count[data-count]').forEach(el => {
     const k = el.dataset.count;
@@ -392,16 +429,17 @@ function renderLista() {
     const ps = c.proceso ?? [];
     const w = n => `${Math.min(n, 8) * 7}px`;
     const resp = c.responsable_nombre || c.responsable;
-    return `<button class="cl-item${String(c.id) === selId ? ' on' : ''}" data-id="${esc(c.id)}">
+    return `<div class="cl-item${String(c.id) === selId ? ' on' : ''}" data-id="${esc(c.id)}" role="button" tabindex="0">
+      <span class="cl-grip" title="Arrastra para cambiar el orden" aria-hidden="true">&#8942;&#8942;</span>
       <span class="cl-ava">${esc(iniciales(c.nombre))}</span>
-      <span class="cl-txt"><b>${esc(c.nombre)}</b><small>${esc(pildoras(c.criterios ?? {}).map(p => p.txt).join(' · ') || c.requerimientos || c.empresa || 'Sin requerimientos')}</small></span>
+      <span class="cl-txt"><b>${esc(c.nombre)}</b><small>${c.estatus ? `<i class="cl-est est-${esc(c.estatus)}">${esc(estatusLabel(c.estatus) ?? c.estatus)}</i>` : ''}${esc(pildoras(c.criterios ?? {}).map(p => p.txt).join(' · ') || c.requerimientos || c.empresa || 'Sin requerimientos')}</small></span>
       <span class="cl-meta">
         <span class="cl-bars"><i style="width:${w(cuenta(ps, 'presentado'))};background:var(--s-presentado)"></i><i style="width:${w(cuenta(ps, 'aprobado'))};background:var(--s-aprobado)"></i><i style="width:${w(cuenta(ps, 'rechazado'))};background:var(--s-rechazado)"></i></span>
         <small>${ps.length} prop.</small>
       </span>
       ${resp ? `<span class="tk-ava cl-resp" style="background:${tono(c.responsable_id ?? resp)}" title="Cuenta: ${esc(resp)}">${esc(iniciales(resp.replace('/', ' ')))}</span>`
              : '<span class="tk-ava cl-resp sin" title="Sin asignar">&#8212;</span>'}
-    </button>`;
+    </div>`;
   }).join('');
 }
 
@@ -455,7 +493,7 @@ function filaHtml(c, p) {
   return `<div class="cl-tr${abierto === String(p.id) ? ' open' : ''}" data-proc="${esc(p.id)}">
     <span class="cl-grip${filtrando() ? ' off' : ''}" title="${filtrando() ? 'Quita los filtros para reordenar' : 'Arrastra para cambiar el orden'}" aria-hidden="true">&#8942;&#8942;</span>
     <span class="cl-num">${pos}</span>
-    ${foto ? `<img class="cl-th-img" src="${hrefSeguro(foto)}" alt="">` : '<span class="cl-th-img vacio"></span>'}
+    ${foto ? `<img class="cl-th-img" src="${srcSeguro(foto)}" alt="">` : '<span class="cl-th-img vacio"></span>'}
     <span class="cl-inm">${esc(f.titulo ?? '(sin título)')}</span>
     ${colsVisibles().map(col => `<span class="cl-c ${col.cls ?? ''}" data-c="${col.k}">${col.html(p)}</span>`).join('')}
     <span class="cl-tn${n ? ' on' : ''}" title="${n ? `${n} ${n === 1 ? 'tarea abierta' : 'tareas abiertas'}` : 'Sin tareas abiertas'}">${n || ''}</span>
@@ -503,7 +541,7 @@ function panelHtml(c, p) {
       <textarea class="cl-ein" rows="3" data-tb="${tb}" data-f="${k}" placeholder="${ph}">${esc(v ?? '')}</textarea></label>`;
   return `<div class="cl-exp" data-proc="${esc(p.id)}">
     <div class="cl-exp-main">
-      ${f.fotos?.[0] ? `<img class="cl-exp-foto" src="${hrefSeguro(f.fotos[0])}" alt="">` : ''}
+      ${f.fotos?.[0] ? `<img class="cl-exp-foto" src="${srcSeguro(f.fotos[0])}" alt="">` : ''}
       <div class="cl-exp-grid">
         ${campo('ficha', 'titulo', 'Inmueble', f.titulo, { wide: true })}
         ${campo('ficha', 'tipo', 'Tipo', f.tipo, { ph: 'Local, terreno…' })}
@@ -615,6 +653,7 @@ function renderDetalle() {
       </div>
       <div class="cl-fields">
         ${cuentaHtml(c)}
+        ${estatusHtml(c)}
         ${campo('contacto', 'Contacto', 'Teléfono o correo')}
         ${queBuscaHtml(c)}
       </div>
@@ -624,6 +663,10 @@ function renderDetalle() {
 
   box.querySelectorAll('.cli-in[data-f]').forEach(el => el.addEventListener('blur', e => saveCliente(c.id, e.target.dataset.f, e.target.value)));
   box.querySelector('#clCuenta').addEventListener('change', e => asignarCuenta(c, e.target.value));
+  box.querySelector('#clEstatus').addEventListener('change', e => {
+    saveCliente(c.id, 'estatus', e.target.value || null);
+    e.target.className = `cl-sel${e.target.value ? ` est-${e.target.value}` : ''}`;
+  });
   conectarCriterios(c, box);
   document.getElementById('clDel').addEventListener('click', () => deleteCliente(c.id));
   document.getElementById('clBack').addEventListener('click', () => seleccionar(null));
@@ -737,6 +780,65 @@ detalle.addEventListener('dragend', () => {
 });
 
 document.getElementById('fCuenta').addEventListener('change', e => { filterCuenta = e.target.value; render(); });
+document.getElementById('fEstatus').addEventListener('change', e => { filterEstatus = e.target.value; render(); });
+
+// ── Orden de la lista de clientes ────────────────────────────────────────────
+// Igual que las propiedades de un cliente: se arrastra del asa y el orden es del
+// equipo (`cliente.orden`). Con un filtro o una búsqueda puestos se sigue pudiendo:
+// los que se ven intercambian lugares entre sí y los demás no se mueven.
+function reordenarClientes(deId, aId, despues) {
+  const vis = clientes.filter(pasaFiltro).map(c => String(c.id));
+  const de = vis.indexOf(deId);
+  if (de < 0 || deId === aId) return;
+  vis.splice(de, 1);
+  const a = vis.indexOf(aId);
+  if (a < 0) return;
+  vis.splice(a + (despues ? 1 : 0), 0, deId);
+  const porId = new Map(clientes.map(c => [String(c.id), c]));
+  let i = 0;
+  clientes = clientes.map(c => vis.includes(String(c.id)) ? porId.get(vis[i++]) : c);
+  API.put('/clientes/orden', { ids: clientes.map(c => c.id) })
+    .catch(err => alert('No se pudo guardar el orden: ' + err.message));
+  renderLista();
+}
+const listaEl = document.getElementById('clList');
+let arrastrandoCl = null;
+const limpiarMarcasCl = () => listaEl.querySelectorAll('.drop-a, .drop-b').forEach(f => f.classList.remove('drop-a', 'drop-b'));
+listaEl.addEventListener('mousedown', e => {
+  const asa = e.target.closest('.cl-grip');
+  if (asa) asa.closest('.cl-item').draggable = true;
+});
+listaEl.addEventListener('mouseup', () => listaEl.querySelectorAll('.cl-item[draggable="true"]').forEach(f => { f.draggable = false; }));
+listaEl.addEventListener('dragstart', e => {
+  const it = e.target.closest?.('.cl-item');
+  if (!it?.draggable) return;
+  arrastrandoCl = it.dataset.id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', arrastrandoCl);
+  it.classList.add('dragging');
+});
+listaEl.addEventListener('dragover', e => {
+  const it = e.target.closest?.('.cl-item');
+  if (!arrastrandoCl || !it) return;
+  e.preventDefault();
+  const r = it.getBoundingClientRect();
+  limpiarMarcasCl();
+  if (it.dataset.id !== arrastrandoCl) it.classList.add(e.clientY > r.top + r.height / 2 ? 'drop-b' : 'drop-a');
+});
+listaEl.addEventListener('drop', e => {
+  const it = e.target.closest?.('.cl-item');
+  if (!arrastrandoCl || !it) return;
+  e.preventDefault();
+  const r = it.getBoundingClientRect();
+  const de = arrastrandoCl;
+  arrastrandoCl = null;
+  reordenarClientes(de, it.dataset.id, e.clientY > r.top + r.height / 2);
+});
+listaEl.addEventListener('dragend', () => {
+  arrastrandoCl = null;
+  limpiarMarcasCl();
+  listaEl.querySelectorAll('.cl-item.dragging').forEach(f => { f.classList.remove('dragging'); f.draggable = false; });
+});
 
 // El cliente abierto vive en la URL (#id): atrás/adelante y una liga a otro cliente
 // desde esta misma página sólo cambian el hash, que no recarga.
@@ -744,9 +846,13 @@ window.addEventListener('hashchange', () => {
   const id = decodeURIComponent(location.hash.slice(1)) || null;
   if (id !== selId) { selId = id; critAbierto = null; render(); }
 });
-document.getElementById('clList').addEventListener('click', e => {
+listaEl.addEventListener('click', e => {
   const it = e.target.closest('.cl-item');
-  if (it) seleccionar(it.dataset.id);
+  if (it && !e.target.closest('.cl-grip')) seleccionar(it.dataset.id);
+});
+// La fila ya no es un <button> (Firefox no deja arrastrar botones): Enter la abre.
+listaEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('.cl-item')) seleccionar(e.target.dataset.id);
 });
 document.getElementById('clientSearch').addEventListener('input', e => { searchQ = e.target.value.trim(); render(); });
 document.getElementById('new-client-btn').addEventListener('click', () => {

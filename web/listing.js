@@ -23,6 +23,9 @@ let listing = null, ficha = null, clientes = [], procesos = [], documentos = [],
 // Las fichas PDF guardadas de esta propiedad (ficha_version). `versionSel` es la que
 // está cargada en el formulario y la que imprime "Ficha PDF"; null es la General.
 let versiones = [], versionSel = null, pdfAbierto = false;
+// Lo que se está subiendo ahora mismo, para decirlo en su tarjeta: { docs, fotos }.
+const subiendo = { docs: 0, fotos: 0 };
+const MAX_ARCHIVO = 20 * 1024 * 1024;       // el mismo tope que pone la API
 
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 const mx = n => Number(n).toLocaleString('es-MX');
@@ -134,8 +137,58 @@ async function removeProceso(id) {
 async function addDocumento(label) {
   label = (label ?? '').trim();
   if (!label) return;
-  try { await asegurarFicha(); documentos.push(await API.post('/documentos', { ficha_id: ficha.id, label })); render(); }
+  try { await crearDocumento(label); render(); }
   catch (err) { alert('No se pudo agregar el documento: ' + err.message); }
+}
+async function crearDocumento(label) {
+  await asegurarFicha();
+  const d = { archivos: [], ...await API.post('/documentos', { ficha_id: ficha.id, label }) };
+  documentos.push(d);
+  return d;
+}
+
+// ── Archivos de un documento ─────────────────────────────────────────────────
+// Un documento era sólo un nombre con casilla; ahora puede llevar el archivo (o
+// varios: las hojas de una escritura). Se suben de tres formas: con "Adjuntar" en un
+// documento que ya existe, con "Archivos…" junto al campo de alta, o soltándolos sobre
+// la tarjeta. Al dar de alta con archivos: si se escribió un nombre, van todos a ese
+// documento; si no, cada archivo es un documento con su propio nombre.
+const pesoTxt = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+const sinExtension = n => n.replace(/\.[A-Za-z0-9]{1,5}$/, '') || n;
+function cabenTodos(files) {
+  const grande = files.find(f => f.size > MAX_ARCHIVO);
+  if (grande) alert(`"${grande.name}" pesa ${pesoTxt(grande.size)} y el máximo por archivo es ${pesoTxt(MAX_ARCHIVO)}.`);
+  return !grande;
+}
+// Sube `files` al documento `d`. Con el archivo ya adjunto el documento se da por
+// conseguido (la casilla se puede quitar después).
+async function adjuntar(d, files) {
+  for (const f of files) {
+    d.archivos = [...(d.archivos ?? []), await API.subir(`/documentos/${d.id}/archivos`, f)];
+  }
+  if (files.length && !d.done) {
+    d.done = true;
+    API.patch(`/documentos/${d.id}`, { done: true }).catch(err => console.warn(err.message));
+  }
+}
+async function subirDocumentos(files, { docId = null, label = '' } = {}) {
+  files = [...files];
+  if (!files.length || !cabenTodos(files)) return;
+  subiendo.docs = files.length; render();
+  try {
+    label = label.trim();
+    if (docId) await adjuntar(documentos.find(x => String(x.id) === String(docId)), files);
+    else if (label) await adjuntar(await crearDocumento(label), files);
+    else for (const f of files) await adjuntar(await crearDocumento(sinExtension(f.name)), [f]);
+  } catch (err) { alert('No se pudo subir el archivo: ' + err.message); }
+  subiendo.docs = 0; render();
+}
+async function removeArchivo(id) {
+  const d = documentos.find(x => (x.archivos ?? []).some(a => String(a.id) === String(id)));
+  const a = d?.archivos.find(x => String(x.id) === String(id));
+  if (!a || !confirm(`¿Borrar el archivo "${a.nombre}"?`)) return;
+  try { await API.del(`/archivos/${id}`); d.archivos = d.archivos.filter(x => x !== a); render(); }
+  catch (err) { alert('No se pudo borrar el archivo: ' + err.message); }
 }
 function toggleDocumento(id, done) {
   const d = documentos.find(x => String(x.id) === String(id));
@@ -144,6 +197,8 @@ function toggleDocumento(id, done) {
   render();
 }
 async function removeDocumento(id) {
+  const n = documentos.find(x => String(x.id) === String(id))?.archivos?.length ?? 0;
+  if (n && !confirm(`Este documento tiene ${n} ${n === 1 ? 'archivo adjunto' : 'archivos adjuntos'}. ¿Borrarlo con ${n === 1 ? 'su archivo' : 'sus archivos'}?`)) return;
   try { await API.del(`/documentos/${id}`); documentos = documentos.filter(x => String(x.id) !== String(id)); render(); }
   catch (err) { alert('No se pudo quitar el documento: ' + err.message); }
 }
@@ -232,7 +287,7 @@ async function borrarVersion(id) {
 async function saveBase(field, crudo) {
   if (!ficha) return;
   let patch;
-  if (field === 'fotos') patch = { fotos: crudo.split(/\s+/).filter(u => /^https?:/i.test(u)) };
+  if (field === 'fotos') patch = { fotos: crudo };
   else if (field === 'precio_m2') patch = { precio_m2: crudo === '' ? null : Number(crudo) };
   else patch = { [field]: crudo.trim() === '' ? null : crudo.trim() };
   if (JSON.stringify(patch[field]) === JSON.stringify(ficha[field] ?? null)) return;
@@ -243,6 +298,67 @@ async function saveBase(field, crudo) {
     pintarUbicacion();
   } catch (err) { alert('No se pudo guardar: ' + err.message); }
 }
+
+// ── Fotos de una propiedad propia ────────────────────────────────────────────
+// `ficha.fotos` es una lista de ligas. Una foto puede ser la liga de una imagen que ya
+// está en internet o un archivo que se sube aquí (queda como `/api/archivos/<id>`): se
+// elige del equipo, se arrastra sobre las miniaturas o se pega con Ctrl+V —la captura
+// de pantalla que se acaba de tomar—. La primera es la portada.
+const TIPOS_FOTO = /^image\/(jpeg|png|webp|gif)$/;
+const LADO_MAX = 2400;
+// Una foto de celular pesa 5–12 MB y aquí se ve a 1,200 px: se reduce en el navegador
+// antes de subirla. Si no hace falta (o el navegador no puede), sube tal cual.
+async function prepararFoto(file) {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
+    if (k === 1 && file.size <= 1.5 * 1048576) return file;
+    const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);     // un PNG transparente no sale negro
+    g.drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86));
+    return blob && blob.size < file.size ? new File([blob], sinExtension(file.name) + '.jpg', { type: 'image/jpeg' }) : file;
+  } catch { return file; }
+}
+async function refrescarFotos() {
+  listing = adaptListing(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+  repintar();
+}
+async function subirFotos(files) {
+  files = [...files].filter(f => TIPOS_FOTO.test(f.type));
+  if (!files.length) return alert('Sólo se pueden subir imágenes JPG, PNG, WEBP o GIF.');
+  if (!ficha) return;
+  subiendo.fotos = files.length; repintar();
+  try {
+    for (const f of files) {
+      const lista = await prepararFoto(f);
+      if (!cabenTodos([lista])) continue;
+      Object.assign(ficha, numeros(await API.subir(`/fichas/${ficha.id}/fotos`, lista)));
+    }
+  } catch (err) { alert('No se pudo subir la foto: ' + err.message); }
+  subiendo.fotos = 0;
+  await refrescarFotos().catch(err => console.warn(err.message));
+}
+// Quitar, poner de portada o agregar una liga: todo es guardar la lista nueva. La API
+// borra el archivo de una foto subida que ya no esté en ella.
+const guardarFotos = lista => saveBase('fotos', lista);
+function agregarLigaFoto(crudo) {
+  const ligas = (crudo ?? '').split(/\s+/).filter(u => /^https?:\/\//i.test(u));
+  if (!ligas.length) { if ((crudo ?? '').trim()) alert('La liga de una foto empieza con https://'); return; }
+  guardarFotos([...(ficha.fotos ?? []), ...ligas]);
+}
+// Pegar una imagen en cualquier parte de la página la sube como foto.
+document.addEventListener('paste', e => {
+  if (!listing || !ficha || !esPropia(listing)) return;
+  const imgs = [...(e.clipboardData?.files ?? [])].filter(f => TIPOS_FOTO.test(f.type));
+  if (!imgs.length) return;
+  e.preventDefault();
+  const sello = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+  subirFotos(imgs.map((f, i) => new File([f], /^image\./.test(f.name) || !f.name ? `captura-${sello}${i ? `-${i + 1}` : ''}.${f.type.split('/')[1]}` : f.name, { type: f.type })));
+});
+
 async function guardarEnInmobiliaria() {
   try { await asegurarFicha(); render(); }
   catch (err) { alert('No se pudo guardar en Inmobiliaria: ' + err.message); }
@@ -369,20 +485,45 @@ function render() {
             <label>Precio por m²<input type="number" class="base-in" data-f="precio_m2" value="${ficha.precio_m2 ?? ''}"></label>
           </div>
           <label>Liga del mapa<input class="base-in" data-f="mapa_url" value="${esc(ficha.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…"></label>
-          <label>Fotos (una liga por renglón)<textarea class="base-in" data-f="fotos" rows="3" placeholder="https://…">${esc((ficha.fotos ?? []).join('\n'))}</textarea></label>` : ''}
+          <div class="fx-fotos" id="fotosEd">
+            <span class="fx-lab">Fotos <small>${(ficha.fotos ?? []).length ? 'la primera es la portada' : 'aún no hay'}</small></span>
+            ${(ficha.fotos ?? []).length ? `<div class="fx-thumbs">${ficha.fotos.map((u, i) => `<span class="fx-thumb${i ? '' : ' portada'}">
+              <img src="${srcSeguro(u)}" alt="" loading="lazy">
+              ${i ? `<button class="foto-top" data-i="${i}" title="Usar como portada">&#8593;</button>` : ''}
+              <button class="foto-del" data-i="${i}" title="Quitar foto">&times;</button></span>`).join('')}</div>` : ''}
+            <div class="fx-add">
+              <input class="foto-url" placeholder="Pega la liga de una foto (https://…)" aria-label="Liga de una foto">
+              <button type="button" class="foto-sube">Subir fotos&#8230;</button>
+            </div>
+            <p class="fx-hint">${subiendo.fotos ? `Subiendo ${subiendo.fotos} ${subiendo.fotos === 1 ? 'foto' : 'fotos'}&#8230;`
+              : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí o pegar una captura de pantalla con Ctrl+V.'}</p>
+            <input type="file" id="fotoFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
+          </div>` : ''}
         </details>
       </section>
 
-      <section class="fx-card">
+      <section class="fx-card" id="docsCard">
         <h2>Documentos <span class="fx-n">${hechos} / ${documentos.length}</span></h2>
         ${documentos.length ? `<div class="fx-prog"><span style="width:${Math.round(hechos / documentos.length * 100)}%"></span></div>` : ''}
         <div class="fx-docs">
-          ${documentos.map(d => `<div class="fx-doc${d.done ? ' done' : ''}">
+          ${documentos.map(d => `<div class="fx-doc${d.done ? ' done' : ''}" data-id="${esc(d.id)}">
             <label><input type="checkbox" class="doc-chk" data-id="${d.id}"${d.done ? ' checked' : ''}><span>${esc(d.label)}</span></label>
-            <button class="doc-del" data-id="${d.id}" title="Quitar">&times;</button></div>`).join('')
+            <button class="doc-clip" data-id="${d.id}" title="Adjuntar uno o varios archivos a este documento">Adjuntar</button>
+            <button class="doc-del" data-id="${d.id}" title="Quitar">&times;</button></div>
+            ${(d.archivos ?? []).map(a => `<div class="fx-file">
+              <a href="/api/archivos/${encodeURIComponent(a.id)}" target="_blank" rel="noopener" title="Abrir o descargar">${esc(a.nombre)}</a>
+              <small>${pesoTxt(a.tamano)}</small>
+              <button class="file-del" data-id="${esc(a.id)}" title="Borrar archivo">&times;</button></div>`).join('')}`).join('')
             || '<p class="fx-hint">Sin documentos todavía.</p>'}
         </div>
-        <div class="fx-add"><input class="doc-input" placeholder="+ Agregar documento (predial, planos…)"><button class="doc-add">Agregar</button></div>
+        <div class="fx-add">
+          <input class="doc-input" placeholder="+ Agregar documento (predial, planos…)">
+          <button class="doc-file" title="Elegir uno o varios archivos. Con nombre escrito van a ese documento; sin nombre, cada archivo es un documento.">Archivos&#8230;</button>
+          <button class="doc-add">Agregar</button>
+        </div>
+        <p class="fx-hint">${subiendo.docs ? `Subiendo ${subiendo.docs} ${subiendo.docs === 1 ? 'archivo' : 'archivos'}&#8230;`
+          : 'Puedes arrastrar archivos aquí: PDF, imágenes, Word, Excel… hasta 20 MB cada uno.'}</p>
+        <input type="file" id="docFile" multiple hidden>
       </section>
 
       <div class="fx-stack">
@@ -440,11 +581,53 @@ function enlazar() {
   document.querySelector('.doc-input').onkeydown = e => { if (e.key === 'Enter') addDocumento(e.target.value); };
   document.querySelectorAll('.doc-chk').forEach(c => c.onchange = e => toggleDocumento(e.target.dataset.id, e.target.checked));
   document.querySelectorAll('.doc-del').forEach(b => b.onclick = e => removeDocumento(e.currentTarget.dataset.id));
+  // Archivos de los documentos. Un solo <input type=file> para todos: `docDestino`
+  // dice a qué documento van (null: son documentos nuevos).
+  const docFile = $('docFile');
+  let docDestino = null;
+  docFile.onchange = () => subirDocumentos(docFile.files,
+    docDestino ? { docId: docDestino } : { label: document.querySelector('.doc-input').value });
+  document.querySelectorAll('.doc-clip').forEach(b => b.onclick = () => { docDestino = b.dataset.id; docFile.click(); });
+  document.querySelector('.doc-file').onclick = () => { docDestino = null; docFile.click(); };
+  document.querySelectorAll('.file-del').forEach(b => b.onclick = () => removeArchivo(b.dataset.id));
+  soltarArchivos($('docsCard'), (files, e) =>
+    subirDocumentos(files, { docId: e.target.closest('.fx-doc')?.dataset.id ?? null }));
+  // Fotos de una propiedad propia.
+  if ($('fotosEd')) {
+    const fotos = () => (ficha.fotos ?? []).slice();
+    $('fotoFile').onchange = e => subirFotos(e.target.files);
+    document.querySelector('.foto-sube').onclick = () => $('fotoFile').click();
+    const url = document.querySelector('.foto-url');
+    // Se vacía antes de guardar: si no, el `change` que sigue al Enter la agregaría dos veces.
+    url.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const v = url.value; url.value = ''; agregarLigaFoto(v); } };
+    url.onchange = () => agregarLigaFoto(url.value);
+    document.querySelectorAll('.foto-del').forEach(b => b.onclick = () => {
+      if (confirm('¿Quitar esta foto?')) guardarFotos(fotos().filter((_, i) => i !== +b.dataset.i));
+    });
+    document.querySelectorAll('.foto-top').forEach(b => b.onclick = () => {
+      const f = fotos(); f.unshift(...f.splice(+b.dataset.i, 1)); guardarFotos(f);
+    });
+    soltarArchivos($('fotosEd'), files => subirFotos(files));
+  }
   document.querySelectorAll('.proc-status').forEach(s => s.onchange = e => {
     setProcesoStatus(e.target.dataset.proc, e.target.value);
     e.target.className = 'proc-status e-' + e.target.value;
   });
   document.querySelectorAll('.proc-del').forEach(b => b.onclick = e => removeProceso(e.currentTarget.dataset.proc));
+}
+
+// Deja soltar archivos del equipo sobre `caja`. Sólo reacciona a archivos: arrastrar
+// texto o una liga sigue haciendo lo de siempre.
+function soltarArchivos(caja, alSoltar) {
+  const trae = e => [...(e.dataTransfer?.types ?? [])].includes('Files');
+  caja.ondragover = e => { if (trae(e)) { e.preventDefault(); caja.classList.add('soltar'); } };
+  caja.ondragleave = e => { if (!caja.contains(e.relatedTarget)) caja.classList.remove('soltar'); };
+  caja.ondrop = e => {
+    if (!trae(e)) return;
+    e.preventDefault();
+    caja.classList.remove('soltar');
+    alSoltar([...e.dataTransfer.files], e);
+  };
 }
 
 // El análisis de mercado se genera en el servidor, al revés que la ficha PDF, que

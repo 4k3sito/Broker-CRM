@@ -8,6 +8,9 @@ const API = {
       headers: cuerpo ? { 'Content-Type': 'application/json' } : undefined,
       body: cuerpo ? JSON.stringify(cuerpo) : undefined,
     });
+    return API.leer(r);
+  },
+  async leer(r) {
     if (r.status === 401 && !location.pathname.endsWith('login.html')) {
       location.href = 'login.html';
       throw new Error('Sesión expirada');
@@ -22,6 +25,15 @@ const API = {
   put:    (ruta, cuerpo) => API.req('PUT', ruta, cuerpo),
   patch:  (ruta, cuerpo) => API.req('PATCH', ruta, cuerpo),
   del:    (ruta)         => API.req('DELETE', ruta),
+
+  // Sube un archivo: el cuerpo ES el archivo (sin multipart) y el nombre va en la URL.
+  // El tipo no se manda: la API lo lee de los bytes (ver "Archivos" en main.py).
+  async subir(ruta, archivo, nombre) {
+    return API.leer(await fetch(`/api${ruta}${API.qs({ nombre: nombre ?? archivo.name })}`, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/octet-stream' }, body: archivo,
+    }));
+  },
 
   // Query string a partir de un objeto, saltando vacíos.
   qs(params) {

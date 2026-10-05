@@ -2037,6 +2037,34 @@ tr.igual.ocultar { display:none; }
 .fx-doc .doc-del:hover, .fx-proc .proc-del:hover { color:var(--s-rechazado); }
 .fx-add { display:flex; gap:6px; }
 .fx-add button { padding:0 12px; border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); font-size:12.5px; font-weight:600; cursor:pointer; }
+/* Archivos de un documento: cuelgan debajo de su renglón, sangrados a la altura del
+   nombre. "Adjuntar" y "Archivos…" son botones de línea, no de acción principal. */
+.fx-doc .doc-clip, .fx-add .doc-file, .fx-add .foto-sube {
+  height:24px; padding:0 8px; border:1px solid var(--border-2); background:transparent; color:var(--muted);
+  font-family:var(--font-ui); font-size:11.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+}
+.fx-add .doc-file, .fx-add .foto-sube { height:auto; }
+.fx-add .foto-url { min-width:0; }
+.fx-doc .doc-clip:hover, .fx-add .doc-file:hover, .fx-add .foto-sube:hover { border-color:var(--accent); color:var(--ink); }
+.fx-file { display:flex; align-items:center; gap:8px; margin:-2px 0 0 24px; padding-left:9px; border-left:2px solid var(--border); font-size:12.5px; }
+.fx-file a { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--accent); }
+.fx-file small { font-family:var(--font-mono); font-size:9.5px; color:var(--faint); flex-shrink:0; }
+.fx-file .file-del, .fx-thumb button { border:none; cursor:pointer; }
+.fx-file .file-del { width:24px; height:22px; background:transparent; color:var(--faint); font-size:14px; }
+.fx-file .file-del:hover { color:var(--s-rechazado); }
+.fx-card.soltar, .fx-fotos.soltar { outline:2px dashed var(--accent); outline-offset:-2px; }
+/* Fotos de una propiedad propia: miniaturas con quitar y "de portada". */
+.fx-fotos { display:flex; flex-direction:column; gap:8px; }
+.fx-lab { font-size:11px; color:var(--muted); }
+.fx-lab small { color:var(--faint); }
+.fx-thumbs { display:grid; grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:6px; }
+.fx-thumb { position:relative; aspect-ratio:4 / 3; background:var(--accent-soft); }
+.fx-thumb.portada { outline:2px solid var(--accent); outline-offset:-2px; }
+.fx-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.fx-thumb button { position:absolute; top:2px; width:20px; height:20px; background:var(--ink); color:var(--surface); font-size:12px; line-height:1; }
+.fx-thumb .foto-del { right:2px; }
+.fx-thumb .foto-top { left:2px; }
+.fx-thumb button:hover { background:var(--accent); color:var(--on-accent); }
 .fx-proc { display:flex; align-items:center; gap:8px; font-size:13px; }
 .fx-proc > span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .fx-hint { font-size:12.5px; color:var(--faint); }
@@ -2150,7 +2178,7 @@ tr.igual.ocultar { display:none; }
 .cl-empresa { font-size:12.5px !important; color:var(--muted) !important; }
 .cl-acts { display:flex; gap:6px; }
 .cl-acts .fx-btn { height:32px; font-size:12.5px; }
-.cl-fields { display:grid; grid-template-columns:1fr 2fr; border:1px solid var(--border); }
+.cl-fields { display:grid; grid-template-columns:1fr 1fr 2fr; border:1px solid var(--border); }
 .cl-f { display:flex; flex-direction:column; gap:2px; padding:7px 10px 6px; }
 .cl-f + .cl-f { border-left:1px solid var(--border); }
 .cl-f > span { font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
@@ -2287,6 +2315,22 @@ textarea.cl-ein { resize:vertical; line-height:1.5; }
 button.cl-chip { border:1px solid transparent; font-family:var(--font-ui); cursor:pointer; }
 button.cl-chip.on { border-color:currentColor; }
 .cl-resp { width:22px; height:22px; font-size:9px; }
+/* Estatus del cliente (activo, contactando…): un color por estatus, en la lista y en
+   el selector de su ficha. Y el asa para reordenar la lista, que sólo se ve al pasar. */
+.est-activo { --est:var(--s-aprobado); }
+.est-contactando { --est:var(--s-presentado); }
+.est-por_contactar { --est:var(--tono-2); }
+.est-inactivo { --est:var(--s-descartado); }
+.cl-est { font-style:normal; font-weight:600; color:var(--est); }
+.cl-est::after { content:" · "; color:var(--faint); font-weight:400; }
+.cl-sel[class*="est-"] { color:var(--est); font-weight:600; }
+.cl-sel option { color:var(--ink); background:var(--surface); font-weight:400; }
+.cl-item > .cl-grip { width:10px; margin:0 -4px 0 -6px; opacity:0; }
+.cl-item:hover > .cl-grip, .cl-item:focus-visible > .cl-grip { opacity:1; }
+.cl-item:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.cl-item.dragging { opacity:.4; }
+.cl-item.drop-a { border-top:2px solid var(--accent); }
+.cl-item.drop-b { border-bottom:2px solid var(--accent); }
 .cl-th { min-height:28px; font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
 .cl-th-img { width:52px; height:36px; object-fit:cover; display:block; }
 .cl-th-img.vacio { background:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0 1px,transparent 1px 7px),var(--blue); }
@@ -2310,6 +2354,7 @@ button.cl-chip.on { border-color:currentColor; }
   .cl:not(.has-sel) .cl-detail { display:none; }
   .cl-back { display:inline-flex; align-self:flex-start; border:none; background:transparent; padding:6px 0; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; }
   .cl-item { min-height:56px; }
+  .cl-item > .cl-grip { display:none; }
   .cl-fields { grid-template-columns:1fr; }
   .cl-f + .cl-f { border-left:none; border-top:1px solid var(--border); }
   /* En el teléfono la fila es número, foto, nombre y etapa; lo demás está en el panel

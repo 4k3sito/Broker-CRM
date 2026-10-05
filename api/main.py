@@ -27,6 +27,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Body, Cookie, Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from psycopg import errors as psycopg_errors
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
@@ -617,6 +618,11 @@ def _filtros(a: dict) -> tuple[list[str], list]:
             cond.append("p.status = ANY(%s)"); p.append(etapas)
         w.append("EXISTS (SELECT 1 FROM proceso p JOIN ficha f ON f.id = p.ficha_id WHERE "
                  + " AND ".join(cond) + ")")
+    # Inmobiliaria, lo contrario: lo que está en la bolsa propia y no se le ha
+    # presentado a nadie (ningún proceso sobre su ficha).
+    if a.get("sin_cliente"):
+        w.append("NOT EXISTS (SELECT 1 FROM proceso p JOIN ficha f ON f.id = p.ficha_id "
+                 f"WHERE {FICHA_DE_L})")
     return w, p
 
 
@@ -642,6 +648,7 @@ def list_listings(
     ppm_max: float | None = None,
     ficha: str | None = Query(None, pattern="^(con|sin)$"),
     pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
+    sin_cliente: bool = False,
     etapa: list[str] | None = Query(None),
     estado: str | None = None,
     favoritos: bool = False,
@@ -686,6 +693,7 @@ def facets(
     ppm_min: float | None = None, ppm_max: float | None = None,
     ficha: str | None = Query(None, pattern="^(con|sin)$"),
     pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
+    sin_cliente: bool = False,
     etapa: list[str] | None = Query(None),
     favoritos: bool = False, near: str | None = None, radio: int = 2000,
 ) -> dict:
@@ -903,7 +911,7 @@ def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_use
 # El cliente sigue sin poder mandar un `user_id`: lo pone la sesión.
 
 CLIENTE_COLS = ("nombre", "contacto", "empresa", "requerimientos", "notas",
-                "responsable", "responsable_id", "criterios")
+                "responsable", "responsable_id", "criterios", "estatus")
 FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "fotos", "notas",
               "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng")
 # Lo que guarda una ficha PDF con nombre (ficha_version.datos): sólo lo que imprime.
@@ -1087,7 +1095,7 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                  FROM proceso p JOIN ficha f ON f.id = p.ficha_id
                  LEFT JOIN usuario tu ON tu.id = p.trae_id
                  WHERE p.cliente_id = c.id) j ON true
-               ORDER BY c.created_at DESC""").fetchall()
+               ORDER BY c.orden NULLS FIRST, c.created_at DESC""").fetchall()
 
 
 @app.post("/api/clientes", status_code=201)
@@ -1106,6 +1114,26 @@ def editar_cliente(cid: str, body: dict = Body(...), user: dict = Depends(curren
 @app.delete("/api/clientes/{cid}", status_code=204)
 def borrar_cliente(cid: str, user: dict = Depends(current_user)) -> None:
     _delete("cliente", cid, user)
+
+
+@app.put("/api/clientes/orden")
+def ordenar_clientes(body: dict = Body(...), _: dict = Depends(current_user)) -> dict:
+    """El orden de la lista de clientes, tal como quedó al arrastrar: `ids` es la lista
+    completa y `orden` pasa a ser la posición. Es del equipo: todos ven el mismo. Un
+    cliente que no venga en la lista (lo creó alguien más mientras tanto) conserva el
+    suyo, y uno nuevo tiene NULL, que va arriba."""
+    ids = body.get("ids")
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        raise HTTPException(422, "ids debe ser la lista de clientes en su orden nuevo")
+    with POOL.connection() as conn:
+        try:
+            n = conn.execute(
+                """UPDATE cliente c SET orden = o.pos
+                   FROM unnest(%s::uuid[]) WITH ORDINALITY AS o(id, pos)
+                   WHERE c.id = o.id""", (ids,)).rowcount
+        except psycopg_errors.InvalidTextRepresentation:
+            raise HTTPException(422, "ids debe traer sólo ids de cliente") from None
+    return {"ok": True, "n": n}
 
 
 @app.put("/api/clientes/{cid}/orden")
@@ -1151,6 +1179,8 @@ def crear_ficha(body: dict = Body(...), user: dict = Depends(current_user)) -> d
         raise HTTPException(422, "El título es obligatorio")
     with POOL.connection() as conn:
         # Una ficha por listing y por asesor: volver a crearla devuelve la existente.
+        if "fotos" in body:
+            body = dict(body, fotos=_fotos_validas(body["fotos"]))
         return _insert(conn, "ficha", derivar_precio({}, _con_coordenada(body)), FICHA_COLS, user["id"],
                        extra="ON CONFLICT (user_id, source_listing_id) "
                              "DO UPDATE SET updated_at = now()")
@@ -1166,7 +1196,16 @@ def editar_ficha(fid: str, body: dict = Body(...), user: dict = Depends(current_
             except psycopg_errors.InvalidTextRepresentation:
                 actual = None
         body = derivar_precio(actual or {}, body)
-    return _patch("ficha", fid, _con_coordenada(body), FICHA_COLS[1:], user)
+    if "fotos" in body:
+        body = dict(body, fotos=_fotos_validas(body["fotos"]))
+    fila = _patch("ficha", fid, _con_coordenada(body), FICHA_COLS[1:], user)
+    if "fotos" in body:
+        # Una foto subida que ya no está en la lista se borra con su archivo: si no,
+        # quedaría guardada sin que nada la muestre.
+        with POOL.connection() as conn:
+            conn.execute("DELETE FROM archivo WHERE ficha_id = %s AND documento_id IS NULL "
+                         "AND NOT (%s || id::text = ANY(%s))", (fid, RUTA_ARCHIVO, fila["fotos"]))
+    return fila
 
 
 @app.delete("/api/fichas/{fid}", status_code=204)
@@ -1275,9 +1314,17 @@ def borrar_proceso(pid: str, user: dict = Depends(current_user)) -> None:
 @app.get("/api/documentos")
 def documentos(ficha_id: str, _: dict = Depends(current_user)) -> list[dict]:
     with POOL.connection() as conn:
-        return conn.execute(
-            "SELECT * FROM ficha_documento WHERE ficha_id = %s ORDER BY created_at",
-            (ficha_id,)).fetchall()
+        try:
+            return conn.execute(
+                """SELECT d.*, coalesce((
+                     SELECT json_agg(json_build_object('id', a.id, 'nombre', a.nombre,
+                                                       'mime', a.mime, 'tamano', a.tamano)
+                                     ORDER BY a.created_at)
+                     FROM archivo a WHERE a.documento_id = d.id), '[]'::json) AS archivos
+                   FROM ficha_documento d WHERE d.ficha_id = %s ORDER BY d.created_at""",
+                (ficha_id,)).fetchall()
+        except psycopg_errors.InvalidTextRepresentation:
+            raise HTTPException(404, "No existe") from None
 
 
 @app.post("/api/documentos", status_code=201)
@@ -1298,6 +1345,168 @@ def editar_documento(did: str, body: dict = Body(...), user: dict = Depends(curr
 @app.delete("/api/documentos/{did}", status_code=204)
 def borrar_documento(did: str, user: dict = Depends(current_user)) -> None:
     _delete("ficha_documento", did, user)
+
+
+# ── Archivos: adjuntos de un documento y fotos de una propiedad ───────────────
+# El cuerpo de la petición ES el archivo (sin multipart: no hace falta otra
+# dependencia) y el nombre viaja en `?nombre=`. Se guardan en la tabla `archivo` (ver
+# schema.sql para el porqué) y se sirven sólo con sesión: predial y escrituras no son
+# públicos, así que no pasan por el file_server de Caddy.
+#
+# Lo que sube un usuario se sirve desde el mismo origen que el sitio, y eso es XSS
+# almacenado si se sirve como lo que el usuario dice que es (un .html o un .svg con
+# <script>). Por eso el tipo NO se le cree al navegador: se lee de los primeros bytes,
+# sólo imágenes y PDF se muestran en la pestaña, y todo lo demás baja como
+# `application/octet-stream` con `Content-Disposition: attachment`. Ver SECURITY.md.
+MAX_ARCHIVO = 20 * 1024 * 1024
+MAX_FOTOS = 40
+RUTA_ARCHIVO = "/api/archivos/"
+MIME_FOTO = ("image/jpeg", "image/png", "image/webp", "image/gif")
+MIME_EN_LINEA = MIME_FOTO + ("application/pdf",)
+_FOTO_SUBIDA = re.compile(r"^/api/archivos/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
+
+
+def tipo_real(datos: bytes) -> str:
+    """El tipo según los primeros bytes; lo que no se reconoce es un binario."""
+    if datos[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if datos[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if datos[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if datos[:4] == b"RIFF" and datos[8:12] == b"WEBP":
+        return "image/webp"
+    if datos[:5] == b"%PDF-":
+        return "application/pdf"
+    return "application/octet-stream"
+
+
+def nombre_archivo(crudo: str | None) -> str:
+    """Sólo el nombre: sin ruta, sin caracteres de control, y nunca vacío."""
+    n = re.sub(r"[\x00-\x1f\x7f]", "", (crudo or "")).replace("\\", "/").split("/")[-1].strip()
+    return n[:150] or "archivo"
+
+
+def _fotos_validas(fotos) -> list[str]:
+    """`ficha.fotos` acepta ligas http(s) y fotos subidas, nada más: lo que entra aquí
+    acaba en un `src`."""
+    if not isinstance(fotos, list):
+        raise HTTPException(422, "fotos debe ser una lista")
+    ok = [f.strip() for f in fotos if isinstance(f, str)
+          and (re.match(r"^https?://", f.strip(), re.I) or _FOTO_SUBIDA.match(f.strip()))]
+    return list(dict.fromkeys(ok))[:MAX_FOTOS]
+
+
+async def _cuerpo(request: Request) -> bytes:
+    """El archivo que viene en el cuerpo, cortando en cuanto pasa del tope en vez de
+    leerlo entero a memoria para luego rechazarlo."""
+    demasiado = HTTPException(413, f"El archivo pasa de {MAX_ARCHIVO // 1024 // 1024} MB")
+    if (request.headers.get("content-length") or "0").isdigit() \
+            and int(request.headers.get("content-length") or 0) > MAX_ARCHIVO:
+        raise demasiado
+    partes, n = [], 0
+    async for trozo in request.stream():
+        n += len(trozo)
+        if n > MAX_ARCHIVO:
+            raise demasiado
+        partes.append(trozo)
+    if not n:
+        raise HTTPException(422, "El archivo está vacío")
+    return b"".join(partes)
+
+
+ARCHIVO_META = "id, ficha_id, documento_id, nombre, mime, tamano, created_at"
+
+
+def _guardar_archivo(conn, user_id, ficha_id, documento_id, nombre: str, datos: bytes) -> dict:
+    return conn.execute(
+        f"""INSERT INTO archivo (user_id, ficha_id, documento_id, nombre, mime, tamano, datos)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING {ARCHIVO_META}""",
+        (user_id, ficha_id, documento_id, nombre_archivo(nombre), tipo_real(datos),
+         len(datos), datos)).fetchone()
+
+
+@app.post("/api/documentos/{did}/archivos", status_code=201)
+async def subir_archivo(did: str, request: Request, nombre: str = Query("", max_length=300),
+                        user: dict = Depends(current_user)) -> dict:
+    datos = await _cuerpo(request)
+
+    def guardar() -> dict:
+        with POOL.connection() as conn:
+            try:
+                doc = conn.execute("SELECT ficha_id FROM ficha_documento WHERE id = %s",
+                                   (did,)).fetchone()
+            except psycopg_errors.InvalidTextRepresentation:
+                doc = None
+            if not doc:
+                raise HTTPException(404, "No existe")
+            return _guardar_archivo(conn, user["id"], doc["ficha_id"], did, nombre, datos)
+    return await run_in_threadpool(guardar)
+
+
+@app.post("/api/fichas/{fid}/fotos", status_code=201)
+async def subir_foto(fid: str, request: Request, nombre: str = Query("", max_length=300),
+                     user: dict = Depends(current_user)) -> dict:
+    """Sube una foto y la agrega al final de `ficha.fotos`. Devuelve la ficha."""
+    datos = await _cuerpo(request)
+    if tipo_real(datos) not in MIME_FOTO:
+        raise HTTPException(415, "Sólo se aceptan imágenes JPG, PNG, WEBP o GIF")
+
+    def guardar() -> dict:
+        with POOL.connection() as conn:
+            _owned(conn, "ficha", fid)
+            # FOR UPDATE: dos fotos subidas a la vez no se pisan la lista una a otra.
+            n = conn.execute("SELECT cardinality(fotos) AS n FROM ficha WHERE id = %s FOR UPDATE",
+                             (fid,)).fetchone()["n"]
+            if n >= MAX_FOTOS:
+                raise HTTPException(422, f"Una propiedad acepta {MAX_FOTOS} fotos como máximo")
+            a = _guardar_archivo(conn, user["id"], fid, None, nombre, datos)
+            return conn.execute(
+                "UPDATE ficha SET fotos = array_append(fotos, %s), updated_at = now() "
+                "WHERE id = %s RETURNING *", (f"{RUTA_ARCHIVO}{a['id']}", fid)).fetchone()
+    return await run_in_threadpool(guardar)
+
+
+@app.get("/api/archivos/{aid}")
+def bajar_archivo(aid: str, _: dict = Depends(current_user)) -> Response:
+    with POOL.connection() as conn:
+        try:
+            a = conn.execute("SELECT nombre, mime, datos, documento_id FROM archivo WHERE id = %s",
+                             (aid,)).fetchone()
+        except psycopg_errors.InvalidTextRepresentation:
+            a = None
+    if not a:
+        raise HTTPException(404, "No existe")
+    en_linea = a["mime"] in MIME_EN_LINEA
+    return Response(
+        content=bytes(a["datos"]),
+        media_type=a["mime"] if en_linea else "application/octet-stream",
+        headers={"Content-Disposition":
+                 f"{'inline' if en_linea else 'attachment'}; "
+                 f"filename*=UTF-8''{urllib.parse.quote(a['nombre'])}",
+                 # Una foto se pinta en cada tarjeta y en cada fila, y el contenido de un
+                 # id no cambia nunca: el navegador puede guardarla (`private`: sólo
+                 # él). Un documento no: predial y escrituras no se quedan en el disco
+                 # de una computadora compartida después de cerrar sesión. Caddy sólo
+                 # pone su `no-store` si la API no dijo nada (ver Caddyfile).
+                 "Cache-Control": "private, max-age=31536000, immutable"
+                                  if a["documento_id"] is None else "no-store",
+                 "X-Content-Type-Options": "nosniff"})
+
+
+@app.delete("/api/archivos/{aid}", status_code=204)
+def borrar_archivo(aid: str, _: dict = Depends(current_user)) -> None:
+    with POOL.connection() as conn:
+        try:
+            a = conn.execute("DELETE FROM archivo WHERE id = %s RETURNING ficha_id, documento_id",
+                             (aid,)).fetchone()
+        except psycopg_errors.InvalidTextRepresentation:
+            a = None
+        if not a:
+            raise HTTPException(404, "No existe")
+        if a["documento_id"] is None:             # era una foto: sale también de la lista
+            conn.execute("UPDATE ficha SET fotos = array_remove(fotos, %s), updated_at = now() "
+                         "WHERE id = %s", (f"{RUTA_ARCHIVO}{aid}", a["ficha_id"]))
 
 
 def _adaptar(v):
@@ -1887,6 +2096,26 @@ def selfcheck() -> None:
     assert "SRID=4326;POINT(-100.3 25.6)" in p
 
     # Ubicación múltiple: varios municipios en un solo ANY, y nada de ids inventados.
+    # Inmobiliaria "sin cliente asignado": ningún proceso sobre la ficha de la fila.
+    w, p = _filtros({"sin_cliente": True})
+    assert len(w) == 1 and w[0].startswith("NOT EXISTS (SELECT 1 FROM proceso") and not p
+    assert _filtros({"sin_cliente": False}) == ([], [])
+
+    # Archivos: el tipo sale de los bytes, no de lo que diga quien lo sube.
+    assert tipo_real(b"\xff\xd8\xff\xe0" + b"0" * 8) == "image/jpeg"
+    assert tipo_real(b"\x89PNG\r\n\x1a\n" + b"0" * 8) == "image/png"
+    assert tipo_real(b"RIFF0000WEBPVP8 ") == "image/webp"
+    assert tipo_real(b"%PDF-1.7") == "application/pdf"
+    for malo in (b"<html><script>alert(1)</script>", b"<svg xmlns='http://www.w3.org/2000/svg'>", b""):
+        assert tipo_real(malo) == "application/octet-stream"
+        assert tipo_real(malo) not in MIME_EN_LINEA, "esto no se puede servir en la pestaña"
+    assert nombre_archivo("../../etc/passwd") == "passwd"
+    assert nombre_archivo("C:\\Users\\a\\Predial 2026.pdf") == "Predial 2026.pdf"
+    assert nombre_archivo(" \r\n ") == "archivo" and nombre_archivo(None) == "archivo"
+    u = "/api/archivos/0b0e3c1a-1111-4222-8333-444455556666"
+    assert _fotos_validas(["https://x.mx/a.jpg", u, u, "javascript:alert(1)", "/api/me",
+                           u + "/../../me", 7]) == ["https://x.mx/a.jpg", u]
+
     w, p = _filtros({"lugar": ["m40", "m47"]})
     assert w == ["(l.zona_id = ANY(%s))"] and p == [[40, 47]], (w, p)
     # Los dos niveles se unen con OR, no con AND: la intersección sería casi siempre vacía.
