@@ -266,7 +266,7 @@ Las 464,014 filas que ya existían recibieron su punto de partida el 2026-09-21 
 
 Una **ficha** es la propiedad dentro del CRM y hay dos clases: la de un anuncio
 (`source_listing_id`) y la **propia** (sin anuncio: las del sheet y las que se dan de alta
-en Inmobiliaria), que la API presenta como `pipeline:<uuid>`. Un **proceso** es cliente ×
+en Catálogo), que la API presenta como `pipeline:<uuid>`. Un **proceso** es cliente ×
 ficha. Lo que no es obvio:
 
 - **Los datos del inmueble son de la ficha, no del proceso.** Editarlos desde la tabla de

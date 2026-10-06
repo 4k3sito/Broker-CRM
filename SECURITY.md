@@ -103,7 +103,7 @@ presentes:
 - **Cualquier cuenta puede borrar cualquier cliente**, y con él sus procesos en cascada.
   No hay papelera ni historial. Es el mismo riesgo que ya tenían las tareas.
 - **Y cualquier ficha** (`DELETE /api/fichas/{id}`, que existía sin botón; desde el
-  2026-10-06 lo usan la bandeja de Inmobiliaria y la página de la propiedad). Se lleva
+  2026-10-06 lo usan la bandeja del Catálogo y la página de la propiedad). Se lleva
   en cascada sus procesos, documentos, archivos y fichas PDF. Un anuncio de portal
   vuelve a la Bolsa; una propiedad dada de alta a mano se pierde. Sólo hay un `confirm`.
 - **Borrar a un asesor ya no se lleva su CRM**: `cliente`, `ficha`, `proceso` y
@@ -200,7 +200,7 @@ con sesión; nada nuevo es público.
 | `DELETE /api/archivos/{id}` | Lo borra (y lo quita de `ficha.fotos` si era foto) | |
 | `PUT /api/clientes/orden` | Guarda el orden de la lista de clientes | Sólo escribe `cliente.orden`. |
 | `PATCH /api/clientes/{id}` | Acepta además `estatus` | CHECK en la base: un valor fuera de los cuatro da 422. |
-| `GET /api/listings?sin_cliente=true` | Inmobiliaria: fichas sin ningún proceso | Booleano, sin parámetros en el SQL. |
+| `GET /api/listings?sin_cliente=true` | Catálogo: fichas sin ningún proceso | Booleano, sin parámetros en el SQL. |
 
 **XSS almacenado.** Un archivo subido se sirve desde el mismo origen que el sitio, y la
 CSP (`script-src 'self'`) no protege de eso: un `.html` subido ES `'self'`. Por eso:
@@ -310,7 +310,7 @@ restricción cualquiera puede gastarla desde otro sitio. `/api/listings` agrega 
 `lng` y `geo_origen`, y calla la coordenada de las 250 filas `relleno`. El rediseño además interpola `style=` en más sitios (barras
 de clientes, progreso de documentos): H4 se vuelve más difícil de cerrar, no más fácil.
 
-### Endpoints (2026-09-29) — Bolsa Inmobiliaria / Inmobiliaria
+### Endpoints (2026-09-29) — Bolsa Inmobiliaria / Catálogo (entonces «Inmobiliaria»)
 
 `GET /api/listings` y `/facets` aceptan `ficha` (`con`|`sin`, validado por patrón),
 `pcliente` (uuid, validado por patrón y casteado en SQL) y `etapa` (lista, va como

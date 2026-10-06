@@ -25,7 +25,7 @@ con un solo `Cache-Control: no-store`, estáticos idénticos a los del repo).
   (`cliente.orden`, `PUT /api/clientes/orden`). El orden es del equipo, no de cada
   quien. Con un filtro puesto se reordena entre los que se ven. Un cliente nuevo sale
   arriba. En el teléfono no hay asa (misma limitación que las propiedades).
-- **Inmobiliaria → "Sin cliente asignado"**: es la segunda opción del filtro Cliente
+- **Catálogo → "Sin cliente asignado"**: es la segunda opción del filtro Cliente
   (`?sin_cliente=true`). También sirve `index.html?tab=inmobiliaria&pcliente=sin`.
 - **Ficha → archivos en los documentos**: "Adjuntar" en cada documento, "Archivos…" al
   dar de alta (con nombre escrito van todos a ese documento; sin nombre, un documento
@@ -74,8 +74,10 @@ Con este despliegue salió también a producción el análisis de mercado comple
   (`derivar_precio`). Si están los tres y cambia la superficie, se conserva el $/m² y se
   recalcula el total. En la ficha de una propiedad propia hay un solo desplegable,
   "Datos de la propiedad", con sus datos y los de la ficha técnica.
-- **Inmobiliaria:** "+ Nueva propiedad" da de alta una ficha sin anuncio y sin cliente;
-  "+ Inmobiliaria" (en la ficha y en la bandeja de la Bolsa) guarda un anuncio sin asignarlo.
+- **Catálogo** (la pestaña que hasta el 2026-10-06 se llamó Inmobiliaria; en el código y
+  en la URL sigue siendo `inmobiliaria`): "+ Nueva propiedad" da de alta una ficha sin
+  anuncio y sin cliente;
+  "+ Catálogo" (en la ficha y en la bandeja de la Bolsa) guarda un anuncio sin asignarlo.
 
 Lo que falta o conviene saber:
 
