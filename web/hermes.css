@@ -444,11 +444,6 @@ a:hover { color:var(--ink); }
   font-family:var(--font-display); font-size:18px; font-weight:500; color:var(--ink); line-height:1.2;
 }
 .cliente-sub { font-size:12px; color:var(--muted); }
-.cliente-etapa {
-  flex-shrink:0; padding:4px 9px; font-family:var(--font-mono); font-size:10px;
-  font-weight:700; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
-}
-.cliente-etapa { background:var(--er); color:var(--e); }   /* --e/--er los pone la clase .e-<etapa> */
 .cliente-del {
   flex-shrink:0; width:24px; height:24px; border:none; background:transparent;
   color:var(--faint); font-size:17px; line-height:1; cursor:pointer;
@@ -2239,6 +2234,20 @@ tr.igual.ocultar { display:none; }
 /* Filtro "Presentada a" en Inmobiliaria: la lista de clientes puede ser larga. */
 .fb-cajas-lista { grid-template-columns:1fr; max-height:320px; overflow-y:auto; }
 .cl-proponer { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--muted); text-decoration:none; }
+/* "+ Proponer desde Catálogo": el mismo enlace, pero abre un buscador en su sitio. */
+.cl-catwrap { position:relative; margin-left:auto; }
+button.cl-proponer { padding:0; border:none; background:transparent; font-family:var(--font-ui); cursor:pointer; }
+.cl-proponer:hover, .cl-proponer[aria-expanded=true] { color:var(--ink); }
+.cl-catpop { left:auto; right:0; width:340px; max-width:calc(100vw - 28px); }
+.cl-catpop input { height:34px; padding:0 10px; border:1px solid var(--border-2); background:var(--surface); color:var(--ink); font-family:var(--font-ui); font-size:13px; }
+.cl-catpop input:focus { outline:none; border-color:var(--accent); }
+.cl-catlist { display:flex; flex-direction:column; max-height:320px; overflow-y:auto; }
+.cl-catopt { height:auto; padding:7px 10px; display:flex; flex-direction:column; gap:2px; }
+.cl-catopt b { font-weight:600; overflow-wrap:anywhere; }
+.cl-catopt small { font-size:11.5px; font-weight:400; color:var(--muted); }
+.cl-catopt:disabled { cursor:default; opacity:.55; }
+.cl-catopt:disabled:hover { background:transparent; }
+.cl-catnota { padding:7px 10px; font-size:12.5px; color:var(--muted); }
 /* La rejilla de la fila la arma clientes.js (rejilla()) con las columnas prendidas y la
    pasa en --cl-cols; --cl-min es su ancho mínimo, para que con muchas columnas la tabla
    se recorra de lado en vez de aplastar el nombre del inmueble. */
