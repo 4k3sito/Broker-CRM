@@ -26,6 +26,15 @@ const API = {
   patch:  (ruta, cuerpo) => API.req('PATCH', ruta, cuerpo),
   del:    (ruta)         => API.req('DELETE', ruta),
 
+  // Saca una propiedad de Inmobiliaria: borra su ficha y, en cascada (schema.sql), lo
+  // que cuelga de ella: procesos, documentos, archivos y fichas PDF. La llave es
+  // (asesor, anuncio), así que un anuncio puede traer más de una ficha: se van todas,
+  // o seguiría saliendo en la pestaña.
+  async quitarDeInmobiliaria(listingId) {
+    const fs = await API.get(`/fichas${API.qs({ listing: listingId })}`);
+    await Promise.all(fs.map(f => API.del(`/fichas/${f.id}`)));
+  },
+
   // Sube un archivo: el cuerpo ES el archivo (sin multipart) y el nombre va en la URL.
   // El tipo no se manda: la API lo lee de los bytes (ver "Archivos" en main.py).
   async subir(ruta, archivo, nombre) {

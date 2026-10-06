@@ -6,7 +6,7 @@
     // Dos pestañas sobre la misma página (index.html): la ficha y comparar se marcan
     // con la pestaña de la que se vino, que app.js deja en sessionStorage.
     { href: 'index.html',                  label: 'Bolsa Inmobiliaria', de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'bolsa' },
-    { href: 'index.html?tab=inmobiliaria', label: 'Inmobiliaria',       de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'inmobiliaria' },
+    { href: 'index.html?tab=inmobiliaria', label: 'Catálogo',           de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'inmobiliaria' },
     { href: 'clientes.html', label: 'Clientes',  de: ['clientes.html'] },
     { href: 'tareas.html',   label: 'Tareas',    de: ['tareas.html'], badge: 'tareas' },
     { href: 'scrapers.html', label: 'Scrapers',  de: ['scrapers.html'] },

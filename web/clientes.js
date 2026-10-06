@@ -18,6 +18,9 @@ let filterCuenta = 'all';   // lista: 'all' | 'none' (sin asignar) | id de quien
 let filterEstatus = 'all';  // lista: 'all' | 'none' (sin estatus) | llave de ESTATUS
 let abierto = null;         // id del proceso cuya fila está desplegada
 let colsAbierto = false;    // el menú de "Columnas"
+let catAbierto = false;     // el buscador de "+ Proponer desde Catálogo"…
+let catQ = '';              // …lo que se lleva escrito…
+let catFichas = null;       // …y las fichas del Catálogo (se piden al abrirlo)
 let propEtapa = 'all';      // tabla de propiedades: filtro por etapa…
 let propTrae = 'all';       // …y por quién la presentó
 let tareas = [];            // las tareas del cliente abierto (suyas y de sus propiedades)
@@ -83,6 +86,41 @@ async function agregarPropiedad(c, titulo) {
     propEtapa = 'all'; propTrae = 'all';
     render();
   } catch (err) { alert('No se pudo agregar la propiedad: ' + err.message); }
+}
+
+// "+ Proponer desde Catálogo": un buscador por título sobre lo que ya tiene ficha, para
+// proponerle varias propiedades al cliente sin salir de su página. El Catálogo son
+// cientos de fichas, no el inventario: se traen todas una vez y se filtra aquí.
+async function abrirCatalogo() {
+  catAbierto = true; catQ = '';
+  renderDetalle();
+  try { catFichas = await API.get('/fichas'); }
+  catch (err) { catFichas = []; alert('No se pudo cargar el Catálogo: ' + err.message); }
+  if (catAbierto) renderDetalle();
+}
+function catalogoListaHtml(c) {
+  if (!catFichas) return '<p class="cl-catnota">Cargando&#8230;</p>';
+  const ya = new Set((c.proceso ?? []).map(p => String(p.ficha?.id)));
+  const q = norm(catQ.trim());
+  const hits = catFichas.filter(f => !q || norm(f.titulo).includes(q));
+  const MAX = 30;
+  return (hits.slice(0, MAX).map(f => {
+    const sub = [f.municipio, f.tipo, f.tamano_m2 ? mx(Math.round(f.tamano_m2)) + ' m²' : null].filter(Boolean).join(' · ');
+    return `<button class="crit-opt cl-catopt" data-ficha="${esc(f.id)}"${ya.has(String(f.id)) ? ' disabled' : ''}>
+      <b>${esc(f.titulo ?? 'Sin título')}</b><small>${ya.has(String(f.id)) ? 'Ya está con este cliente' : esc(sub)}</small></button>`;
+  }).join('') || `<p class="cl-catnota">${catFichas.length ? 'Ninguna propiedad con ese título.' : 'El Catálogo está vacío.'}</p>`)
+    + (hits.length > MAX ? `<p class="cl-catnota">${hits.length - MAX} más: escribe para acotar.</p>` : '');
+}
+async function proponerDeCatalogo(c, fichaId) {
+  const f = catFichas?.find(x => String(x.id) === String(fichaId));
+  if (!f) return;
+  try {
+    const p = await API.post('/procesos', { cliente_id: c.id, ficha_id: f.id, numero: (c.proceso ?? []).length + 1 });
+    c.proceso = [...(c.proceso ?? []), { ...p, trae_nombre: null, ficha: f }];
+    propEtapa = 'all'; propTrae = 'all';
+    render();
+    document.getElementById('catQ')?.focus();   // para seguir buscando la siguiente
+  } catch (err) { alert('No se pudo proponer: ' + err.message); }
 }
 
 // Un campo del panel desplegado. Los de la propiedad van a la ficha (que es la misma
@@ -192,8 +230,6 @@ function traeHtml(p) {
     ? `<span class="tk-ava" style="background:${tono(p.trae_id ?? quien)}">${esc(iniciales(quien.replace('/', ' ')))}</span><span class="cl-trae-n">${esc(quien)}</span>`
     : '<span class="tk-ava sin">&#8212;</span><span class="cl-trae-n sin">Sin asignar</span>'}</span>`;
 }
-// Etapa del cliente: la del proceso más avanzado que tenga (no hay columna `etapa`).
-const etapaDe = c => etapaMayor((c.proceso ?? []).map(p => p.status));
 // Estatus del cliente: en qué va la relación con él. No es la etapa —esa sale de sus
 // propiedades—; lo marca el asesor en la ficha del cliente (`cliente.estatus`).
 const ESTATUS = [
@@ -591,8 +627,13 @@ function propiedadesHtml(c) {
         ${colsAbierto ? `<div class="crit-pop cl-colspop">${COLS.map(col =>
           `<label><input type="checkbox" class="cl-colchk" value="${col.k}"${colsOn.includes(col.k) ? ' checked' : ''}>${col.label}</label>`).join('')}</div>` : ''}
       </span>
-      ${ps.length ? `<a class="cl-proponer" href="index.html?tab=inmobiliaria&amp;pcliente=${encodeURIComponent(c.id)}">Ver en Inmobiliaria</a>` : ''}
-      <a class="cl-proponer${ps.length ? ' cl-proponer-2' : ''}" href="index.html">+ Proponer desde Bolsa</a>
+      <span class="cl-catwrap">
+        <button class="cl-proponer" id="catBtn" aria-expanded="${catAbierto}">+ Proponer desde Cat&#225;logo</button>
+        ${catAbierto ? `<div class="crit-pop cl-catpop">
+          <input type="search" id="catQ" value="${esc(catQ)}" placeholder="Buscar por t&#237;tulo&#8230;" aria-label="Buscar en el Cat&#225;logo" autocomplete="off">
+          <div class="cl-catlist" id="catList">${catalogoListaHtml(c)}</div></div>` : ''}
+      </span>
+      <a class="cl-proponer cl-proponer-2" href="index.html">+ Proponer desde Bolsa</a>
     </div>
     <div class="cl-table" style="${rejilla()}">
       ${ps.length ? `<div class="cl-tr cl-th"><span></span><span>N°</span><span></span><span>Inmueble</span>
@@ -629,10 +670,9 @@ function renderDetalle() {
   }
   // Al cambiar de cliente: sin fila desplegada, sin filtros de tabla, y sus tareas.
   if (tareasDe !== String(c.id)) {
-    abierto = null; propEtapa = 'all'; propTrae = 'all'; colsAbierto = false;
+    abierto = null; propEtapa = 'all'; propTrae = 'all'; colsAbierto = false; catAbierto = false;
     cargarTareas(String(c.id));
   }
-  const etapa = etapaDe(c);
   const tel = telDe(c.contacto);
   const campo = (f, label, ph, wide) => `<label class="cl-f${wide ? ' wide' : ''}"><span>${label}</span>
     <input class="cli-in" data-f="${f}" value="${esc(c[f])}" placeholder="${ph}"></label>`;
@@ -645,7 +685,6 @@ function renderDetalle() {
           <input class="cli-in cl-nombre" data-f="nombre" value="${esc(c.nombre)}" aria-label="Nombre">
           <input class="cli-in cl-empresa" data-f="empresa" value="${esc(c.empresa)}" placeholder="Empresa" aria-label="Empresa">
         </div>
-        ${etapa ? `<span class="cliente-etapa e-${etapa}">${etapaLabel(etapa)}</span>` : ''}
         <div class="cl-acts">
           ${tel ? `<a class="fx-btn" href="https://wa.me/${tel.length === 10 ? '52' + tel : tel}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
           <button class="fx-btn" id="clDel" title="Eliminar cliente">Eliminar</button>
@@ -705,6 +744,8 @@ detalle.addEventListener('click', e => {
   const t = e.target;
   if (t.closest('.cl-x')) return removeProceso(t.closest('.cl-x').dataset.proc);
   if (t.closest('#colsBtn')) { colsAbierto = !colsAbierto; return renderDetalle(); }
+  if (t.closest('#catBtn')) { if (catAbierto) { catAbierto = false; return renderDetalle(); } return abrirCatalogo(); }
+  if (t.closest('.cl-catopt')) return proponerDeCatalogo(cSel(), t.closest('.cl-catopt').dataset.ficha);
   const chip = t.closest('.cl-chip[data-etapa]');
   if (chip) { propEtapa = propEtapa === chip.dataset.etapa ? 'all' : chip.dataset.etapa; return renderDetalle(); }
   // Clic en la fila (no en sus controles): despliega o recoge el panel.
@@ -734,8 +775,18 @@ detalle.addEventListener('submit', e => {
   if (e.target.id === 'addProp') return agregarPropiedad(c, e.target.querySelector('input').value);
   if (e.target.matches('.cl-tadd')) crearTarea(c, e.target);
 });
+// Escribir sólo repinta la lista: repintar el detalle le quitaría el foco al buscador.
+detalle.addEventListener('input', e => {
+  if (e.target.id !== 'catQ') return;
+  catQ = e.target.value;
+  document.getElementById('catList').innerHTML = catalogoListaHtml(cSel());
+});
+detalle.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && e.target.id === 'catQ') { catAbierto = false; renderDetalle(); }
+});
 document.addEventListener('click', e => {
   if (colsAbierto && !e.target.closest('.cl-colswrap')) { colsAbierto = false; renderDetalle(); }
+  if (catAbierto && !e.target.closest('.cl-catwrap')) { catAbierto = false; renderDetalle(); }
 });
 
 // Reordenar arrastrando. La fila sólo es arrastrable mientras se sostiene el asa: si

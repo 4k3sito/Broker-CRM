@@ -361,7 +361,22 @@ document.addEventListener('paste', e => {
 
 async function guardarEnInmobiliaria() {
   try { await asegurarFicha(); render(); }
-  catch (err) { alert('No se pudo guardar en Inmobiliaria: ' + err.message); }
+  catch (err) { alert('No se pudo guardar en el Catálogo: ' + err.message); }
+}
+// Lo contrario. Un anuncio de portal vuelve a la Bolsa y la página sigue sirviendo; una
+// propiedad propia ES su ficha, así que al borrarla ya no hay nada que mostrar.
+async function quitarDeInmobiliaria() {
+  const propia = esPropia(listing), n = procesos.length;
+  if (!confirm((propia ? '¿Eliminar esta propiedad?' : '¿Quitar esta propiedad del Catálogo?') + '\n\n'
+    + 'Se borra su ficha con sus documentos, fotos subidas y fichas PDF'
+    + (n ? `, y lo presentado a ${n} ${n === 1 ? 'cliente' : 'clientes'}` : '') + '. No se puede deshacer.'
+    + (propia ? '' : '\n\nEl anuncio vuelve a la Bolsa.'))) return;
+  try {
+    await API.quitarDeInmobiliaria(listing.id);
+    if (propia) { location.replace('index.html?tab=inmobiliaria'); return; }
+    ficha = null; versiones = []; versionSel = null; procesos = []; documentos = [];
+    render();
+  } catch (err) { alert('No se pudo eliminar: ' + err.message); }
 }
 
 // ── Anterior / siguiente dentro de la página del tablero ─────────────────────
@@ -437,9 +452,10 @@ function render() {
       <button class="fx-star${l.starred ? ' on' : ''}" id="detailStar" aria-pressed="${l.starred}" title="Destacar">${l.starred ? '&#9733;' : '&#9734;'}</button>
       ${l.whatsapp ? `<a class="fx-btn solid" href="https://wa.me/${l.whatsapp.replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
       ${l.url ? `<a class="fx-btn" href="${hrefSeguro(l.url)}" target="_blank" rel="noopener">Anuncio ${ICON_EXTERNAL}</a>` : ''}
-      ${esPropia(l) ? '' : (ficha
-        ? '<span class="fx-tag" title="Tiene ficha: aparece en la pestaña Inmobiliaria">En Inmobiliaria</span>'
-        : '<button class="fx-btn" id="btnInmo" title="Guardarla en la bolsa propia, sin asignarla a nadie">+ Inmobiliaria</button>')}
+      ${esPropia(l) ? (ficha ? '<button class="fx-btn" id="btnQuitar" title="Borra la propiedad con todo lo que cuelga de ella">Eliminar</button>' : '') : (ficha
+        ? '<span class="fx-tag" title="Tiene ficha: aparece en la pestaña Catálogo">En Catálogo</span>'
+          + '<button class="fx-btn" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar</button>'
+        : '<button class="fx-btn" id="btnInmo" title="Guardarla en la bolsa propia, sin asignarla a nadie">+ Catálogo</button>')}
       <button class="fx-btn" id="btnPdf" title="Imprime ${esc(nombrePdf(vSel))}.pdf">Ficha PDF</button>
       <button class="fx-btn" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
     </section>
@@ -558,6 +574,7 @@ function enlazar() {
   $('detailNotes').onblur = e => setState({ notes: e.target.value });
   $('btnPdf').onclick = () => imprimirFicha(versionSel);
   $('btnInmo') && ($('btnInmo').onclick = guardarEnInmobiliaria);
+  $('btnQuitar') && ($('btnQuitar').onclick = quitarDeInmobiliaria);
   $('pdfData').ontoggle = e => { pdfAbierto = e.target.open; };
   // Una ficha guardada: su nombre la carga en el formulario; "PDF" la imprime.
   document.querySelectorAll('.fx-ver-n').forEach(b => b.onclick = () => { versionSel = b.dataset.v || null; pdfAbierto = true; render(); });

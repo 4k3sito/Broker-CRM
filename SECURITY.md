@@ -102,6 +102,10 @@ presentes:
 
 - **Cualquier cuenta puede borrar cualquier cliente**, y con él sus procesos en cascada.
   No hay papelera ni historial. Es el mismo riesgo que ya tenían las tareas.
+- **Y cualquier ficha** (`DELETE /api/fichas/{id}`, que existía sin botón; desde el
+  2026-10-06 lo usan la bandeja de Inmobiliaria y la página de la propiedad). Se lleva
+  en cascada sus procesos, documentos, archivos y fichas PDF. Un anuncio de portal
+  vuelve a la Bolsa; una propiedad dada de alta a mano se pierde. Sólo hay un `confirm`.
 - **Borrar a un asesor ya no se lleva su CRM**: `cliente`, `ficha`, `proceso` y
   `ficha_documento` pasan a `ON DELETE SET NULL` sobre `user_id`, porque la cascada
   borraría datos del equipo. `user_listing` sigue en cascada: el estado de un anuncio

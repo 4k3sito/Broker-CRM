@@ -19,13 +19,14 @@ const FUENTE_CONFIG = {
   pipeline:          { label: 'Pipeline'     },   // fichas del Google Sheet (ver _origen en la API)
 };
 
-// Dos pestañas, la misma página: Bolsa Inmobiliaria (anuncios sin ficha) e
-// Inmobiliaria (lo que ya tiene ficha o se presentó a un cliente). Sólo cambia
-// `ficha=` en la API; Inmobiliaria suma los filtros de cliente y etapa.
+// Dos pestañas, la misma página: Bolsa Inmobiliaria (anuncios sin ficha) y
+// Catálogo (lo que ya tiene ficha o se presentó a un cliente). Sólo cambia `ficha=`
+// en la API; Catálogo suma los filtros de cliente y etapa. En el código y en la URL
+// la pestaña sigue siendo `inmobiliaria`: así se llamó en pantalla hasta el 2026-10-06.
 const TAB = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
 const INMO = TAB === 'inmobiliaria';
 try { sessionStorage.setItem('ol-tab', TAB); } catch { /* sin persistencia */ }
-document.title = `${INMO ? 'Inmobiliaria' : 'Bolsa Inmobiliaria'} · OfficeLab`;
+document.title = `${INMO ? 'Catálogo' : 'Bolsa Inmobiliaria'} · OfficeLab`;
 
 const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
 const TIPOS  = ['oficina', 'local', 'bodega', 'terreno', 'edificio'];
@@ -1098,8 +1099,27 @@ document.getElementById('trayInmo').addEventListener('click', async () => {
   const res = await Promise.allSettled(lista.map(fichaDe));
   const ok = res.filter(r => r.status === 'fulfilled').length;
   toast(ok === lista.length
-    ? `${ok} ${ok === 1 ? 'inmueble guardado' : 'inmuebles guardados'} en Inmobiliaria`
-    : `${ok} de ${lista.length} guardados en Inmobiliaria. Los demás fallaron.`);
+    ? `${ok} ${ok === 1 ? 'inmueble guardado' : 'inmuebles guardados'} en el Catálogo`
+    : `${ok} de ${lista.length} guardados en el Catálogo. Los demás fallaron.`);
+  seleccion.clear();
+  render();
+});
+// Y lo contrario: sacar de Inmobiliaria. No hay deshacer —con la ficha se va lo que
+// cuelga de ella—, así que la confirmación dice qué se pierde.
+document.getElementById('trayQuitar').hidden = !INMO;
+document.getElementById('trayQuitar').addEventListener('click', async () => {
+  const lista = [...seleccion.values()];
+  const propias = lista.filter(l => l.id.startsWith('pipeline:')).length;
+  const cuantas = lista.length === 1 ? 'esta propiedad' : `estas ${lista.length} propiedades`;
+  if (!confirm(`¿Eliminar ${cuantas} del Catálogo?\n\n`
+    + 'Se borra su ficha con sus documentos, fotos subidas, fichas PDF y lo presentado a clientes. No se puede deshacer.\n\n'
+    + (propias < lista.length ? 'Los anuncios de portal vuelven a la Bolsa. ' : '')
+    + (propias ? `${propias === 1 ? 'La que se dio' : `Las ${propias} que se dieron`} de alta a mano se ${propias === 1 ? 'pierde' : 'pierden'} por completo.` : ''))) return;
+  const res = await Promise.allSettled(lista.map(l => API.quitarDeInmobiliaria(l.id)));
+  const ok = res.filter(r => r.status === 'fulfilled').length;
+  toast(ok === lista.length
+    ? `${ok} ${ok === 1 ? 'propiedad eliminada' : 'propiedades eliminadas'} del Catálogo`
+    : `${ok} de ${lista.length} eliminadas del Catálogo. Las demás fallaron.`);
   seleccion.clear();
   render();
 });
