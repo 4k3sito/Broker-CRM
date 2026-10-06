@@ -488,12 +488,26 @@ const dinero = n => n != null ? '$' + mx(Math.round(n)) : '—';
 const ppmDe = f => f.precio_m2 ?? (f.precio && f.tamano_m2 ? f.precio / f.tamano_m2 : null);
 const texto = v => esc(v ?? '—');
 
+// La celda de "Tareas": cuántas tiene abiertas la propiedad y cuál toca primero (la que
+// vence antes; las que no tienen fecha van al final).
+function tareasCelda(p) {
+  const ab = tareas.filter(t => String(t.proceso_id) === String(p.id) && t.columna !== 'completado')
+    .sort((a, b) => (a.vence_el ?? '9999').localeCompare(b.vence_el ?? '9999'));
+  if (!ab.length) return '—';
+  const t = ab[0];
+  return `<span title="${esc(ab.map(x => x.titulo).join(' · '))}"><b class="cl-tcount">${ab.length}</b>${esc(t.titulo)}${
+    t.vence_el ? `<small> · vence ${fecha(t.vence_el + 'T12:00')}</small>` : ''}</span>`;
+}
+
 // Las columnas que se pueden prender y apagar. `w` es el ancho en px: la rejilla de la
-// fila se arma con las que estén prendidas (ver rejilla()).
+// fila se arma con las que estén prendidas (ver rejilla()). `flex` reparte con el nombre
+// del inmueble el ancho que sobre; `cede` es el orden en que una columna se esconde sola
+// si la tabla no cabe (ver colsQueCaben()).
 const COLS = [
+  { k: 'tipo',      label: 'Tipo',      w: 84,  cede: 1, html: p => texto(p.ficha.tipo) },
+  { k: 'municipio', label: 'Municipio', w: 120, cede: 2, html: p => texto(p.ficha.municipio) },
+  { k: 'tareas',    label: 'Tareas',    w: 124, cede: 3, flex: true, html: tareasCelda },
   { k: 'presento',  label: 'Presentó',  w: 150, html: p => traeHtml(p) },
-  { k: 'tipo',      label: 'Tipo',      w: 84,  html: p => texto(p.ficha.tipo) },
-  { k: 'municipio', label: 'Municipio', w: 120, html: p => texto(p.ficha.municipio) },
   { k: 'precio',    label: 'Precio',    w: 104, cls: 'cl-precio', html: p => dinero(p.ficha.precio) },
   { k: 'm2',        label: 'm²',        w: 64,  cls: 'cl-mono', html: p => p.ficha.tamano_m2 ? mx(Math.round(p.ficha.tamano_m2)) : '—' },
   { k: 'ppm',       label: '$/m²',      w: 76,  cls: 'cl-mono', html: p => dinero(ppmDe(p.ficha)) },
@@ -504,18 +518,38 @@ const COLS = [
   { k: 'fecha',     label: 'Fecha',     w: 60,  cls: 'cl-mono', html: p => fecha(p.created_at ?? p.creado_el) },
 ];
 // Qué columnas ve cada quien se queda en su navegador: es gusto, no dato del equipo.
-let colsOn = ['presento', 'precio', 'm2', 'estatus', 'fecha'];
+// La llave es `-2` desde que Tipo, Municipio y Tareas vienen prendidas: con la anterior,
+// quien ya había tocado el menú no las habría visto nunca.
+let colsOn = ['tipo', 'municipio', 'tareas', 'presento', 'precio', 'm2', 'estatus', 'fecha'];
 try {
-  const g = JSON.parse(localStorage.getItem('ol-cl-cols') ?? 'null');
+  const g = JSON.parse(localStorage.getItem('ol-cl-cols-2') ?? 'null');
   if (Array.isArray(g)) colsOn = g.filter(k => COLS.some(c => c.k === k));
 } catch { /* sin persistencia */ }
 const colsVisibles = () => COLS.filter(c => colsOn.includes(c.k));
-// asa · número · foto · inmueble · [columnas] · tareas · quitar
-function rejilla() {
-  const anchos = [18, 26, 48, 180, ...colsVisibles().map(c => c.w), 30, 22];
-  const cols = anchos.map((w, i) => i === 3 ? `minmax(${w}px,1fr)` : `${w}px`).join(' ');
-  return `--cl-cols:${cols};--cl-min:${anchos.reduce((a, b) => a + b, 0) + (anchos.length - 1) * 10 + 24}px`;
+// asa · número · foto · inmueble · [columnas] · tareas · quitar. El contador de tareas
+// del final sólo va cuando no está la columna "Tareas", que ya lo trae.
+function pistas(cols) {
+  const fijas = cols.some(c => c.k === 'tareas') ? [22] : [30, 22];
+  return [[18], [26], [48], [180, '1.2fr'], ...cols.map(c => [c.w, c.flex && '1fr']), ...fijas.map(w => [w])];
 }
+const anchoMin = cols => { const ps = pistas(cols); return ps.reduce((a, [w]) => a + w, 0) + (ps.length - 1) * 10 + 24; };
+function rejilla(cols) {
+  return `--cl-cols:${pistas(cols).map(([w, fr]) => fr ? `minmax(${w}px,${fr})` : `${w}px`).join(' ')};--cl-min:${anchoMin(cols)}px`;
+}
+// Las columnas que de verdad se pintan: las prendidas, menos las que tienen `cede` si
+// la tabla no cabe en el ancho que hay. Así el hueco de una pantalla ancha se llena y
+// una angosta no se recorre de lado por columnas que nadie pidió. Las que no ceden
+// (las que ya estaban) siguen recorriéndose, como antes.
+function colsQueCaben() {
+  let cols = colsVisibles();
+  const ancho = document.getElementById('clDetail').clientWidth - 46;   // márgenes y borde de .cl-table
+  for (const c of COLS.filter(x => x.cede).sort((a, b) => a.cede - b.cede)) {
+    if (ancho <= 0 || anchoMin(cols) <= ancho) break;
+    cols = cols.filter(x => x !== c);
+  }
+  return cols;
+}
+let colsFila = [];          // las de la última pintada: fila y encabezado tienen que coincidir
 
 const traeKey = p => String(p.trae_id ?? p.trae ?? '');
 const filtrando = () => propEtapa !== 'all' || propTrae !== 'all';
@@ -531,8 +565,8 @@ function filaHtml(c, p) {
     <span class="cl-num">${pos}</span>
     ${foto ? `<img class="cl-th-img" src="${srcSeguro(foto)}" alt="">` : '<span class="cl-th-img vacio"></span>'}
     <span class="cl-inm">${esc(f.titulo ?? '(sin título)')}</span>
-    ${colsVisibles().map(col => `<span class="cl-c ${col.cls ?? ''}" data-c="${col.k}">${col.html(p)}</span>`).join('')}
-    <span class="cl-tn${n ? ' on' : ''}" title="${n ? `${n} ${n === 1 ? 'tarea abierta' : 'tareas abiertas'}` : 'Sin tareas abiertas'}">${n || ''}</span>
+    ${colsFila.map(col => `<span class="cl-c ${col.cls ?? ''}" data-c="${col.k}">${col.html(p)}</span>`).join('')}
+    ${colsFila.some(col => col.k === 'tareas') ? '' : `<span class="cl-tn${n ? ' on' : ''}" title="${n ? `${n} ${n === 1 ? 'tarea abierta' : 'tareas abiertas'}` : 'Sin tareas abiertas'}">${n || ''}</span>`}
     <button class="cl-x" data-proc="${esc(p.id)}" title="Quitar propuesta">&times;</button>
   </div>`;
 }
@@ -612,6 +646,7 @@ function panelHtml(c, p) {
 
 function propiedadesHtml(c) {
   const ps = c.proceso ?? [];
+  colsFila = colsQueCaben();
   const visibles = ps.filter(p => (propEtapa === 'all' || p.status === propEtapa) && (propTrae === 'all' || traeKey(p) === propTrae));
   // Quién ha presentado algo a este cliente, para el filtro. Sin repetir.
   const quienes = [...new Map(ps.filter(p => traeKey(p)).map(p => [traeKey(p), p.trae_nombre || p.trae])).entries()];
@@ -625,7 +660,8 @@ function propiedadesHtml(c) {
       <span class="cl-colswrap">
         <button class="cl-btn" id="colsBtn" aria-expanded="${colsAbierto}">Columnas</button>
         ${colsAbierto ? `<div class="crit-pop cl-colspop">${COLS.map(col =>
-          `<label><input type="checkbox" class="cl-colchk" value="${col.k}"${colsOn.includes(col.k) ? ' checked' : ''}>${col.label}</label>`).join('')}</div>` : ''}
+          `<label><input type="checkbox" class="cl-colchk" value="${col.k}"${colsOn.includes(col.k) ? ' checked' : ''}>${col.label}${
+            colsOn.includes(col.k) && !colsFila.includes(col) ? '<small>no cabe en este ancho</small>' : ''}</label>`).join('')}</div>` : ''}
       </span>
       <span class="cl-catwrap">
         <button class="cl-proponer" id="catBtn" aria-expanded="${catAbierto}">+ Proponer desde Cat&#225;logo</button>
@@ -635,9 +671,9 @@ function propiedadesHtml(c) {
       </span>
       <a class="cl-proponer cl-proponer-2" href="index.html">+ Proponer desde Bolsa</a>
     </div>
-    <div class="cl-table" style="${rejilla()}">
+    <div class="cl-table" style="${rejilla(colsFila)}">
       ${ps.length ? `<div class="cl-tr cl-th"><span></span><span>N°</span><span></span><span>Inmueble</span>
-        ${colsVisibles().map(col => `<span>${col.label}</span>`).join('')}<span></span><span></span></div>` : ''}
+        ${colsFila.map(col => `<span>${col.label}</span>`).join('')}${colsFila.some(col => col.k === 'tareas') ? '' : '<span></span>'}<span></span></div>` : ''}
       ${visibles.map(p => filaHtml(c, p) + (abierto === String(p.id) ? panelHtml(c, p) : '')).join('')}
       ${ps.length && !visibles.length ? '<p class="cl-empty">Ninguna propiedad pasa el filtro.</p>' : ''}
       <form class="cl-addrow" id="addProp">
@@ -763,7 +799,7 @@ detalle.addEventListener('change', e => {
   if (t.id === 'propTrae') { propTrae = t.value; return renderDetalle(); }
   if (t.matches('.cl-colchk')) {
     colsOn = COLS.map(col => col.k).filter(k => k === t.value ? t.checked : colsOn.includes(k));
-    try { localStorage.setItem('ol-cl-cols', JSON.stringify(colsOn)); } catch { /* sin persistencia */ }
+    try { localStorage.setItem('ol-cl-cols-2', JSON.stringify(colsOn)); } catch { /* sin persistencia */ }
     return renderDetalle();
   }
   if (t.matches('.cl-ein')) { const p = procDe(t); if (p) guardarCampo(c, p, t.dataset.tb, t.dataset.f, t.value); }
@@ -788,6 +824,13 @@ document.addEventListener('click', e => {
   if (colsAbierto && !e.target.closest('.cl-colswrap')) { colsAbierto = false; renderDetalle(); }
   if (catAbierto && !e.target.closest('.cl-catwrap')) { catAbierto = false; renderDetalle(); }
 });
+
+// Al cambiar el ancho (ventana, zoom) puede caber una columna más o una menos. Sólo se
+// repinta si cambia cuáles caben, y nunca mientras se escribe: se perdería el foco.
+new ResizeObserver(() => {
+  if (!cSel() || detalle.contains(document.activeElement)) return;
+  if (colsQueCaben().map(c => c.k).join() !== colsFila.map(c => c.k).join()) renderDetalle();
+}).observe(detalle);
 
 // Reordenar arrastrando. La fila sólo es arrastrable mientras se sostiene el asa: si
 // lo fuera siempre, seleccionar texto o usar el <select> de etapa iniciaría un arrastre.
