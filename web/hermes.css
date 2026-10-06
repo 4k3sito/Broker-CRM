@@ -2269,6 +2269,10 @@ button.cl-proponer { padding:0; border:none; background:transparent; font-family
 .cl-c { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
 .cl-tn { font-family:var(--font-mono); font-size:10px; font-weight:700; text-align:center; color:var(--faint); }
 .cl-tn.on { padding:2px 0; background:var(--accent); color:var(--on-accent); }
+/* Columna "Tareas": el mismo contador, seguido de la tarea que toca primero. */
+.cl-tcount { display:inline-block; min-width:18px; margin-right:7px; padding:2px 5px; background:var(--accent); color:var(--on-accent); font-family:var(--font-mono); font-size:10px; font-weight:700; text-align:center; }
+.cl-c[data-c=tareas] small { font-size:11.5px; color:var(--muted); }
+.cl-colspop label small { margin-left:auto; padding-left:10px; font-size:11px; color:var(--muted); }
 
 /* El panel que se despliega bajo la fila: la propiedad completa, editable, y sus tareas. */
 .cl-exp { min-width:var(--cl-min); padding:14px 16px 16px 46px; border-bottom:1px solid var(--border); background:var(--bg); display:flex; flex-direction:column; gap:12px; cursor:default; }
