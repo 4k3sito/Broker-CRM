@@ -22,9 +22,11 @@ let filterCuenta = 'all';   // lista: 'all' | 'none' (sin asignar) | id de quien
 let filterEstatus = 'all';  // lista: 'all' | 'none' (sin estatus) | llave de ESTATUS
 let abierto = null;         // id del proceso cuya fila está desplegada
 let colsAbierto = false;    // el menú de "Columnas"
-// Modo presentación: para enseñarle su pipeline a un cliente sin que vea a los demás.
-// Esconde la lista de clientes y "Qué busca" (ver .cl.presenta en hermes.css). Se guarda
-// en la pestaña para que recargar a media junta no destape la lista.
+// Modo presentación: para enseñarle su pipeline a un cliente sin que vea a los demás ni
+// lo interno. Esconde la lista de clientes y "Qué busca" (.cl.presenta en hermes.css) y
+// deja de pintar las tareas; la ficha completa que se abra desde aquí hace lo propio
+// (PRESENTA_A en listing.js). Se guarda en la pestaña para que recargar a media junta
+// no destape nada.
 let presentando = false;
 try { presentando = sessionStorage.getItem('ol-cl-presenta') === '1'; } catch { /* sin persistencia */ }
 function presentar(si) {
@@ -155,6 +157,11 @@ function guardarCampo(c, p, tabla, f, crudo) {
     const poner = datos => { for (const x of clientes) for (const q of x.proceso ?? [])
       if (String(q.ficha?.id) === String(p.ficha.id)) Object.assign(q.ficha, datos); };
     poner({ [f]: v });
+    if (f === 'mapa_url') {
+      // El botón de al lado abre lo que se acaba de pegar, sin esperar a repintar.
+      const ir = document.querySelector(`#clDetail .cl-exp[data-proc="${CSS.escape(String(p.id))}"] .cl-map-ir`);
+      if (ir) { ir.hidden = !/^https?:/i.test(v ?? ''); ir.href = ir.hidden ? '#' : v; }
+    }
     API.patch(`/fichas/${p.ficha.id}`, { [f]: v }).then(fila => {
       if (!NUMERICOS.includes(f)) return;
       // Con dos de precio / m² / $/m² la API calcula el tercero (derivar_precio): se
@@ -505,15 +512,8 @@ function conectarCriterios(c, box) {
 
 // ── Render ───────────────────────────────────────────────────────────────────
 // Una píldora por etapa, generada de etapas.js: el pipeline trae nueve.
-function renderEtapaPills() {
-  document.getElementById('etapaPills').innerHTML = ETAPAS.map(e =>
-    `<button class="pill-line${filterStatus === e.key ? ' active' : ''}" data-status="${e.key}">${e.label} ` +
-    `<span class="pill-count" data-count="${e.key}">0</span></button>`).join('');
-}
-
 function renderLista() {
   const box = document.getElementById('clList');
-  renderEtapaPills();
   const fc = document.getElementById('fCuenta');
   fc.innerHTML = `<option value="all">Cuenta: todas</option><option value="none">Sin asignar</option>` +
     equipo.map(p => `<option value="${esc(p.id)}">${esc(nombreDe(p))}</option>`).join('');
@@ -522,16 +522,21 @@ function renderLista() {
   // Cuántos hay de cada estatus, con la búsqueda y la cuenta ya aplicadas.
   const fe = document.getElementById('fEstatus');
   const sinEst = cuentaEstatus();
-  fe.innerHTML = `<option value="all">Estatus: todos</option>` +
+  fe.innerHTML = `<option value="all">Estatus cliente: todos</option>` +
     ESTATUS.map(e => `<option value="${e.key}">${e.label} (${sinEst[e.key] ?? 0})</option>`).join('') +
     `<option value="none">Sin estatus (${sinEst.none ?? 0})</option>`;
   fe.value = filterEstatus;
   fe.classList.toggle('on', filterEstatus !== 'all');
+  // "Estatus propiedades": los clientes con al menos una propiedad en esa etapa
+  // (etapas.js). Cuenta sobre lo que ya pasó la búsqueda y los otros dos filtros.
   const base = clientes.filter(pasaBase);
-  document.querySelectorAll('.pill-count[data-count]').forEach(el => {
-    const k = el.dataset.count;
-    el.textContent = k === 'all' ? base.length : base.filter(c => (c.proceso ?? []).some(p => p.status === k)).length;
-  });
+  const ft = document.getElementById('fEtapa');
+  ft.innerHTML = `<option value="all">Estatus propiedades: todos</option>` + ETAPAS.map(e =>
+    `<option value="${e.key}">${e.label} (${base.filter(c => (c.proceso ?? []).some(p => p.status === e.key)).length})</option>`).join('');
+  ft.value = filterStatus;
+  ft.classList.toggle('on', filterStatus !== 'all');
+  document.getElementById('fTodosN').textContent = base.length;
+  document.getElementById('fTodos').classList.toggle('active', filterStatus === 'all' && filterCuenta === 'all' && filterEstatus === 'all');
   const lista = clientes.filter(pasaFiltro);
   document.getElementById('countTag').hidden = false;
   document.getElementById('countNum').textContent = lista.length;
@@ -620,7 +625,7 @@ function rejilla(cols) {
 // una angosta no se recorre de lado por columnas que nadie pidió. Las que no ceden
 // (las que ya estaban) siguen recorriéndose, como antes.
 function colsQueCaben() {
-  let cols = colsVisibles();
+  let cols = colsVisibles().filter(c => !(presentando && c.k === 'tareas'));
   const ancho = document.getElementById('clDetail').clientWidth - 46;   // márgenes y borde de .cl-table
   for (const c of COLS.filter(x => x.cede).sort((a, b) => a.cede - b.cede)) {
     if (ancho <= 0 || anchoMin(cols) <= ancho) break;
@@ -638,14 +643,14 @@ function filaHtml(c, p) {
   const f = p.ficha ?? {};
   const foto = f.fotos?.[0];
   const pos = (c.proceso ?? []).indexOf(p) + 1;
-  const n = tareasAbiertas(p.id);
+  const n = presentando ? 0 : tareasAbiertas(p.id);
   return `<div class="cl-tr${abierto === String(p.id) ? ' open' : ''}" data-proc="${esc(p.id)}">
     <span class="cl-grip${filtrando() ? ' off' : ''}" title="${filtrando() ? 'Quita los filtros para reordenar' : 'Arrastra para cambiar el orden'}" aria-hidden="true">&#8942;&#8942;</span>
     <span class="cl-num">${pos}</span>
     ${foto ? `<img class="cl-th-img" src="${srcSeguro(foto)}" alt="">` : '<span class="cl-th-img vacio"></span>'}
     <span class="cl-inm">${esc(f.titulo ?? '(sin título)')}</span>
     ${colsFila.map(col => `<span class="cl-c ${col.cls ?? ''}" data-c="${col.k}">${col.html(p)}</span>`).join('')}
-    ${colsFila.some(col => col.k === 'tareas') ? '' : `<span class="cl-tn${n ? ' on' : ''}" title="${n ? `${n} ${n === 1 ? 'tarea abierta' : 'tareas abiertas'}` : 'Sin tareas abiertas'}">${n || ''}</span>`}
+    ${colsFila.some(col => col.k === 'tareas') ? '' : `<span class="cl-tn${n ? ' on' : ''}"${presentando ? '' : ` title="${n ? `${n} ${n === 1 ? 'tarea abierta' : 'tareas abiertas'}` : 'Sin tareas abiertas'}"`}>${n || ''}</span>`}
     <button class="cl-x" data-proc="${esc(p.id)}" title="Quitar propuesta">&times;</button>
   </div>`;
 }
@@ -705,7 +710,11 @@ function panelHtml(c, p) {
             <option value="">${!p.trae_id && p.trae ? `${esc(p.trae)} · sin cuenta` : 'Sin asignar'}</option>
             ${equipo.map(u => `<option value="${esc(u.id)}"${String(u.id) === String(p.trae_id) ? ' selected' : ''}>${esc(nombreDe(u))}</option>`).join('')}
           </select></label>
-        ${campo('ficha', 'mapa_url', 'Liga del mapa', f.mapa_url, { wide: true, ph: 'https://maps.app.goo.gl/…' })}
+        <div class="cl-ef wide"><span>Liga del mapa</span>
+          <div class="cl-ef-row">
+            <input class="cl-ein" type="text" data-tb="ficha" data-f="mapa_url" value="${esc(f.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…" aria-label="Liga del mapa">
+            <a class="cl-btn cl-map-ir" href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener"${hrefSeguro(f.mapa_url) === '#' ? ' hidden' : ''}>Abrir mapa &#8599;</a>
+          </div></div>
         ${area('ficha', 'notas', 'Descripción de la propiedad', f.notas, 'Lo que se sabe del inmueble.')}
         ${area('proceso', 'notas', 'Notas con este cliente', p.notas, 'Qué dijo, qué falta, condiciones…')}
       </div>
@@ -715,11 +724,11 @@ function panelHtml(c, p) {
       ${f.mapa_url ? `<a href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener">Ver en mapa &#8599;</a>` : ''}
       <span>Los datos del inmueble son de la ficha: cambian para todos los clientes a los que se presentó.</span>
     </div>
-    <div class="cl-exp-tareas">
+    ${presentando ? '' : `<div class="cl-exp-tareas">
       <h3>Tareas de esta propiedad · ${suyas.filter(t => t.columna !== 'completado').length}</h3>
       ${suyas.map(t => tareaHtml(t, false)).join('')}
       ${tareaFormHtml(c, p.id)}
-    </div>
+    </div>`}
   </div>`;
 }
 
@@ -738,7 +747,7 @@ function propiedadesHtml(c) {
         ${quienes.map(([k, n]) => `<option value="${esc(k)}"${propTrae === k ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : ''}
       <span class="cl-colswrap">
         <button class="cl-btn" id="colsBtn" aria-expanded="${colsAbierto}">Columnas</button>
-        ${colsAbierto ? `<div class="crit-pop cl-colspop">${COLS.map(col =>
+        ${colsAbierto ? `<div class="crit-pop cl-colspop">${COLS.filter(col => !(presentando && col.k === 'tareas')).map(col =>
           `<label><input type="checkbox" class="cl-colchk" value="${col.k}"${colsOn.includes(col.k) ? ' checked' : ''}>${col.label}${
             colsOn.includes(col.k) && !colsFila.includes(col) ? '<small>no cabe en este ancho</small>' : ''}</label>`).join('')}</div>` : ''}
       </span>
@@ -763,6 +772,7 @@ function propiedadesHtml(c) {
 }
 
 function tareasClienteHtml(c) {
+  if (presentando) return '';
   const orden = tareas.slice().sort((a, b) => (a.columna === 'completado') - (b.columna === 'completado'));
   return `
     <div class="cl-props-head">
@@ -847,13 +857,12 @@ function render() {
 }
 
 // ── Eventos ──────────────────────────────────────────────────────────────────
-document.getElementById('filterbar').addEventListener('click', e => {
-  const pill = e.target.closest('.pill-line');
-  if (!pill) return;
-  document.querySelectorAll('.pill-line[data-status]').forEach(p => p.classList.toggle('active', p === pill));
-  filterStatus = pill.dataset.status;
+// "Todos" quita los tres filtros de una vez.
+document.getElementById('fTodos').addEventListener('click', () => {
+  filterStatus = filterCuenta = filterEstatus = 'all';
   render();
 });
+document.getElementById('fEtapa').addEventListener('change', e => { filterStatus = e.target.value; render(); });
 // ── Tabla de propiedades y tareas: un solo juego de listeners ────────────────
 // #clDetail se reescribe en cada render y las filas se repintan sueltas (refrescarFila),
 // así que estos eventos se delegan en el contenedor, que es el que no cambia.
