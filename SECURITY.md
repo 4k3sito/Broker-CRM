@@ -201,6 +201,7 @@ con sesión; nada nuevo es público.
 | `PUT /api/clientes/orden` | Guarda el orden de la lista de clientes | Sólo escribe `cliente.orden`. |
 | `PATCH /api/clientes/{id}` | Acepta además `estatus` | CHECK en la base: un valor fuera de los cuatro da 422. |
 | `GET /api/listings?sin_cliente=true` | Catálogo: fichas sin ningún proceso | Booleano, sin parámetros en el SQL. |
+| `POST` / `PATCH /api/clientes` | Aceptan además `contactos` (2026-10-07): varias personas por cliente | Es jsonb libre, así que `_con_contactos()` lo acota: lista de hasta 30, sólo `nombre`, `correo` y `telefono`, como texto de hasta 200 caracteres; lo demás se descarta y otra forma da 422. En la página pasa por `esc()`; el teléfono llega a un `wa.me/` sólo con sus dígitos. |
 
 **XSS almacenado.** Un archivo subido se sirve desde el mismo origen que el sitio, y la
 CSP (`script-src 'self'`) no protege de eso: un `.html` subido ES `'self'`. Por eso:

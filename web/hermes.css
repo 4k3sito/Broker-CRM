@@ -1280,6 +1280,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
    los baja a `--e` / `--er` para que ninguna regla repita el color. */
 :root {
   --e-prospecto:#83808C; --e-por_presentar:#6B3FB5; --e-presentado:var(--s-presentado);
+  --e-evaluacion:#0F6E7A; --er-evaluacion:rgba(15,110,122,.10);
   --e-aprobado:var(--s-aprobado); --e-negociacion:#A85F14; --e-cerrado:#0E4A30;
   --e-pausa:#6B7D6E; --e-rechazado:var(--s-rechazado);
   --er-prospecto:rgba(131,128,140,.10); --er-por_presentar:rgba(107,63,181,.10);
@@ -1289,6 +1290,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 }
 :root[data-theme="dark"] {
   --e-prospecto:#C6C4CF; --e-por_presentar:#D3BFF7; --e-negociacion:#F5C98C;
+  --e-evaluacion:#9FDDE6; --er-evaluacion:rgba(159,221,230,.14);
   --e-cerrado:#C3F2D8; --e-pausa:#A8C0AC;
   --er-prospecto:rgba(198,196,207,.12); --er-por_presentar:rgba(211,191,247,.14);
   --er-negociacion:rgba(245,201,140,.14); --er-cerrado:rgba(195,242,216,.14);
@@ -1297,6 +1299,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .e-prospecto     { --e:var(--e-prospecto);     --er:var(--er-prospecto); }
 .e-por_presentar { --e:var(--e-por_presentar); --er:var(--er-por_presentar); }
 .e-presentado    { --e:var(--e-presentado);    --er:var(--er-presentado); }
+.e-evaluacion    { --e:var(--e-evaluacion);    --er:var(--er-evaluacion); }
 .e-aprobado      { --e:var(--e-aprobado);      --er:var(--er-aprobado); }
 .e-negociacion   { --e:var(--e-negociacion);   --er:var(--er-negociacion); }
 .e-cerrado       { --e:var(--e-cerrado);       --er:var(--er-cerrado); }
@@ -2130,6 +2133,9 @@ tr.igual.ocultar { display:none; }
 
 /* ── Clientes (1a): maestro-detalle ───────────────────────────────────────── */
 .cl { display:grid; grid-template-columns:340px minmax(0,1fr); height:calc(100vh - 52px); }
+/* Modo presentación (clientes.js): en pantalla sólo el cliente abierto. */
+.cl.presenta { grid-template-columns:minmax(0,1fr); }
+.cl.presenta .cl-list, .cl.presenta .cl-busca, .cl.presenta .cl-back, .cl.presenta #clDel { display:none; }
 .cl-list { display:flex; flex-direction:column; min-height:0; background:var(--surface); border-right:1px solid var(--border); }
 .cl-list-head { display:flex; align-items:center; gap:5px; flex-wrap:wrap; padding:10px 12px; border-bottom:1px solid var(--border); }
 .cl-list-head .pill-line { height:26px; padding:0 8px; font-size:11.5px; }
@@ -2184,6 +2190,13 @@ tr.igual.ocultar { display:none; }
 .tb-ava, .cl-sel { cursor:pointer; }
 
 /* Qué busca: píldoras de criterios + menú fijo. Ocupa el renglón entero. */
+/* Contacto: el desplegable elige a la persona y abajo van sus datos, editables. */
+#clWhats { display:contents; }
+#clWhats:empty { display:none; }
+.cl-cto { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-top:6px; }
+.cl-cto .cl-ef { flex:1 1 130px; }
+.cl-cto-x { width:30px; height:30px; flex-shrink:0; border:1px solid var(--border-2); background:transparent; color:var(--muted); font-size:15px; cursor:pointer; }
+.cl-cto-x:hover { border-color:var(--s-rechazado); color:var(--s-rechazado); }
 .cl-f.wide { grid-column:1 / -1; border-left:none; border-top:1px solid var(--border); }
 .crit-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:4px 0 2px; }
 .cl-f .crit-pill { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 4px 0 10px;

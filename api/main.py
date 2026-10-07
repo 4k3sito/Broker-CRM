@@ -911,7 +911,8 @@ def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_use
 # El cliente sigue sin poder mandar un `user_id`: lo pone la sesión.
 
 CLIENTE_COLS = ("nombre", "contacto", "empresa", "requerimientos", "notas",
-                "responsable", "responsable_id", "criterios", "estatus")
+                "responsable", "responsable_id", "criterios", "estatus", "contactos")
+CONTACTO_CAMPOS = ("nombre", "correo", "telefono")
 FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "fotos", "notas",
               "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng")
 # Lo que guarda una ficha PDF con nombre (ficha_version.datos): sólo lo que imprime.
@@ -1098,17 +1099,31 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                ORDER BY c.orden NULLS FIRST, c.created_at DESC""").fetchall()
 
 
+def _con_contactos(body: dict) -> dict:
+    """`cliente.contactos` es jsonb libre: aquí se deja sólo lo que la página pinta
+    (nombre, correo y teléfono, como texto corto) y se acota la lista. Va envuelta en
+    Jsonb a mano porque `_adaptar` no envuelve listas (ver ahí)."""
+    if "contactos" not in body:
+        return body
+    cs = body["contactos"]
+    if not isinstance(cs, list) or len(cs) > 30 or not all(isinstance(c, dict) for c in cs):
+        raise HTTPException(422, "contactos debe ser una lista de hasta 30 contactos")
+    limpios = [{k: str(c[k]).strip()[:200] for k in CONTACTO_CAMPOS
+                if c.get(k) is not None and str(c[k]).strip()} for c in cs]
+    return dict(body, contactos=Jsonb([c for c in limpios if c]))
+
+
 @app.post("/api/clientes", status_code=201)
 def crear_cliente(body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
     if not (body.get("nombre") or "").strip():
         raise HTTPException(422, "El nombre es obligatorio")
     with POOL.connection() as conn:
-        return _insert(conn, "cliente", body, CLIENTE_COLS, user["id"])
+        return _insert(conn, "cliente", _con_contactos(body), CLIENTE_COLS, user["id"])
 
 
 @app.patch("/api/clientes/{cid}")
 def editar_cliente(cid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    return _patch("cliente", cid, body, CLIENTE_COLS, user)
+    return _patch("cliente", cid, _con_contactos(body), CLIENTE_COLS, user)
 
 
 @app.delete("/api/clientes/{cid}", status_code=204)
