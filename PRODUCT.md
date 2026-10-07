@@ -77,6 +77,10 @@ dispara: para él el inventario simplemente está al día.
   completo en el navegador.
 - **No hay roles.** Cualquier cuenta autenticada ve el CRM completo del equipo. Es
   aceptable porque son la misma oficina, y está anotado como H8 en `SECURITY.md`.
+  Única excepción (2026-10-07): la pestaña Scrapers y las tarjetas de scraper del
+  tablero de tareas sólo las ven las dos cuentas que operan los scrapers
+  (`SCRAPERS_VEN` en `api/main.py`, `SECURITY.md` §5). No es un rol de asesor: es
+  esconderle al equipo lo que no es su trabajo.
 - El sitio corre sobre HTTP sin dominio ni TLS (H2 en `SECURITY.md`). Nada en la
   interfaz debe prometer lo contrario.
 

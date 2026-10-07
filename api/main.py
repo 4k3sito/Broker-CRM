@@ -203,6 +203,34 @@ def current_user(session: str | None = Cookie(default=None, alias=COOKIE)) -> di
     return row
 
 
+# La única excepción a «sin roles»: la salud de los scrapers y las tarjetas que deja
+# `qa.py` (tipo 'Scraper') son operación del sistema, no trabajo de los asesores, y
+# sólo las ven estas cuentas. Es una lista y no una columna en `usuario` porque son
+# dos personas; el día que sean más, que sea una columna. Registrado en SECURITY.md §5.
+SCRAPERS_VEN = frozenset({"alex170800@hotmail.com", "akexanderr123@gmail.com"})
+TIPO_SCRAPER = "Scraper"
+
+
+def ve_scrapers(user: dict) -> bool:
+    return (user.get("email") or "").strip().lower() in SCRAPERS_VEN
+
+
+def _tarea_permitida(conn, tid: str, user: dict) -> None:
+    """Para quien no ve los scrapers, una tarjeta de scraper no existe: 404, igual
+    que un id inventado, para no confirmar que está ahí."""
+    if ve_scrapers(user):
+        return
+    if conn.execute("SELECT 1 FROM tarea WHERE id::text = %s AND tipo = %s",
+                    (tid, TIPO_SCRAPER)).fetchone():
+        raise HTTPException(404, "No existe esa tarea")
+
+
+def _tipo_permitido(body: dict, user: dict) -> None:
+    """Que nadie fuera de la lista marque una tarjeta como de scraper: dejaría de verla."""
+    if body.get("tipo") == TIPO_SCRAPER and not ve_scrapers(user):
+        raise HTTPException(403, "Ese tipo de tarea es sólo de quien opera los scrapers")
+
+
 # ─────────────────────────────────────────────────────────────────── endpoints
 class LoginIn(BaseModel):
     email: str = Field(min_length=3, max_length=254)
@@ -245,7 +273,10 @@ def logout(response: Response, session: str | None = Cookie(default=None, alias=
 
 @app.get("/api/me")
 def me(user: dict = Depends(current_user)) -> dict:
-    return {"id": str(user["id"]), "email": user["email"], "nombre": user["nombre"]}
+    # `scrapers` sólo le dice al frontend si pinta la pestaña: el candado es el 403
+    # de /api/scrapers y el filtro de /api/tareas.
+    return {"id": str(user["id"]), "email": user["email"], "nombre": user["nombre"],
+            "scrapers": ve_scrapers(user)}
 
 
 class PasswordIn(BaseModel):
@@ -852,6 +883,8 @@ def scrapers(user: dict = Depends(current_user)) -> dict:
     porque es una página de consulta ocasional; si se vuelve un panel que se
     refresca solo, materializar esto en una tabla por día.
     """
+    if not ve_scrapers(user):
+        raise HTTPException(403, "Esta sección es sólo de quien opera los scrapers")
     with POOL.connection() as conn:
         rows = conn.execute("""
             SELECT source, date_trunc('day', observed_at)::date AS dia,
@@ -1627,7 +1660,7 @@ TAREA_SELECT = """
 
 
 @app.get("/api/equipo")
-def equipo(_: dict = Depends(current_user)) -> list[dict]:
+def equipo(user: dict = Depends(current_user)) -> list[dict]:
     """Las personas a las que se puede asignar. Sin password_hash, obviamente.
     Sin las cuentas `oculto` (la de verificación de frontend, H8): no son del equipo
     y no deben salir en selectores ni filtros."""
@@ -1636,15 +1669,20 @@ def equipo(_: dict = Depends(current_user)) -> list[dict]:
             "SELECT u.id, u.nombre, u.email, u.rol, "
             "  count(t.id) FILTER (WHERE t.columna <> 'completado') AS abiertas "
             "FROM usuario u LEFT JOIN tarea t ON t.asignado_a = u.id "
+            # La carga que ve cada quien cuenta sólo las tarjetas que puede abrir.
+            "  AND (%s OR t.tipo IS DISTINCT FROM %s) "
             "WHERE NOT u.oculto "
-            "GROUP BY u.id ORDER BY u.nombre NULLS LAST, u.email").fetchall()
+            "GROUP BY u.id ORDER BY u.nombre NULLS LAST, u.email",
+            (ve_scrapers(user), TIPO_SCRAPER)).fetchall()
 
 
 @app.get("/api/tareas")
 def tareas(listing: str | None = None, asignado: str | None = None,
            cliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
-           _: dict = Depends(current_user)) -> list[dict]:
+           user: dict = Depends(current_user)) -> list[dict]:
     w, p = [], []
+    if not ve_scrapers(user):
+        w.append("t.tipo IS DISTINCT FROM %s"); p.append(TIPO_SCRAPER)
     if cliente:
         # Las del cliente y las de cualquiera de sus propiedades: una tarea ligada a
         # un proceso es trabajo de ese cliente aunque no traiga `cliente_id`.
@@ -1662,6 +1700,7 @@ def tareas(listing: str | None = None, asignado: str | None = None,
 def crear_tarea(body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
     if not (body.get("titulo") or "").strip():
         raise HTTPException(422, "El título es obligatorio")
+    _tipo_permitido(body, user)
     with POOL.connection() as conn:
         try:
             fila = _insert(conn, "tarea", body, TAREA_COLS, user["id"])
@@ -1671,12 +1710,14 @@ def crear_tarea(body: dict = Body(...), user: dict = Depends(current_user)) -> d
 
 
 @app.patch("/api/tareas/{tid}")
-def editar_tarea(tid: str, body: dict = Body(...), _: dict = Depends(current_user)) -> dict:
+def editar_tarea(tid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
     campos = {k: v for k, v in body.items() if k in TAREA_COLS}
     if not campos:
         raise HTTPException(422, f"nada que actualizar; permitidos: {', '.join(TAREA_COLS)}")
     sets = ", ".join(f"{k} = %s" for k in campos) + ", updated_at = now()"
+    _tipo_permitido(campos, user)
     with POOL.connection() as conn:
+        _tarea_permitida(conn, tid, user)
         # Sin `AND user_id = %s`: el tablero es del equipo, no de quien la creó.
         try:
             fila = conn.execute(f"UPDATE tarea SET {sets} WHERE id = %s RETURNING id",
@@ -1689,8 +1730,9 @@ def editar_tarea(tid: str, body: dict = Body(...), _: dict = Depends(current_use
 
 
 @app.get("/api/tareas/{tid}/comentarios")
-def comentarios(tid: str, _: dict = Depends(current_user)) -> list[dict]:
+def comentarios(tid: str, user: dict = Depends(current_user)) -> list[dict]:
     with POOL.connection() as conn:
+        _tarea_permitida(conn, tid, user)
         return conn.execute(
             "SELECT c.id, c.texto, c.created_at, u.nombre AS autor, u.email AS autor_email "
             "FROM tarea_comentario c JOIN usuario u ON u.id = c.user_id "
@@ -1703,6 +1745,7 @@ def comentar(tid: str, body: dict = Body(...), user: dict = Depends(current_user
     if not texto:
         raise HTTPException(422, "El comentario viene vacío")
     with POOL.connection() as conn:
+        _tarea_permitida(conn, tid, user)
         try:
             fila = conn.execute(
                 "INSERT INTO tarea_comentario (tarea_id, user_id, texto) VALUES (%s, %s, %s) "
@@ -1726,8 +1769,9 @@ def borrar_comentario(cid: str, user: dict = Depends(current_user)) -> None:
 
 
 @app.delete("/api/tareas/{tid}", status_code=204)
-def borrar_tarea(tid: str, _: dict = Depends(current_user)) -> None:
+def borrar_tarea(tid: str, user: dict = Depends(current_user)) -> None:
     with POOL.connection() as conn:
+        _tarea_permitida(conn, tid, user)
         if not conn.execute("DELETE FROM tarea WHERE id = %s", (tid,)).rowcount:
             raise HTTPException(404, "No existe esa tarea")
 
@@ -2168,6 +2212,10 @@ def selfcheck() -> None:
     w, p = _filtros({"precio_min": 1000})
     assert not any("precio_alt" in x for x in w) and len(p) == 1, (w, p)
 
+    # Quién ve los scrapers: la lista, sin importar mayúsculas; nadie más.
+    assert ve_scrapers({"email": "Alex170800@Hotmail.com"})
+    assert ve_scrapers({"email": "akexanderr123@gmail.com"})
+    assert not ve_scrapers({"email": "damianmoya@prorealtors.mx"}) and not ve_scrapers({})
     # El GROUPING SETS de /api/scrapers: la fila sin día es el resumen de la fuente.
     part = _partir_scrapers([
         {"source": "pincali", "dia": None, "total": 10},

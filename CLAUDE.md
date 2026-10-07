@@ -88,7 +88,9 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   `href` que venga de un anuncio o de un adjunto, por `hrefSeguro`.
 - **`api/`** — FastAPI. `main.py` trae la auth propia (scrypt de la stdlib + sesiones
   opacas en la DB), los endpoints de listings/zonas/CRM/tareas, `GET /api/scrapers`
-  (agregados de `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers),
+  (agregados de `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers;
+  **sólo para las cuentas de `SCRAPERS_VEN`**, igual que las tarjetas `tipo = 'Scraper'`
+  de tareas — la única restricción por cuenta del sistema, SECURITY.md §5),
   el **motor de análisis de mercado** y un CLI: `selfcheck`, `lsusers`, `adduser`,
   `passwd`, `resetlink`, `deluser`. `python main.py selfcheck` corre sin base de datos.
   `documento.py` + `documento.css` son la maqueta del PDF del análisis, y `fuentes/`

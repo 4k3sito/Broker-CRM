@@ -9,8 +9,10 @@
     { href: 'index.html?tab=inmobiliaria', label: 'Catálogo',           de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'inmobiliaria' },
     { href: 'clientes.html', label: 'Clientes',  de: ['clientes.html'] },
     { href: 'tareas.html',   label: 'Tareas',    de: ['tareas.html'], badge: 'tareas' },
-    { href: 'scrapers.html', label: 'Scrapers',  de: ['scrapers.html'] },
   ];
+  // Scrapers no está en la lista: sólo la ven las cuentas que la API marca con
+  // `scrapers` en /me, y se agrega abajo cuando eso contesta.
+  const SCRAPERS = { href: 'scrapers.html', label: 'Scrapers', de: ['scrapers.html'] };
   const aqui = location.pathname.split('/').pop();
   let tab = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
   if (aqui !== 'index.html' && aqui !== '') {
@@ -24,16 +26,18 @@
     const nav = document.createElement('nav');
     nav.className = 'topbar-nav';
     nav.setAttribute('aria-label', 'Secciones');
-    nav.innerHTML = TABS.map(t => {
+    const enlace = t => {
       const on = t.de.includes(aqui) && (!t.tab || t.tab === tab);
       return `<a href="${t.href}"${on ? ' class="active" aria-current="page"' : ''}>${t.label}` +
              (t.badge ? `<span class="tb-badge" data-badge="${t.badge}" hidden></span>` : '') + `</a>`;
-    }).join('');
+    };
+    nav.innerHTML = TABS.map(enlace).join('');
     const brand = topbar.querySelector('.brand-group');
     brand ? brand.after(nav) : topbar.prepend(nav);
 
     // Avatar con iniciales junto a "Salir". Silencioso si no hay sesión.
     API.me().then(u => {
+      if (u.scrapers) nav.insertAdjacentHTML('beforeend', enlace(SCRAPERS));
       const nombre = (u.nombre || u.email || '').trim();
       const ini = nombre.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
       const box = document.getElementById('userBox');
