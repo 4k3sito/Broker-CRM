@@ -11,6 +11,10 @@ let clientes = [];          // cada uno con .proceso[] embebido
 let filterStatus = 'all';
 let searchQ = '';
 let selId = decodeURIComponent(location.hash.slice(1)) || null;
+// "Volver" desde la ficha completa de una propiedad (listing.js) regresa con
+// `?proc=<id>`: esa fila se abre y se trae a la vista, que es donde se estaba.
+let volverA = new URLSearchParams(location.search).get('proc');
+if (volverA) history.replaceState(null, '', location.pathname + location.hash);
 let equipo = [];            // personas con cuenta, para el selector de "Cuenta"
 let critAbierto = null;     // qué criterio se está editando en el menú de "Qué busca"
 let lugarSugs = [];         // sugerencias del autocompletado de ubicación
@@ -18,6 +22,18 @@ let filterCuenta = 'all';   // lista: 'all' | 'none' (sin asignar) | id de quien
 let filterEstatus = 'all';  // lista: 'all' | 'none' (sin estatus) | llave de ESTATUS
 let abierto = null;         // id del proceso cuya fila está desplegada
 let colsAbierto = false;    // el menú de "Columnas"
+// Modo presentación: para enseñarle su pipeline a un cliente sin que vea a los demás.
+// Esconde la lista de clientes y "Qué busca" (ver .cl.presenta en hermes.css). Se guarda
+// en la pestaña para que recargar a media junta no destape la lista.
+let presentando = false;
+try { presentando = sessionStorage.getItem('ol-cl-presenta') === '1'; } catch { /* sin persistencia */ }
+function presentar(si) {
+  presentando = si;
+  try { sessionStorage.setItem('ol-cl-presenta', si ? '1' : '0'); } catch { /* sin persistencia */ }
+  // La clase va antes de pintar: la tabla mide su ancho para decidir qué columnas caben.
+  document.getElementById('clientes').classList.toggle('presenta', presentando && !!cSel());
+  renderDetalle();
+}
 let catAbierto = false;     // el buscador de "+ Proponer desde Catálogo"…
 let catQ = '';              // …lo que se lleva escrito…
 let catFichas = null;       // …y las fichas del Catálogo (se piden al abrirlo)
@@ -242,7 +258,7 @@ const estatusLabel = k => ESTATUS.find(e => e.key === k)?.label ?? null;
 // Búsqueda, estatus y "quién lleva la cuenta": la base sobre la que cuentan las
 // píldoras de etapa.
 function pasaBase(c) {
-  if (searchQ && !norm(`${c.nombre} ${c.empresa ?? ''} ${c.contacto ?? ''}`).includes(norm(searchQ))) return false;
+  if (searchQ && !norm(`${c.nombre} ${c.empresa ?? ''} ${(c.contactos ?? []).map(k => Object.values(k).join(' ')).join(' ')}`).includes(norm(searchQ))) return false;
   if (filterEstatus !== 'all' && (c.estatus ?? 'none') !== filterEstatus) return false;
   if (filterCuenta === 'none') return !c.responsable_id && !c.responsable;
   return filterCuenta === 'all' || String(c.responsable_id) === filterCuenta;
@@ -280,6 +296,69 @@ function cuentaHtml(c) {
       <option value="">${suelto ? `${esc(c.responsable)} · sin cuenta` : 'Sin asignar'}</option>
       ${equipo.map(p => `<option value="${esc(p.id)}"${String(p.id) === String(c.responsable_id) ? ' selected' : ''}>${esc(nombreDe(p))}</option>`).join('')}
     </select></label>`;
+}
+// Contactos: un cliente puede tener varias personas (`cliente.contactos`, una lista de
+// {nombre, correo, telefono}). El desplegable elige a quién se ve; sus datos se editan
+// abajo. `ctoSel` es sólo de la pantalla: al cambiar de cliente vuelve al primero.
+let ctoSel = 0;
+const ctoNombre = k => k.nombre || k.correo || k.telefono || 'Sin nombre';
+function contactoHtml(c) {
+  const cs = c.contactos ?? [];
+  if (ctoSel >= cs.length) ctoSel = 0;
+  const k = cs[ctoSel];
+  const campo = (f, label, tipo, ph) => `<label class="cl-ef"><span>${label}</span>
+    <input class="cl-ein" type="${tipo}" data-k="${f}" value="${esc(k[f] ?? '')}" placeholder="${ph}"></label>`;
+  return `<div class="cl-f"><span>Contacto${cs.length > 1 ? ` · ${cs.length}` : ''}</span>
+    <select class="cl-sel" id="clContacto" aria-label="Contacto">
+      ${cs.length ? '' : '<option value="">Sin contactos</option>'}
+      ${cs.map((x, i) => `<option value="${i}"${i === ctoSel ? ' selected' : ''}>${esc(ctoNombre(x))}</option>`).join('')}
+      <option value="+">+ Agregar contacto&#8230;</option>
+    </select>
+    ${k ? `<div class="cl-cto">
+      ${campo('nombre', 'Nombre', 'text', 'Nombre')}
+      ${campo('correo', 'Correo', 'email', 'correo@empresa.com')}
+      ${campo('telefono', 'Teléfono', 'tel', '81 1234 5678')}
+      <button class="cl-cto-x" id="clCtoDel" title="Quitar este contacto" aria-label="Quitar este contacto">&times;</button>
+    </div>` : ''}</div>`;
+}
+function guardarContactos(c, cs) {
+  c.contactos = cs;
+  // `contacto: null` jubila el campo viejo de texto libre (ver schema.sql, 2026-10-07).
+  c.contacto = null;
+  API.patch(`/clientes/${c.id}`, { contactos: cs, contacto: null }).catch(err => alert('No se pudo guardar el contacto: ' + err.message));
+}
+function conectarContactos(c, box) {
+  box.querySelector('#clContacto').addEventListener('change', e => {
+    if (e.target.value === '+') {
+      const nombre = prompt('Nombre del contacto:')?.trim();
+      if (nombre) { guardarContactos(c, [...(c.contactos ?? []), { nombre }]); ctoSel = c.contactos.length - 1; }
+    } else ctoSel = Number(e.target.value) || 0;
+    renderDetalle();
+  });
+  // Un campo no repinta el detalle —se perdería el foco al pasar al siguiente—: sólo
+  // se corrige el nombre en el desplegable y el botón de WhatsApp al terminar.
+  box.querySelectorAll('.cl-cto input').forEach(el => el.addEventListener('change', e => {
+    const cs = (c.contactos ?? []).map(x => ({ ...x }));
+    const v = e.target.value.trim();
+    if (v) cs[ctoSel][e.target.dataset.k] = v; else delete cs[ctoSel][e.target.dataset.k];
+    guardarContactos(c, cs);
+    const op = box.querySelector(`#clContacto option[value="${ctoSel}"]`);
+    if (op) op.textContent = ctoNombre(cs[ctoSel]);
+    pintarWhats(c, box);
+  }));
+  box.querySelector('#clCtoDel')?.addEventListener('click', () => {
+    const k = c.contactos[ctoSel];
+    if (!confirm(`¿Quitar a ${ctoNombre(k)} de los contactos de ${c.nombre}?`)) return;
+    guardarContactos(c, c.contactos.filter((_, i) => i !== ctoSel));
+    ctoSel = 0;
+    renderDetalle();
+  });
+}
+// El botón de WhatsApp del encabezado es del contacto que se está viendo.
+function pintarWhats(c, box) {
+  const tel = telDe((c.contactos ?? [])[ctoSel]?.telefono);
+  box.querySelector('#clWhats').innerHTML = tel
+    ? `<a class="fx-btn" href="https://wa.me/${tel.length === 10 ? '52' + tel : tel}" target="_blank" rel="noopener">WhatsApp</a>` : '';
 }
 function estatusHtml(c) {
   return `<label class="cl-f"><span>Estatus</span>
@@ -425,7 +504,7 @@ function conectarCriterios(c, box) {
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
-// Una píldora por etapa, generada de etapas.js: el pipeline trae ocho.
+// Una píldora por etapa, generada de etapas.js: el pipeline trae nueve.
 function renderEtapaPills() {
   document.getElementById('etapaPills').innerHTML = ETAPAS.map(e =>
     `<button class="pill-line${filterStatus === e.key ? ' active' : ''}" data-status="${e.key}">${e.label} ` +
@@ -632,7 +711,7 @@ function panelHtml(c, p) {
       </div>
     </div>
     <div class="cl-exp-links">
-      ${lid ? `<a href="listing.html?id=${encodeURIComponent(lid)}">Abrir ficha completa &#8594;</a>` : ''}
+      ${lid ? `<a href="listing.html${API.qs({ id: lid, cliente: c.id, proc: p.id })}">Abrir ficha completa &#8594;</a>` : ''}
       ${f.mapa_url ? `<a href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener">Ver en mapa &#8599;</a>` : ''}
       <span>Los datos del inmueble son de la ficha: cambian para todos los clientes a los que se presentó.</span>
     </div>
@@ -700,18 +779,19 @@ function renderDetalle() {
   const box = document.getElementById('clDetail');
   const c = clientes.find(x => String(x.id) === selId);
   document.getElementById('clientes').classList.toggle('has-sel', !!c);
+  document.getElementById('clientes').classList.toggle('presenta', presentando && !!c);
   if (!c) {
     box.innerHTML = `<div class="cl-none">${clientes.length ? 'Selecciona un cliente para ver sus propuestas.' : ''}</div>`;
     return;
   }
   // Al cambiar de cliente: sin fila desplegada, sin filtros de tabla, y sus tareas.
   if (tareasDe !== String(c.id)) {
-    abierto = null; propEtapa = 'all'; propTrae = 'all'; colsAbierto = false; catAbierto = false;
+    abierto = null; propEtapa = 'all'; propTrae = 'all'; colsAbierto = false; catAbierto = false; ctoSel = 0;
     cargarTareas(String(c.id));
   }
-  const tel = telDe(c.contacto);
-  const campo = (f, label, ph, wide) => `<label class="cl-f${wide ? ' wide' : ''}"><span>${label}</span>
-    <input class="cli-in" data-f="${f}" value="${esc(c[f])}" placeholder="${ph}"></label>`;
+  const traer = volverA && (c.proceso ?? []).some(p => String(p.id) === volverA);
+  if (traer) abierto = volverA;
+  volverA = null;
   box.innerHTML = `
     <div class="cl-head">
       <button class="cl-back" id="clBack">&#8592; Clientes</button>
@@ -722,14 +802,15 @@ function renderDetalle() {
           <input class="cli-in cl-empresa" data-f="empresa" value="${esc(c.empresa)}" placeholder="Empresa" aria-label="Empresa">
         </div>
         <div class="cl-acts">
-          ${tel ? `<a class="fx-btn" href="https://wa.me/${tel.length === 10 ? '52' + tel : tel}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+          <span id="clWhats"></span>
+          <button class="fx-btn${presentando ? ' solid' : ''}" id="clPres" aria-pressed="${presentando}" title="${presentando ? 'Volver a la vista completa' : 'Deja en pantalla s&#243;lo a este cliente: sin la lista de clientes ni &#171;Qu&#233; busca&#187;'}">${presentando ? 'Salir de presentaci&#243;n' : 'Modo presentaci&#243;n'}</button>
           <button class="fx-btn" id="clDel" title="Eliminar cliente">Eliminar</button>
         </div>
       </div>
       <div class="cl-fields">
         ${cuentaHtml(c)}
         ${estatusHtml(c)}
-        ${campo('contacto', 'Contacto', 'Teléfono o correo')}
+        ${contactoHtml(c)}
         ${queBuscaHtml(c)}
       </div>
     </div>
@@ -743,8 +824,12 @@ function renderDetalle() {
     e.target.className = `cl-sel${e.target.value ? ` est-${e.target.value}` : ''}`;
   });
   conectarCriterios(c, box);
+  conectarContactos(c, box);
+  pintarWhats(c, box);
   document.getElementById('clDel').addEventListener('click', () => deleteCliente(c.id));
   document.getElementById('clBack').addEventListener('click', () => seleccionar(null));
+  document.getElementById('clPres').addEventListener('click', () => presentar(!presentando));
+  if (traer) box.querySelector('.cl-tr.open')?.scrollIntoView({ block: 'center' });
 }
 
 function render() {

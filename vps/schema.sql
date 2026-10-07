@@ -650,10 +650,12 @@ ALTER TABLE proceso ADD COLUMN IF NOT EXISTS trae_id uuid REFERENCES usuario (id
 
 -- Las etapas del pipeline. `presentado`, `aprobado` y `rechazado` conservan su llave
 -- para que los procesos que ya existían no cambien de significado; `pausa` y
--- `rechazado` son laterales, no pasos del avance.
+-- `rechazado` son laterales, no pasos del avance. `evaluacion` se agregó el 2026-10-07,
+-- entre presentado y aprobado; va en esta misma lista (y no en un bloque nuevo al final)
+-- porque si no, volver a correr el archivo fallaría aquí con filas en esa etapa.
 ALTER TABLE proceso DROP CONSTRAINT IF EXISTS proceso_status_check;
 ALTER TABLE proceso ADD CONSTRAINT proceso_status_check CHECK (status IN
-  ('prospecto','por_presentar','presentado','aprobado','negociacion','cerrado','pausa','rechazado'));
+  ('prospecto','por_presentar','presentado','evaluacion','aprobado','negociacion','cerrado','pausa','rechazado'));
 
 -- El CRM pasa a ser del equipo (clientes, fichas, procesos y documentos; ver
 -- SECURITY.md §5). Eso cambia qué significa borrar a un asesor: antes `deluser` se
@@ -802,3 +804,23 @@ CREATE TABLE IF NOT EXISTS archivo (
 );
 CREATE INDEX IF NOT EXISTS archivo_documento_idx ON archivo (documento_id);
 CREATE INDEX IF NOT EXISTS archivo_ficha_idx ON archivo (ficha_id);
+
+-- ───────────────────────────── varios contactos por cliente (2026-10-07)
+--
+-- Un cliente tenía un solo `contacto` de texto libre; el equipo trata con varias
+-- personas del mismo cliente. `contactos` es la lista:
+--   [{"nombre": "...", "correo": "...", "telefono": "..."}]   (las tres llaves opcionales)
+-- jsonb y no tabla: son unos cuantos por cliente, se leen y se escriben siempre junto
+-- con él, y nada los consulta por separado. La API deja sólo esas tres llaves.
+--
+-- `contacto` se queda (no se borra nada) pero la página ya no lo usa: lo que tuviera
+-- pasa a ser el primer contacto, y al guardar `contactos` la página lo deja en NULL,
+-- que es lo que impide que esta migración vuelva a sembrarlo si se corre otra vez.
+--
+-- Aditivo y se puede correr dos veces. En la copia de trabajo se aplica con
+-- `search_path=dev,public` (ver README.md, "Copia de trabajo").
+ALTER TABLE cliente ADD COLUMN IF NOT EXISTS contactos jsonb NOT NULL DEFAULT '[]'::jsonb;
+UPDATE cliente SET contactos = jsonb_build_array(jsonb_build_object(
+    CASE WHEN contacto ~ '^\S+@\S+$' THEN 'correo'
+         WHEN contacto ~ '^[\d\s()+-]{7,}$' THEN 'telefono' ELSE 'nombre' END, btrim(contacto)))
+  WHERE btrim(coalesce(contacto, '')) <> '' AND contactos = '[]'::jsonb;

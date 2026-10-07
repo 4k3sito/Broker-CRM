@@ -13,6 +13,13 @@ const FUENTE_CONFIG = {
 };
 // "Volver" regresa a la pestaña de la que se vino (Bolsa o Inmobiliaria).
 const TABLERO = (() => { try { return sessionStorage.getItem('ol-tab') === 'inmobiliaria' ? 'index.html?tab=inmobiliaria' : 'index.html'; } catch { return 'index.html'; } })();
+// Si se llegó desde la tabla de un cliente ("Abrir ficha completa"), se vuelve ahí, a
+// la misma fila, y no al tablero.
+const VOLVER = (() => {
+  const u = new URLSearchParams(location.search), c = u.get('cliente');
+  return c ? { href: `clientes.html${API.qs({ proc: u.get('proc') })}#${encodeURIComponent(c)}`, texto: 'Volver al cliente' }
+           : { href: TABLERO, texto: 'Volver al tablero' };
+})();
 const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
 // Las etapas de un proceso vienen de etapas.js (compartido con tareas y clientes);
 // `esc` y `hrefSeguro`, de texto.js.
@@ -398,7 +405,7 @@ function mosaicoHtml(l, nav) {
     ${celda(0, 'grande')}
     ${f.length > 1 ? [1, 2, 3].map(i => celda(i, '')).join('') +
       (f[4] ? `<button class="fx-ph" data-i="4"><img src="${esc(f[4])}" alt="" loading="lazy">${f.length > 5 ? `<span class="fx-mas">Ver las ${f.length} fotos</span>` : ''}</button>` : '<span class="fx-ph vacio"></span>') : ''}
-    <a class="fx-over fx-back" href="${TABLERO}">&#8592; Volver al tablero</a>
+    <a class="fx-over fx-back" href="${esc(VOLVER.href)}">&#8592; ${VOLVER.texto}</a>
     ${nav ? `<span class="fx-over fx-nav">
       <button id="navPrev" ${nav.prev ? '' : 'disabled'} title="Anterior (K)">&#8592;</button>
       <span>${nav.i + 1} / ${nav.n}</span>
