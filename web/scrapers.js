@@ -197,6 +197,9 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 });
 
 API.me().then(async user => {
+  // La API responde 403 de todos modos; esto sólo evita pintar el error a quien
+  // llegó por una liga vieja.
+  if (!user.scrapers) { location.replace('index.html'); return; }
   document.getElementById('authBox').hidden = true;
   document.getElementById('userBox').hidden = false;
   render(await API.get('/scrapers'));

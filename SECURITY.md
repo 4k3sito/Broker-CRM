@@ -118,6 +118,23 @@ mueve, reasigna y borra cualquier tarea; `user_id` sólo registra quién la cre�
 escrito así en `api/main.py` para que no se lea como un filtro olvidado. Si algún día
 hacen falta equipos separados, esto es lo primero que hay que cambiar.
 
+**Única restricción por cuenta: los scrapers (2026-10-07).** La pestaña Scrapers y las
+tarjetas que deja `qa.py` en el tablero (`tarea.tipo = 'Scraper'`) sólo las ven las dos
+cuentas de `SCRAPERS_VEN` en `api/main.py`: son operación del sistema, no trabajo de los
+asesores. El candado está en la API, no en el menú:
+
+- `GET /api/scrapers` responde 403 a cualquier otra cuenta.
+- `GET /api/tareas` les omite las tarjetas de scraper, y editar, comentar, leer el hilo
+  o borrar una por su id les da 404 —igual que un id inventado—. `/api/equipo` tampoco
+  se las cuenta en la carga. Nadie fuera de la lista puede poner `tipo = 'Scraper'`.
+- `/api/me` trae `scrapers: true|false` sólo para que `menu.js` pinte o no la pestaña;
+  `scrapers.html` regresa al tablero a quien no la tiene.
+
+Límites: la lista vive en el código (cambiarla es un despliegue de la API), y el filtro
+es por el `tipo` de la tarjeta: si alguien de la lista le cambia el tipo a una tarjeta de
+scraper, el resto del equipo vuelve a verla. Los anuncios y sus conteos por portal
+(`/api/listings/facets`) siguen siendo de todos: eso es inventario, no operación.
+
 ## 6. Superficie expuesta — medido el 2026-08-28
 
 ```
@@ -181,7 +198,8 @@ al pedir las fuentes a Google.
 ### Endpoints (2026-09-01)
 
 `GET /api/scrapers` se suma a la lista. Como todo lo demás salvo `/api/health` y el
-flujo de recuperación, exige sesión (`Depends(current_user)`), no toma un solo
+flujo de recuperación, exige sesión (`Depends(current_user)`) —y desde el 2026-10-07
+además estar en `SCRAPERS_VEN` (§5); a los demás, 403—, no toma un solo
 parámetro del cliente y sólo devuelve **agregados** de `listings` —conteos, coberturas
 y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individual. No
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
