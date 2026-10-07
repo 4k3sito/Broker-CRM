@@ -20,6 +20,17 @@ const VOLVER = (() => {
   return c ? { href: `clientes.html${API.qs({ proc: u.get('proc') })}#${encodeURIComponent(c)}`, texto: 'Volver al cliente' }
            : { href: TABLERO, texto: 'Volver al tablero' };
 })();
+// Modo presentación (clientes.js): si la ficha se abrió desde un cliente que se está
+// presentando, aquí tampoco se ve nada de otros clientes ni lo interno. Es el id del
+// cliente, o null. Vive en la pestaña, igual que allá.
+const PRESENTA_A = (() => {
+  try { return sessionStorage.getItem('ol-cl-presenta') === '1' ? new URLSearchParams(location.search).get('cliente') : null; }
+  catch { return null; }
+})();
+// Las fichas PDF que se enseñan: en presentación, sólo las hechas para ese cliente; si
+// no tiene ninguna, la General. Las de otros clientes y las de nombre libre no salen.
+const versionesVisibles = () => PRESENTA_A ? versiones.filter(v => String(v.cliente_id) === PRESENTA_A) : versiones;
+const conGeneral = () => !PRESENTA_A || !versionesVisibles().length;
 const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
 // Las etapas de un proceso vienen de etapas.js (compartido con tareas y clientes);
 // `esc` y `hrefSeguro`, de texto.js.
@@ -106,6 +117,7 @@ async function loadFicha() {
   const fs = await API.get(`/fichas?listing=${encodeURIComponent(listing.id)}`).catch(() => []);
   ficha = fs[0] ?? null;
   versiones = ficha ? await API.get(`/fichas/${ficha.id}/versiones`).catch(() => []) : [];
+  if (!conGeneral()) versionSel = String(versionesVisibles()[0].id);
 }
 async function loadSeguimiento() {
   clientes = (await API.get('/clientes').catch(() => [])).sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -467,30 +479,30 @@ function render() {
       <button class="fx-btn" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
     </section>
 
-    <div class="fx-cols">
+    <div class="fx-cols${PRESENTA_A ? ' pres' : ''}">
       <section class="fx-card">
         <h2>Ficha</h2>
         <dl class="fx-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
         ${l.descripcion ? `<p class="fx-desc">${esc(l.descripcion)}</p>` : ''}
         ${l.features.length ? `<ul class="fx-feat">${l.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
         <div class="fx-vers">
-          <h2>Fichas PDF <span class="fx-n">${versiones.length + 1}</span></h2>
-          <div class="fx-ver${vSel ? '' : ' on'}">
+          <h2>Fichas PDF <span class="fx-n">${versionesVisibles().length + conGeneral()}</span></h2>
+          ${conGeneral() ? `<div class="fx-ver${vSel ? '' : ' on'}">
             <button class="fx-ver-n" data-v="">Ficha-General.pdf</button>
             <small>${esPropia(l) ? 'Datos de la propiedad' : 'Datos del anuncio'}</small>
             <button class="fx-ver-pdf" data-v="" title="Imprimir o guardar como PDF">PDF</button>
-          </div>
-          ${versiones.map(v => `<div class="fx-ver${String(v.id) === versionSel ? ' on' : ''}">
+          </div>` : ''}
+          ${versionesVisibles().map(v => `<div class="fx-ver${String(v.id) === versionSel ? ' on' : ''}">
             <button class="fx-ver-n" data-v="${esc(v.id)}">${esc(nombrePdf(v))}.pdf</button>
             <small>${esc([v.autor, fechaCorta(v.updated_at)].filter(Boolean).join(' · '))}</small>
             <button class="fx-ver-pdf" data-v="${esc(v.id)}" title="Imprimir o guardar como PDF">PDF</button>
-            <button class="fx-ver-del" data-v="${esc(v.id)}" title="Borrar esta ficha">&times;</button>
+            ${PRESENTA_A ? '' : `<button class="fx-ver-del" data-v="${esc(v.id)}" title="Borrar esta ficha">&times;</button>`}
           </div>`).join('')}
-          <select class="fx-asignar" id="verAdd" aria-label="Nueva ficha">
+          ${PRESENTA_A ? '' : `<select class="fx-asignar" id="verAdd" aria-label="Nueva ficha">
             <option value="">+ Nueva ficha para…</option>
             ${clientes.map(c => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('')}
             <option value="__otro">Otro nombre…</option>
-          </select>
+          </select>`}
         </div>
         <details class="fx-pdfdata" id="pdfData"${pdfAbierto || (propia && !(l.tipo && l.zona)) ? ' open' : ''}>
           <summary>${propia && !vSel ? 'Datos de la propiedad' : `Datos de ${esc(nombrePdf(vSel))}.pdf`}</summary>
@@ -549,7 +561,7 @@ function render() {
         <input type="file" id="docFile" multiple hidden>
       </section>
 
-      <div class="fx-stack">
+      ${PRESENTA_A ? '' : `<div class="fx-stack">
         <section class="fx-card">
           <h2>Clientes <span class="fx-n">${procesos.length}</span></h2>
           ${procesos.map(p => `<div class="fx-proc">
@@ -569,7 +581,7 @@ function render() {
           <h2>Notas internas</h2>
           <textarea id="detailNotes" placeholder="Llamadas, condiciones, pendientes…">${esc(l.notes)}</textarea>
         </section>
-      </div>
+      </div>`}
     </div>`;
   enlazar();
 }
@@ -578,7 +590,7 @@ function enlazar() {
   const $ = id => document.getElementById(id);
   $('detailStar').onclick = () => { setState({ starred: !listing.starred }); render(); };
   $('detailStatus').onchange = e => { setState({ status: e.target.value }); e.target.className = `fx-status s-${e.target.value}`; };
-  $('detailNotes').onblur = e => setState({ notes: e.target.value });
+  $('detailNotes') && ($('detailNotes').onblur = e => setState({ notes: e.target.value }));
   $('btnPdf').onclick = () => imprimirFicha(versionSel);
   $('btnInmo') && ($('btnInmo').onclick = guardarEnInmobiliaria);
   $('btnQuitar') && ($('btnQuitar').onclick = quitarDeInmobiliaria);
@@ -587,13 +599,13 @@ function enlazar() {
   document.querySelectorAll('.fx-ver-n').forEach(b => b.onclick = () => { versionSel = b.dataset.v || null; pdfAbierto = true; render(); });
   document.querySelectorAll('.fx-ver-pdf').forEach(b => b.onclick = () => imprimirFicha(b.dataset.v || null));
   document.querySelectorAll('.fx-ver-del').forEach(b => b.onclick = () => borrarVersion(b.dataset.v));
-  $('verAdd').onchange = e => {
+  $('verAdd') && ($('verAdd').onchange = e => {
     const v = e.target.value;
     e.target.value = '';
     if (v === '__otro') return crearVersion(prompt('Nombre de la ficha (sale como Ficha-<nombre>.pdf):'));
     const c = clientes.find(x => String(x.id) === v);
     if (c) crearVersion(c.nombre, c.id);
-  };
+  });
   document.querySelectorAll('.base-in').forEach(el => el.onchange = e => saveBase(e.target.dataset.f, e.target.value));
   $('mkt-pdf').onclick = e => descargarAnalisis(e.currentTarget);
   $('navPrev') && ($('navPrev').onclick = () => irA(vecinos()?.prev));

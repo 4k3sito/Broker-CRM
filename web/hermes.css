@@ -2001,6 +2001,8 @@ tr.igual.ocultar { display:none; }
   gap:14px; padding:14px 24px 40px; align-items:start;
 }
 .fx-stack { display:flex; flex-direction:column; gap:14px; }
+/* Modo presentación (listing.js, PRESENTA_A): sin la columna de clientes y notas. */
+.fx-cols.pres { grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); }
 .fx-card { background:var(--surface); border:1px solid var(--border); padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
 .fx-card h2 {
   display:flex; align-items:center; gap:8px;
@@ -2088,7 +2090,7 @@ tr.igual.ocultar { display:none; }
   .fx-mosaic .fx-ph:not(.grande) { display:none; }
   .fx-band { padding:12px 14px; }
   .fx-band-p { text-align:left; flex:1; }
-  .fx-cols { grid-template-columns:1fr; padding:12px 12px 90px; }
+  .fx-cols, .fx-cols.pres { grid-template-columns:1fr; padding:12px 12px 90px; }
   .fx-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .fx-btn, .fx-status, .fx-star { height:44px; }
 }
@@ -2294,6 +2296,9 @@ button.cl-proponer { padding:0; border:none; background:transparent; font-family
 .cl-exp-grid { flex:1; min-width:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 10px; }
 .cl-ef { display:flex; flex-direction:column; gap:3px; min-width:0; }
 .cl-ef.wide { grid-column:1 / -1; }
+.cl-ef-row { display:flex; gap:6px; align-items:stretch; }
+.cl-ef-row .cl-ein { flex:1; min-width:0; }
+.cl-map-ir { height:auto; display:inline-flex; align-items:center; white-space:nowrap; text-decoration:none; color:var(--ink); }
 .cl-ef > span, .cl-exp-tareas h3 { font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700; }
 .cl-ein, .cl-tadd input, .cl-tadd select, .cl-addrow input {
   width:100%; min-height:32px; padding:5px 9px; border:1px solid var(--border-2); background:var(--surface);
@@ -2333,7 +2338,10 @@ textarea.cl-ein { resize:vertical; line-height:1.5; }
 .cl-fsel option { color:var(--ink); background:var(--surface); }
 .cl-fsel:hover, .cl-btn:hover { border-color:var(--accent); color:var(--ink); }
 .cl-fsel.on { border-color:var(--accent); background:var(--accent); color:var(--on-accent); }
-.cl-list-head .cl-fsel { max-width:150px; }
+/* Cuenta comparte renglón con "Todos" y "+"; los dos estatus van a lo ancho, uno por
+   renglón, para que su nombre se lea entero en los 340px de la lista. */
+.cl-list-head .cl-fsel { flex:1 1 130px; min-width:0; }
+.cl-list-head .cl-fsel.ancho { flex-basis:100%; }
 .cl-colswrap { position:relative; }
 .cl-colspop { left:auto; right:0; min-width:170px; gap:6px; }
 .cl-colspop label { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }

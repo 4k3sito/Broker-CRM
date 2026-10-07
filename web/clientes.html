@@ -50,11 +50,11 @@
 <main class="cl" id="clientes">
   <aside class="cl-list">
     <div class="cl-list-head" id="filterbar">
-      <button class="pill-line active" data-status="all">Todos <span class="pill-count" data-count="all">0</span></button>
-      <span id="etapaPills"></span>
+      <button class="pill-line active" id="fTodos" title="Quitar los filtros">Todos <span class="pill-count" id="fTodosN">0</span></button>
       <select class="cl-fsel" id="fCuenta" aria-label="Filtrar por quién lleva la cuenta"><option value="all">Cuenta: todas</option></select>
-      <select class="cl-fsel" id="fEstatus" aria-label="Filtrar por estatus del cliente"><option value="all">Estatus: todos</option></select>
       <button class="cl-new" id="new-client-btn" title="Nuevo cliente">+</button>
+      <select class="cl-fsel ancho" id="fEstatus" aria-label="Filtrar por estatus del cliente"><option value="all">Estatus cliente: todos</option></select>
+      <select class="cl-fsel ancho" id="fEtapa" aria-label="Filtrar por estatus de sus propiedades"><option value="all">Estatus propiedades: todos</option></select>
     </div>
     <div class="cl-items" id="clList"><p class="pg-empty">Cargando clientes&#8230;</p></div>
   </aside>
