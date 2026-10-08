@@ -377,11 +377,10 @@ function agregarLigaFoto(crudo) {
 // Pegar una imagen en cualquier parte de la página la sube como foto.
 document.addEventListener('paste', e => {
   if (!listing || !ficha || !(esPropia(listing) || versionActual())) return;
-  const imgs = [...(e.clipboardData?.files ?? [])].filter(f => TIPOS_FOTO.test(f.type));
+  const imgs = fotosPegadas(e);
   if (!imgs.length) return;
   e.preventDefault();
-  const sello = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
-  subirFotos(imgs.map((f, i) => new File([f], /^image\./.test(f.name) || !f.name ? `captura-${sello}${i ? `-${i + 1}` : ''}.${f.type.split('/')[1]}` : f.name, { type: f.type })));
+  subirFotos(imgs);
 });
 
 async function guardarEnInmobiliaria() {

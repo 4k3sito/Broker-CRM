@@ -705,7 +705,7 @@ function fotosHtml(f) {
       <input class="foto-url" placeholder="Liga de una foto (https://…)" aria-label="Liga de una foto">
       <button type="button" class="foto-sube">Subir&#8230;</button>
     </div>
-    <p class="fx-hint">${subiendoFotos === String(f.id) ? 'Subiendo&#8230;' : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí.'}</p>
+    <p class="fx-hint">${subiendoFotos === String(f.id) ? 'Subiendo&#8230;' : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí o pegar una captura con Ctrl+V.'}</p>
     <input type="file" data-foto-file accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
   </div>`;
 }
@@ -976,6 +976,16 @@ detalle.addEventListener('drop', e => {
   if (!p) return;
   e.preventDefault();
   subirFotos(p, e.dataTransfer.files);
+});
+// Pegar una imagen (Ctrl+V) la sube a la caja de fotos donde está el cursor; si la
+// página sólo tiene una caja, a esa. Con varias y el cursor fuera, no se adivina.
+document.addEventListener('paste', e => {
+  const cajas = detalle.querySelectorAll('.cl-exp-fotos');
+  const caja = e.target.closest?.('.cl-exp-fotos') ?? (cajas.length === 1 ? cajas[0] : null);
+  const p = caja && procDe(caja), imgs = p ? fotosPegadas(e) : [];
+  if (!imgs.length) return;
+  e.preventDefault();
+  subirFotos(p, imgs);
 });
 detalle.addEventListener('submit', e => {
   e.preventDefault();
