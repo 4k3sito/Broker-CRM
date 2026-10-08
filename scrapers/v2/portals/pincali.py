@@ -62,7 +62,7 @@ from ..portal import BadPage, Ctx, Portal
 log = logging.getLogger("v2")
 BASE = "https://www.pincali.com"
 PER_PAGE, PAGE_CAP = 42, 100
-TOKEN_TTL = 280.0                   # the WAF token dies at 300 s
+TOKEN_TTL = float(os.environ.get("PINCALI_TOKEN_TTL", 280))   # the WAF token dies at 300 s
 # 0 = the ordinary expired token: re-mint and retry. A challenge that survives a
 # fresh token is a rate penalty; minting harder only adds load, so wait in minutes.
 COOLDOWN = (0, 90, 300, 420)
@@ -363,20 +363,27 @@ class Pincali(Portal):
         url = f"{BASE}/inmuebles/{shard}?{urlencode(params)}"
         return f"{url}&page={page}" if page > 1 else url
 
-    def get(self, f: Fetcher, url: str, referer: str = "", headers: dict | None = None) -> str:
+    def get(self, f: Fetcher, url: str, referer: str = "", headers: dict | None = None,
+            patient: bool = True) -> str:
         """GET behind the WAF token. A stale token answers 202 with the challenge
-        page — not a 4xx — so it is recognised here, re-minted and retried."""
+        page — not a 4xx — so it is recognised here, re-minted and retried.
+        `patient=False` gives up at the first challenge instead of cooling down."""
         for nap in COOLDOWN:
             value = self.token.value
             if f.notes.get("waf") != value:
-                # Empty the jar first: with the server's own aws-waf-token beside
-                # ours, neither can be replaced and the stale one keeps being sent.
-                f.sess.cookies.clear()
+                # Drop every aws-waf-token first: with the server's own beside ours
+                # neither can be replaced and the stale one keeps being sent. Only
+                # those — the session cookie is what the page's view token hangs on.
+                jar = f.sess.cookies.jar
+                for c in [c for c in jar if c.name == "aws-waf-token"]:
+                    jar.clear(c.domain, c.path, c.name)
                 f.sess.cookies.set("aws-waf-token", value)
                 f.notes["waf"] = value
             page = f.get(url, referer=referer or None, headers=headers, accept=(200, 202))
             if page.status != 202 and not _CHALLENGE.search(page.text[:3000]):
                 return page.text
+            if not patient:
+                raise Blocked(f"challenged: {url[:80]}")
             if nap:
                 log.warning("pincali: WAF penalty box — cooling down %.1f min", nap / 60)
                 time.sleep(nap + random.uniform(0, 15))
@@ -385,15 +392,27 @@ class Pincali(Portal):
 
     def page(self, f: Fetcher, url: str, operation: str, referer: str) -> tuple[list[Listing], int]:
         """One results page: the HTML, then the prices the page asks for itself."""
-        html = self.get(f, url, referer)
-        prices: dict = {}
-        token = view_token(html)
-        if token and "property__component" in html:
-            stream = self.get(f, f"{BASE}/properties/card_prices?view_token={quote(token, safe='')}",
-                              url, TURBO)
+        # The pair is one unit. A view token belongs to the visit that produced
+        # its page: when the WAF token turns over between the two requests the
+        # price request is challenged however long we wait (the first nationwide
+        # run lost 14 minutes to exactly that at its first 280 s boundary). So a
+        # challenged price request re-fetches the page for a fresh view token.
+        for attempt in (1, 2, 3):
+            html = self.get(f, url, referer)
+            prices: dict = {}
+            token = view_token(html)
+            if not token or "property__component" not in html:
+                break
+            try:
+                stream = self.get(f, f"{BASE}/properties/card_prices?view_token="
+                                     f"{quote(token, safe='')}", url, TURBO, patient=attempt == 3)
+            except Blocked:
+                self.token.refresh()
+                continue
             prices = parse_prices(stream)
             if not prices:
                 raise BadPage(f"price request returned no price slots for {url}")
+            break
         cards = list(parse_serp(html, operation, prices))
         total = total_results(html)
         return cards, len(cards) if total is None else total
