@@ -226,6 +226,26 @@ precios ya está capturando. Lo que **no** quedó cerrado:
 
 ## Degradando datos todos los días
 
+- **Pincali ya no publica precios en la página de resultados (visto el 2026-10-08) y el
+  scraper de producción no lo sabe.** Las 42 tarjetas dicen "Consulte precio" y el
+  `ld+json` trae `offers: null`; el precio llega por un XHR aparte
+  (`/properties/card_prices?view_token=…`, el token viene en `data-view-token` de la
+  propia página). Corrido contra la página de hoy, `pincali_scraper.parse_serp` saca 42
+  tarjetas con **0 precios**, `_verify` no lo detecta y `next_floor` avanza de 1 en 1:
+  el barrido por precio deja de avanzar (re-camina las mismas 100 páginas hasta el
+  timeout, gastando proxy) y `propdb.py load` pisaría con NULL el precio de cada anuncio
+  que alcance a ver. **La corrida del viernes no debe correr así**: o se pausa la línea
+  de `pincali` del crontab, o se despliega el adaptador nuevo (`scrapers/v2`), que lee
+  el XHR de precios (probado: 42 de 42).
+- **`lamudi_scraper.parse_detail` puede estar guardando la coordenada de una escuela.**
+  Toma la primera `latitude` del HTML del detalle, y en la página de hoy esa es un
+  punto de interés del barrio (`"type":"school"`), no la propiedad. La tarjeta de
+  resultados trae la coordenada buena (`data-serp-map-hover-listing`, con
+  `exactLocation`). Falta medir cuántas filas de Lamudi quedaron con el punto equivocado.
+- **`scrapers/requirements.txt` no fija `selectolax`.** La 1.x quitó `selectolax.parser`:
+  una instalación nueva del venv rompe los cinco scrapers actuales al importar. El venv
+  de producción sigue en 0.4.11 y por eso no se ha visto.
+
 - **Ningún scraper carga nada desde el 2026-09-23: el proxy residencial de Apify
   responde `402 Payment Required`.** Es la cuenta (saldo o plan), no los portales. En
   `scrapers/data/<fuente>.jsonl.log` se lee `CONNECT tunnel failed, response 402` en cada
