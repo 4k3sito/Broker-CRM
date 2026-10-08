@@ -850,3 +850,83 @@ UPDATE cliente SET contactos = jsonb_build_array(jsonb_build_object(
 -- Aditivo y se puede correr dos veces. En la copia de trabajo se aplica con
 -- `search_path=dev,public` (ver README.md, "Copia de trabajo").
 ALTER TABLE ficha ADD COLUMN IF NOT EXISTS construccion_m2 numeric;
+
+-- >>> scrapers v2
+-- ───────────────────────────────────────── scrapers v2 (2026-10-08)
+--
+-- Lo que la reescritura de los scrapers (`scrapers/v2`) guarda y los de antes no:
+--
+--   eb_id          el ID público de EasyBroker ("EB-XX0000"). Pincali ES el portal de
+--                  EasyBroker y su `listing_id` ya es ese ID; los demás portales lo
+--                  traen en el código interno del anunciante o escrito en la
+--                  descripción. Es la llave que casa la misma propiedad entre portales.
+--   posting_code   el código interno del anunciante, tal cual lo publica el portal.
+--   images_total   cuántas fotos dice el portal que tiene la galería. La página de
+--                  resultados trae sólo las primeras; si esto supera a `images`, falta
+--                  bajar el detalle.
+--   detalle_at     cuándo se bajó la página de detalle. NULL = en cola. El detalle
+--                  cuesta 10-30 veces lo que una fila de resultados, así que se baja
+--                  UNA vez por anuncio: la cola es "detalle_at IS NULL", no "todo".
+--
+-- `images` y `features` ya existían (y la API ya las lee); antes nadie las llenaba.
+--
+-- Aditivo y se puede correr dos veces. `scrapers/v2/db.py migrate` aplica este bloque.
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS eb_id        text;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS posting_code text;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS images_total int;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS detalle_at   timestamptz;
+
+CREATE INDEX IF NOT EXISTS listings_eb_id_idx ON listings (eb_id) WHERE eb_id IS NOT NULL;
+-- La cola de detalle: lo vivo que todavía no lo tiene, lo más reciente primero.
+CREATE INDEX IF NOT EXISTS listings_sin_detalle_idx ON listings (source, observed_at DESC)
+  WHERE detalle_at IS NULL AND activo IS NOT FALSE;
+
+-- Siembra el ID de EasyBroker en lo que ya estaba cargado. Pincali lo trae en la
+-- llave; el resto, escrito en la descripción ("EasyBroker id: eb-nb4715"). Los
+-- anuncios nuevos lo reciben del scraper, que además mira el código interno.
+-- Idempotente: sólo toca filas sin eb_id.
+CREATE OR REPLACE FUNCTION sembrar_eb_id() RETURNS bigint AS $$
+  WITH u AS (
+    UPDATE listings l SET eb_id = x.eb
+    FROM (
+      SELECT source, listing_id,
+             CASE WHEN source = 'pincali' AND listing_id ~ '^EB-[A-Z]{2}[0-9]{4}$' THEN listing_id
+                  ELSE (SELECT 'EB-' || upper(m[1]) || m[2]
+                        FROM regexp_match(coalesce(posting_code, '') || ' ' || coalesce(description, ''),
+                                          '(?<![A-Za-z0-9])EB[\s\-_:]{0,2}([A-Za-z]{2})[\s\-]?([0-9]{4})(?![A-Za-z0-9])',
+                                          'i') AS m)
+             END AS eb
+      FROM listings WHERE eb_id IS NULL
+    ) x
+    WHERE l.source = x.source AND l.listing_id = x.listing_id AND x.eb IS NOT NULL
+    RETURNING 1)
+  SELECT count(*) FROM u;
+$$ LANGUAGE sql;
+
+-- Inmuebles24 y Vivanuncios son el mismo inventario de Navent con IDs distintos:
+-- medido el 2026-10-08, 80,169 de 88,815 filas de Inmuebles24 comparten el archivo
+-- de su primera foto con una de Vivanuncios, 99.6% al mismo precio. Vivanuncios
+-- responde sin proxy e Inmuebles24 no, así que el detalle (galería, amenidades) se
+-- baja en Vivanuncios y esta función se lo copia a su gemelo. Lo que queda en la
+-- cola de Inmuebles24 es sólo lo que no tiene gemelo.
+CREATE OR REPLACE FUNCTION copiar_detalle_gemelos() RETURNS bigint AS $$
+  WITH v AS (
+    SELECT DISTINCT ON (foto) substring(image_url from '/([0-9]+)\.jpg') AS foto,
+           price, images, features, images_total, eb_id, detalle_at
+    FROM listings
+    WHERE source = 'vivanuncios' AND detalle_at IS NOT NULL AND image_url IS NOT NULL
+      AND cardinality(images) > 0
+    ORDER BY foto, detalle_at DESC
+  ), u AS (
+    UPDATE listings l
+    SET images = v.images, features = coalesce(v.features, l.features),
+        images_total = v.images_total, eb_id = coalesce(l.eb_id, v.eb_id),
+        detalle_at = v.detalle_at
+    FROM v
+    WHERE l.source = 'inmuebles24' AND l.detalle_at IS NULL
+      AND substring(l.image_url from '/([0-9]+)\.jpg') = v.foto
+      AND l.price IS NOT DISTINCT FROM v.price
+    RETURNING 1)
+  SELECT count(*) FROM u;
+$$ LANGUAGE sql;
+-- <<< scrapers v2
