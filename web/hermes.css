@@ -387,6 +387,15 @@ a:hover { color:var(--ink); }
 .statebar-sep { width:1px; height:20px; background:var(--border-2); margin:0 5px; }
 .statebar .btn-clear { margin-left:auto; }
 
+/* Aviso de inventario viejo (app.js, avisarFrescura). Ámbar, como "Contactado":
+   pide atención, no es un error. */
+.frescura {
+  padding:9px 26px; border-bottom:1px solid var(--border);
+  background:var(--r-contactado); color:var(--ink); font-size:13px; line-height:1.45;
+}
+.frescura b { color:var(--s-contactado); font-weight:700; }
+@media (max-width: 900px) { .frescura { padding:8px 12px; font-size:12.5px; } }
+
 /* ── Resumen global ─────────────────────────────────────────────────────── */
 .statsbar { display:flex; align-items:stretch; padding:20px 26px 6px; flex-wrap:wrap; }
 .stat { display:flex; flex-direction:column; padding-right:24px; }
@@ -1679,18 +1688,6 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   .tk-bar { padding: 10px 14px; }
 }
 
-/* ── Dedos, no cursor ────────────────────────────────────────────────────────
-   El mínimo de 44 px no depende del ancho de la pantalla: una laptop con
-   pantalla táctil también lo necesita, y por eso esto va por `pointer`, no por
-   `max-width`. Al final del archivo a propósito: `.th-btn` y `.btn-ghost` se
-   definen más abajo que la topbar, y a igual especificidad gana el que va
-   después. */
-@media (pointer: coarse) {
-  .th-btn { width: 44px; height: 44px; }
-  .mn-btn { width: 44px; height: 44px; }
-  .btn-ghost { height: 44px; padding: 0 18px; }
-  .topbar-search .search-box { height: 44px; }
-  .topbar-nav a { padding: 0 18px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2590,3 +2587,17 @@ textarea.base-in { resize:vertical; }
 /* Quién lleva la cuenta de cada cliente al que se propuso la propiedad. */
 .fx-resp { width:22px; height:22px; font-size:9px; font-style:normal; }
 .fx-proc > span small { display:block; font-size:10.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
+
+/* ── Dedos, no cursor ────────────────────────────────────────────────────────
+   El mínimo de 44 px no depende del ancho de la pantalla: una laptop con
+   pantalla táctil también lo necesita, y por eso esto va por `pointer`, no por
+   `max-width`. Tiene que ser lo ÚLTIMO del archivo: a igual especificidad gana
+   el que va después, y el rediseño v0.5 se agregó abajo de este bloque y lo dejó
+   sin efecto (botones de 32 px en el teléfono) hasta el 2026-10-08. Lo que se
+   agregue a este archivo va ARRIBA de aquí. Las pestañas no están: ya miden 52 px
+   de alto y su relleno lo decide el bloque de ≤900 px. */
+@media (pointer: coarse) {
+  .th-btn { width: 44px; height: 44px; }
+  .btn-ghost { height: 44px; padding: 0 18px; }
+  .topbar-search .search-box { height: 44px; }
+}
