@@ -22,3 +22,16 @@ const hrefSeguro = u => /^https?:/i.test(String(u ?? '').trim()) ? esc(u) : '#';
 // El `src` de una foto: http(s) o una foto subida al CRM (`/api/archivos/<id>`, ver
 // "Archivos" en main.py). Lo demás no se pinta.
 const srcSeguro = u => /^(https?:|\/api\/archivos\/)/i.test(String(u ?? '').trim()) ? esc(u) : '';
+
+// Superficie de una propiedad, distinguiendo terreno y construcción cuando se sabe.
+// Devuelve pares [etiqueta, m²]: los dos si el portal (o la ficha) los trae distintos;
+// uno etiquetado si sólo se sabe cuál es; y "Superficie" a secas cuando el anuncio da
+// un solo número sin decir de qué —o da el mismo para los dos, que es lo mismo—.
+function superficies(terreno, construccion, area) {
+  const t = Number(terreno) || null, c = Number(construccion) || null, a = Number(area) || null;
+  if (t && c && t !== c) return [['Terreno', t], ['Construcción', c]];
+  if (t && !c) return [['Terreno', t]];
+  if (c && !t) return [['Construcción', c]];
+  return (a ?? t) ? [['Superficie', a ?? t]] : [];
+}
+const m2Txt = n => `${Math.round(n).toLocaleString('es-MX')} m²`;

@@ -39,7 +39,7 @@ function presentar(si) {
 let catAbierto = false;     // el buscador de "+ Proponer desde Catálogo"…
 let catQ = '';              // …lo que se lleva escrito…
 let catFichas = null;       // …y las fichas del Catálogo (se piden al abrirlo)
-let propEtapa = 'all';      // tabla de propiedades: filtro por etapa…
+let propEtapas = new Set(); // tabla de propiedades: filtro por etapa (varias a la vez; vacío = todas)…
 let propTrae = 'all';       // …y por quién la presentó
 let tareas = [];            // las tareas del cliente abierto (suyas y de sus propiedades)
 let tareasDe = null;        // de qué cliente son: evita pedirlas en cada render
@@ -101,7 +101,7 @@ async function agregarPropiedad(c, titulo) {
     });
     c.proceso = [...(c.proceso ?? []), { ...p, trae_nombre: null, ficha: f }];
     abierto = String(p.id);
-    propEtapa = 'all'; propTrae = 'all';
+    propEtapas.clear(); propTrae = 'all';
     render();
   } catch (err) { alert('No se pudo agregar la propiedad: ' + err.message); }
 }
@@ -135,7 +135,7 @@ async function proponerDeCatalogo(c, fichaId) {
   try {
     const p = await API.post('/procesos', { cliente_id: c.id, ficha_id: f.id, numero: (c.proceso ?? []).length + 1 });
     c.proceso = [...(c.proceso ?? []), { ...p, trae_nombre: null, ficha: f }];
-    propEtapa = 'all'; propTrae = 'all';
+    propEtapas.clear(); propTrae = 'all';
     render();
     document.getElementById('catQ')?.focus();   // para seguir buscando la siguiente
   } catch (err) { alert('No se pudo proponer: ' + err.message); }
@@ -146,8 +146,9 @@ async function proponerDeCatalogo(c, fichaId) {
 // presentó son de ESTE proceso. No vuelve a pintar el panel —perdería el foco al
 // pasar de un campo a otro—, sólo la fila.
 const NUMERICOS = ['tamano_m2', 'precio', 'precio_m2'];
+const NUMEROS_FICHA = [...NUMERICOS, 'construccion_m2'];     // se guardan como número; la API sólo deriva los tres primeros
 function guardarCampo(c, p, tabla, f, crudo) {
-  let v = NUMERICOS.includes(f) ? (crudo === '' ? null : Number(crudo)) : (crudo.trim() === '' ? null : crudo.trim());
+  let v = NUMEROS_FICHA.includes(f) ? (crudo === '' ? null : Number(crudo)) : (crudo.trim() === '' ? null : crudo.trim());
   if (Number.isNaN(v)) return;
   const fallo = err => alert('No se pudo guardar: ' + err.message);
   if (tabla === 'ficha') {
@@ -594,6 +595,7 @@ const COLS = [
   { k: 'presento',  label: 'Presentó',  w: 150, html: p => traeHtml(p) },
   { k: 'precio',    label: 'Precio',    w: 104, cls: 'cl-precio', html: p => dinero(p.ficha.precio) },
   { k: 'm2',        label: 'm²',        w: 64,  cls: 'cl-mono', html: p => p.ficha.tamano_m2 ? mx(Math.round(p.ficha.tamano_m2)) : '—' },
+  { k: 'constr',    label: 'Constr. m²', w: 84, cls: 'cl-mono', html: p => p.ficha.construccion_m2 ? mx(Math.round(p.ficha.construccion_m2)) : '—' },
   { k: 'ppm',       label: '$/m²',      w: 76,  cls: 'cl-mono', html: p => dinero(ppmDe(p.ficha)) },
   { k: 'junta',     label: 'Junta',     w: 56,  cls: 'cl-mono', html: p => texto(p.junta) },
   { k: 'marca',     label: 'Marca',     w: 100, html: p => texto(p.marca) },
@@ -636,7 +638,7 @@ function colsQueCaben() {
 let colsFila = [];          // las de la última pintada: fila y encabezado tienen que coincidir
 
 const traeKey = p => String(p.trae_id ?? p.trae ?? '');
-const filtrando = () => propEtapa !== 'all' || propTrae !== 'all';
+const filtrando = () => propEtapas.size > 0 || propTrae !== 'all';
 const tareasAbiertas = procId => tareas.filter(t => String(t.proceso_id) === String(procId) && t.columna !== 'completado').length;
 
 function filaHtml(c, p) {
@@ -682,6 +684,59 @@ function tareaFormHtml(c, procId) {
   </form>`;
 }
 
+// ── Fotos de una propiedad propia, desde la fila desplegada ──────────────────
+// Lo mismo que "Datos de la propiedad" en la ficha: se eligen del equipo, se arrastran
+// sobre la caja o se pega su liga; la primera es la portada. Sólo para propiedades
+// propias: las de un anuncio traen las fotos del portal. Como todo dato del inmueble,
+// son de la ficha y cambian para todos los clientes a los que se presentó.
+let subiendoFotos = null;      // id de la ficha que está subiendo, para decirlo en su caja
+const esPropia = f => !!f?.id && !f.source_listing_id;
+function fotosHtml(f) {
+  const fotos = f.fotos ?? [];
+  if (!esPropia(f)) return fotos[0] ? `<img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt="">` : '';
+  return `<div class="cl-exp-fotos fx-fotos">
+    ${fotos[0] ? `<img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt="">` : ''}
+    <span class="fx-lab">Fotos <small>${fotos.length ? 'la primera es la portada' : 'aún no hay'}</small></span>
+    ${fotos.length ? `<div class="fx-thumbs">${fotos.map((u, i) => `<span class="fx-thumb${i ? '' : ' portada'}">
+      <img src="${srcSeguro(u)}" alt="" loading="lazy">
+      ${i ? `<button type="button" class="foto-top" data-i="${i}" title="Usar como portada">&#8593;</button>` : ''}
+      <button type="button" class="foto-del" data-i="${i}" title="Quitar foto">&times;</button></span>`).join('')}</div>` : ''}
+    <div class="fx-add">
+      <input class="foto-url" placeholder="Liga de una foto (https://…)" aria-label="Liga de una foto">
+      <button type="button" class="foto-sube">Subir&#8230;</button>
+    </div>
+    <p class="fx-hint">${subiendoFotos === String(f.id) ? 'Subiendo&#8230;' : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí.'}</p>
+    <input type="file" data-foto-file accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
+  </div>`;
+}
+// La misma ficha puede estar con otro cliente: que traiga las mismas fotos en todos.
+function ponerFotos(fichaId, fotos) {
+  for (const x of clientes) for (const q of x.proceso ?? [])
+    if (String(q.ficha?.id) === String(fichaId)) q.ficha.fotos = fotos;
+}
+async function subirFotos(p, files) {
+  files = [...files].filter(f => TIPOS_FOTO.test(f.type));
+  if (!files.length) return alert('Sólo se pueden subir imágenes JPG, PNG, WEBP o GIF.');
+  subiendoFotos = String(p.ficha.id); renderDetalle();
+  try {
+    // Una por una: la API agrega cada foto al final y devuelve la lista como quedó.
+    for (const f of files) ponerFotos(p.ficha.id, (await API.subir(`/fichas/${p.ficha.id}/fotos`, await prepararFoto(f))).fotos);
+  } catch (err) { alert('No se pudo subir la foto: ' + err.message); }
+  subiendoFotos = null; renderDetalle();
+}
+// Quitar, poner de portada o agregar una liga: todo es guardar la lista nueva. La API
+// borra el archivo de una foto subida que ya no esté en ella.
+async function guardarFotos(p, lista) {
+  try { ponerFotos(p.ficha.id, (await API.patch(`/fichas/${p.ficha.id}`, { fotos: lista })).fotos); }
+  catch (err) { alert('No se pudo guardar: ' + err.message); }
+  renderDetalle();
+}
+function agregarLigaFoto(p, crudo) {
+  const ligas = (crudo ?? '').split(/\s+/).filter(u => /^https?:\/\//i.test(u));
+  if (!ligas.length) { if ((crudo ?? '').trim()) alert('La liga de una foto empieza con https://'); return; }
+  guardarFotos(p, [...(p.ficha.fotos ?? []), ...ligas]);
+}
+
 function panelHtml(c, p) {
   const f = p.ficha ?? {};
   const lid = lidDe(p);
@@ -695,12 +750,13 @@ function panelHtml(c, p) {
       <textarea class="cl-ein" rows="3" data-tb="${tb}" data-f="${k}" placeholder="${ph}">${esc(v ?? '')}</textarea></label>`;
   return `<div class="cl-exp" data-proc="${esc(p.id)}">
     <div class="cl-exp-main">
-      ${f.fotos?.[0] ? `<img class="cl-exp-foto" src="${srcSeguro(f.fotos[0])}" alt="">` : ''}
+      ${fotosHtml(f)}
       <div class="cl-exp-grid">
         ${campo('ficha', 'titulo', 'Inmueble', f.titulo, { wide: true })}
         ${campo('ficha', 'tipo', 'Tipo', f.tipo, { ph: 'Local, terreno…' })}
         ${campo('ficha', 'municipio', 'Municipio', f.municipio)}
-        ${campo('ficha', 'tamano_m2', 'Superficie m²', f.tamano_m2, { tipo: 'number' })}
+        ${campo('ficha', 'tamano_m2', 'Terreno m²', f.tamano_m2, { tipo: 'number' })}
+        ${campo('ficha', 'construccion_m2', 'Construcción m²', f.construccion_m2, { tipo: 'number', ph: 'Si aplica' })}
         ${campo('ficha', 'precio', 'Precio', f.precio, { tipo: 'number' })}
         ${campo('ficha', 'precio_m2', 'Precio por m²', f.precio_m2, { tipo: 'number' })}
         ${campo('proceso', 'junta', 'Junta', p.junta, { ph: '1ra, 2da…' })}
@@ -735,13 +791,13 @@ function panelHtml(c, p) {
 function propiedadesHtml(c) {
   const ps = c.proceso ?? [];
   colsFila = colsQueCaben();
-  const visibles = ps.filter(p => (propEtapa === 'all' || p.status === propEtapa) && (propTrae === 'all' || traeKey(p) === propTrae));
+  const visibles = ps.filter(p => (!propEtapas.size || propEtapas.has(p.status)) && (propTrae === 'all' || traeKey(p) === propTrae));
   // Quién ha presentado algo a este cliente, para el filtro. Sin repetir.
   const quienes = [...new Map(ps.filter(p => traeKey(p)).map(p => [traeKey(p), p.trae_nombre || p.trae])).entries()];
   return `
     <div class="cl-props-head">
       <h2>Propiedades · ${filtrando() ? `${visibles.length} de ${ps.length}` : ps.length}</h2>
-      ${ETAPAS.map(e => cuenta(ps, e.key) ? `<button class="cl-chip e-${e.key}${propEtapa === e.key ? ' on' : ''}" data-etapa="${e.key}" title="Filtrar por etapa">${cuenta(ps, e.key)} ${e.label.toLowerCase()}</button>` : '').join('')}
+      ${ETAPAS.map(e => cuenta(ps, e.key) ? `<button class="cl-chip e-${e.key}${propEtapas.has(e.key) ? ' on' : ''}" data-etapa="${e.key}" aria-pressed="${propEtapas.has(e.key)}" title="Filtrar por etapa (puedes marcar varias)">${cuenta(ps, e.key)} ${e.label.toLowerCase()}</button>` : '').join('')}
       ${quienes.length ? `<select class="cl-fsel${propTrae !== 'all' ? ' on' : ''}" id="propTrae" aria-label="Filtrar por quién presentó">
         <option value="all">Presentó: todos</option>
         ${quienes.map(([k, n]) => `<option value="${esc(k)}"${propTrae === k ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : ''}
@@ -796,7 +852,7 @@ function renderDetalle() {
   }
   // Al cambiar de cliente: sin fila desplegada, sin filtros de tabla, y sus tareas.
   if (tareasDe !== String(c.id)) {
-    abierto = null; propEtapa = 'all'; propTrae = 'all'; colsAbierto = false; catAbierto = false; ctoSel = 0;
+    abierto = null; propEtapas.clear(); propTrae = 'all'; colsAbierto = false; catAbierto = false; ctoSel = 0;
     cargarTareas(String(c.id));
   }
   const traer = volverA && (c.proceso ?? []).some(p => String(p.id) === volverA);
@@ -876,8 +932,18 @@ detalle.addEventListener('click', e => {
   if (t.closest('#colsBtn')) { colsAbierto = !colsAbierto; return renderDetalle(); }
   if (t.closest('#catBtn')) { if (catAbierto) { catAbierto = false; return renderDetalle(); } return abrirCatalogo(); }
   if (t.closest('.cl-catopt')) return proponerDeCatalogo(cSel(), t.closest('.cl-catopt').dataset.ficha);
+  // Fotos de la fila desplegada.
+  if (t.closest('.cl-exp-fotos')) {
+    const p = procDe(t), fotos = (p?.ficha.fotos ?? []).slice();
+    if (!p) return;
+    if (t.closest('.foto-sube')) return t.closest('.cl-exp-fotos').querySelector('[data-foto-file]').click();
+    const del = t.closest('.foto-del'), top = t.closest('.foto-top');
+    if (del && confirm('¿Quitar esta foto?')) return guardarFotos(p, fotos.filter((_, i) => i !== +del.dataset.i));
+    if (top) { fotos.unshift(...fotos.splice(+top.dataset.i, 1)); return guardarFotos(p, fotos); }
+    return;
+  }
   const chip = t.closest('.cl-chip[data-etapa]');
-  if (chip) { propEtapa = propEtapa === chip.dataset.etapa ? 'all' : chip.dataset.etapa; return renderDetalle(); }
+  if (chip) { propEtapas.has(chip.dataset.etapa) ? propEtapas.delete(chip.dataset.etapa) : propEtapas.add(chip.dataset.etapa); return renderDetalle(); }
   // Clic en la fila (no en sus controles): despliega o recoge el panel.
   const fila = t.closest('.cl-tr[data-proc]');
   if (fila && !t.closest('select, button, a, input, .cl-grip')) {
@@ -896,7 +962,20 @@ detalle.addEventListener('change', e => {
     try { localStorage.setItem('ol-cl-cols-2', JSON.stringify(colsOn)); } catch { /* sin persistencia */ }
     return renderDetalle();
   }
+  if (t.matches('[data-foto-file]')) { const p = procDe(t); if (p && t.files.length) subirFotos(p, t.files); return; }
+  if (t.matches('.cl-exp-fotos .foto-url')) { const p = procDe(t), v = t.value; t.value = ''; if (p) agregarLigaFoto(p, v); return; }
   if (t.matches('.cl-ein')) { const p = procDe(t); if (p) guardarCampo(c, p, t.dataset.tb, t.dataset.f, t.value); }
+});
+// Soltar fotos del equipo sobre la caja. Reordenar filas también usa dragover/drop en
+// este contenedor (más abajo), pero sólo actúa con `arrastrando`, que aquí no hay.
+const cajaFotos = e => [...(e.dataTransfer?.types ?? [])].includes('Files') ? e.target.closest?.('.cl-exp-fotos') : null;
+detalle.addEventListener('dragover', e => { const caja = cajaFotos(e); if (caja) { e.preventDefault(); caja.classList.add('soltar'); } });
+detalle.addEventListener('dragleave', e => { const caja = e.target.closest?.('.cl-exp-fotos'); if (caja && !caja.contains(e.relatedTarget)) caja.classList.remove('soltar'); });
+detalle.addEventListener('drop', e => {
+  const caja = cajaFotos(e), p = caja && procDe(caja);
+  if (!p) return;
+  e.preventDefault();
+  subirFotos(p, e.dataTransfer.files);
 });
 detalle.addEventListener('submit', e => {
   e.preventDefault();

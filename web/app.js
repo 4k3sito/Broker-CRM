@@ -44,7 +44,7 @@ const ICON_BUILDING_LG = `<svg width="46" height="46" viewBox="0 0 24 24" fill="
 // no una estructura paralela: así no hay dos verdades que sincronizar.
 const F = {
   q: '', operacion: '', fuente: '',
-  precio_min: '', precio_max: '', m2_min: '', m2_max: '', ppm_min: '', ppm_max: '',
+  precio_min: '', precio_max: '', m2_min: '', m2_max: '', m2_de: '', ppm_min: '', ppm_max: '',
   near: '', radio: 2000, orden: 'recientes',
   cliente: null,   // { id, nombre } cuando se llegó con ?cliente=<id>: sus criterios son los filtros
   // Sólo Inmobiliaria: a qué cliente se presentó y en qué etapa va el proceso.
@@ -80,13 +80,15 @@ const MAX_COMPARAR = 4;
 // lo resuelve `abrirEditor`; aquí sólo vive lo que comparten.
 // Ubicación, precio y tipo NO están aquí: viven en la barra fija de arriba (`fb-`),
 // que es donde el asesor los busca. La paleta se queda con lo secundario.
+// De qué superficie habla el filtro de m². Vacío: la del anuncio, sea cual sea.
+const M2_DE = { terreno: 'terreno', construccion: 'construcción' };
 const CAMPOS = {
   radio:     { kind: 'Radio',     grupo: 'Ubicación', hint: 'a N km de un punto',
                label: () => `a ${(F.radio / 1000).toFixed(1).replace(/\.0$/, '')} km de ${F.nearTxt || F.near}`,
                clear: () => { F.near = ''; F.nearTxt = ''; } },
-  m2:        { kind: 'M²',        grupo: 'Números',   hint: 'superficie',
-               label: () => rango(F.m2_min, F.m2_max, v => `${mx(v)} m²`),
-               clear: () => { F.m2_min = ''; F.m2_max = ''; } },
+  m2:        { kind: 'M²',        grupo: 'Números',   hint: 'superficie: terreno o construcción',
+               label: () => rango(F.m2_min, F.m2_max, v => `${mx(v)} m²`) + (M2_DE[F.m2_de] ? ` de ${M2_DE[F.m2_de]}` : ''),
+               clear: () => { F.m2_min = ''; F.m2_max = ''; F.m2_de = ''; } },
   ppm:       { kind: '$/m²',      grupo: 'Números',   hint: 'precio por metro cuadrado',
                label: () => rango(F.ppm_min, F.ppm_max, v => `$${mx(v)}/m²`),
                clear: () => { F.ppm_min = ''; F.ppm_max = ''; } },
@@ -152,6 +154,7 @@ function adaptListing(l) {
     notes: l.notes ?? '',
     tipo: l.property_type ?? null,
     size: l.property_size_m2 ?? null,
+    terreno: l.terreno_m2 ?? null, construccion: l.construccion_m2 ?? null,
     // Las fichas del sheet no dicen si es renta o venta: sin operación, no "Renta".
     transaccion: TXN_FROM_API[l.transaction_type] ?? (l.source === 'pipeline' ? null : 'Renta'),
     // Coordenadas para el mapa. Se aceptan los nombres más comunes; si la API
@@ -167,7 +170,7 @@ const paramsBase = () => ({
   lugar: F.lugares.map(l => l.valor), tipo: F.tipos,
   operacion: F.operacion, fuente: F.fuente,
   precio_min: F.precio_min, precio_max: F.precio_max,
-  m2_min: F.m2_min, m2_max: F.m2_max,
+  m2_min: F.m2_min, m2_max: F.m2_max, m2_de: (F.m2_min || F.m2_max) ? F.m2_de : '',
   ppm_min: F.ppm_min, ppm_max: F.ppm_max,
   near: F.near, radio: F.near ? F.radio : '',
   favoritos: filterStarred,
@@ -258,7 +261,7 @@ function renderCard(l) {
       ${imgHtml}
       <span class="badge badge-src">${esc(blabel)}</span>
       ${l.fotos?.length ? `<span class="badge badge-foto">FOTO 1/${l.fotos.length}</span>` : ''}
-      ${l.size ? `<span class="badge badge-size">${mx(Math.round(l.size))} m&#178;</span>` : ''}
+      ${superficies(l.terreno, l.construccion, l.size).map(([k, v]) => `<span class="badge badge-size" title="${k}">${k === 'Superficie' ? '' : k === 'Terreno' ? 'Terreno ' : 'Constr. '}${m2Txt(v)}</span>`).join('')}
       <button class="card-chk" title="Seleccionar" aria-pressed="${sel}">${sel ? '&#10003;' : ''}</button>
       <button class="btn-star" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">${l.starred ? '&#9733;' : '&#9734;'}</button>
     </div>
@@ -367,7 +370,14 @@ function cuerpoEditor(campo) {
       <input class="qpop-num" type="number" id="edMin" value="${esc(F[min])}" placeholder="${fmt}" data-k="${min}">
       <span class="qpop-dash">&mdash;</span>
       <input class="qpop-num" type="number" id="edMax" value="${esc(F[max])}" placeholder="M&#225;x" data-k="${max}">
-    </div>`;
+    </div>${campo === 'm2' ? `
+    <div class="qpop-row qpop-de">
+      <select class="qpop-num" id="edM2De" aria-label="De qu&#233; superficie">
+        <option value="">Cualquier superficie</option>
+        <option value="terreno"${F.m2_de === 'terreno' ? ' selected' : ''}>S&#243;lo terreno</option>
+        <option value="construccion"${F.m2_de === 'construccion' ? ' selected' : ''}>S&#243;lo construcci&#243;n</option>
+      </select>
+    </div>` : ''}`;
 }
 
 function abrirEditor(campo) {
@@ -855,6 +865,7 @@ document.getElementById('qbar').addEventListener('click', e => {
 document.getElementById('qbar').addEventListener('input', e => {
   if (e.target.id === 'palInput') return renderPalette(e.target.value.trim());
   if (e.target.id === 'edMin' || e.target.id === 'edMax') { F[e.target.dataset.k] = e.target.value; page = 1; return render(); }
+  if (e.target.id === 'edM2De') { F.m2_de = e.target.value; page = 1; return render(); }
   if (e.target.id === 'edNear') { F.near = e.target.value.trim(); F.nearTxt = ''; page = 1; return render(); }
   if (e.target.id === 'edRadio') {
     F.radio = Number(e.target.value);
@@ -1070,6 +1081,7 @@ async function fichaDe(l) {
   return API.post('/fichas', {
     source_listing_id: l.id, titulo: l.titulo, precio: l.precio?.monto ?? null,
     moneda: l.precio?.moneda ?? 'MXN', tamano_m2: l.size, fotos: l.fotos,
+    construccion_m2: l.construccion && l.construccion !== l.size ? l.construccion : null,
   });
 }
 document.getElementById('trayCliente').addEventListener('change', async e => {
@@ -1161,10 +1173,11 @@ async function aplicarCliente(id) {
   F.lugares = (cr.lugares ?? []).slice(0, MAX_LUGARES);
   for (const k of ['m2_min', 'm2_max', 'ppm_min', 'ppm_max', 'precio_min', 'precio_max'])
     F[k] = cr[k] ?? '';
+  F.m2_de = '';
 }
 function quitarCriterios() {
   F.cliente = null; F.tipos = []; F.operacion = ''; F.lugares = [];
-  for (const k of ['m2_min', 'm2_max', 'ppm_min', 'ppm_max', 'precio_min', 'precio_max']) F[k] = '';
+  for (const k of ['m2_min', 'm2_max', 'm2_de', 'ppm_min', 'ppm_max', 'precio_min', 'precio_max']) F[k] = '';
   history.replaceState(null, '', location.pathname);
 }
 

@@ -824,3 +824,14 @@ UPDATE cliente SET contactos = jsonb_build_array(jsonb_build_object(
     CASE WHEN contacto ~ '^\S+@\S+$' THEN 'correo'
          WHEN contacto ~ '^[\d\s()+-]{7,}$' THEN 'telefono' ELSE 'nombre' END, btrim(contacto)))
   WHERE btrim(coalesce(contacto, '')) <> '' AND contactos = '[]'::jsonb;
+
+-- ─────────────────────── terreno y construcción por separado (2026-10-08)
+--
+-- `listings` ya traía `plot_area_m2` y `built_area_m2` de los portales; faltaba el par
+-- en las propiedades propias. `ficha.tamano_m2` sigue siendo la superficie con la que se
+-- calcula el precio por m² (el terreno, cuando hay los dos datos) y `construccion_m2`
+-- es la construida. NULL = no se sabe o no aplica (un terreno baldío).
+--
+-- Aditivo y se puede correr dos veces. En la copia de trabajo se aplica con
+-- `search_path=dev,public` (ver README.md, "Copia de trabajo").
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS construccion_m2 numeric;

@@ -424,6 +424,9 @@ SELECT_LISTING = """
   -- deja de formatear miles y toda aritmética depende de la coerción de JS.
   l.price::float8 AS price_numeric, l.currency, l.images, l.image_url AS image, l.url,
   l.agent_phone AS whatsapp, l.property_type, l.area_m2::float8 AS property_size_m2,
+  -- Terreno y construcción por separado, cuando el portal los distingue (o la ficha
+  -- propia los trae). `property_size_m2` es la superficie con la que se calcula el $/m².
+  l.plot_area_m2::float8 AS terreno_m2, l.built_area_m2::float8 AS construccion_m2,
   l.operation AS transaction_type, l.maps_url, z.nombre AS zona,
   l.price_is_per_m2, l.precio_m2_inferido,
   -- Segundo precio: el inmueble se ofrece en renta Y venta a la vez.
@@ -487,6 +490,11 @@ FICHA_COMO_LISTING = f"""
     'price_is_per_m2', f.precio IS NULL AND f.precio_m2 IS NOT NULL,
     'currency', coalesce(f.moneda, 'MXN'), 'property_type', f.tipo, 'tipo', tipo_norm(f.tipo),
     'area_m2', f.tamano_m2, 'location', f.municipio, 'maps_url', f.mapa_url,
+    -- `tamano_m2` es la superficie de la propiedad: se sabe que es TERRENO cuando la
+    -- ficha trae además la construcción, o cuando la propiedad es un terreno.
+    'built_area_m2', f.construccion_m2,
+    'plot_area_m2', CASE WHEN f.construccion_m2 IS NOT NULL OR tipo_norm(f.tipo) = 'terreno'
+                         THEN f.tamano_m2 END,
     'images', to_jsonb(f.fotos), 'image_url', f.fotos[1], 'description', f.notas,
     'observed_at', f.updated_at, 'activo', true,
     -- La ubicación que el asesor fijó en el mapa de la ficha (ficha.lat/lng). Va como
@@ -526,6 +534,9 @@ def _origen(ficha: str | None) -> str:
         # pocas con ficha (4.2 s medido). Con ella junta las ~150 y luego ordena.
         return f"(SELECT * FROM ({LISTINGS_CON_FICHA} UNION ALL {FICHA_COMO_LISTING}) u OFFSET 0) l"
     return "listings l"
+
+
+M2_DE = {"terreno": "l.plot_area_m2", "construccion": "l.built_area_m2"}
 
 
 def _filtros(a: dict) -> tuple[list[str], list]:
@@ -614,11 +625,15 @@ def _filtros(a: dict) -> tuple[list[str], list]:
         sql, pp = precio_efectivo()
         w.append(f"l.area_m2 > 0 AND {sql} > 0 AND {sql} / l.area_m2 <= %s")
         p += pp + pp + [a["ppm_max"]]
+    # `m2_de` dice qué superficie se pide: la de terreno, la de construcción o —sin él—
+    # la del anuncio, sea cual sea. Con terreno o construcción, un anuncio que no
+    # distingue ese dato queda fuera: no se adivina.
+    col_m2 = M2_DE.get(a.get("m2_de") or "", "l.area_m2")
     if a.get("m2_min") is not None:
-        w.append("l.area_m2 >= %s")
+        w.append(f"{col_m2} >= %s")
         p.append(a["m2_min"])
     if a.get("m2_max") is not None:
-        w.append("l.area_m2 <= %s")
+        w.append(f"{col_m2} <= %s")
         p.append(a["m2_max"])
     if a.get("estado"):
         w.append("ul.status = %s")
@@ -675,6 +690,7 @@ def list_listings(
     precio_max: float | None = None,
     m2_min: float | None = None,
     m2_max: float | None = None,
+    m2_de: str | None = Query(None, pattern="^(terreno|construccion)$"),
     ppm_min: float | None = None,
     ppm_max: float | None = None,
     ficha: str | None = Query(None, pattern="^(con|sin)$"),
@@ -721,6 +737,7 @@ def facets(
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None, precio_max: float | None = None,
     m2_min: float | None = None, m2_max: float | None = None,
+    m2_de: str | None = Query(None, pattern="^(terreno|construccion)$"),
     ppm_min: float | None = None, ppm_max: float | None = None,
     ficha: str | None = Query(None, pattern="^(con|sin)$"),
     pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
@@ -946,10 +963,10 @@ def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_use
 CLIENTE_COLS = ("nombre", "contacto", "empresa", "requerimientos", "notas",
                 "responsable", "responsable_id", "criterios", "estatus", "contactos")
 CONTACTO_CAMPOS = ("nombre", "correo", "telefono")
-FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "fotos", "notas",
+FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "construccion_m2", "fotos", "notas",
               "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng")
 # Lo que guarda una ficha PDF con nombre (ficha_version.datos): sólo lo que imprime.
-VERSION_DATOS = ("titulo", "precio", "tamano_m2", "folio", "notas")
+VERSION_DATOS = ("titulo", "precio", "tamano_m2", "construccion_m2", "folio", "notas", "precio_m2", "fotos")
 PROCESO_COLS = ("status", "notas", "junta", "numero", "marca", "trae", "trae_id")
 
 
@@ -1115,10 +1132,12 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                           'trae', p.trae, 'trae_id', p.trae_id,
                           'trae_nombre', tu.nombre,
                           -- La tabla de propuestas de clientes.html pinta foto, precio
-                          -- y m²; de las fotos va sólo la primera, que es la que usa.
+                          -- y m²; van todas las fotos porque el panel que se abre bajo
+                          -- la fila las deja agregar, quitar y reordenar.
                           'ficha', json_build_object('id', f.id, 'titulo', f.titulo,
                                                      'precio', f.precio, 'tamano_m2', f.tamano_m2,
-                                                     'fotos', f.fotos[1:1],
+                                                     'construccion_m2', f.construccion_m2,
+                                                     'fotos', f.fotos,
                                                      'source_listing_id', f.source_listing_id,
                                                      -- Las columnas opcionales de la tabla y
                                                      -- el panel que se abre bajo la fila.
@@ -1251,8 +1270,7 @@ def editar_ficha(fid: str, body: dict = Body(...), user: dict = Depends(current_
         # Una foto subida que ya no está en la lista se borra con su archivo: si no,
         # quedaría guardada sin que nada la muestre.
         with POOL.connection() as conn:
-            conn.execute("DELETE FROM archivo WHERE ficha_id = %s AND documento_id IS NULL "
-                         "AND NOT (%s || id::text = ANY(%s))", (fid, RUTA_ARCHIVO, fila["fotos"]))
+            _limpiar_fotos(conn, fid)
     return fila
 
 
@@ -1268,7 +1286,24 @@ def borrar_ficha(fid: str, user: dict = Depends(current_user)) -> None:
 def _datos_version(d) -> dict:
     if not isinstance(d, dict):
         raise HTTPException(422, "datos debe ser un objeto")
-    return {k: v for k, v in d.items() if k in VERSION_DATOS}
+    d = {k: v for k, v in d.items() if k in VERSION_DATOS}
+    # Las fotos de una versión acaban en un `src`, igual que las de la ficha.
+    if d.get("fotos") is not None:
+        d["fotos"] = _fotos_validas(d["fotos"])
+    return d
+
+
+def _limpiar_fotos(conn, fid) -> None:
+    """Borra las fotos subidas de una ficha que ya nadie muestra: ni la ficha ni
+    ninguna de sus versiones. Desde el 2026-10-08 cada ficha PDF lleva su propia lista
+    (`ficha_version.datos.fotos`), así que quitar una foto de la General no puede
+    llevarse el archivo que otra versión sigue usando."""
+    conn.execute(
+        "DELETE FROM archivo a WHERE a.ficha_id = %s AND a.documento_id IS NULL "
+        "AND NOT (%s || a.id::text = ANY (SELECT unnest(fotos) FROM ficha WHERE id = %s)) "
+        "AND NOT EXISTS (SELECT 1 FROM ficha_version v WHERE v.ficha_id = %s "
+        "                AND v.datos -> 'fotos' ? (%s || a.id::text))",
+        (fid, RUTA_ARCHIVO, fid, fid, RUTA_ARCHIVO))
 
 
 VERSION_SELECT = """SELECT v.*, u.nombre AS autor, c.nombre AS cliente_nombre
@@ -1311,12 +1346,24 @@ def editar_version(vid: str, body: dict = Body(...), user: dict = Depends(curren
         body = dict(body, datos=_datos_version(body["datos"]))
     if "nombre" in body and not (body["nombre"] or "").strip():
         raise HTTPException(422, "El nombre de la ficha es obligatorio")
-    return _patch("ficha_version", vid, body, ("nombre", "datos"), user)
+    fila = _patch("ficha_version", vid, body, ("nombre", "datos"), user)
+    if "datos" in body:
+        with POOL.connection() as conn:
+            _limpiar_fotos(conn, fila["ficha_id"])
+    return fila
 
 
 @app.delete("/api/versiones/{vid}", status_code=204)
 def borrar_version(vid: str, user: dict = Depends(current_user)) -> None:
-    _delete("ficha_version", vid, user)
+    with POOL.connection() as conn:
+        try:
+            v = conn.execute("DELETE FROM ficha_version WHERE id = %s RETURNING ficha_id",
+                             (vid,)).fetchone()
+        except psycopg_errors.InvalidTextRepresentation:
+            v = None
+        if not v:
+            raise HTTPException(404, "No existe")
+        _limpiar_fotos(conn, v["ficha_id"])
 
 
 @app.get("/api/procesos")
@@ -1515,6 +1562,35 @@ async def subir_foto(fid: str, request: Request, nombre: str = Query("", max_len
     return await run_in_threadpool(guardar)
 
 
+@app.post("/api/versiones/{vid}/fotos", status_code=201)
+async def subir_foto_version(vid: str, request: Request, nombre: str = Query("", max_length=300),
+                             user: dict = Depends(current_user)) -> dict:
+    """Sube una foto sólo para una ficha PDF: va al final de `datos.fotos` de esa
+    versión y no toca las de la ficha ni las de las otras. Devuelve la versión."""
+    datos = await _cuerpo(request)
+    if tipo_real(datos) not in MIME_FOTO:
+        raise HTTPException(415, "Sólo se aceptan imágenes JPG, PNG, WEBP o GIF")
+
+    def guardar() -> dict:
+        with POOL.connection() as conn:
+            try:
+                v = conn.execute("SELECT ficha_id, coalesce(datos -> 'fotos', '[]'::jsonb) AS fotos "
+                                 "FROM ficha_version WHERE id = %s FOR UPDATE", (vid,)).fetchone()
+            except psycopg_errors.InvalidTextRepresentation:
+                v = None
+            if not v:
+                raise HTTPException(404, "No existe")
+            if len(v["fotos"]) >= MAX_FOTOS:
+                raise HTTPException(422, f"Una ficha acepta {MAX_FOTOS} fotos como máximo")
+            a = _guardar_archivo(conn, user["id"], v["ficha_id"], None, nombre, datos)
+            conn.execute(
+                "UPDATE ficha_version SET datos = jsonb_set(datos, '{fotos}', %s), "
+                "updated_at = now() WHERE id = %s",
+                (Jsonb([*v["fotos"], f"{RUTA_ARCHIVO}{a['id']}"]), vid))
+            return conn.execute(VERSION_SELECT + " WHERE v.id = %s", (vid,)).fetchone()
+    return await run_in_threadpool(guardar)
+
+
 @app.get("/api/archivos/{aid}")
 def bajar_archivo(aid: str, _: dict = Depends(current_user)) -> Response:
     with POOL.connection() as conn:
@@ -1555,6 +1631,9 @@ def borrar_archivo(aid: str, _: dict = Depends(current_user)) -> None:
         if a["documento_id"] is None:             # era una foto: sale también de la lista
             conn.execute("UPDATE ficha SET fotos = array_remove(fotos, %s), updated_at = now() "
                          "WHERE id = %s", (f"{RUTA_ARCHIVO}{aid}", a["ficha_id"]))
+            conn.execute("UPDATE ficha_version SET datos = jsonb_set(datos, '{fotos}', "
+                         "(datos -> 'fotos') - %s) WHERE ficha_id = %s AND datos -> 'fotos' ? %s",
+                         (f"{RUTA_ARCHIVO}{aid}", a["ficha_id"], f"{RUTA_ARCHIVO}{aid}"))
 
 
 def _adaptar(v):
@@ -2174,7 +2253,17 @@ def selfcheck() -> None:
     u = "/api/archivos/0b0e3c1a-1111-4222-8333-444455556666"
     assert _fotos_validas(["https://x.mx/a.jpg", u, u, "javascript:alert(1)", "/api/me",
                            u + "/../../me", 7]) == ["https://x.mx/a.jpg", u]
+    # Una versión guarda sus propias fotos y su $/m²; lo demás de más se descarta y sus
+    # fotos pasan por el mismo filtro que las de la ficha.
+    assert _datos_version({"precio_m2": 150, "fotos": [u, "javascript:x"], "user_id": 1}) == \
+        {"precio_m2": 150, "fotos": [u]}
+    assert "fotos" not in _datos_version({"titulo": "x"})
 
+    # Superficie: sin `m2_de` es la del anuncio; con él, la de terreno o construcción.
+    assert _filtros({"m2_min": 500})[0] == ["l.area_m2 >= %s"]
+    assert _filtros({"m2_min": 500, "m2_max": 900, "m2_de": "construccion"})[0] == \
+        ["l.built_area_m2 >= %s", "l.built_area_m2 <= %s"]
+    assert _filtros({"m2_max": 900, "m2_de": "terreno"})[0] == ["l.plot_area_m2 <= %s"]
     w, p = _filtros({"lugar": ["m40", "m47"]})
     assert w == ["(l.zona_id = ANY(%s))"] and p == [[40, 47]], (w, p)
     # Los dos niveles se unen con OR, no con AND: la intersección sería casi siempre vacía.
