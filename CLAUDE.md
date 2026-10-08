@@ -278,6 +278,15 @@ ficha. Lo que no es obvio:
   `PUT /api/clientes/{id}/orden` con la lista completa, en una sola sentencia.
 - **`ficha_version`** son las fichas PDF guardadas. "General" no tiene fila; cada versión
   es una copia editable de sus datos. Se guardan datos, no el PDF.
+  Desde el 2026-10-08 una versión lleva también **su precio por m², su construcción y sus
+  fotos** (`datos.precio_m2`, `datos.construccion_m2`, `datos.fotos`): cambiarlos no toca
+  la General ni las otras. Tipo, municipio y liga del mapa siguen siendo de la propiedad.
+- **Terreno y construcción van por separado** (2026-10-08). `listings.plot_area_m2` /
+  `built_area_m2` los traen los scrapers y la API los expone como `terreno_m2` /
+  `construccion_m2`; `area_m2` sigue siendo la superficie del $/m². En una ficha propia,
+  `tamano_m2` es el terreno/superficie y `construccion_m2` lo construido. Todo lo que
+  pinta una superficie pasa por `superficies()` en `texto.js`, que decide si hay uno o
+  dos datos y cómo se llaman. El filtro de m² acepta `m2_de=terreno|construccion`.
 - **`archivo`** guarda lo que se sube (bytea, en la base y no en disco): adjuntos de un
   documento (`documento_id`) y fotos de una propiedad (`documento_id` NULL; su liga
   `/api/archivos/<id>` va en `ficha.fotos`, junto a las ligas http de siempre). El tipo

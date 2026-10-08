@@ -260,6 +260,7 @@ equipo los usa; `user_id` sólo registra quién creó la fila.
 | `PUT /api/clientes/{id}/orden` | renumera las propuestas de un cliente | `ids` es lista de texto; el `AND cliente_id` impide renumerar procesos de otro cliente (probado: `n: 0`) |
 | `GET/POST /api/fichas/{id}/versiones` | fichas PDF guardadas | nombre obligatorio (80 máx.); `datos` pasa por lista blanca (`VERSION_DATOS`), un campo de más se descarta |
 | `PATCH/DELETE /api/versiones/{id}` | editar o borrar una versión | lista blanca `nombre`, `datos` |
+| `POST /api/versiones/{id}/fotos` (2026-10-08) | sube una foto sólo para esa ficha PDF | mismas reglas que `POST /api/fichas/{id}/fotos`: tipo leído de los bytes, sólo JPG/PNG/WEBP/GIF, tope por archivo y 40 fotos. `datos.fotos` de una versión pasa por `_fotos_validas` igual que `ficha.fotos`. Un archivo-foto sólo se borra cuando ya no lo usa ni la ficha ni ninguna de sus versiones (`_limpiar_fotos`) |
 | `GET /api/tareas?cliente=` | tareas de un cliente y de sus procesos | el parámetro es un uuid por patrón |
 
 `POST /api/fichas` sin `source_listing_id` ahora exige `titulo`. `FICHA_COLS` suma

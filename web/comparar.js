@@ -24,6 +24,7 @@ function adapt(l) {
   // Precio total real: si el portal publicó $/m², se usa el total calculado.
   const total = l.price_is_per_m2 ? (l.precio_total ?? null) : (l.price_numeric ?? null);
   const size = l.property_size_m2 ?? null;
+  const [terreno, construccion] = ['Terreno', 'Construcción'].map(k => superficies(l.terreno_m2, l.construccion_m2, size).find(x => x[0] === k)?.[1] ?? null);
   return {
     id: l.id,
     titulo: l.title ?? l.broker_name ?? 'Sin título',
@@ -33,7 +34,7 @@ function adapt(l) {
     foto: l.images?.[0] ?? l.image ?? null,
     precio: total,
     ppm: total && size ? total / size : (l.price_is_per_m2 ? l.price_numeric : null),
-    size,
+    size, terreno, construccion,
     tipo: l.property_type ?? null,
     txn: TXN_FROM_API[l.transaction_type] ?? 'Renta',
     status: STATUS_FROM_API[l.status] ?? 'Nuevo',
@@ -47,6 +48,8 @@ const FILAS = [
   { k: 'Precio',      v: l => l.precio, f: (v, l) => v != null ? `$${mx(Math.round(v))}${l.txn === 'Renta' ? '/mes' : ''}` : '—', cls: 'precio', gana: 'min' },
   { k: '$ / m²',      v: l => l.ppm,    f: v => v != null ? `$${mx(Math.round(v))}` : '—', cls: 'mono', gana: 'min' },
   { k: 'Superficie',  v: l => l.size,   f: v => v != null ? `${mx(Math.round(v))} m²` : '—', cls: 'mono', gana: 'max' },
+  { k: 'Terreno',      v: l => l.terreno,      f: v => v != null ? m2Txt(v) : '—', cls: 'mono', gana: 'max' },
+  { k: 'Construcción', v: l => l.construccion, f: v => v != null ? m2Txt(v) : '—', cls: 'mono', gana: 'max' },
   { k: 'Tipo',        v: l => l.tipo,   f: v => v ? v[0].toUpperCase() + v.slice(1) : '—' },
   { k: 'Operación',   v: l => l.txn,    f: v => v },
   { k: 'Ubicación',   v: l => l.direccion, f: v => esc(v ?? '—') },

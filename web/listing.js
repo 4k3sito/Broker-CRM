@@ -72,6 +72,7 @@ function adaptListing(l) {
     url: l.url ?? null, whatsapp: l.whatsapp ?? null, mapsUrl: l.maps_url ?? null,
     status: STATUS_FROM_API[l.status] ?? 'Nuevo', starred: l.starred ?? false, notes: l.notes ?? '',
     tipo: l.property_type ?? null, size: l.property_size_m2 ?? null,
+    terreno: l.terreno_m2 ?? null, construccion: l.construccion_m2 ?? null,
     // Las fichas del sheet no dicen si es renta o venta: sin operación, no "Renta".
     transaccion: TXN_FROM_API[l.transaction_type] ?? (l.source === 'pipeline' ? null : 'Renta'),
     descripcion: l.description ?? null, features: l.features ?? [], zona: l.zona ?? null,
@@ -173,7 +174,6 @@ async function crearDocumento(label) {
 // la tarjeta. Al dar de alta con archivos: si se escribió un nombre, van todos a ese
 // documento; si no, cada archivo es un documento con su propio nombre.
 const pesoTxt = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
-const sinExtension = n => n.replace(/\.[A-Za-z0-9]{1,5}$/, '') || n;
 function cabenTodos(files) {
   const grande = files.find(f => f.size > MAX_ARCHIVO);
   if (grande) alert(`"${grande.name}" pesa ${pesoTxt(grande.size)} y el máximo por archivo es ${pesoTxt(MAX_ARCHIVO)}.`);
@@ -224,12 +224,14 @@ async function removeDocumento(id) {
 // El formulario "Datos de la ficha" escribe en la versión que esté cargada; sin
 // versión, en la ficha misma (la General).
 async function saveFicha(field, value) {
-  const val = (field === 'precio' || field === 'tamano_m2') ? (value === '' ? null : Number(value)) : value;
+  const val = ['precio', 'tamano_m2', 'construccion_m2', 'precio_m2'].includes(field) ? (value === '' ? null : Number(value)) : value;
   const v = versiones.find(x => String(x.id) === versionSel);
   if (v) {
     if ((v.datos[field] ?? null) === val) return;
     v.datos = { ...v.datos, [field]: val };
     API.patch(`/versiones/${v.id}`, { datos: v.datos }).catch(err => alert('No se pudo guardar la ficha: ' + err.message));
+    // El $/m² que se propone cuando se deja vacío sale de precio y m²: que se actualice.
+    if (field === 'precio' || field === 'tamano_m2') repintar();
     return;
   }
   await asegurarFicha().catch(() => null);
@@ -252,7 +254,7 @@ async function saveFicha(field, value) {
 // Postgres manda los `numeric` como texto ("45800.00"): se vuelven número para que el
 // formulario no enseñe decimales que nadie escribió.
 function numeros(f) {
-  for (const k of ['precio', 'tamano_m2', 'precio_m2']) if (f[k] != null) f[k] = Number(f[k]);
+  for (const k of ['precio', 'tamano_m2', 'construccion_m2', 'precio_m2']) if (f[k] != null) f[k] = Number(f[k]);
   return f;
 }
 // render() reescribe el formulario entero: sin esto, al pasar con Tab de un campo al
@@ -266,13 +268,16 @@ function repintar() {
 
 // ── Fichas guardadas ─────────────────────────────────────────────────────────
 // Una versión nace como copia de la General y se edita aparte: Ficha-Alsea.pdf puede
-// llevar otro título, otro precio u otra descripción sin tocar la de los demás.
+// llevar otro título, otro precio, otro precio por m², otra descripción y otras fotos
+// sin tocar la de los demás. Tipo, municipio y liga del mapa sí son de la propiedad.
 const nombrePdf = v => `Ficha-${v ? v.nombre : 'General'}`;
 function datosGenerales() {
   const l = listing, f = ficha ?? {};
   return {
     titulo: f.titulo ?? tituloPdf(l), precio: f.precio ?? precioTotal(l) ?? null,
     tamano_m2: f.tamano_m2 ?? l.size ?? null, folio: f.folio ?? null, notas: f.notas ?? null,
+    construccion_m2: f.construccion_m2 ?? (l.construccion && l.construccion !== l.size ? l.construccion : null),
+    precio_m2: f.precio_m2 ?? null, fotos: fotosBase().slice(0, 40),
   };
 }
 async function crearVersion(nombre, clienteId) {
@@ -322,25 +327,14 @@ async function saveBase(field, crudo) {
 // `ficha.fotos` es una lista de ligas. Una foto puede ser la liga de una imagen que ya
 // está en internet o un archivo que se sube aquí (queda como `/api/archivos/<id>`): se
 // elige del equipo, se arrastra sobre las miniaturas o se pega con Ctrl+V —la captura
-// de pantalla que se acaba de tomar—. La primera es la portada.
-const TIPOS_FOTO = /^image\/(jpeg|png|webp|gif)$/;
-const LADO_MAX = 2400;
-// Una foto de celular pesa 5–12 MB y aquí se ve a 1,200 px: se reduce en el navegador
-// antes de subirla. Si no hace falta (o el navegador no puede), sube tal cual.
-async function prepararFoto(file) {
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
-  try {
-    const bmp = await createImageBitmap(file);
-    const k = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
-    if (k === 1 && file.size <= 1.5 * 1048576) return file;
-    const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
-    const g = c.getContext('2d');
-    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);     // un PNG transparente no sale negro
-    g.drawImage(bmp, 0, 0, c.width, c.height);
-    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86));
-    return blob && blob.size < file.size ? new File([blob], sinExtension(file.name) + '.jpg', { type: 'image/jpeg' }) : file;
-  } catch { return file; }
-}
+// de pantalla que se acaba de tomar—. La primera es la portada. Lo que comparte con
+// clientes.html (reducir la foto, soltar archivos) está en fotos.js.
+// Las fotos que se están editando: las de la versión cargada o las de la ficha. Una
+// versión de antes del 2026-10-08 no trae lista propia: enseña las de la propiedad
+// hasta que se le cambia algo, y en ese momento se queda con su copia.
+const versionActual = () => versiones.find(x => String(x.id) === versionSel) ?? null;
+const fotosBase = () => (ficha?.fotos?.length ? ficha.fotos : listing?.fotos) ?? [];
+const fotosEnEdicion = () => { const v = versionActual(); return (v ? (v.datos.fotos ?? fotosBase()) : (ficha?.fotos ?? [])).slice(); };
 async function refrescarFotos() {
   listing = adaptListing(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
   repintar();
@@ -349,28 +343,40 @@ async function subirFotos(files) {
   files = [...files].filter(f => TIPOS_FOTO.test(f.type));
   if (!files.length) return alert('Sólo se pueden subir imágenes JPG, PNG, WEBP o GIF.');
   if (!ficha) return;
+  const v = versionActual();
   subiendo.fotos = files.length; repintar();
   try {
+    // La API agrega al final de la lista de la versión: si todavía no tiene la suya,
+    // primero se queda con la copia de las de la propiedad.
+    if (v && !v.datos.fotos) Object.assign(v, await API.patch(`/versiones/${v.id}`, { datos: { ...v.datos, fotos: fotosBase().slice(0, 40) } }));
     for (const f of files) {
       const lista = await prepararFoto(f);
       if (!cabenTodos([lista])) continue;
-      Object.assign(ficha, numeros(await API.subir(`/fichas/${ficha.id}/fotos`, lista)));
+      if (v) Object.assign(v, await API.subir(`/versiones/${v.id}/fotos`, lista));
+      else Object.assign(ficha, numeros(await API.subir(`/fichas/${ficha.id}/fotos`, lista)));
     }
   } catch (err) { alert('No se pudo subir la foto: ' + err.message); }
   subiendo.fotos = 0;
+  if (v) return repintar();
   await refrescarFotos().catch(err => console.warn(err.message));
 }
 // Quitar, poner de portada o agregar una liga: todo es guardar la lista nueva. La API
 // borra el archivo de una foto subida que ya no esté en ella.
-const guardarFotos = lista => saveBase('fotos', lista);
+async function guardarFotos(lista) {
+  const v = versionActual();
+  if (!v) return saveBase('fotos', lista);
+  try { Object.assign(v, await API.patch(`/versiones/${v.id}`, { datos: { ...v.datos, fotos: lista } })); }
+  catch (err) { alert('No se pudo guardar la ficha: ' + err.message); }
+  repintar();
+}
 function agregarLigaFoto(crudo) {
   const ligas = (crudo ?? '').split(/\s+/).filter(u => /^https?:\/\//i.test(u));
   if (!ligas.length) { if ((crudo ?? '').trim()) alert('La liga de una foto empieza con https://'); return; }
-  guardarFotos([...(ficha.fotos ?? []), ...ligas]);
+  guardarFotos([...fotosEnEdicion(), ...ligas]);
 }
 // Pegar una imagen en cualquier parte de la página la sube como foto.
 document.addEventListener('paste', e => {
-  if (!listing || !ficha || !esPropia(listing)) return;
+  if (!listing || !ficha || !(esPropia(listing) || versionActual())) return;
   const imgs = [...(e.clipboardData?.files ?? [])].filter(f => TIPOS_FOTO.test(f.type));
   if (!imgs.length) return;
   e.preventDefault();
@@ -433,7 +439,7 @@ function render() {
   document.title = (l.titulo ?? 'Propiedad') + ' · OfficeLab';
 
   const facts = [
-    l.size ? ['Superficie', `${mx(Math.round(l.size))} m²`] : null,
+    ...superficies(l.terreno, l.construccion, l.size).map(([k, v]) => [k, m2Txt(v)]),
     pm ? ['Precio / m²', `$${mx(Math.round(pm))}`] : null,
     l.tipo ? ['Tipo', cap(l.tipo)] : null,
     l.transaccion ? ['Operación', l.transaccion] : null,
@@ -509,31 +515,24 @@ function render() {
           <label>Título<input class="ficha-in" data-f="titulo" value="${esc(d.titulo ?? tituloPdf(l))}"></label>
           <div class="fx-row">
             <label>Precio<input type="number" class="ficha-in" data-f="precio" value="${d.precio ?? (vSel ? '' : (total != null ? Math.round(total) : ''))}"></label>
-            <label>m²<input type="number" class="ficha-in" data-f="tamano_m2" value="${d.tamano_m2 ?? (vSel ? '' : (l.size ?? ''))}"></label>
-            <label>ID<input class="ficha-in" data-f="folio" value="${esc(d.folio ?? '')}" placeholder="${folioSugerido()}"></label>
+            <label>Terreno m²<input type="number" class="ficha-in" data-f="tamano_m2" value="${d.tamano_m2 ?? (vSel ? '' : (l.size ?? ''))}" title="La superficie con la que se calcula el precio por m²"></label>
+            <label>Construcción m²<input type="number" class="ficha-in" data-f="construccion_m2" value="${d.construccion_m2 ?? (vSel ? '' : (l.construccion && l.construccion !== l.size ? l.construccion : ''))}" placeholder="Si aplica"></label>
           </div>
+          <label>ID<input class="ficha-in" data-f="folio" value="${esc(d.folio ?? '')}" placeholder="${folioSugerido()}"></label>
           <label>Descripción para el cliente<textarea class="ficha-in" data-f="notas" rows="4" placeholder="Si se deja vacía se usa la descripción ${propia ? 'de la propiedad' : 'del anuncio'}.">${esc(d.notas ?? '')}</textarea></label>
+          ${vSel ? `<div class="fx-row">
+            <label>Precio por m²<input type="number" class="ficha-in" data-f="precio_m2" value="${d.precio_m2 ?? ''}" placeholder="${d.precio && d.tamano_m2 ? Math.round(d.precio / d.tamano_m2) : 'Precio ÷ m²'}"></label>
+          </div>
+          ${fotosEdHtml(fotosEnEdicion())}
+          <p class="fx-hint">El precio por m² y las fotos son sólo de esta ficha: no cambian las demás.</p>` : ''}
           ${propia ? `${vSel ? '<p class="fx-hint">Lo de abajo es de la propiedad: es igual en todas sus fichas.</p>' : ''}
           <div class="fx-row">
             <label>Tipo<input class="base-in" data-f="tipo" value="${esc(ficha.tipo ?? '')}" placeholder="Local, terreno…"></label>
             <label>Municipio<input class="base-in" data-f="municipio" value="${esc(ficha.municipio ?? '')}"></label>
-            <label>Precio por m²<input type="number" class="base-in" data-f="precio_m2" value="${ficha.precio_m2 ?? ''}"></label>
+            ${vSel ? '' : `<label>Precio por m²<input type="number" class="base-in" data-f="precio_m2" value="${ficha.precio_m2 ?? ''}"></label>`}
           </div>
           <label>Liga del mapa<input class="base-in" data-f="mapa_url" value="${esc(ficha.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…"></label>
-          <div class="fx-fotos" id="fotosEd">
-            <span class="fx-lab">Fotos <small>${(ficha.fotos ?? []).length ? 'la primera es la portada' : 'aún no hay'}</small></span>
-            ${(ficha.fotos ?? []).length ? `<div class="fx-thumbs">${ficha.fotos.map((u, i) => `<span class="fx-thumb${i ? '' : ' portada'}">
-              <img src="${srcSeguro(u)}" alt="" loading="lazy">
-              ${i ? `<button class="foto-top" data-i="${i}" title="Usar como portada">&#8593;</button>` : ''}
-              <button class="foto-del" data-i="${i}" title="Quitar foto">&times;</button></span>`).join('')}</div>` : ''}
-            <div class="fx-add">
-              <input class="foto-url" placeholder="Pega la liga de una foto (https://…)" aria-label="Liga de una foto">
-              <button type="button" class="foto-sube">Subir fotos&#8230;</button>
-            </div>
-            <p class="fx-hint">${subiendo.fotos ? `Subiendo ${subiendo.fotos} ${subiendo.fotos === 1 ? 'foto' : 'fotos'}&#8230;`
-              : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí o pegar una captura de pantalla con Ctrl+V.'}</p>
-            <input type="file" id="fotoFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
-          </div>` : ''}
+          ${vSel ? '' : fotosEdHtml(fotosEnEdicion())}` : ''}
         </details>
       </section>
 
@@ -586,6 +585,24 @@ function render() {
   enlazar();
 }
 
+// La caja de fotos del formulario: miniaturas con quitar y "de portada", y el alta.
+function fotosEdHtml(fotos) {
+  return `<div class="fx-fotos" id="fotosEd">
+    <span class="fx-lab">Fotos <small>${fotos.length ? 'la primera es la portada' : 'aún no hay'}</small></span>
+    ${fotos.length ? `<div class="fx-thumbs">${fotos.map((u, i) => `<span class="fx-thumb${i ? '' : ' portada'}">
+      <img src="${srcSeguro(u)}" alt="" loading="lazy">
+      ${i ? `<button class="foto-top" data-i="${i}" title="Usar como portada">&#8593;</button>` : ''}
+      <button class="foto-del" data-i="${i}" title="Quitar foto">&times;</button></span>`).join('')}</div>` : ''}
+    <div class="fx-add">
+      <input class="foto-url" placeholder="Pega la liga de una foto (https://…)" aria-label="Liga de una foto">
+      <button type="button" class="foto-sube">Subir fotos&#8230;</button>
+    </div>
+    <p class="fx-hint">${subiendo.fotos ? `Subiendo ${subiendo.fotos} ${subiendo.fotos === 1 ? 'foto' : 'fotos'}&#8230;`
+      : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí o pegar una captura de pantalla con Ctrl+V.'}</p>
+    <input type="file" id="fotoFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
+  </div>`;
+}
+
 function enlazar() {
   const $ = id => document.getElementById(id);
   $('detailStar').onclick = () => { setState({ starred: !listing.starred }); render(); };
@@ -630,7 +647,7 @@ function enlazar() {
     subirDocumentos(files, { docId: e.target.closest('.fx-doc')?.dataset.id ?? null }));
   // Fotos de una propiedad propia.
   if ($('fotosEd')) {
-    const fotos = () => (ficha.fotos ?? []).slice();
+    const fotos = fotosEnEdicion;
     $('fotoFile').onchange = e => subirFotos(e.target.files);
     document.querySelector('.foto-sube').onclick = () => $('fotoFile').click();
     const url = document.querySelector('.foto-url');
@@ -650,20 +667,6 @@ function enlazar() {
     e.target.className = 'proc-status e-' + e.target.value;
   });
   document.querySelectorAll('.proc-del').forEach(b => b.onclick = e => removeProceso(e.currentTarget.dataset.proc));
-}
-
-// Deja soltar archivos del equipo sobre `caja`. Sólo reacciona a archivos: arrastrar
-// texto o una liga sigue haciendo lo de siempre.
-function soltarArchivos(caja, alSoltar) {
-  const trae = e => [...(e.dataTransfer?.types ?? [])].includes('Files');
-  caja.ondragover = e => { if (trae(e)) { e.preventDefault(); caja.classList.add('soltar'); } };
-  caja.ondragleave = e => { if (!caja.contains(e.relatedTarget)) caja.classList.remove('soltar'); };
-  caja.ondrop = e => {
-    if (!trae(e)) return;
-    e.preventDefault();
-    caja.classList.remove('soltar');
-    alSoltar([...e.dataTransfer.files], e);
-  };
 }
 
 // El análisis de mercado se genera en el servidor, al revés que la ficha PDF, que
@@ -841,12 +844,14 @@ function folioSugerido() {
 
 function imprimirFicha(versionId) {
   const v = versiones.find(x => String(x.id) === versionId) ?? null;
-  // Lo que la versión trae pisa a la ficha; las fotos siempre son las de la ficha.
+  // Lo que la versión trae pisa a la ficha, fotos y precio por m² incluidos.
   const l = listing, f = { ...(ficha ?? {}), ...(v?.datos ?? {}) }, cfg = window.OL_CONFIG ?? {}, u = currentUser ?? {};
   const precio = f.precio ?? precioTotal(l);
   const m2 = f.tamano_m2 ?? l.size;
-  const pm = precio && m2 ? precio / m2 : ppm(l);
-  const fotos = (f.fotos?.length ? f.fotos : l.fotos);
+  // Construcción: la de la ficha o versión; si no, la del anuncio cuando la distingue.
+  const constr = f.construccion_m2 ?? (l.construccion && l.construccion !== m2 ? l.construccion : null);
+  const pm = v?.datos.precio_m2 ?? (precio && m2 ? precio / m2 : ppm(l));
+  const fotos = v?.datos.fotos ?? (f.fotos?.length ? f.fotos : l.fotos);
   const desc = (f.notas?.trim() || l.descripcion || '').split(/\n{2,}/).filter(Boolean);
   const maps = mapsLink(l);
   const tel = u.whatsapp ?? u.telefono ?? u.celular ?? '';
@@ -868,9 +873,10 @@ function imprimirFicha(versionId) {
       ${l.direccion ? `<div class="pr-colonia">${esc(l.direccion)}.</div>` : ''}
       <h1 class="pr-titulo">${esc((f.titulo ?? tituloPdf(l)).toUpperCase())}</h1>
       ${fotos[0] ? `<img class="pr-foto" src="${esc(fotos[0])}" alt="">` : ''}
-      <div class="pr-datos">
+      <div class="pr-datos${constr ? ' cuatro' : ''}">
         <div><span>Precio x m²</span><b>${pm ? '$' + mx(Math.round(pm)) : '—'}</b></div>
-        <div><span>${esc(cap(l.tipo ?? 'Superficie'))}</span><b>${m2 ? mx(Math.round(m2)) + ' m²' : '—'}</b></div>
+        <div><span>${constr ? 'Terreno' : esc(cap(l.tipo ?? 'Superficie'))}</span><b>${m2 ? mx(Math.round(m2)) + ' m²' : '—'}</b></div>
+        ${constr ? `<div><span>Construcción</span><b>${mx(Math.round(constr))} m²</b></div>` : ''}
         <div><span>ID</span><b>${esc(f.folio || folioSugerido())}</b></div>
       </div>
       <h2 class="pr-h2">Descripción</h2>
