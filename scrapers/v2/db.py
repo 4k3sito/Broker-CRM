@@ -44,7 +44,7 @@ COLS = ("source listing_id url title image_url operation price currency property
 # Which side wins when the row already exists. Anything not listed: the sweep.
 _KEEP_IF_NULL = {"geom", "geo_origen", "operacion_alt", "precio_alt", "plot_area_m2",
                  "built_area_m2", "area_m2", "agent_phone", "eb_id", "posting_code",
-                 "images_total", "price_is_per_m2", "listed_at"}
+                 "images_total", "price_is_per_m2", "listed_at", "image_url"}
 # The detail fetch owns these once it has run: the sweep never shrinks them.
 _DETAIL_OWNS = {"images", "features"}
 
