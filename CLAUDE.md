@@ -92,7 +92,10 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   **sólo para las cuentas de `SCRAPERS_VEN`**, igual que las tarjetas `tipo = 'Scraper'`
   de tareas — la única restricción por cuenta del sistema, SECURITY.md §5),
   el **motor de análisis de mercado** y un CLI: `selfcheck`, `lsusers`, `adduser`,
-  `passwd`, `resetlink`, `deluser`. `python main.py selfcheck` corre sin base de datos.
+  `passwd`, `resetlink`, `deluser`, `apikey`. `python main.py selfcheck` corre sin base de datos.
+  **`/api/v1/anuncios` es la puerta para otros programas**: inventario de sólo lectura con
+  una llave (`apikey crear "<nombre>"`, `Authorization: Bearer ol_…`), sin acceso al CRM
+  — ver SECURITY.md §3 "Llaves de API".
   `documento.py` + `documento.css` son la maqueta del PDF del análisis, y `fuentes/`
   las tres familias de Hermes Tinta empaquetadas en la imagen —el PDF no puede depender
   de que Google Fonts conteste al renderizar—. **La imagen ya no es sólo `pip install`**:
