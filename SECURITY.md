@@ -205,6 +205,16 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Endpoints (2026-10-08) — frescura del inventario (copia de trabajo)
+
+`GET /api/frescura` exige sesión, **no** exige `SCRAPERS_VEN`: lo pide el tablero de
+todos los asesores para avisar cuando una fuente dejó de cargar. No toma parámetros y
+devuelve sólo la fecha de la última carga de cada una de las cinco fuentes con scraper
+(`max(observed_at)`): es un subconjunto de lo que ya da `/api/scrapers`, sin conteos ni
+coberturas, y una fecha que cualquier asesor ya deducía de los anuncios. El resultado se
+guarda en memoria 15 minutos (`FRESCURA_TTL`), así que pedirlo en bucle no repite el
+escaneo de `listings`.
+
 ### Endpoints (2026-10-05) — archivos subidos, estatus y orden de clientes (copia de trabajo)
 
 Es la primera vez que el sitio **guarda y sirve contenido que sube un usuario**. Todo
