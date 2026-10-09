@@ -5,6 +5,8 @@
     python main.py adduser asesor@ejemplo.mx      # alta (pide la contraseña aparte)
     python main.py passwd asesor@ejemplo.mx       # cambiar contraseña
     python main.py lsusers / deluser <email>
+    python main.py apikey crear "Nombre del programa"   # llave de sólo lectura; se ve una vez
+    python main.py apikey ls / apikey revocar <prefijo>
     python main.py selfcheck                      # asserts, sin DB
 
 No hay registro público: las cuentas se crean por CLI. Esto es un CRM de dos o tres
@@ -229,6 +231,61 @@ def _tipo_permitido(body: dict, user: dict) -> None:
     """Que nadie fuera de la lista marque una tarjeta como de scraper: dejaría de verla."""
     if body.get("tipo") == TIPO_SCRAPER and not ve_scrapers(user):
         raise HTTPException(403, "Ese tipo de tarea es sólo de quien opera los scrapers")
+
+
+# ──────────────────────────────────────────────────────────────── llaves de API
+# Para que OTRO PROGRAMA lea el inventario sin prestarle la cuenta de un asesor. Una
+# llave no es una sesión y no puede lo que una sesión: sólo abre `/api/v1/anuncios`,
+# que es de lectura y no toca el CRM ni el seguimiento de nadie. Ningún endpoint de
+# sesión acepta una llave, y `/api/v1` no acepta una cookie: son dos puertas.
+#
+# Mismo criterio que `sesion`: opaca, en la base, se guarda el sha256 y se revoca
+# marcando la fila. Se crean por CLI (`apikey crear`), igual que las cuentas.
+API_KEY_MARCA = "ol_"            # la hace reconocible en un log o un escáner de secretos
+API_KEY_PREFIJO = 11             # lo que se guarda en claro para poder nombrarla
+KEY_MAX, KEY_WINDOW_S = 120, 60  # peticiones por llave por minuto
+_KEY_HITS: dict[str, list[float]] = {}
+
+
+def nueva_api_key() -> str:
+    return API_KEY_MARCA + secrets.token_urlsafe(32)
+
+
+def _bearer(request: Request) -> str | None:
+    esquema, _, valor = request.headers.get("authorization", "").partition(" ")
+    valor = valor.strip()
+    if esquema.lower() != "bearer" or not valor.startswith(API_KEY_MARCA) or len(valor) > 200:
+        return None
+    return valor
+
+
+def llave_api(request: Request) -> dict:
+    """`Authorization: Bearer ol_…` → la fila de la llave, o 401/429."""
+    tok = _bearer(request)
+    row = None
+    if tok:
+        with POOL.connection() as conn:
+            row = conn.execute(
+                "SELECT id, nombre, prefijo FROM api_key "
+                "WHERE key_hash = %s AND revocada_at IS NULL", (token_hash(tok),)).fetchone()
+            if row:
+                # Una escritura por minuto y por llave, no una por petición.
+                conn.execute("UPDATE api_key SET ultimo_uso_at = now() WHERE id = %s AND "
+                             "(ultimo_uso_at IS NULL OR ultimo_uso_at < now() - interval '1 minute')",
+                             (row["id"],))
+    if not row:
+        rate_limit(request)      # adivinar llaves cuenta como intentos fallidos, por IP
+        raise HTTPException(401, "Llave de API inválida o revocada",
+                            headers={"WWW-Authenticate": "Bearer"})
+    now, kid = time.monotonic(), str(row["id"])
+    with _ATTEMPTS_LOCK:
+        hits = [t for t in _KEY_HITS.get(kid, []) if now - t < KEY_WINDOW_S]
+        hits.append(now)
+        _KEY_HITS[kid] = hits
+    if len(hits) > KEY_MAX:
+        raise HTTPException(429, f"Límite de {KEY_MAX} peticiones por minuto",
+                            headers={"Retry-After": str(KEY_WINDOW_S)})
+    return row
 
 
 # ─────────────────────────────────────────────────────────────────── endpoints
@@ -800,6 +857,94 @@ def get_listing(listing_id: str, user: dict = Depends(current_user)) -> dict:
             (listing_id, user["id"], listing_id)).fetchone()
     if not row:
         raise HTTPException(404, "No existe ese listing")
+    return row
+
+
+# ── /api/v1: el inventario para otros programas, con llave ──────────────────────
+# Otra consulta y no la del tablero a propósito: aquella trae el seguimiento del
+# asesor (`user_listing`) y puede unir las fichas propias del CRM. Ésta sale sólo de
+# `listings` y no tiene por dónde llegar a ninguna de las dos cosas.
+SELECT_ANUNCIO = """
+  l.source || ':' || l.listing_id AS id, l.source AS fuente, l.listing_id AS id_en_fuente,
+  l.url, l.title AS titulo, l.description AS descripcion,
+  l.tipo, l.property_type AS tipo_en_fuente, l.operation AS operacion,
+  l.price::float8 AS precio, l.currency AS moneda, l.price_is_per_m2 AS precio_es_por_m2,
+  CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN (l.price * l.area_m2)::float8
+       ELSE l.price::float8 END AS precio_total,
+  l.operacion_alt, l.precio_alt::float8 AS precio_alt, l.precio_alt_por_m2,
+  l.area_m2::float8 AS superficie_m2, l.plot_area_m2::float8 AS terreno_m2,
+  l.built_area_m2::float8 AS construccion_m2,
+  l.location AS ubicacion, l.city AS ciudad, l.province AS estado, z.nombre AS municipio,
+  CASE WHEN l.geo_origen IS DISTINCT FROM 'relleno' THEN ST_Y(l.geom::geometry) END AS lat,
+  CASE WHEN l.geo_origen IS DISTINCT FROM 'relleno' THEN ST_X(l.geom::geometry) END AS lng,
+  l.geo_origen AS coordenada_origen,
+  l.image_url AS foto, l.images AS fotos, l.features AS amenidades,
+  l.agency_name AS anunciante, l.agent_phone AS telefono,
+  l.listed_at AS publicado_at, l.observed_at AS visto_at, l.activo
+"""
+V1_MAX = 500
+
+
+@app.get("/api/v1/anuncios")
+def v1_anuncios(
+    llave: dict = Depends(llave_api),
+    q: str | None = None,
+    zona: str | None = None,
+    lugar: list[str] | None = Query(None),
+    operacion: str | None = Query(None, pattern="^(rent|sale)$"),
+    tipo: list[str] | None = Query(None),
+    fuente: list[str] | None = Query(None),
+    precio_min: float | None = None,
+    precio_max: float | None = None,
+    m2_min: float | None = None,
+    m2_max: float | None = None,
+    m2_de: str | None = Query(None, pattern="^(terreno|construccion)$"),
+    ppm_min: float | None = None,
+    ppm_max: float | None = None,
+    near: str | None = None,
+    radio: int = Query(2000, ge=100, le=50000),
+    desde: datetime | None = Query(None, description="sólo lo visto a partir de esta fecha (ISO 8601)"),
+    inactivos: bool = Query(False, description="incluir también los dados de baja"),
+    orden: str = Query("recientes"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(100, ge=1, le=V1_MAX),
+) -> dict:
+    """El inventario, de sólo lectura. Mismos filtros de anuncio que el tablero; los
+    del CRM (ficha, cliente, etapa, estado, favoritos) aquí no existen."""
+    if orden not in ORDENES:
+        raise HTTPException(422, f"orden debe ser uno de: {', '.join(ORDENES)}")
+    w, p = _filtros({k: v for k, v in locals().items() if k in V1_FILTROS})
+    if not inactivos:
+        w.append("l.activo IS NOT FALSE")
+    if desde is not None:
+        w.append("l.observed_at >= %s")
+        p.append(desde)
+    base = f"FROM listings l LEFT JOIN zona z ON z.id = l.zona_id WHERE {' AND '.join(w) or 'TRUE'}"
+    with POOL.connection() as conn:
+        total = conn.execute(f"SELECT count(*) AS n {base}", p).fetchone()["n"]
+        rows = conn.execute(
+            f"SELECT {SELECT_ANUNCIO} {base} ORDER BY {ORDENES[orden]}, l.source, l.listing_id "
+            f"LIMIT %s OFFSET %s", [*p, per_page, (page - 1) * per_page]).fetchall()
+    return {"items": rows, "total": total, "page": page, "per_page": per_page,
+            "pages": -(-total // per_page)}
+
+
+# Lo único que `_filtros` recibe de una llave. Es lista blanca: un filtro del CRM que
+# se agregue mañana a `_filtros` no queda expuesto aquí por descuido.
+V1_FILTROS = frozenset({"q", "zona", "lugar", "operacion", "tipo", "fuente", "precio_min",
+                        "precio_max", "m2_min", "m2_max", "m2_de", "ppm_min", "ppm_max",
+                        "near", "radio"})
+
+
+@app.get("/api/v1/anuncios/{anuncio_id:path}")
+def v1_anuncio(anuncio_id: str, llave: dict = Depends(llave_api)) -> dict:
+    # `pipeline:<uuid>` son fichas propias del CRM: con llave no existen.
+    with POOL.connection() as conn:
+        row = conn.execute(
+            f"SELECT {SELECT_ANUNCIO} FROM listings l LEFT JOIN zona z ON z.id = l.zona_id "
+            "WHERE l.source || ':' || l.listing_id = %s", (anuncio_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "No existe ese anuncio")
     return row
 
 
@@ -2188,6 +2333,26 @@ def selfcheck() -> None:
     assert not verify_password("x", "bcrypt$1$8$1$aa$bb")        # otro algoritmo
     assert len(token_hash("a")) == 32 and token_hash("a") != token_hash("b")
 
+    # Llaves de API: reconocibles, largas, y sólo se leen de `Authorization: Bearer`.
+    k = nueva_api_key()
+    assert k.startswith(API_KEY_MARCA) and len(k) > 40 and k != nueva_api_key()
+    class _R:
+        def __init__(self, h): self.headers = h
+    assert _bearer(_R({"authorization": f"Bearer {k}"})) == k
+    assert _bearer(_R({"authorization": f"bearer  {k} "})) == k
+    assert _bearer(_R({"authorization": k})) is None, "sin esquema Bearer no es una llave"
+    assert _bearer(_R({"authorization": "Bearer otra-cosa"})) is None
+    assert _bearer(_R({"cookie": f"{COOKIE}={k}"})) is None, "una llave no viaja en cookie"
+    assert _bearer(_R({"authorization": "Bearer ol_" + "x" * 300})) is None
+    # Una llave no puede pedir nada del CRM ni del seguimiento de un asesor.
+    assert not V1_FILTROS & {"ficha", "pcliente", "sin_cliente", "etapa", "estado", "favoritos"}
+    assert "ul." not in SELECT_ANUNCIO and "ficha" not in SELECT_ANUNCIO
+    rutas = {r.path: r for r in app.routes if hasattr(r, "dependant")}
+    def deps(path): return {d.call for d in rutas[path].dependant.dependencies}
+    assert deps("/api/v1/anuncios") == {llave_api} == deps("/api/v1/anuncios/{anuncio_id:path}")
+    con_llave = [p for p in rutas if llave_api in deps(p)]
+    assert sorted(con_llave) == ["/api/v1/anuncios", "/api/v1/anuncios/{anuncio_id:path}"], con_llave
+
     # El límite de intentos cuenta por visitante, no por la IP del proxy.
     class _Req:                                   # lo mínimo que lee ip_cliente
         def __init__(self, h): self.headers, self.client = h, None
@@ -2412,6 +2577,9 @@ def _cli() -> int:
     sub.add_parser("lsusers")
     sub.add_parser("geofichas", help="saca la coordenada de la liga del mapa de las "
                                      "fichas que tienen liga y no tienen ubicación")
+    ak = sub.add_parser("apikey", help="llaves de sólo lectura para otros programas")
+    ak.add_argument("accion", choices=["crear", "ls", "revocar"])
+    ak.add_argument("valor", nargs="?", help="crear: nombre del programa · revocar: su prefijo")
     for name in ("adduser", "passwd", "deluser", "resetlink"):
         sub.add_parser(name).add_argument("email")
     sub.choices["adduser"].add_argument("--nombre")
@@ -2439,6 +2607,28 @@ def _cli() -> int:
         if a.cmd == "lsusers":
             for u in conn.execute("SELECT email, nombre, created_at FROM usuario ORDER BY email"):
                 print(f"{u['email']:<32} {u['nombre'] or '—':<20} {u['created_at']:%Y-%m-%d}")
+        elif a.cmd == "apikey":
+            if a.accion == "ls":
+                for k in conn.execute("SELECT prefijo, nombre, creada_at, ultimo_uso_at, revocada_at "
+                                      "FROM api_key ORDER BY creada_at"):
+                    estado = (f"REVOCADA {k['revocada_at']:%Y-%m-%d}" if k["revocada_at"] else
+                              f"último uso {k['ultimo_uso_at']:%Y-%m-%d %H:%M}" if k["ultimo_uso_at"]
+                              else "sin usar")
+                    print(f"{k['prefijo']}…  {k['nombre']:<32} creada {k['creada_at']:%Y-%m-%d}  {estado}")
+            elif not a.valor:
+                sys.exit("falta el nombre del programa" if a.accion == "crear" else "falta el prefijo")
+            elif a.accion == "crear":
+                key = nueva_api_key()
+                conn.execute("INSERT INTO api_key (nombre, prefijo, key_hash) VALUES (%s, %s, %s)",
+                             (a.valor.strip()[:80], key[:API_KEY_PREFIJO], token_hash(key)))
+                print(f"llave para «{a.valor.strip()[:80]}»:\n\n  {key}\n\n"
+                      "se muestra una sola vez: en la base sólo queda su huella.\n"
+                      "uso:  Authorization: Bearer <llave>   →   GET /api/v1/anuncios")
+            else:
+                n = conn.execute("UPDATE api_key SET revocada_at = now() "
+                                 "WHERE prefijo = %s AND revocada_at IS NULL",
+                                 (a.valor.strip().rstrip("…"),)).rowcount
+                print(f"revocadas: {n}" + ("" if n else "  (ese prefijo no existe o ya estaba revocada)"))
         elif a.cmd == "geofichas":
             filas = conn.execute("SELECT id, titulo, mapa_url FROM ficha WHERE mapa_url IS NOT NULL "
                                  "AND lat IS NULL ORDER BY created_at").fetchall()
