@@ -1181,6 +1181,32 @@ function quitarCriterios() {
   history.replaceState(null, '', location.pathname);
 }
 
+// Aviso de inventario viejo. El cron carga una fuente por noche de lunes a viernes, así
+// que cada una se refresca una vez por semana: pasados FRESCURA_DIAS sin carga, algo
+// se rompió (del 2026-09-23 en adelante fue el proxy, y el tablero no lo decía).
+const FRESCURA_DIAS = 9;
+async function avisarFrescura() {
+  const r = await API.get('/frescura').catch(() => null);
+  if (!r) return;
+  const dias = iso => iso ? Math.floor((Date.now() - new Date(iso)) / 86400000) : Infinity;
+  const dia = iso => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+  const viejas = r.fuentes.filter(f => dias(f.ultima_carga) > FRESCURA_DIAS);
+  if (!viejas.length) return;
+  const el = document.getElementById('frescura');
+  if (viejas.length === r.fuentes.length) {
+    const ult = r.fuentes.map(f => f.ultima_carga).filter(Boolean).sort().pop();
+    el.innerHTML = ult
+      ? `<b>El inventario no se actualiza desde el ${esc(dia(ult))}</b> (hace ${dias(ult)} días): ` +
+        'algunos anuncios pueden ya no estar disponibles. Confirma con el portal antes de ofrecerlos.'
+      : '<b>El inventario nunca se ha cargado.</b>';
+  } else {
+    el.innerHTML = '<b>Sin actualizar:</b> ' + viejas.map(f => f.ultima_carga
+      ? `${esc(f.label)} (desde el ${esc(dia(f.ultima_carga))})` : `${esc(f.label)} (nunca)`).join(', ') +
+      '. Sus anuncios pueden ya no estar disponibles.';
+  }
+  el.hidden = false;
+}
+
 API.me().then(async () => {
   document.getElementById('authBox').hidden = true;
   document.getElementById('userBox').hidden = false;
@@ -1194,6 +1220,7 @@ API.me().then(async () => {
     if (url.get('pcliente')) F.pcliente = url.get('pcliente');
   }
   await render();
+  if (!INMO) avisarFrescura();
 }).catch(err => {
   // El 401 lo maneja api.js redirigiendo al login; aquí sólo quedan fallos reales.
   console.error(err);

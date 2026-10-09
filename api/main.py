@@ -923,6 +923,37 @@ def scrapers(user: dict = Depends(current_user)) -> dict:
     return _partir_scrapers(rows)
 
 
+# Qué tan fresco está el inventario, para todos los asesores: el tablero avisa cuando
+# una fuente dejó de cargar (pasó del 2026-09-23 en adelante sin que nadie lo viera).
+# Sólo la última carga por fuente; la salud completa sigue siendo de /api/scrapers.
+# Es el mismo escaneo secuencial (~1 s, no hay índice en observed_at) y el tablero lo
+# pide en cada visita, así que se guarda en memoria: las cargas son de una por noche.
+FRESCURA_TTL = 900
+_frescura_cache: dict = {"t": None, "v": None}
+
+
+def _partir_frescura(rows: list[dict]) -> list[dict]:
+    """Una entrada por cada fuente con scraper, aunque no tenga filas (`None`): una
+    fuente que nunca cargó también es un aviso. Las huérfanas no cuentan, nadie las
+    refresca a propósito. Pura, para el selfcheck."""
+    ultima = {r["source"]: r["ultima_carga"] for r in rows}
+    return [{"source": s, "label": lbl, "ultima_carga": ultima.get(s)}
+            for s, lbl in SCRAPERS.items()]
+
+
+@app.get("/api/frescura")
+def frescura(user: dict = Depends(current_user)) -> dict:
+    ahora = time.monotonic()
+    c = _frescura_cache
+    if c["v"] is None or ahora - c["t"] > FRESCURA_TTL:
+        with POOL.connection() as conn:
+            rows = conn.execute(
+                "SELECT source, max(observed_at) AS ultima_carga FROM listings "
+                "WHERE source = ANY(%s) GROUP BY source", (list(SCRAPERS),)).fetchall()
+        c["v"], c["t"] = _partir_frescura(rows), ahora
+    return {"fuentes": c["v"]}
+
+
 class EstadoIn(BaseModel):
     status: str | None = Field(None, pattern="^(new|reviewed|contacted|rented|discarded)$")
     starred: bool | None = None
@@ -2316,6 +2347,12 @@ def selfcheck() -> None:
     assert part["fuentes"][0]["label"] == "Pincali" and not part["fuentes"][0]["huerfana"]
     assert part["fuentes"][1]["huerfana"], "propiedadesmx no tiene scraper"
     assert part["cargas"] == [{"dia": "2026-08-28", "source": "pincali", "n": 7}]
+    # /api/frescura: todas las fuentes con scraper, aunque no tengan filas; sin huérfanas.
+    fr = _partir_frescura([{"source": "pincali", "ultima_carga": "2026-09-18"},
+                           {"source": "propiedadesmx", "ultima_carga": "2026-10-01"}])
+    assert [f["source"] for f in fr] == list(SCRAPERS), fr
+    assert next(f for f in fr if f["source"] == "pincali")["ultima_carga"] == "2026-09-18"
+    assert next(f for f in fr if f["source"] == "lamudi")["ultima_carga"] is None
 
     # Subir el costo del KDF no invalida los hashes viejos, solo los marca.
     assert not necesita_rehash(h)

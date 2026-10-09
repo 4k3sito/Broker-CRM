@@ -7,6 +7,19 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Aviso de inventario viejo y botones táctiles — **en `desarrollo`, sin desplegar** (2026-10-08)
+
+- **Bolsa → aviso de frescura**: una franja ámbar bajo la barra de filtros cuando alguna
+  fuente lleva más de 9 días sin cargar (`FRESCURA_DIAS` en `app.js`), con la fecha de
+  la última carga; si son todas, dice desde cuándo no se actualiza el inventario. Sale de
+  `GET /api/frescura` (nuevo, para todos los asesores; SECURITY.md, "Endpoints
+  (2026-10-08)"). Con el 402 de Apify de abajo, en producción va a salir encendido.
+- **Táctil**: el bloque `@media (pointer: coarse)` de `hermes.css` volvió al final del
+  archivo. El rediseño v0.5 se había agregado debajo y lo anulaba: tema y "Salir"
+  medían 32 px en el teléfono. Ahora 44 px.
+- Probado con navegador contra un API simulado (1440 y 390 px, táctil): no contra datos
+  reales. **Para desplegar hace falta reconstruir `api`**, además del `git pull`.
+
 ## Estatus y orden de clientes, archivos y fotos subidas — **en producción desde el 2026-10-05**
 
 Desplegado con el commit `e895908`: bloque del esquema aplicado en `public` (dos
@@ -104,15 +117,12 @@ Lo que falta o conviene saber:
 
 ## Rediseño v0.5: lo que quedó sin encender
 
-Desplegado el 2026-09-29 (`c56841b`). Tres cosas del rediseño no funcionan todavía
+Desplegado el 2026-09-29 (`c56841b`). Dos cosas del rediseño no funcionan todavía
 porque dependen de algo fuera del frontend:
 
 - **Mapa del tablero: encendido el 2026-09-29**, con Map ID propio. Llave y Map ID viven
   en `web/config.js` de producción, sin commit. Falta confirmar que la llave está
   restringida al sitio y a Maps JavaScript API (SECURITY.md).
-- **ID de la ficha PDF.** El campo "ID" guarda en `ficha.folio`, que no existe:
-  `PATCH /api/fichas/:id` responde 422 y el PDF usa un folio sugerido con la fecha
-  (`PR-DDMMAA-1`). Falta la columna en `schema.sql` (y en `dev`) y sumarla a `FICHA_COLS`.
 - **WhatsApp del asesor en la ficha PDF.** Sale de `/me` (`whatsapp`, `telefono` o
   `celular`), que hoy no trae ninguno: el PDF sale sin esa línea.
 
@@ -260,12 +270,6 @@ La corrida del sábado 26 (`scrapers/logs/liveness-2026-09-26.log`) salió **sin
   portales. El umbral del `Cortacircuitos` sigue sin probarse contra un bloqueo real.
 
 Lo que sigue pendiente de medir, en la primera corrida **con** proxy:
-
-Lo que estaba mal y ya no: la corrida moría por `timeout` habiendo cubierto el 19%,
-gastaba ~19 KB por anuncio y los bloqueos acaparaban la cola para siempre. Medido
-después del cambio, sobre corridas reales: **13.5 KB por petición** (eran 52.8 en la
-muestra equivalente) y **6.1 anuncios/s** con 16 hilos (eran 2.4). Una pasada completa
-del país pasa de ~57 GB a ~6 GB.
 
 - `dominios cortados por bloqueos`. Si aparece inmuebles24 o vivanuncios todas las
   noches, el umbral del `Cortacircuitos` (50% sobre 40 peticiones) quedó corto.
