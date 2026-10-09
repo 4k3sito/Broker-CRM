@@ -234,7 +234,10 @@ class Fetcher:
         status, text = resp.status_code, body.decode("utf-8", "replace")
         if status in (404, 410):
             raise Gone(f"{status} {url}")
-        if (status in (403, 429, 503) or (self.block_re and self.block_re.search(text[:6000]))
+        # 401 is Lamudi's rate window: it answers it for under a minute and then
+        # serves again. Read as a plain error it failed 12 shards of the first
+        # nationwide run in 20 s of quick retries each.
+        if (status in (401, 403, 429, 503) or (self.block_re and self.block_re.search(text[:6000]))
                 or (reject and reject(text))):
             raise Blocked(f"{status} on {route}")
         if status not in accept:
@@ -256,17 +259,18 @@ class Fetcher:
             except Blocked as exc:
                 err = exc
                 # Direct has one IP, so the only retry worth making is after a
-                # real pause; a second refusal climbs. On the proxy a new identity
-                # is a new visitor: rotate and go again, climb when out of tries.
+                # real pause: wait out the window twice (~30 s, then ~90 s) before
+                # paying for the proxy. On the proxy a new identity is a new
+                # visitor: rotate and go again, climb when out of tries.
                 direct = self.route == "direct"
                 if len(self.impersonate) > 1:
                     _REFUSED.setdefault(self.portal, set()).add(self._imp)
-                if (direct and attempt >= 1) or attempt == self.tries - 1:
+                if attempt == self.tries - 1:
                     if self._climb("blocked"):
                         attempt = 0
                         continue
                 if direct:
-                    time.sleep(random.uniform(20, 30))
+                    time.sleep(random.uniform(25, 35) * (1 + 2 * attempt))
                 self.rotate()
             except FetchError as exc:
                 err = exc
