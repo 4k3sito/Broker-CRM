@@ -65,6 +65,38 @@ para entrar a una cuenta ajena es resetearla, y eso deja rastro.
 - Cambiar la contraseña cierra las **demás** sesiones y conserva la actual.
   Resetearla las cierra **todas**, incluida la de quien la esté cambiando.
 
+### Llaves de API (2026-10-09, copia de trabajo)
+
+Segunda forma de entrar, para **otro programa** que necesita leer el inventario. Antes
+la única manera era prestarle la cuenta de un asesor, que puede leer y modificar todo el
+CRM.
+
+- **Sólo abren `GET /api/v1/anuncios` y `GET /api/v1/anuncios/{id}`.** Son de lectura y
+  salen únicamente de `listings`: su consulta (`SELECT_ANUNCIO`) no une `user_listing` ni
+  las fichas propias, así que no hay por dónde llegar al seguimiento de un asesor ni al
+  CRM. Los filtros del CRM no existen ahí (`V1_FILTROS` es lista blanca) y un id
+  `pipeline:…` responde 404.
+- **Son dos puertas separadas.** Ningún endpoint de sesión acepta una llave y `/api/v1`
+  no acepta la cookie. `selfcheck` lo comprueba recorriendo las rutas: si mañana alguien
+  le pone `llave_api` a otro endpoint, falla.
+- **Opacas y en la base**, igual que las sesiones: se guarda el sha256 (`api_key.key_hash`)
+  y la llave se muestra una sola vez al crearla. `prefijo` (11 caracteres) queda en claro
+  sólo para poder nombrarla. Empiezan con `ol_` para que un escáner de secretos las
+  reconozca.
+- **Sólo viajan en `Authorization: Bearer`**, nunca en cookie ni en la URL: no hay CSRF
+  que cuidar y no quedan en el historial ni en el log de accesos de Caddy.
+- **Se crean y se revocan por CLI** (`apikey crear|ls|revocar`), como las cuentas: quien
+  puede emitir una ya tiene root en el VPS. Revocar marca `revocada_at`, no borra la fila.
+  No caducan solas — es una decisión, no un olvido: son pocas, tienen dueño y `apikey ls`
+  dice cuándo se usó cada una por última vez.
+- **Límite:** 120 peticiones por minuto por llave (429 con `Retry-After`), en memoria, con
+  la misma limitación que H3. Una llave inválida cuenta como intento fallido por IP.
+- **Lo que una llave robada permite:** leer el inventario — lo mismo que ya publican los
+  cinco portales, más nuestras columnas derivadas. No permite escribir nada ni leer
+  clientes. **Mientras H2 siga abierto la llave viaja en claro**, igual que la cookie:
+  quien escuche la red entre el programa y el VPS puede copiarla. Si se sospecha,
+  `apikey revocar` y emitir otra.
+
 ## 4. Recuperación de contraseña
 
 Sigue el [OWASP Forgot Password Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html):

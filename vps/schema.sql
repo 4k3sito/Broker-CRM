@@ -588,6 +588,21 @@ CREATE TABLE IF NOT EXISTS sesion (
 );
 CREATE INDEX IF NOT EXISTS sesion_user_idx ON sesion (user_id);
 
+-- Llaves de API (2026-10-09): para que otro programa lea el inventario por
+-- `/api/v1/anuncios` sin usar la cuenta de un asesor. Mismo criterio que `sesion`: se
+-- guarda el sha256, nunca la llave. `prefijo` son sus primeros caracteres, en claro,
+-- sólo para poder nombrarla al listarla o revocarla. Se revoca marcando la fila y no
+-- borrándola: así queda escrito qué llave existió y hasta cuándo.
+CREATE TABLE IF NOT EXISTS api_key (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nombre        text NOT NULL,
+  prefijo       text NOT NULL,
+  key_hash      bytea NOT NULL UNIQUE,
+  creada_at     timestamptz NOT NULL DEFAULT now(),
+  ultimo_uso_at timestamptz,
+  revocada_at   timestamptz
+);
+
 -- Tokens de recuperación de contraseña. Mismo criterio que `sesion`: se guarda el
 -- sha256, no el token — quien lea la base no puede secuestrar un reset en vuelo.
 -- Un solo uso (`used_at`) y vida corta (30 min); OWASP pide ambas cosas.
