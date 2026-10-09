@@ -129,8 +129,13 @@ def _set(col: str) -> str:
 UPSERT = """
 INSERT INTO listings ({cols}) SELECT {cols} FROM stage
 ON CONFLICT (source, listing_id) DO UPDATE SET {sets},
-  -- A row on today's results page is published today: that is a verdict.
-  activo = true, revisado_at = now(),
+  -- A row on today's results page is published today: that is a verdict. It
+  -- revives a row liveness had marked gone; it does not turn "never checked" (NULL)
+  -- into true, because precio_historial records every change of `activo` and the
+  -- first v2 load would then write one no-news history row per listing (62k for
+  -- Lamudi alone in the rehearsal).
+  activo = CASE WHEN listings.activo IS FALSE THEN true ELSE listings.activo END,
+  revisado_at = now(),
   -- The gallery grew or shrank since we fetched it: queue the detail again.
   detalle_at = CASE WHEN EXCLUDED.images_total IS NOT NULL
                      AND listings.images_total IS NOT NULL
