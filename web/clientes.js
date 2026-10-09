@@ -24,7 +24,8 @@ let abierto = null;         // id del proceso cuya fila está desplegada
 let colsAbierto = false;    // el menú de "Columnas"
 // Modo presentación: para enseñarle su pipeline a un cliente sin que vea a los demás ni
 // lo interno. Esconde la lista de clientes y "Qué busca" (.cl.presenta en hermes.css) y
-// deja de pintar las tareas; la ficha completa que se abra desde aquí hace lo propio
+// deja de pintar las tareas y las notas con el cliente (en la columna Notas queda sólo la
+// descripción de la propiedad); la ficha completa que se abra desde aquí hace lo propio
 // (PRESENTA_A en listing.js). Se guarda en la pestaña para que recargar a media junta
 // no destape nada.
 let presentando = false;
@@ -599,7 +600,7 @@ const COLS = [
   { k: 'ppm',       label: '$/m²',      w: 76,  cls: 'cl-mono', html: p => dinero(ppmDe(p.ficha)) },
   { k: 'junta',     label: 'Junta',     w: 56,  cls: 'cl-mono', html: p => texto(p.junta) },
   { k: 'marca',     label: 'Marca',     w: 100, html: p => texto(p.marca) },
-  { k: 'notas',     label: 'Notas',     w: 200, html: p => texto(p.notas || p.ficha.notas) },
+  { k: 'notas',     label: 'Notas',     w: 200, html: p => texto((presentando ? null : p.notas) || p.ficha.notas) },
   { k: 'estatus',   label: 'Estatus',   w: 132, html: p => `<select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>` },
   { k: 'fecha',     label: 'Fecha',     w: 60,  cls: 'cl-mono', html: p => fecha(p.created_at ?? p.creado_el) },
 ];
@@ -705,7 +706,7 @@ function fotosHtml(f) {
       <input class="foto-url" placeholder="Liga de una foto (https://…)" aria-label="Liga de una foto">
       <button type="button" class="foto-sube">Subir&#8230;</button>
     </div>
-    <p class="fx-hint">${subiendoFotos === String(f.id) ? 'Subiendo&#8230;' : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí.'}</p>
+    <p class="fx-hint">${subiendoFotos === String(f.id) ? 'Subiendo&#8230;' : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí o pegar una captura con Ctrl+V.'}</p>
     <input type="file" data-foto-file accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
   </div>`;
 }
@@ -772,7 +773,7 @@ function panelHtml(c, p) {
             <a class="cl-btn cl-map-ir" href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener"${hrefSeguro(f.mapa_url) === '#' ? ' hidden' : ''}>Abrir mapa &#8599;</a>
           </div></div>
         ${area('ficha', 'notas', 'Descripción de la propiedad', f.notas, 'Lo que se sabe del inmueble.')}
-        ${area('proceso', 'notas', 'Notas con este cliente', p.notas, 'Qué dijo, qué falta, condiciones…')}
+        ${presentando ? '' : area('proceso', 'notas', 'Notas con este cliente', p.notas, 'Qué dijo, qué falta, condiciones…')}
       </div>
     </div>
     <div class="cl-exp-links">
@@ -976,6 +977,16 @@ detalle.addEventListener('drop', e => {
   if (!p) return;
   e.preventDefault();
   subirFotos(p, e.dataTransfer.files);
+});
+// Pegar una imagen (Ctrl+V) la sube a la caja de fotos donde está el cursor; si la
+// página sólo tiene una caja, a esa. Con varias y el cursor fuera, no se adivina.
+document.addEventListener('paste', e => {
+  const cajas = detalle.querySelectorAll('.cl-exp-fotos');
+  const caja = e.target.closest?.('.cl-exp-fotos') ?? (cajas.length === 1 ? cajas[0] : null);
+  const p = caja && procDe(caja), imgs = p ? fotosPegadas(e) : [];
+  if (!imgs.length) return;
+  e.preventDefault();
+  subirFotos(p, imgs);
 });
 detalle.addEventListener('submit', e => {
   e.preventDefault();
