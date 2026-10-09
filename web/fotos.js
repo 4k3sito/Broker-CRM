@@ -34,3 +34,13 @@ function soltarArchivos(caja, alSoltar) {
     alSoltar([...e.dataTransfer.files], e);
   };
 }
+
+// Las imágenes de un `paste`, ya con nombre: una captura llega como "image.png" (o sin
+// nombre) y en el servidor se apilarían todas iguales.
+function fotosPegadas(e) {
+  const imgs = [...(e.clipboardData?.files ?? [])].filter(f => TIPOS_FOTO.test(f.type));
+  const sello = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+  return imgs.map((f, i) => /^image\./.test(f.name) || !f.name
+    ? new File([f], `captura-${sello}${i ? `-${i + 1}` : ''}.${f.type.split('/')[1]}`, { type: f.type })
+    : f);
+}
