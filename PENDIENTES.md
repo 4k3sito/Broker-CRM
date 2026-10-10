@@ -237,11 +237,13 @@ precios ya está capturando. Lo que **no** quedó cerrado:
   y se puede matar y relanzar: cada lote de una hora queda cargado. Avance:
   `.venv/bin/python -m v2.db report`. Costo esperado de proxy: ~3.8 GB Pincali y
   0.4–0.9 GB Inmuebles24, una sola vez.
-- **`liveness.py` sigue saliendo por el proxy para los cinco portales**, aunque Lamudi,
-  Vivanuncios y MercadoLibre contestan directo. Con la v2 su cola es chica (sólo lo que
-  ningún barrido ve en 40 días) y `cron-v2.sh` la topa en 500 MB, pero lo correcto es
-  que use la escalera de `v2/net.py`. Primera pasada esperada: los ~52 mil anuncios
-  marcados vivos que ya no salen en resultados (31,590 de Vivanuncios, 20,580 de Pincali).
+- **La vigencia ahora la da el barrido (2026-10-10) y la primera semana va a dar de baja
+  ~115 mil anuncios.** Son los que estaban marcados vivos y las corridas nacionales del
+  8-9 de octubre no devolvieron (ensayo sin guardar: Inmuebles24 33,451 · Vivanuncios
+  26,799 · MercadoLibre 22,385 · Pincali 20,576 · Lamudi 11,601). Cada portal los suelta
+  en su siguiente barrido completo (Inmuebles24 hasta el de principios de noviembre).
+  Revisar tras la primera semana que `bajas por ausencia` en `logs/v2-<fuente>-*.log`
+  ande por esos números y no más. Ya no hay línea de `liveness` en el crontab.
 - **Una galería de Pincali que se corta a medias no se reintenta sola.** Queda en el log
   (`gallery stopped at N of M`) con las fotos que alcanzó. Con un trabajador fueron 0 de
   40; con cuatro, 1 de cada 4, y por eso corre con uno.
