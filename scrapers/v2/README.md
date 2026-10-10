@@ -81,8 +81,14 @@ only re-queues a listing whose gallery size changed.
   signed `data-view-token`. `Pincali.page` makes that second request and
   `_verify` refuses a page that comes back without a single price — v1 has no such
   check and its price keyset stops advancing.
-- **Pincali's gallery beyond 10 photos is not fetched**: it only comes 1–5
-  thumbnails per request. `imagesTotal` keeps the real size.
+- **Pincali's detail page carries ten photos; the rest come one per request**
+  from `/properties/<slug>/images?offset=N&view_token=…` (0.3 KB each; without the
+  page's view token the WAF challenges it). Half the listings have more than ten.
+  The CDN serves the original of any photo unsigned, so only the path matters.
+  This makes a Pincali detail ~4 requests and ~7 s instead of one.
+- **Pincali's detail runs with one worker.** Four workers sharing the WAF token
+  were challenged constantly: 60 token mints in 9 minutes and 1 gallery in 4 cut
+  short, against 40 of 40 complete on a single token.
 - **Lamudi's detail page lists nearby schools with coordinates.** The first
   `latitude` in that HTML is a point of interest. Coordinates come from the card.
 - **Mercado Libre's page chrome publishes the site's own location.** A listing
@@ -110,18 +116,31 @@ Exit codes of `sweep`: **0** complete · **1** shards left unfinished (state is 
 run again) · **3** the proxy refused the tunnel (402/407 — the account, not the
 portal; nothing is retried).
 
-## Cost of a nationwide week (real bytes, proxy only)
+## Cost of a nationwide run (real bytes, proxy only)
 
-| | results | first detail load, once |
-|---|---|---|
-| Inmuebles24 | ~0.04 GB delta (0.42 GB the week of the full sweep) | ~0.4 GB |
-| Pincali | ~0.25 GB | ~3.8 GB |
-| the other three | 0 | 0 |
+Results pages from the nationwide runs of 2026-10-08/09; detail from 260 random
+listings on 2026-10-10 (257 enriched, 3 gone, 0 errors).
 
-## Not done yet
+| | listings | sweep | detail, per listing | first detail load, once |
+|---|---|---|---|---|
+| Pincali | 137,768 | 0.25 GB | 27.5 KB | ~3.8 GB |
+| Inmuebles24 | 85,811 | 0.40 GB full · 0.04 GB delta | ~100 KB | 0.4–0.9 GB (only what has no Vivanuncios twin) |
+| Vivanuncios | 85,303 | 0 | 98 KB direct | 0 |
+| Lamudi | 83,539 | 0 | 118 KB direct | 0 |
+| Mercado Libre | 85,521 | 0 | 113 KB direct | 0 |
 
-- Not deployed. Production still runs v1 from `vps/cron.sh`.
-- The `scrapers v2` block of `schema.sql` has only been applied to the scratch
-  schema `v2test`, never to `public`.
-- `qa.py` and `liveness.py` have not been taught about v2.
-- Full nationwide runs: every adapter was run live on 1–3 shards, none end to end.
+About 5 GB once, then 0.3–0.5 GB a week. The meter counts response bodies; the
+proxy also bills headers, which matters only for Pincali's 0.3 KB gallery calls.
+The first detail load is slow, not expensive: ~60 h per direct portal at one
+polite visitor, ~250 h for Pincali with full galleries. `vps/cron-v2.sh detalle`
+works the five queues in parallel, Nuevo León first, and loads each hourly batch.
+
+## Operating it
+
+`vps/cron-v2.sh <portal>` is one night: sweep → load → `qa.py --v2` → 90 minutes of
+detail. `detalle` works the detail queues; `liveness` runs v1's `liveness.py` over
+what no sweep has seen in 40 days, capped at 500 MB of proxy — the sweeps stamp
+`revisado_at` on everything they see, so that queue is small. A sweep and the
+detail of the same portal never overlap (`.portal-<name>.lock`): two visitors from
+one IP is what makes a direct portal rate-limit, climb to the proxy and start
+billing 100 KB per listing. The direct portals' detail has a 30 MB proxy fuse.
