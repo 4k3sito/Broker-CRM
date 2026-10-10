@@ -36,8 +36,8 @@ VPS  /srv/officelab            producción. Lo que hay en disco es lo que se sir
      /srv/officelab-dev        copia de trabajo (git worktree, rama `desarrollo`)
      vps/docker-compose.yml    caddy (:80/:443) + api (:8000) + db (postgis, :5432)
                                api y db sólo en 127.0.0.1; Caddy es el único camino
-     vps/cron.sh               un scraper por noche (crontab de root), logs en
-                               scrapers/logs/<fuente>-<fecha>.log
+     vps/cron-v2.sh            un scraper por noche (crontab de root), logs en
+                               scrapers/logs/v2-<fuente>-<fecha>.log
 ```
 
 **Desplegar el frontend** = `git push` + `git pull` en el VPS. Caddy monta `../web` como
@@ -100,15 +100,21 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   las tres familias de Hermes Tinta empaquetadas en la imagen —el PDF no puede depender
   de que Google Fonts conteste al renderizar—. **La imagen ya no es sólo `pip install`**:
   WeasyPrint necesita Pango y Cairo del sistema (ver `api/Dockerfile`).
-- **`scrapers/`** — cinco scrapers nacionales (Inmuebles24, Lamudi, Vivanuncios,
-  MercadoLibre, Pincali) sobre `stealth_scraper.py` (curl_cffi/camoufox),
-  `scrape_utils.py` y `navent_serp.py`. `propdb.py` carga los JSONL a PostGIS.
-  Lee `scrapers/SCRAPING_PLAYBOOK.md` §11 antes de escribir un sexto scraper.
+- **`scrapers/`** — cinco portales nacionales (Inmuebles24, Lamudi, Vivanuncios,
+  MercadoLibre, Pincali). **Desde el 2026-10-10 lo que corre es `scrapers/v2`**: un
+  núcleo (`net.py` transporte y medidor, `portal.py` barrido y detalle, `db.py` carga a
+  PostGIS) y un adaptador por portal en `v2/portals/`. **Lee `scrapers/v2/README.md`
+  antes de tocarlo**: trae qué portal paga proxy, lo que cada sitio enseñó y el costo
+  medido. Los `*_scraper.py` de la raíz son la versión anterior, ya sin uso, y quedan
+  como reversa. `SCRAPING_PLAYBOOK.md` §11 sigue valiendo para un sexto portal.
   `vps/zonas.py` carga los municipios desde OpenStreetMap y `vps/colonias.py` las
   colonias desde el shapefile de INEGI (DCAH); las dos escriben en `zona`, que por eso
   tiene la columna `tipo`. `colonias.py` necesita `pyshp` (`pip install pyshp`).
-  **Corren solos en el VPS**: `vps/cron.sh <fuente>` + el crontab de root, una fuente por
-  noche a las 07:00 UTC (lun→vie) y `liveness` el sábado. Ver MIGRATION.md "Fase 4".
+  **Corren solos en el VPS**: `vps/cron-v2.sh <fuente>` + el crontab de root, una fuente
+  por noche a las 07:00 UTC (lun→vie) y `liveness` el sábado. Cada noche es barrido →
+  carga → `qa.py --v2` → 90 min de detalle (galería, amenidades), que se baja **una vez
+  por anuncio** (`detalle_at`). `eb_id` es el ID de EasyBroker, la llave que casa la
+  misma propiedad entre portales.
   `liveness.py` marca la vigencia y su regla de oro es que **un bloqueo no es una baja**:
   confirma vivos gratis con el sitemap de Pincali (`padron_dice`, donde *ausente* NO
   significa muerto), sólo baja el cuerpo cuando el status no alcanza, y corta el dominio
@@ -157,20 +163,19 @@ npm run verificar:selfcheck       # las trampas del verificador, sin tocar el si
 ssh officelab 'cd /srv/officelab/vps && docker compose exec -T api python main.py selfcheck'
 ssh -t officelab '... docker compose exec api python main.py resetlink <correo>'   # interactivo
 
-# Scrapers
+# Scrapers (v2; ver scrapers/v2/README.md)
 cd scrapers && python -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python pincali_scraper.py --survey     # dimensiona antes de correr
-.venv/bin/python pincali_scraper.py --out data/pincali.jsonl
-.venv/bin/python pincali_scraper.py --status     # salud de una corrida en vuelo
-.venv/bin/python pincali_scraper.py --selfcheck  # ESTE es el test suite
-.venv/bin/python propdb.py selfcheck             # el del cargador, sin DB
+.venv/bin/python -m v2 selfcheck                 # ESTE es el test suite
+.venv/bin/python -m v2 sweep lamudi --only <consulta>   # barrido parcial a data/v2/
+.venv/bin/python -m v2.db selfcheck              # el del cargador, sin DB
+.venv/bin/python -m v2.db report                 # colas de detalle y cruces de EasyBroker
 
 # Cron (en el VPS)
 ssh officelab 'crontab -l'                       # el calendario de la semana
-ssh officelab '/srv/officelab/vps/cron.sh selfcheck'
-ssh officelab 'tail -3 /srv/officelab/scrapers/logs/lamudi-*.log'
-ssh officelab 'TL=600 /srv/officelab/vps/cron.sh lamudi'   # forzar una corrida corta
-.venv/bin/python qa.py lamudi --dry              # el veredicto, sin tocar el tablero
+ssh officelab '/srv/officelab/vps/cron-v2.sh selfcheck'
+ssh officelab 'tail -3 /srv/officelab/scrapers/logs/v2-lamudi-*.log'
+ssh officelab 'TL=600 /srv/officelab/vps/cron-v2.sh lamudi'   # forzar una corrida corta
+.venv/bin/python qa.py lamudi --v2 --dry         # el veredicto, sin tocar el tablero
 .venv/bin/python qa.py --selfcheck               # el del control de calidad, sin DB
 .venv/bin/python liveness.py --selfcheck         # el de vigencia, sin red ni DB
 .venv/bin/python liveness.py --sample 250        # calibra por fuente, no escribe
@@ -335,21 +340,11 @@ el PDF que el asesor le manda a su cliente. Un comparable es mismo `tipo`, misma
 Un anuncio en renta y venta llega como dos líneas con el mismo `listing_id`. `propdb.py`
 las colapsa en una fila y guarda la segunda en las columnas `*_alt`.
 
-**El SERP no basta para el segundo precio.** Muestra el mismo número en las dos
-operaciones, así que `_match_offer()` en `pincali_scraper.py` no puede separarlos —
-medido: 0 de 1,481 duales traían precios distintos. El dato sólo está en la página de
-detalle. Por eso el backfill es obligatorio después de cada re-scrape:
-
-```bash
-.venv/bin/python pincali_dual.py --fetch --out data/pincali_dual.jsonl   # IP residencial
-# scp al VPS y allá:
-.venv/bin/python pincali_dual.py --apply data/pincali_dual.jsonl
-```
-
-`--fetch` va por el token WAF (Chrome headful): con `urllib` pelón el WAF responde 405 y
-una página de desafío **sin levantar excepción**, y la corrida reporta "0 fallos" mientras
-rescata el 1%. Corrido el 2026-08-28: 1,463 de 1,481 bajadas, 1,451 con precios distintos,
-1,478 filas con `precio_alt`. Tarda ~1 h por los cooldowns del WAF.
+**Con la v2 el segundo precio llega en el barrido.** Pincali sirve los precios en un
+pedido aparte (`/properties/card_prices`) que trae las dos ofertas de cada tarjeta, y
+Navent las trae en la tarjeta; `v2/db.py collapse()` deja una fila por anuncio. El
+`pincali_dual.py` de antes (bajar el detalle de cada dual tras cada re-scrape) ya no
+hace falta: medido el 2026-10-08, 16.9% de las tarjetas de Pincali traen dos precios.
 
 ## Escala
 
