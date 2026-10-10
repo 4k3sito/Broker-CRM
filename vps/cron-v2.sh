@@ -69,7 +69,8 @@ detalle() {
         # Inmuebles24 paga proxy y su gemelo de Vivanuncios le copia el detalle gratis:
         # su cola propia no se toca mientras a Vivanuncios le falte por bajar.
         if [ "$s" = inmuebles24 ] && [ "$($PY -m v2.db queue vivanuncios)" -gt 500 ]; then
-            echo "--- detalle inmuebles24: espera a que termine la cola de vivanuncios"; break
+            echo "--- $(date -Is) detalle inmuebles24: espera a la cola de vivanuncios"
+            sleep 1800; continue
         fi
         [ "$($PY -m v2.db queue "$s")" = 0 ] && { echo "--- detalle $s: cola vacía"; break; }
         exec 8>".portal-$s.lock"
