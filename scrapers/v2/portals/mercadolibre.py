@@ -283,6 +283,8 @@ class MercadoLibre(Portal):
                     stack.extend(reversed(children))        # leftmost first
                     continue
                 ctx.run.stat("short")       # one price point holding more than a page
+                for op, price in {(c.operation, c.price) for c in cards if c.price}:
+                    ctx.hidden(op, price)
             if hi:
                 ctx.mark(hi)        # the sweep is complete through `hi`
 
