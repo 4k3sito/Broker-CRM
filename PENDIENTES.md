@@ -226,39 +226,36 @@ precios ya está capturando. Lo que **no** quedó cerrado:
 
 ## Degradando datos todos los días
 
-- **Pincali ya no publica precios en la página de resultados (visto el 2026-10-08) y el
-  scraper de producción no lo sabe.** Las 42 tarjetas dicen "Consulte precio" y el
-  `ld+json` trae `offers: null`; el precio llega por un XHR aparte
-  (`/properties/card_prices?view_token=…`, el token viene en `data-view-token` de la
-  propia página). Corrido contra la página de hoy, `pincali_scraper.parse_serp` saca 42
-  tarjetas con **0 precios**, `_verify` no lo detecta y `next_floor` avanza de 1 en 1:
-  el barrido por precio deja de avanzar (re-camina las mismas 100 páginas hasta el
-  timeout, gastando proxy) y `propdb.py load` pisaría con NULL el precio de cada anuncio
-  que alcance a ver. **La corrida del viernes no debe correr así**: o se pausa la línea
-  de `pincali` del crontab, o se despliega el adaptador nuevo (`scrapers/v2`), que lee
-  el XHR de precios (probado: 42 de 42).
-- **`lamudi_scraper.parse_detail` puede estar guardando la coordenada de una escuela.**
-  Toma la primera `latitude` del HTML del detalle, y en la página de hoy esa es un
-  punto de interés del barrio (`"type":"school"`), no la propiedad. La tarjeta de
-  resultados trae la coordenada buena (`data-serp-map-hover-listing`, con
-  `exactLocation`). Falta medir cuántas filas de Lamudi quedaron con el punto equivocado.
-- **`scrapers/requirements.txt` no fija `selectolax`.** La 1.x quitó `selectolax.parser`:
-  una instalación nueva del venv rompe los cinco scrapers actuales al importar. El venv
-  de producción sigue en 0.4.11 y por eso no se ha visto.
-
-- **Ningún scraper carga nada desde el 2026-09-23: el proxy residencial de Apify
-  responde `402 Payment Required`.** Es la cuenta (saldo o plan), no los portales. En
-  `scrapers/data/<fuente>.jsonl.log` se lee `CONNECT tunnel failed, response 402` en cada
-  consulta, con `wire: 0 requests`: la petición nunca sale del proxy. Afectadas:
-  vivanuncios (23), mercadolibre (24), pincali (25) y el `liveness` del 26; inmuebles24
-  (lunes 28) y lamudi (martes 29) van a fallar igual mientras no se pague. Las últimas
-  cargas buenas son inmuebles24 el 21, lamudi el 22, vivanuncios el 16, mercadolibre el
-  17 y pincali el 18: cada día que pasa, el tablero muestra un inventario más viejo sin
-  decirlo. **Arreglo: recargar o renovar el plan de Apify.** No hay que tocar código.
-- **El diagnóstico automático culpa a quien no es.** `cron.sh`/`qa.py` escriben "el portal
-  bloqueó la corrida entera" y dejan en el tablero tarjetas "ROTO" por fuente, cuando la
-  causa es una sola y es de facturación. Un 402 del proxy debería reconocerse y reportarse
-  como tal: una tarjeta, no cinco, y con el motivo correcto.
+- **Scrapers v2 desplegados el 2026-10-10; falta que el crontab los llame.** El código
+  está en `produccion`, el esquema (`eb_id`, `posting_code`, `images_total`,
+  `detalle_at`) en `public`, y las cinco corridas nacionales del 8-9 de octubre
+  cargadas. El cambio del crontab lo tiene que hacer una persona (la sesión no tiene
+  permiso de tocarlo): `crontab /srv/backups/crontab-v2-propuesto.txt`. **Mientras no se
+  haga, el lunes corre el scraper viejo de Inmuebles24 y el sábado la `liveness` sin
+  tope de proxy** (~6 GB por pasada). La reversa es
+  `crontab /srv/backups/crontab-2026-10-10-pre-v2.bak`.
+- **La carga inicial de detalle (galería completa, amenidades, coordenada de
+  MercadoLibre) tarda semanas, no horas.** Un visitante educado por portal: ~60 h cada
+  portal directo y ~250 h Pincali (7 s por anuncio con su galería entera). Se lanza con
+  `DETALLE_H=400 DETALLE_MB=4500 I24_MB=1000 setsid nohup /srv/officelab/vps/cron-v2.sh detalle &`
+  y se puede matar y relanzar: cada lote de una hora queda cargado. Avance:
+  `.venv/bin/python -m v2.db report`. Costo esperado de proxy: ~3.8 GB Pincali y
+  0.4–0.9 GB Inmuebles24, una sola vez.
+- **`liveness.py` sigue saliendo por el proxy para los cinco portales**, aunque Lamudi,
+  Vivanuncios y MercadoLibre contestan directo. Con la v2 su cola es chica (sólo lo que
+  ningún barrido ve en 40 días) y `cron-v2.sh` la topa en 500 MB, pero lo correcto es
+  que use la escalera de `v2/net.py`. Primera pasada esperada: los ~52 mil anuncios
+  marcados vivos que ya no salen en resultados (31,590 de Vivanuncios, 20,580 de Pincali).
+- **Una galería de Pincali que se corta a medias no se reintenta sola.** Queda en el log
+  (`gallery stopped at N of M`) con las fotos que alcanzó. Con un trabajador fueron 0 de
+  40; con cuatro, 1 de cada 4, y por eso corre con uno.
+- **Los scrapers viejos siguen en el repo** (`*_scraper.py`, `stealth_scraper.py`,
+  `navent_serp.py`, `pincali_dual.py`, `vps/cron.sh`): son la reversa. Borrarlos cuando
+  la v2 lleve un mes de corridas buenas; `propdb.py` y `liveness.py` se quedan, la v2 los usa.
+- **El proxy de Apify cuesta ~8 USD/GB de lista; hay proveedores residenciales a ~1 USD/GB.**
+  `v2/net.py` acepta cualquiera por `PROXIES=` en `scrapers/.env`, pero no está probado
+  que otro proveedor pase DataDome (Inmuebles24) ni el WAF de Pincali. Y en `.env` no hay
+  token de API de Apify: el saldo sólo se ve en su consola.
 
 ## `liveness` — primera corrida real el 2026-09-26, sin proxy
 
