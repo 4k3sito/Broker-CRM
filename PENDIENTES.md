@@ -226,13 +226,9 @@ precios ya está capturando. Lo que **no** quedó cerrado:
 
 ## Degradando datos todos los días
 
-- **Scrapers v2 desplegados el 2026-10-10; falta que el crontab los llame.** El código
-  está en `produccion`, el esquema (`eb_id`, `posting_code`, `images_total`,
-  `detalle_at`) en `public`, y las cinco corridas nacionales del 8-9 de octubre
-  cargadas. El cambio del crontab lo tiene que hacer una persona (la sesión no tiene
-  permiso de tocarlo): `crontab /srv/backups/crontab-v2-propuesto.txt`. **Mientras no se
-  haga, el lunes corre el scraper viejo de Inmuebles24 y el sábado la `liveness` sin
-  tope de proxy** (~6 GB por pasada). La reversa es
+- **Scrapers v2 en producción desde el 2026-10-10** (código, esquema, carga y crontab).
+  Primera corrida por cron: Inmuebles24 en delta el lunes 2026-10-12 07:00 UTC; revisar
+  `scrapers/logs/v2-inmuebles24-2026-10-12.log`. Reversa del calendario:
   `crontab /srv/backups/crontab-2026-10-10-pre-v2.bak`.
 - **La carga inicial de detalle (galería completa, amenidades, coordenada de
   MercadoLibre) tarda semanas, no horas.** Un visitante educado por portal: ~60 h cada
