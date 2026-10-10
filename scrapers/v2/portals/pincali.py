@@ -24,10 +24,13 @@ What a results page is, since the site's October 2026 change:
 
     The detail page (27 KB) adds the description — the results page has only a
     one-line stub — the amenities, lot vs construction, and the first 10 photos
-    at full size. The rest of a larger gallery only comes from
-    `/properties/<slug>/images?offset=N`, 1-5 thumbnails (450x300, signed URLs)
-    per call: 3-7 more requests per listing for images too small to use, so it
-    is not fetched. `imagesTotal` records the gallery's real size.
+    at full size. The rest of a larger gallery comes from
+    `/properties/<slug>/images?offset=N&view_token=…` (JSON, ~0.3 KB, usually one
+    photo per call; without the page's view token the WAF challenges it). It
+    answers with a 450x300 thumbnail URL, but the CDN serves the original for the
+    same path whatever the size params say — and serves it unsigned, to anyone —
+    so the thumbnail's path is all that is needed. Half the listings have more
+    than 10 photos (19 of 40 sampled, up to 42), about 3 extra calls per listing.
 
 How the crawl shards: `?page=101` is a 404, so a query tops out at 4,200 rows.
 `min_price` + ascending price walk past that by keyset. Any `search_criteria`
@@ -68,6 +71,8 @@ TOKEN_TTL = float(os.environ.get("PINCALI_TOKEN_TTL", 280))   # the WAF token di
 COOLDOWN = (0, 90, 300, 420)
 _CHALLENGE = re.compile(r"awsWafCookieDomainList|challenge\.js\"|gokuProps")
 TURBO = {"Accept": "text/vnd.turbo-stream.html, text/html, application/xhtml+xml"}
+JSON = {"Accept": "application/json"}
+GALLERY_CAP = 80        # photos per listing; the largest gallery seen had 42
 
 # (slug, property_type_id, the site's own type label, operation)
 SEARCHES = [
@@ -307,6 +312,34 @@ def _gallery(html: str, eb: str) -> list[str]:
     return [url for _, url in best.values()]
 
 
+def gallery_size(html: str) -> int:
+    """How many photos the detail page says the gallery holds: it lays out one
+    empty <img> slot per photo and fills the first ten."""
+    return len(re.findall(r'data-property-media-target="galleryImage"', html))
+
+
+def gallery_endpoint(html: str) -> str:
+    m = re.search(r'data-property-media-url-value="(/properties/[^"]+/images)"', html)
+    return htmllib.unescape(m.group(1)) if m else ""
+
+
+def _original(url: str) -> str:
+    """A photo URL without the resize params: the CDN then serves the original."""
+    base, _, query = url.partition("?")
+    keep = [kv for kv in query.split("&") if kv and kv.split("=")[0] not in ("height", "width")]
+    return base + ("?" + "&".join(keep) if keep else "")
+
+
+def parse_images(payload: str, eb: str) -> list[str]:
+    """Photo URLs from one `/images?offset=N` answer, in gallery order."""
+    try:
+        items = json.loads(payload).get("images") or []
+    except (ValueError, AttributeError):
+        return []
+    urls = [_original(i.get("url") or "") for i in items if isinstance(i, dict)]
+    return [u for u in urls if f"/{eb}." in u]
+
+
 def parse_detail(html: str, row: dict) -> Listing:
     tree = LexborHTMLParser(html)
     desc = tree.css_first(".text-description")
@@ -331,7 +364,7 @@ def parse_detail(html: str, row: dict) -> Listing:
     return Listing(
         listingId=row["listingId"], url=row["url"], operation=row.get("operation") or "",
         plotAreaM2=plot, builtAreaM2=built, description=text, amenities=amenities,
-        images=images, imagesTotal=len(images) or None,
+        images=images, imagesTotal=max(gallery_size(html), len(images)) or None,
         agencyName=agency.strip(),
         ebId=row["listingId"] if row["listingId"].startswith("EB-") else "",
     )
@@ -348,6 +381,9 @@ class Pincali(Portal):
     min_gap = 1.5                   # robots.txt asks for 1 s
     key_parts = 2                   # rent and sale are separate searches of one listing
     needs_display = True
+    # One visitor, on purpose. Four detail workers sharing the WAF token were
+    # challenged constantly (60 token mints in 9 minutes, 1 gallery in 4 cut
+    # short, 2026-10-10); one worker did 40 of 40 on a single token.
     token = WafToken()
 
     def shards(self, mode: str) -> list[str]:
@@ -455,7 +491,32 @@ class Pincali(Portal):
         raise BadPage(f"{shard}: 500 price windows without running out")
 
     def detail(self, row: dict, f: Fetcher) -> Listing | None:
-        return parse_detail(self.get(f, row["url"], BASE + "/inmuebles"), row)
+        html = self.get(f, row["url"], BASE + "/inmuebles")
+        listing = parse_detail(html, row)
+        self._rest_of_gallery(f, html, listing)
+        return listing
+
+    def _rest_of_gallery(self, f: Fetcher, html: str, listing: Listing) -> None:
+        """Photos 11…N. Best effort: the page's ten are already a usable gallery,
+        so a refusal here keeps them instead of failing the listing."""
+        total, endpoint, token = gallery_size(html), gallery_endpoint(html), view_token(html)
+        if not (endpoint and token) or len(listing.images) >= total:
+            return
+        seen, offset = set(listing.images), len(listing.images)
+        while offset < min(total, GALLERY_CAP):
+            try:
+                more = parse_images(self.get(
+                    f, f"{BASE}{endpoint}?offset={offset}&view_token={quote(token, safe='')}",
+                    listing.url, JSON, patient=False), listing.listingId)
+            except Blocked:
+                log.warning("pincali %s: gallery stopped at %d of %d", listing.listingId,
+                            len(listing.images), total)
+                return
+            if not more:
+                return
+            listing.images += [u for u in more if u not in seen]
+            seen.update(more)
+            offset += len(more)
 
     def selfcheck(self, fixtures: Path) -> str:
         html = (fixtures / "pin_serp2.html").read_text(encoding="utf-8")
@@ -487,6 +548,12 @@ class Pincali(Portal):
         assert len(d.description) > 80, "detail description gone"
         assert len(d.images) >= 5 and all("/EB-XF2021." in u for u in d.images), "gallery gone"
         assert d.builtAreaM2 or d.plotAreaM2, "construction/lot figures gone"
+        more = parse_images('{"images":[{"url":"https://assets.easybroker.com/property_images/1/2/'
+                            'EB-XF2021.jpg?height=300\\u0026s=ab\\u0026version=7\\u0026width=450"},'
+                            '{"url":"https://assets.easybroker.com/property_images/1/3/EB-ZZ0000.jpg"}]}',
+                            "EB-XF2021")
+        assert more == ["https://assets.easybroker.com/property_images/1/2/EB-XF2021.jpg?s=ab&version=7"], more
+        assert parse_images("<html>challenge</html>", "EB-XF2021") == []
         assert "search_criteria%5Bmin_price%5D=2750" in self.url("terrenos-en-venta", 3, 2750)
         assert len(self.shards("full")) == 16
         return (f"{n} cards, {sum(bool(c.price) for c in cards)} priced; detail {len(d.images)} "
