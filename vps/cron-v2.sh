@@ -4,10 +4,9 @@
 #
 #   vps/cron-v2.sh vivanuncios|lamudi|mercadolibre|pincali|inmuebles24
 #   vps/cron-v2.sh detalle      # trabaja la cola de detalle de los cinco, en paralelo
-#   vps/cron-v2.sh liveness     # vigencia de lo que los barridos ya no ven
 #   vps/cron-v2.sh selfcheck    # verifica el entorno, sin red ni base
 #
-# Candados. `.cron.lock`: un barrido (o liveness) a la vez, como siempre. `.portal-X.lock`:
+# Candados. `.cron.lock`: un barrido a la vez, como siempre. `.portal-X.lock`:
 # el barrido y el detalle del MISMO portal nunca corren juntos — dos visitantes desde
 # una IP duplican el ritmo y a Lamudi le basta eso para contestar 401, y entonces la
 # escalera sube al proxy y el detalle (100 KB por anuncio) se empieza a pagar. El
@@ -19,7 +18,7 @@
 set -uo pipefail
 cd /srv/officelab/scrapers || exit 1
 
-f=${1:?uso: cron-v2.sh <fuente|detalle|liveness|selfcheck>}
+f=${1:?uso: cron-v2.sh <fuente|detalle|selfcheck>}
 TL=${TL:-32400}                     # tope duro 9 h: MercadoLibre nacional tarda 6 h 45
 LOTE_MIN=${LOTE_MIN:-60}            # minutos de un lote de detalle (entre lotes se carga)
 DETALLE_MIN=${DETALLE_MIN:-90}      # minutos de detalle tras cada barrido
@@ -28,7 +27,6 @@ DETALLE_H=${DETALLE_H:-6}           # horas que `detalle` trabaja antes de parar
 # tres portales directos no deberían gastar nada: su tope es un fusible, no un presupuesto.
 DETALLE_MB=${DETALLE_MB:-400}
 DIRECTO_MB=${DIRECTO_MB:-30}
-LV_MB=${LV_MB:-500}                 # tope de proxy de una pasada de liveness
 set -a; . /srv/officelab/vps/.env; set +a
 PY=.venv/bin/python
 FUENTES="vivanuncios lamudi mercadolibre pincali inmuebles24"
@@ -46,7 +44,7 @@ if [ "$f" = selfcheck ]; then
 fi
 
 case $f in
-    vivanuncios|lamudi|mercadolibre|pincali|inmuebles24|detalle|liveness) ;;
+    vivanuncios|lamudi|mercadolibre|pincali|inmuebles24|detalle) ;;
     *) echo "fuente inválida: $f" >&2; exit 2 ;;
 esac
 
@@ -109,15 +107,9 @@ exec 9>.cron.lock
 flock -n 9 || { echo "$(date -Is) otra corrida en curso: salto $f"; exit 0; }
 echo "=== $(date -Is) inicio v2 $f"
 
-if [ "$f" = liveness ]; then
-    # Los barridos de la v2 ya ponen `revisado_at` a todo lo que ven, así que aquí
-    # sólo llega lo que lleva 40 días sin aparecer en resultados (Inmuebles24 se barre
-    # completo una vez al mes). El tope en MB existe porque liveness sale por el proxy.
-    timeout "$TL" $PY liveness.py --max-horas 5 --max-mb "$LV_MB" --recheck-days 40; rc=$?
-    echo "=== $(date -Is) fin v2 liveness rc=$rc"
-    exit $rc
-fi
-
+# La vigencia la da el propio barrido: `v2.db load` de un barrido completo da de baja
+# lo que ninguno ha devuelto en 8 días (dos seguidos) y revive lo que reaparece. No hay
+# pasada de liveness aparte.
 # Inmuebles24 paga proxy y su inventario es el de Vivanuncios: delta cada semana y
 # barrido completo la primera semana del mes.
 modo=full

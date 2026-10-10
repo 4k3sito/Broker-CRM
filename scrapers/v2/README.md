@@ -138,9 +138,19 @@ works the five queues in parallel, Nuevo León first, and loads each hourly batc
 ## Operating it
 
 `vps/cron-v2.sh <portal>` is one night: sweep → load → `qa.py --v2` → 90 minutes of
-detail. `detalle` works the detail queues; `liveness` runs v1's `liveness.py` over
-what no sweep has seen in 40 days, capped at 500 MB of proxy — the sweeps stamp
-`revisado_at` on everything they see, so that queue is small. A sweep and the
+detail. `detalle` works the detail queues.
+
+**The sweep is the liveness check** (decided 2026-10-10; there is no separate
+liveness pass any more). Loading a full sweep retires every listing of that portal
+that no sweep has returned in 8 days — two weekly sweeps in a row — and a listing
+that shows up again is revived. It only happens when the sweep is good evidence:
+finished complete (exit 0), at least 90% of the sites' own count, and not a fifth
+smaller than the previous one; otherwise the load says so and retires nothing. A
+block is still not a takedown. Mercado Libre's unreachable price points (more than
+one page at a single price) are written to the state file as `hidden`, and
+listings at those prices are never retired for being absent. Inmuebles24 is only
+judged on its monthly full sweep. `liveness.py` stays in the repo as a manual tool.
+A sweep and the
 detail of the same portal never overlap (`.portal-<name>.lock`): two visitors from
 one IP is what makes a direct portal rate-limit, climb to the proxy and start
 billing 100 KB per listing. The direct portals' detail has a 30 MB proxy fuse.

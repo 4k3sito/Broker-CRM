@@ -104,6 +104,13 @@ class Ctx:
             self.advertised_n = n
             self.run.stat("advertised", n)
 
+    def hidden(self, operation: str, price) -> None:
+        """A price point the site holds more listings of than it will ever show
+        (Mercado Libre: over one page at a single price, and no pagination). What
+        hides there is not seen, so the loader must not read its absence as gone."""
+        with self.run.lock:
+            self.run.state.setdefault("hidden", []).append([operation, price])
+
     def stopping(self) -> bool:
         return self.run.stop.is_set()
 

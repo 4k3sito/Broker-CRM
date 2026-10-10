@@ -1,7 +1,8 @@
 """PostGIS side of v2: load a sweep, apply detail patches, hand out the detail queue.
 
     .venv/bin/python -m v2.db migrate                 # the v2 block of vps/schema.sql
-    .venv/bin/python -m v2.db load vivanuncios        # data/v2/vivanuncios.jsonl
+    .venv/bin/python -m v2.db load vivanuncios        # data/v2/vivanuncios.jsonl; a complete
+                                                      # full sweep also retires what it did not return
     .venv/bin/python -m v2.db load inmuebles24 --mode delta
     .venv/bin/python -m v2.db detail vivanuncios      # data/v2/vivanuncios.detail.jsonl
     .venv/bin/python -m v2.db report                  # EasyBroker matches, queue sizes
@@ -152,7 +153,43 @@ POST = (("limpiar_precios", "precios a null"), ("inferir_precio_m2", "precio por
         ("sincronizar_historial", "historial"))
 
 
-def load_sweep(conn: psycopg.Connection, source: str, path: Path) -> int:
+# A nationwide sweep is the liveness check (decided 2026-10-10; it replaced the
+# Saturday `liveness.py` pass, which fetched every stored listing through the proxy).
+# A listing is taken down when no sweep has returned it for this long before a
+# COMPLETE full sweep started: with weekly sweeps that is two in a row, so one page
+# the portal reshuffled mid-walk does not retire anything. Seen again, it revives.
+AUSENCIA_DIAS = 8
+
+BAJAS = """
+UPDATE listings SET activo = false, revisado_at = now()
+WHERE source = %(source)s AND activo IS NOT FALSE
+  AND coalesce(observed_at, '-infinity') < %(started)s::timestamptz - interval '{dias} days'
+  AND NOT EXISTS (SELECT 1 FROM unnest(%(ops)s::text[], %(prices)s::numeric[]) h(op, p)
+                  WHERE h.op = listings.operation AND h.p = listings.price)
+""".format(dias=AUSENCIA_DIAS)
+
+
+def bajas_por_ausencia(cur, source: str, state: dict, loaded: int) -> int | None:
+    """Retire what the sweep did not return. None = the sweep is not good enough
+    evidence, and nothing is touched: a block is not a takedown, and neither is a
+    run that died halfway or walked the wrong corpus."""
+    s = state.get("summary") or {}
+    if not state.get("finished") or s.get("code") != 0:
+        return None                                     # unfinished, partial or proxy-dead
+    if s.get("advertised") and s.get("rows", 0) < 0.9 * s["advertised"]:
+        return None                                     # under 90% of the sites' own count
+    recent = cur.execute(
+        f"SELECT count(*) FROM listings WHERE source = %s AND observed_at >= "
+        f"%s::timestamptz - interval '{AUSENCIA_DIAS} days'", (source, state["started"])).fetchone()[0]
+    if loaded < 0.8 * recent:
+        return None                                     # a fifth smaller than the last one
+    hidden = state.get("hidden") or []
+    cur.execute(BAJAS, {"source": source, "started": state["started"],
+                        "ops": [h[0] for h in hidden], "prices": [h[1] for h in hidden]})
+    return cur.rowcount
+
+
+def load_sweep(conn: psycopg.Connection, source: str, path: Path, bajas: bool = False) -> int:
     rows, bad = [], 0
     for line in path.open(encoding="utf-8"):
         try:
@@ -174,6 +211,14 @@ def load_sweep(conn: psycopg.Connection, source: str, path: Path) -> int:
         cur.execute(UPSERT)
         n = cur.rowcount
         print(f"{source:14s} {n:>7,} filas" + (f"  ({bad} descartadas)" if bad else ""))
+        if bajas:
+            try:
+                state = json.loads(path.with_name(path.name.replace(".jsonl", ".state.json")).read_text())
+            except (OSError, ValueError):
+                state = {}
+            gone = bajas_por_ausencia(cur, source, state, len(rows))
+            print(f"{'bajas por ausencia':22} " + (f"{gone:>7,}" if gone is not None else
+                  "  ninguna: el barrido no terminó completo o salió corto"))
         for fn, label in POST:
             if cur.execute("SELECT to_regproc(%s)", (fn,)).fetchone()[0]:
                 print(f"{label:22} {cur.execute(f'SELECT {fn}()').fetchone()[0]:>7,}")
@@ -286,17 +331,18 @@ def load_detail(conn: psycopg.Connection, source: str, path: Path) -> tuple[int,
 # is larger than the photos the results page delivered.
 _QUEUE_EXTRA = {"inmuebles24": "AND coalesce(images_total, 0) > coalesce(cardinality(images), 0)",
                 # Pincali pays too: only what a v2 sweep has seen (it stamps images_total).
-                # The ~20k older rows no sweep returns are liveness's job, which confirms
-                # 88% of them for free from the sitemap.
+                # The ~20k older rows no sweep returns are retired by bajas_por_ausencia.
                 "pincali": "AND images_total IS NOT NULL"}
 
 
 def detail_queue(source: str, limit: int) -> list[dict]:
     # Nuevo León first: the first load takes weeks and that is where the team works.
+    # The coalesce matters: a NULL sorts FIRST under DESC, and the rows without a
+    # province are the oldest ones — the queue spent its first 7 hours on their 404s.
     q = f"""SELECT listing_id, url, operation FROM listings
             WHERE source = %s AND detalle_at IS NULL AND activo IS NOT FALSE
               {_QUEUE_EXTRA.get(source, '')}
-            ORDER BY (province ILIKE 'Nuevo Le%%') DESC, observed_at DESC NULLS LAST LIMIT %s"""
+            ORDER BY coalesce(province ILIKE 'Nuevo Le%%', false) DESC, observed_at DESC NULLS LAST LIMIT %s"""
     with connect() as conn:
         return [{"listingId": i, "url": u, "operation": o}
                 for i, u, o in conn.execute(q, (source, limit)).fetchall()]
@@ -357,6 +403,26 @@ def selfcheck() -> None:
                     {"listingId": "b", "operation": "rent", "price": 5}])
     assert len(two) == 2 and two[0]["altOperation"] == "rent" and two[0]["altPrice"] == 1
     assert "COALESCE(EXCLUDED.geom, listings.geom)" in UPSERT
+
+    class _Cur:                     # bajas_por_ausencia against no database
+        def __init__(self, recent): self.recent, self.ran, self.rowcount = recent, None, 7
+        def execute(self, sql, params=None):
+            if "count(*)" in sql:
+                return self
+            self.ran = params
+        def fetchone(self): return (self.recent,)
+    ok = {"started": "2026-10-13T07:00:00+00:00", "finished": "x",
+          "summary": {"code": 0, "rows": 95, "advertised": 100}, "hidden": [["sale", 5000]]}
+    cur = _Cur(100)
+    assert bajas_por_ausencia(cur, "x", ok, 95) == 7 and cur.ran["prices"] == [5000]
+    for bad in ({**ok, "finished": ""}, {**ok, "summary": {"code": 1}}, {**ok, "summary": {"code": 3}},
+                {**ok, "summary": {"code": 0, "rows": 80, "advertised": 100}}):
+        cur = _Cur(100)
+        assert bajas_por_ausencia(cur, "x", bad, 95) is None and cur.ran is None, bad
+    cur = _Cur(200)
+    assert bajas_por_ausencia(cur, "x", ok, 95) is None and cur.ran is None, "half-size sweep"
+    assert "observed_at" in BAJAS and "revisado_at <" not in BAJAS, \
+        "new rows are inserted with revisado_at NULL: only observed_at says when a sweep saw them"
     assert "WHEN listings.detalle_at IS NOT NULL THEN listings.images" in UPSERT
     assert "images_total = COALESCE(l.images_total" in APPLY_DETAIL, \
         "the detail load must not overwrite the sweep's gallery size (weekly re-fetch loop)"
@@ -393,7 +459,8 @@ def main() -> int:
             report(conn)
         elif a.cmd == "load":
             tag = a.source if a.mode == "full" else f"{a.source}.{a.mode}"
-            load_sweep(conn, a.source, DATA / f"{tag}.jsonl")
+            # Only a full sweep says anything about what it did not return.
+            load_sweep(conn, a.source, DATA / f"{tag}.jsonl", bajas=a.mode == "full")
         elif a.cmd == "detail":
             path = DATA / f"{a.source}.detail.jsonl"
             load_detail(conn, a.source, path)

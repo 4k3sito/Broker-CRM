@@ -111,14 +111,15 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   colonias desde el shapefile de INEGI (DCAH); las dos escriben en `zona`, que por eso
   tiene la columna `tipo`. `colonias.py` necesita `pyshp` (`pip install pyshp`).
   **Corren solos en el VPS**: `vps/cron-v2.sh <fuente>` + el crontab de root, una fuente
-  por noche a las 07:00 UTC (lun→vie) y `liveness` el sábado. Cada noche es barrido →
+  por noche a las 07:00 UTC (lun→vie). Cada noche es barrido →
   carga → `qa.py --v2` → 90 min de detalle (galería, amenidades), que se baja **una vez
   por anuncio** (`detalle_at`). `eb_id` es el ID de EasyBroker, la llave que casa la
   misma propiedad entre portales.
-  `liveness.py` marca la vigencia y su regla de oro es que **un bloqueo no es una baja**:
-  confirma vivos gratis con el sitemap de Pincali (`padron_dice`, donde *ausente* NO
-  significa muerto), sólo baja el cuerpo cuando el status no alcanza, y corta el dominio
-  que empieza a devolver 403 en vez de insistirle. Lee su docstring antes de tocarla.
+  **La vigencia la da el barrido** (2026-10-10): cargar un barrido completo da de baja lo
+  que ningún barrido ha devuelto en 8 días (dos seguidos) y revive lo que reaparece
+  (`bajas_por_ausencia` en `v2/db.py`). Sólo actúa si el barrido terminó completo y no
+  salió corto: **un bloqueo sigue sin ser una baja**. Ya no hay pasada de `liveness` los
+  sábados; `liveness.py` queda como herramienta manual.
   `qa.py <fuente>` cierra cada corrida: números primero (sin modelo) y `hermes` para el
   criterio; si algo salió mal deja una tarjeta en el tablero de tareas. **Hermes se llama
   siempre con `-t memory`** — sin eso trae shell de root (H6 en SECURITY.md).
@@ -240,7 +241,7 @@ Columnas que suelen confundir:
 | `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms). Lo llena `asignar_zonas()`, que **filtra por `tipo='municipio'`**: `zona` guarda dos niveles y sin ese filtro un anuncio recibiría a veces el id de su colonia |
 | `geo_origen` | de dónde salió la coordenada: `portal` (real), **`portal_aprox`** (la fuente publicó el punto y avisa de que es el centroide de la colonia — hoy sólo Pincali, `data-exact-location="false"`), `colonia` (centroide de nuestro gazetteer), `relleno` (el punto por defecto de ML, que no es una ubicación). El gazetteer se arma **sólo** con `portal` |
 | `colonia_id` | colonia materializada, de los polígonos de INEGI que carga `vps/colonias.py`. Lo llena `asignar_colonias()`. **NULL es normal**: la cobertura de INEGI es desigual — 80.6% en Monterrey, 54.2% nacional |
-| `activo` / `revisado_at` | vigencia del anuncio, la llena `liveness.py`. `revisado_at` es cuándo hubo **veredicto** |
+| `activo` / `revisado_at` | vigencia del anuncio. Desde el 2026-10-10 la decide el barrido: `activo = false` cuando ninguno lo devuelve en 8 días. **Cuándo se vio por última vez en resultados es `observed_at`**, no `revisado_at` (las filas nuevas nacen con `revisado_at` NULL) |
 | `intento_at` / `intentos_fallidos` | cuándo se **intentó** y cuántas veces falló. Un bloqueo mueve estas dos y no toca `activo`; el backoff las usa para que lo que se bloquea no acapare la cola |
 | `tipo` | **columna generada**: `tipo_norm(property_type)` colapsa los 17 deletreos de los portales en `local` / `terreno` / `bodega` / `oficina` / `rancho` / `hotel` / `desarrollo`. La mantiene Postgres sola. Cambiar la función obliga a recrear la columna |
 
