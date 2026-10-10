@@ -5,6 +5,7 @@
     .venv/bin/python -m v2.db load inmuebles24 --mode delta
     .venv/bin/python -m v2.db detail vivanuncios      # data/v2/vivanuncios.detail.jsonl
     .venv/bin/python -m v2.db report                  # EasyBroker matches, queue sizes
+    .venv/bin/python -m v2.db queue pincali           # one number: listings awaiting detail
 
 The sweep and the detail page describe the same listing at different depths, so
 the two loads must not undo each other: a weekly sweep row carries 8 photos and
@@ -192,7 +193,11 @@ APPLY_DETAIL = """
 UPDATE listings l SET
   images       = CASE WHEN cardinality(s.images) > 0 THEN s.images ELSE l.images END,
   image_url    = COALESCE(s.images[1], l.image_url),
-  images_total = CASE WHEN cardinality(s.images) > 0 THEN cardinality(s.images) ELSE l.images_total END,
+  -- images_total stays the SWEEP's figure once there is one. The sweep re-queues a
+  -- listing when its figure differs from the stored one, so storing our own count
+  -- here re-fetched, every week, every listing whose detail count is not exactly
+  -- the card's (a deduped photo, or Pincali's ten-photo page before 2026-10-10).
+  images_total = COALESCE(l.images_total, NULLIF(cardinality(s.images), 0)),
   features     = CASE WHEN cardinality(s.features) > 0 THEN s.features ELSE l.features END,
   description  = CASE WHEN length(coalesce(s.description, '')) > length(coalesce(l.description, ''))
                       THEN s.description ELSE l.description END,
@@ -283,13 +288,22 @@ _QUEUE_EXTRA = {"inmuebles24": "AND coalesce(images_total, 0) > coalesce(cardina
 
 
 def detail_queue(source: str, limit: int) -> list[dict]:
+    # Nuevo León first: the first load takes weeks and that is where the team works.
     q = f"""SELECT listing_id, url, operation FROM listings
             WHERE source = %s AND detalle_at IS NULL AND activo IS NOT FALSE
               {_QUEUE_EXTRA.get(source, '')}
-            ORDER BY observed_at DESC NULLS LAST LIMIT %s"""
+            ORDER BY (province ILIKE 'Nuevo Le%%') DESC, observed_at DESC NULLS LAST LIMIT %s"""
     with connect() as conn:
         return [{"listingId": i, "url": u, "operation": o}
                 for i, u, o in conn.execute(q, (source, limit)).fetchall()]
+
+
+def queue_size(source: str) -> int:
+    q = f"""SELECT count(*) FROM listings
+            WHERE source = %s AND detalle_at IS NULL AND activo IS NOT FALSE
+              {_QUEUE_EXTRA.get(source, '')}"""
+    with connect() as conn:
+        return conn.execute(q, (source,)).fetchone()[0]
 
 
 def migrate(conn: psycopg.Connection) -> None:
@@ -340,6 +354,8 @@ def selfcheck() -> None:
     assert len(two) == 2 and two[0]["altOperation"] == "rent" and two[0]["altPrice"] == 1
     assert "COALESCE(EXCLUDED.geom, listings.geom)" in UPSERT
     assert "WHEN listings.detalle_at IS NOT NULL THEN listings.images" in UPSERT
+    assert "images_total = COALESCE(l.images_total" in APPLY_DETAIL, \
+        "the detail load must not overwrite the sweep's gallery size (weekly re-fetch loop)"
     g = dict(zip(DETAIL_COLS, detail_row({"listingId": "9", "gone": True})))
     assert g["gone"] is True and g["images"] == []
     p = dict(zip(DETAIL_COLS, detail_row({"listingId": "9", "altOperation": "", "altPrice": 5})))
@@ -356,10 +372,15 @@ def main() -> int:
     lo.add_argument("--mode", default="full", choices=["full", "delta"])
     de = sub.add_parser("detail")
     de.add_argument("source")
+    qu = sub.add_parser("queue", help="how many listings still wait for their detail page")
+    qu.add_argument("source")
     a = ap.parse_args()
     if a.cmd == "selfcheck":
         selfcheck()
         print("OK db")
+        return 0
+    if a.cmd == "queue":
+        print(queue_size(a.source))
         return 0
     with connect() as conn:
         if a.cmd == "migrate":
