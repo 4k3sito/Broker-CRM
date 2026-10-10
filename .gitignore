@@ -21,6 +21,8 @@ scrapers/.fixtures/
 scrapers/logs/
 scrapers/*.log
 scrapers/.cron.lock
+scrapers/.detalle.lock
+scrapers/.portal-*.lock
 
 # Restos de builds/experimentos
 .next/
