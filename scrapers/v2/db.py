@@ -284,7 +284,11 @@ def load_detail(conn: psycopg.Connection, source: str, path: Path) -> tuple[int,
 # Inmuebles24 pays per byte, so it only queues what Vivanuncios could not give it:
 # rows with no twin (copiar_detalle_gemelos already stamped the rest) whose gallery
 # is larger than the photos the results page delivered.
-_QUEUE_EXTRA = {"inmuebles24": "AND coalesce(images_total, 0) > coalesce(cardinality(images), 0)"}
+_QUEUE_EXTRA = {"inmuebles24": "AND coalesce(images_total, 0) > coalesce(cardinality(images), 0)",
+                # Pincali pays too: only what a v2 sweep has seen (it stamps images_total).
+                # The ~20k older rows no sweep returns are liveness's job, which confirms
+                # 88% of them for free from the sitemap.
+                "pincali": "AND images_total IS NOT NULL"}
 
 
 def detail_queue(source: str, limit: int) -> list[dict]:
