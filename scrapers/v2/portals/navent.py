@@ -232,7 +232,13 @@ def _plain(text: str) -> str:
 def parse_detail(html: str, row: dict) -> Listing:
     pictures = _js(html, "pictures")
     if pictures is None:
-        raise BadPage("detail page without a gallery block")
+        # A listing published without photos has no `pictures` key at all (21 of
+        # ~11,000 Vivanuncios details, 2026-10-10). Raising here left them in the
+        # queue to be re-fetched by every batch, forever. It is only a bad page
+        # when the rest of the listing is missing too.
+        if _js(html, "postingTitle") is None and _js(html, "pricesData") is None:
+            raise BadPage("detail page without listing data")
+        pictures = []
     general = _js(html, "generalFeatures") or {}
     plot, built, extras = _features(_js(html, "mainFeatures"))
     amenities = extras + [
@@ -501,6 +507,13 @@ def _assert_serp(cards: list[Listing], base: str) -> None:
 def _assert_detail(d: Listing) -> None:
     assert len(d.images) >= 5 and all(u.startswith("https://") and "?" not in u for u in d.images)
     assert d.amenities, "amenities gone"
+    bare = parse_detail("""'postingTitle': "Bodega sin fotos", 'description': "x" """, {"listingId": "1", "url": "u"})
+    assert bare.images == [] and bare.imagesTotal == 0, "a listing without photos is still a listing"
+    try:
+        parse_detail("<html>otra cosa</html>", {"listingId": "1", "url": "u"})
+        raise AssertionError("a page with no listing data must not pass")
+    except BadPage:
+        pass
     assert len(d.description) > 40 and "<br" not in d.description
     assert d.coordinates and 14 < d.coordinates[0] < 33 and -119 < d.coordinates[1] < -86
     assert d.price, "detail price gone"
