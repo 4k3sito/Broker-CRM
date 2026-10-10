@@ -337,12 +337,17 @@ _QUEUE_EXTRA = {"inmuebles24": "AND coalesce(images_total, 0) > coalesce(cardina
 
 def detail_queue(source: str, limit: int) -> list[dict]:
     # Nuevo León first: the first load takes weeks and that is where the team works.
+    # What no recent sweep returned goes last, whatever its state: nearly all of it is
+    # a 404, and the next sweep retires it anyway (once Nuevo León's fresh rows ran
+    # out, a Vivanuncios batch was 905 gone to 207 enriched).
     # The coalesce matters: a NULL sorts FIRST under DESC, and the rows without a
     # province are the oldest ones — the queue spent its first 7 hours on their 404s.
     q = f"""SELECT listing_id, url, operation FROM listings
             WHERE source = %s AND detalle_at IS NULL AND activo IS NOT FALSE
               {_QUEUE_EXTRA.get(source, '')}
-            ORDER BY coalesce(province ILIKE 'Nuevo Le%%', false) DESC, observed_at DESC NULLS LAST LIMIT %s"""
+            ORDER BY coalesce(observed_at >= now() - interval '10 days', false) DESC,
+                     coalesce(province ILIKE 'Nuevo Le%%', false) DESC, observed_at DESC NULLS LAST
+            LIMIT %s"""
     with connect() as conn:
         return [{"listingId": i, "url": u, "operation": o}
                 for i, u, o in conn.execute(q, (source, limit)).fetchall()]
