@@ -35,7 +35,7 @@ from typing import Iterator
 from selectolax.lexbor import LexborHTMLParser
 
 from ..model import Listing, now
-from ..net import Fetcher
+from ..net import Fetcher, Gone
 from ..portal import BadPage, Ctx, Portal
 
 PER_PAGE = 48
@@ -196,7 +196,16 @@ def _arrays(html: str, key: str) -> Iterator[list]:
             continue
 
 
+# A listing that ended keeps answering 200, gallery and all, under a status banner.
+# Without this it was stored as a live listing with a fresh detail (or, when the
+# page came without its gallery, re-fetched by every batch).
+_ENDED = re.compile(r'"item_status_message","type":"ui_message","state":"VISIBLE",'
+                    r'"body":\{"text":"Publicaci[óo]n (?:finalizada|pausada)', re.I)
+
+
 def parse_detail(html: str, row: dict) -> Listing:
+    if _ENDED.search(html):
+        raise Gone(f"publication ended: {row['url']}")
     pictures = next(_arrays(html, "pictures"), None)
     if pictures is None:
         raise BadPage("detail page without a gallery")
@@ -312,6 +321,13 @@ class MercadoLibre(Portal):
         assert _walled("<html>Para continuar, ingresa a<br/>tu cuenta</html>") and not _walled(html)
         assert split_range(0, 0, [10, 20, 30, 40, 50, 60], 120)[0][0] == 0
         assert split_range(5, 5, [5, 5, 5], 300) == [], "one price point cannot be split"
+        ended = ('"id":"item_status_message","type":"ui_message","state":"VISIBLE",'
+                 '"body":{"text":"Publicación finalizada"},"pictures":[{"id":"1"}]')
+        try:
+            parse_detail(ended, {"listingId": "1", "url": "u"})
+            raise AssertionError("an ended publication must read as gone, gallery or not")
+        except Gone:
+            pass
         assert self.url("oficinas/renta/nuevo-leon", 1000, 0).endswith("/nuevo-leon/_PriceRange_1000-0")
         assert len(self.shards("full")) == 7 * 32
         return f"{n} cards; detail {len(d.images)} photos, {len(d.amenities)} specs, coord {d.coordinates}"
