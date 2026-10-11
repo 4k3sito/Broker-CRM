@@ -24,12 +24,12 @@ tres cambios, los dos primeros decididos:
 
 Es sólo `web/`: desplegarlo no pide reconstruir la API.
 
-**Encontrado y no tocado:** asignar a un cliente desde la bandeja del tablero crea la
-ficha con el precio publicado (`fichaDe` en `app.js`), y la ficha con el total
-(`asegurarFicha` en `listing.js`, que a su vez no manda la construcción). En un anuncio
-publicado por m² la ficha creada desde el tablero nace con $700 en vez de 7.5 MDP.
-Escribe en la base, así que quedó igual que estaba; el arreglo es una línea
-(`Anuncio.total(l)`) cuando se decida.
+**Arreglado el mismo día:** asignar a un cliente desde la bandeja del tablero creaba la
+ficha con el precio publicado (`fichaDe` en `app.js`) y no con el total, así que de un
+anuncio publicado por m² nacía una ficha de $700 en vez de 7.5 MDP. Ya manda
+`Anuncio.total(l)`, igual que la ficha. Las fichas que ya nacieron mal no se
+corrigieron: no se sabe cuáles son sin revisarlas. Queda una diferencia menor: la
+ficha (`asegurarFicha` en `listing.js`) no manda la construcción y la bandeja sí.
 
 ## Inventario en su módulo, bajas escondidas y la Bolsa abre en Monterrey — **en producción desde el 2026-10-11**
 
