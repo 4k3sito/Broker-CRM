@@ -4,20 +4,7 @@
 // por filtro no cabía en la barra y el asesor no veía qué tenía aplicado.
 // Todo el filtrado ocurre en SQL: antes se bajaba la tabla entera (~25 MB).
 
-const STATUSES = ['Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'];
-const STATUS_FROM_API = { new: 'Nuevo', reviewed: 'Revisado', contacted: 'Contactado', rented: 'Rentado', discarded: 'Descartado' };
-const STATUS_TO_API   = { Nuevo: 'new', Revisado: 'reviewed', Contactado: 'contacted', Rentado: 'rented', Descartado: 'discarded' };
-
-const FUENTE_CONFIG = {
-  inmuebles24:       { label: 'Inmuebles24'  },
-  lamudi:            { label: 'Lamudi'       },
-  vivanuncios:       { label: 'Vivanuncios'  },
-  mercadolibre:      { label: 'MercadoLibre' },
-  pincali:           { label: 'Pincali'      },
-  propiedadesmx:     { label: 'PropiedadesMX'},
-  propiedadesmexico: { label: 'PropiedadesMX'},
-  pipeline:          { label: 'Pipeline'     },   // fichas del Google Sheet (ver _origen en la API)
-};
+// El anuncio —su forma, sus precios y sus etiquetas— viene de anuncio.js.
 
 // Dos pestañas, la misma página: Bolsa Inmobiliaria (anuncios sin ficha) y
 // Catálogo (lo que ya tiene ficha o se presentó a un cliente). Sólo cambia `ficha=`
@@ -30,11 +17,9 @@ const CENTRO_NOMBRE = window.OL_CONFIG?.centroNombre ?? 'Monterrey';
 try { sessionStorage.setItem('ol-tab', TAB); } catch { /* sin persistencia */ }
 document.title = `${INMO ? 'Catálogo' : 'Bolsa Inmobiliaria'} · OfficeLab`;
 
-const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
 const TIPOS  = ['oficina', 'local', 'bodega', 'terreno', 'edificio'];
 const ORDENES = { recientes: 'Recientes', precio_asc: 'Precio ↑', precio_desc: 'Precio ↓', m2_desc: 'Más m²' };
 
-const mx  = n => Number(n).toLocaleString('es-MX');
 
 const ICON_EXTERNAL = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 const ICON_PIN = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
@@ -100,7 +85,7 @@ const CAMPOS = {
                label: () => F.cliente?.nombre ?? '',
                clear: () => { if (F.cliente) quitarCriterios(); } },
   fuente:    { kind: 'Fuente',    grupo: 'Origen',    hint: 'portal de origen',
-               label: () => FUENTE_CONFIG[F.fuente]?.label ?? F.fuente,
+               label: () => Anuncio.fuente(F.fuente),
                clear: () => { F.fuente = ''; } },
   orden:     { kind: 'Orden',     grupo: 'Vista',     hint: 'cómo se ordena',
                label: () => ORDENES[F.orden], clear: () => { F.orden = 'recientes'; } },
@@ -124,49 +109,6 @@ console.assert(activos().length === 0, 'sin filtros no debe haber tokens');
 
 // ── Datos ────────────────────────────────────────────────────────────────────
 
-function parseLocation(loc) {
-  if (loc == null) return null;
-  let v = loc;
-  if (typeof v === 'string') {
-    const s = v.trim();
-    if (!s.startsWith('{')) return s;
-    try { v = JSON.parse(s); } catch { return s; }
-  }
-  return (v && typeof v === 'object') ? (v.name ?? null) : null;
-}
-
-function adaptListing(l) {
-  return {
-    id: l.id,
-    fuente: l.source ?? 'desconocido',
-    codigo: l.source === 'pipeline' ? null : (l.external_id ?? null),   // el uuid de la ficha no es un código
-    titulo: l.title ?? l.broker_name ?? null,
-    direccion: parseLocation(l.location) ?? l.neighborhood ?? l.zona ?? null,
-    precio: l.price_numeric != null ? { monto: l.price_numeric, moneda: l.currency ?? 'MXN' } : null,
-    porM2: l.price_is_per_m2 ?? false,
-    alt: l.operacion_alt
-      ? { monto: l.precio_alt, op: l.operacion_alt, porM2: l.precio_alt_por_m2 ?? false, total: l.precio_alt_total }
-      : null,
-    precioTotal: l.precio_total ?? null,
-    fotos: (l.images?.length ? l.images : (l.image ? [l.image] : [])),
-    url: l.url ?? null,
-    whatsapp: l.whatsapp ?? null,
-    status: STATUS_FROM_API[l.status] ?? 'Nuevo',
-    starred: l.starred ?? false,
-    notes: l.notes ?? '',
-    tipo: l.property_type ?? null,
-    size: l.property_size_m2 ?? null,
-    terreno: l.terreno_m2 ?? null, construccion: l.construccion_m2 ?? null,
-    // Las fichas del sheet no dicen si es renta o venta: sin operación, no "Renta".
-    transaccion: TXN_FROM_API[l.transaction_type] ?? (l.source === 'pipeline' ? null : 'Renta'),
-    // Coordenadas para el mapa. Se aceptan los nombres más comunes; si la API
-    // no las manda, el inmueble simplemente no lleva pin.
-    lat: num(l.lat ?? l.latitude ?? l.geo?.lat ?? l.location?.lat),
-    lng: num(l.lng ?? l.lon ?? l.longitude ?? l.geo?.lng ?? l.location?.lng),
-  };
-}
-function num(v) { const n = Number(v); return v == null || v === '' || !Number.isFinite(n) ? null : n; }
-
 const paramsBase = () => ({
   q: searchStreet || F.q,
   lugar: F.lugares.map(l => l.valor), tipo: F.tipos,
@@ -185,12 +127,12 @@ const paramsBase = () => ({
 async function cargarPagina() {
   const [lista, f] = await Promise.all([
     API.get(`/listings${API.qs({ ...paramsBase(), orden: F.orden,
-      estado: filterStatus !== 'Todos' ? STATUS_TO_API[filterStatus] : '',
+      estado: filterStatus !== 'Todos' ? Anuncio.estadoApi(filterStatus) : '',
       page, per_page: PAGE_SIZE })}`),
     // Las facetas ignoran el filtro de estado a propósito: alimentan las píldoras.
     API.get(`/listings/facets${API.qs(paramsBase())}`),
   ]);
-  listings = lista.items.map(adaptListing);
+  listings = lista.items.map(Anuncio.de);
   listingsMap = Object.fromEntries(listings.map(l => [l.id, l]));
   totalFiltrado = lista.total ?? listings.length;
   // Los valores por defecto evitan que una respuesta incompleta tumbe el render:
@@ -203,49 +145,39 @@ function setState(id, patch) {
   if (!l) return;
   Object.assign(l, patch);
   API.put(`/listings/${encodeURIComponent(id)}/estado`, {
-    status: STATUS_TO_API[l.status] ?? l.status, starred: l.starred, notes: l.notes,
+    status: Anuncio.estadoApi(l.status), starred: l.starred, notes: l.notes,
   }).catch(err => console.warn('No se pudo guardar el estado:', err.message));
 }
 
 // ── Precio ───────────────────────────────────────────────────────────────────
 
-// Varios portales publican "$700" queriendo decir "$700 por m²". Mostrar ese
-// número como total convierte un terreno de 7.5 MDP en uno de $700: se muestra el
-// total calculado y, en chico, el precio unitario del que salió.
-function fmtPrice(precio, l) {
-  if (!precio || precio.monto == null) return null;
-  const curr = precio.moneda === 'MN' ? 'MXN' : (precio.moneda ?? '');
-  if (l?.porM2) {
-    const unit = `$${mx(precio.monto)}/m²`;
-    return l.precioTotal
-      ? { n: mx(Math.round(l.precioTotal)), curr, nota: unit }
-      : { n: mx(precio.monto), curr, nota: 'por m²', parcial: true };
-  }
-  return { n: mx(precio.monto), curr };
+// Las reglas son de anuncio.js; aquí sólo se escriben. Un total calculado se redondea;
+// el precio publicado se enseña tal cual.
+function fmtPrice(l) {
+  const v = Anuncio.precioVisible(l);
+  if (!v) return null;
+  if (v.parcial) return { n: mx(v.monto), nota: 'por m²', parcial: true };
+  return v.unitario != null ? { n: mx(Math.round(v.monto)), nota: `$${mx(v.unitario)}/m²` } : { n: mx(v.monto) };
 }
 
-// Un inmueble puede ofrecerse en renta Y venta. El segundo precio va como línea
-// aparte para que el asesor vea las dos opciones sin abrir el anuncio.
-function altPriceHtml(alt) {
-  if (!alt?.op) return '';
-  const etiqueta = alt.op === 'rent' ? 'También en renta' : 'También en venta';
-  if (alt.monto == null) return `<div class="price-alt">${etiqueta}</div>`;
-  const monto = alt.porM2 && alt.total ? alt.total : alt.monto;
-  const unidad = alt.porM2 && alt.total ? '' : (alt.porM2 ? '/m²' : '');
-  const sufijo = alt.op === 'rent' ? '/mes' : '';
-  const nota = alt.porM2 && alt.total ? ` ($${mx(alt.monto)}/m²)` : '';
-  return `<div class="price-alt">${etiqueta}: <strong>$${mx(Math.round(monto))}${unidad}${sufijo}</strong>${nota}</div>`;
+// El segundo precio va como línea aparte para que el asesor vea las dos opciones sin
+// abrir el anuncio.
+function altPriceHtml(l) {
+  const s = Anuncio.segundoPrecio(l);
+  if (!s) return '';
+  if (!s.precio) return `<div class="price-alt">${s.etiqueta}</div>`;
+  return `<div class="price-alt">${s.etiqueta}: <strong>${s.precio}</strong>${s.nota ? ' ' + s.nota : ''}</div>`;
 }
 
 // ── Tarjeta ──────────────────────────────────────────────────────────────────
 
 function renderCard(l) {
-  const blabel = (FUENTE_CONFIG[l.fuente]?.label ?? l.fuente).toUpperCase();
-  const p = fmtPrice(l.precio, l);
+  const blabel = Anuncio.fuente(l.fuente).toUpperCase();
+  const p = fmtPrice(l);
   const foto = l.fotos?.[0] ?? null;
   // Si el precio ya es por m², repetirlo aquí sería decir dos veces lo mismo.
-  const ppm = !l.porM2 && l.precio?.monto && l.size
-    ? `$${mx(Math.round(l.precio.monto / l.size))} / m²` : '';
+  const pm = l.porM2 ? null : Anuncio.porMetro(l);
+  const ppm = pm ? `$${mx(Math.round(pm))} / m²` : '';
   const sufijo = l.transaccion === 'Renta' ? 'MXN / mes' : 'MXN';
 
   const imgHtml = foto
@@ -272,12 +204,12 @@ function renderCard(l) {
         <div style="min-width:0">
           ${priceHtml}
           ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
-          ${altPriceHtml(l.alt)}
+          ${altPriceHtml(l)}
         </div>
         <a class="card-ver" href="listing.html?id=${encodeURIComponent(l.id)}">Ver ${ICON_EXTERNAL}</a>
       </div>
       ${l.titulo ? `<div class="card-title">${esc(l.titulo)}</div>` : ''}
-      ${l.direccion ? `<div class="card-dir">${ICON_PIN}${esc(l.direccion)}</div>` : ''}
+      ${Anuncio.ubicacion(l) ? `<div class="card-dir">${ICON_PIN}${esc(Anuncio.ubicacion(l))}</div>` : ''}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
         ${l.transaccion ? `<span class="tag-txn">${esc(l.transaccion)}</span>` : ''}
@@ -287,7 +219,7 @@ function renderCard(l) {
       <div class="card-status">
         <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
         <select class="status-select s-${l.status}" aria-label="Estado de seguimiento">
-          ${STATUSES.map(st => `<option${st === l.status ? ' selected' : ''}>${st}</option>`).join('')}
+          ${Anuncio.ESTADOS.map(st => `<option${st === l.status ? ' selected' : ''}>${st}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -355,7 +287,7 @@ function cuerpoEditor(campo) {
   if (campo === 'operacion') return chips([{ v: 'rent', label: 'en renta' }, { v: 'sale', label: 'en venta' }], F.operacion);
   if (campo === 'orden')     return chips(Object.entries(ORDENES).map(([v, label]) => ({ v, label })), F.orden);
   if (campo === 'fuente')    return chips(Object.keys(facetas.por_fuente).sort().map(f =>
-                                    ({ v: f, label: FUENTE_CONFIG[f]?.label ?? f, count: facetas.por_fuente[f] })), F.fuente);
+                                    ({ v: f, label: Anuncio.fuente(f), count: facetas.por_fuente[f] })), F.fuente);
   if (campo === 'zona')      return chips(zonas.slice(0, 24).map(z =>
                                     ({ v: z.norm, label: z.nombre, count: z.listings })), F.zona);
   if (campo === 'radio') return `
@@ -403,7 +335,7 @@ function abrirEditor(campo) {
 // ── Render ───────────────────────────────────────────────────────────────────
 
 function renderStats() {
-  const n = e => facetas.por_estado[STATUS_TO_API[e]] ?? 0;
+  const n = e => facetas.por_estado[Anuncio.estadoApi(e)] ?? 0;
   const celda = (num, label, color) =>
     `<div class="stat"><span class="stat-num" style="color:${color}">${mx(num)}</span>` +
     `<span class="stat-label">${label}</span></div>`;
@@ -418,8 +350,8 @@ function renderStats() {
 }
 
 function renderStatusPills() {
-  const n = v => v === 'Todos' ? facetas.total : (facetas.por_estado[STATUS_TO_API[v]] ?? 0);
-  document.getElementById('statusPills').innerHTML = ['Todos', ...STATUSES].map(v =>
+  const n = v => v === 'Todos' ? facetas.total : (facetas.por_estado[Anuncio.estadoApi(v)] ?? 0);
+  document.getElementById('statusPills').innerHTML = ['Todos', ...Anuncio.ESTADOS].map(v =>
     `<button class="pill${filterStatus === v ? ' active' : ''}" data-group="status" data-val="${v}">` +
     `${v}<span class="pill-count">${mx(n(v))}</span></button>`).join('');
   document.getElementById('pill-starred').classList.toggle('active', filterStarred);
@@ -523,8 +455,8 @@ function exportCSV() {
   // agrega ?formato=csv a /api/listings y lo arma el servidor.
   const header = ['ID', 'Fuente', 'Precio', 'Moneda', 'Título', 'Dirección', 'Estado', 'Destacado', 'Notas', 'URL', 'Teléfono'];
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const filas = listings.map(l => [l.id, l.fuente, l.precio?.monto ?? '', l.precio?.moneda ?? '',
-    l.titulo ?? '', l.direccion ?? '', l.status, l.starred ? 'Sí' : 'No', l.notes, l.url ?? '', l.whatsapp ?? '']);
+  const filas = listings.map(l => [l.id, l.fuente, l.precio ?? '', l.precio != null ? l.moneda : '',
+    l.titulo ?? '', Anuncio.ubicacion(l) ?? '', l.status, l.starred ? 'Sí' : 'No', l.notes, l.url ?? '', l.whatsapp ?? '']);
   const csv = '﻿' + [header, ...filas].map(r => r.map(q).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
@@ -1033,10 +965,10 @@ function renderTray() {
   document.getElementById('trayCount').textContent = n === 1 ? '1 seleccionada' : `${n} seleccionadas`;
   const items = [...seleccion.values()];
   document.getElementById('trayItems').innerHTML = items.slice(0, MAX_COMPARAR).map(l => {
-    const p = fmtPrice(l.precio, l);
+    const p = fmtPrice(l);
     return `<span class="tray-item" data-id="${esc(l.id)}">
       ${l.fotos?.[0] ? `<img src="${esc(l.fotos[0])}" alt="">` : '<span class="tray-thumb"></span>'}
-      <span class="tray-txt"><b>${p ? '$' + p.n : 'Sin precio'}</b><small>${l.size ? mx(Math.round(l.size)) + ' m² · ' : ''}${esc(l.direccion ?? '')}</small></span>
+      <span class="tray-txt"><b>${p ? '$' + p.n : 'Sin precio'}</b><small>${l.size ? mx(Math.round(l.size)) + ' m² · ' : ''}${esc(Anuncio.ubicacion(l) ?? '')}</small></span>
       <button class="tray-x" title="Quitar">&times;</button>
     </span>`;
   }).join('') + (n > MAX_COMPARAR ? `<span class="tray-more">+${n - MAX_COMPARAR}</span>` : '');
@@ -1074,7 +1006,7 @@ document.getElementById('trayEstado').addEventListener('change', e => {
     Object.assign(l, { status: st });
     if (listingsMap[id]) listingsMap[id].status = st;
     API.put(`/listings/${encodeURIComponent(id)}/estado`, {
-      status: STATUS_TO_API[st], starred: l.starred, notes: l.notes,
+      status: Anuncio.estadoApi(st), starred: l.starred, notes: l.notes,
     }).catch(err => console.warn('No se pudo guardar el estado:', err.message));
   });
   aplicar(previos.map(([id]) => [id, nuevo]));
@@ -1100,8 +1032,8 @@ async function fichaDe(l) {
   const fs = await API.get(`/fichas?listing=${encodeURIComponent(l.id)}`).catch(() => []);
   if (fs[0]) return fs[0];
   return API.post('/fichas', {
-    source_listing_id: l.id, titulo: l.titulo, precio: l.precio?.monto ?? null,
-    moneda: l.precio?.moneda ?? 'MXN', tamano_m2: l.size, fotos: l.fotos,
+    source_listing_id: l.id, titulo: l.titulo, precio: l.precio,
+    moneda: l.moneda, tamano_m2: l.size, fotos: l.fotos,
     construccion_m2: l.construccion && l.construccion !== l.size ? l.construccion : null,
   });
 }
