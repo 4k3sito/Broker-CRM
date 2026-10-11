@@ -203,6 +203,9 @@ _ENDED = re.compile(r'"item_status_message","type":"ui_message","state":"VISIBLE
                     r'"body":\{"text":"Publicaci[óo]n (?:finalizada|pausada)', re.I)
 
 
+_ITEM_URL = re.compile(r"/MLM-?\d+", re.I)
+
+
 def parse_detail(html: str, row: dict) -> Listing:
     if _ENDED.search(html):
         raise Gone(f"publication ended: {row['url']}")
@@ -298,7 +301,13 @@ class MercadoLibre(Portal):
                 ctx.mark(hi)        # the sweep is complete through `hi`
 
     def detail(self, row: dict, f: Fetcher) -> Listing | None:
-        return parse_detail(f.get(row["url"], referer=self.base + "/", reject=_walled).text, row)
+        page = f.get(row["url"], referer=self.base + "/", reject=_walled)
+        # A listing that no longer exists redirects to the search results of its
+        # category and city: a 200 with no item on it. That is a takedown, not a
+        # bad page (as a bad page it was re-fetched by every batch).
+        if not _ITEM_URL.search(page.url):
+            raise Gone(f"redirected away from the listing: {page.url[:90]}")
+        return parse_detail(page.text, row)
 
     def selfcheck(self, fixtures: Path) -> str:
         cards = list(parse_serp((fixtures / "ml_direct.html").read_text(encoding="utf-8"), "rent"))
@@ -321,6 +330,8 @@ class MercadoLibre(Portal):
         assert _walled("<html>Para continuar, ingresa a<br/>tu cuenta</html>") and not _walled(html)
         assert split_range(0, 0, [10, 20, 30, 40, 50, 60], 120)[0][0] == 0
         assert split_range(5, 5, [5, 5, 5], 300) == [], "one price point cannot be split"
+        assert _ITEM_URL.search("https://inmueble.mercadolibre.com.mx/MLM-3521750022-nueva-oficina-_JM")
+        assert not _ITEM_URL.search("https://inmuebles.mercadolibre.com.mx/oficinas/renta/veracruz/boca-del-rio/")
         ended = ('"id":"item_status_message","type":"ui_message","state":"VISIBLE",'
                  '"body":{"text":"Publicación finalizada"},"pictures":[{"id":"1"}]')
         try:
