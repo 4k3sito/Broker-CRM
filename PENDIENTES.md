@@ -7,6 +7,31 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## La búsqueda de inventario salió de `main.py` — **en la rama `inventario`, sin fusionar** (2026-10-11)
+
+Refactor sin cambio de comportamiento: `api/inventario.py` tiene ahora todo lo que el
+tablero y `/api/v1` le preguntan a `listings`, y `npm run probar:api` lo prueba contra un
+PostGIS desechable (19 pruebas). Comprobado además contra los datos reales, viejo contra
+nuevo en el mismo momento: 161 de 161 respuestas idénticas (4,772 filas) y 22 de 22
+peticiones HTTP con el mismo código y el mismo cuerpo. **Para desplegar hace falta
+reconstruir `api`** (el `Dockerfile` copia un archivo más).
+
+Lo que apareció al escribir las pruebas y **no se tocó**, a propósito:
+
+- **El tablero enseña anuncios dados de baja.** `/api/listings` no filtra por `activo`
+  (con llave sí: `/api/v1` los esconde salvo `inactivos=true`) y la fila ni siquiera
+  trae el dato, así que el frontend no puede marcarlos. Medido hoy: 52,018 con
+  `activo = false`. En los 700 más recientes no hay ninguno —ordenan al final—, pero
+  un filtro angosto los trae. Es decisión de producto: esconderlos, o enseñarlos
+  marcados. La prueba `el_tablero_sin_filtros` fija lo que pasa hoy.
+- **`vps/schema.sql` no reconstruye una base vacía de una sola pasada.** `user_listing`
+  (línea 59) nombra a `usuario` (línea 573) y varios `ALTER` nombran a `tarea` antes de
+  que existan. A la segunda pasada entra completo, y eso hace `api/probar.sh`. Sólo
+  importa el día que haya que levantar la base desde cero sin un respaldo.
+- **Un comentario dice más de lo que hace el código.** En `_filtros`: «"del valle" no
+  debe traer "valle del sol"». Lo que hace es pedir que cada palabra aparezca, en
+  cualquier orden: "valle del sol" sí sale. La prueba fija lo que hace, no lo que dice.
+
 ## Aviso de inventario viejo y botones táctiles — **en `desarrollo`, sin desplegar** (2026-10-08)
 
 - **Bolsa → aviso de frescura**: una franja ámbar bajo la barra de filtros cuando alguna

@@ -75,7 +75,12 @@ CRM.
   salen únicamente de `listings`: su consulta (`SELECT_ANUNCIO`) no une `user_listing` ni
   las fichas propias, así que no hay por dónde llegar al seguimiento de un asesor ni al
   CRM. Los filtros del CRM no existen ahí (`V1_FILTROS` es lista blanca) y un id
-  `pipeline:…` responde 404.
+  `pipeline:…` responde 404. Desde el 2026-10-11 todo eso vive en `api/inventario.py`
+  y lo decide **quién pregunta** (`Llave()` contra `Asesor(id)`), no la ruta: la lista
+  blanca se aplica dentro del módulo, así que una ruta nueva que le pase filtros de más
+  a una llave no los vuelve efectivos. `npm run probar:api` lo comprueba contra una
+  base de verdad (`con_llave_solo_el_inventario`): con llave no salen fichas propias,
+  ni el seguimiento de un asesor, ni filtra un filtro del CRM.
 - **Son dos puertas separadas.** Ningún endpoint de sesión acepta una llave y `/api/v1`
   no acepta la cookie. `selfcheck` lo comprueba recorriendo las rutas: si mañana alguien
   le pone `llave_api` a otro endpoint, falla.
