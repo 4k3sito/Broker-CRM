@@ -8,7 +8,8 @@
     "verificar": "python3 web/verificar.py",
     "verificar:selfcheck": "python3 web/verificar.py --selfcheck",
     "verificar:navegador": "python3 web/verificar_navegador.py",
-    "probar:api": "bash api/probar.sh"
+    "probar:api": "bash api/probar.sh",
+    "probar:web": "node --test pruebas/web/"
   },
   "license": "ISC"
 }

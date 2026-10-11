@@ -23,6 +23,9 @@ const hrefSeguro = u => /^https?:/i.test(String(u ?? '').trim()) ? esc(u) : '#';
 // "Archivos" en main.py). Lo demás no se pinta.
 const srcSeguro = u => /^(https?:|\/api\/archivos\/)/i.test(String(u ?? '').trim()) ? esc(u) : '';
 
+// Un número como se escribe en México: 1,234,567.
+const mx = n => Number(n).toLocaleString('es-MX');
+
 // Superficie de una propiedad, distinguiendo terreno y construcción cuando se sabe.
 // Devuelve pares [etiqueta, m²]: los dos si el portal (o la ficha) los trae distintos;
 // uno etiquetado si sólo se sabe cuál es; y "Superficie" a secas cuando el anuncio da

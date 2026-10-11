@@ -3,14 +3,6 @@
 // Ficha · Documentos · Clientes + notas. Anterior/siguiente recorre la página del
 // tablero de la que se vino (el tablero guarda los ids en sessionStorage).
 
-const STATUSES = ['Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'];
-const STATUS_FROM_API = { new: 'Nuevo', reviewed: 'Revisado', contacted: 'Contactado', rented: 'Rentado', discarded: 'Descartado' };
-const STATUS_TO_API   = { Nuevo: 'new', Revisado: 'reviewed', Contactado: 'contacted', Rentado: 'rented', Descartado: 'discarded' };
-const FUENTE_CONFIG = {
-  easybroker: 'EasyBroker', inmuebles24: 'Inmuebles24', lamudi: 'Lamudi', vivanuncios: 'Vivanuncios',
-  metroscubicos: 'Metros²', mercadolibre: 'MercadoLibre', propiedadesmexico: 'PropiedadesMX',
-  propiedadesmx: 'PropiedadesMX', pincali: 'Pincali', pipeline: 'Pipeline',
-};
 // "Volver" regresa a la pestaña de la que se vino (Bolsa o Inmobiliaria).
 const TABLERO = (() => { try { return sessionStorage.getItem('ol-tab') === 'inmobiliaria' ? 'index.html?tab=inmobiliaria' : 'index.html'; } catch { return 'index.html'; } })();
 // Si se llegó desde la tabla de un cliente ("Abrir ficha completa"), se vuelve ahí, a
@@ -31,9 +23,9 @@ const PRESENTA_A = (() => {
 // no tiene ninguna, la General. Las de otros clientes y las de nombre libre no salen.
 const versionesVisibles = () => PRESENTA_A ? versiones.filter(v => String(v.cliente_id) === PRESENTA_A) : versiones;
 const conGeneral = () => !PRESENTA_A || !versionesVisibles().length;
-const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
-// Las etapas de un proceso vienen de etapas.js (compartido con tareas y clientes);
-// `esc` y `hrefSeguro`, de texto.js.
+// El anuncio —su forma, sus precios y sus etiquetas— viene de anuncio.js; las etapas
+// de un proceso, de etapas.js (compartido con tareas y clientes); `esc`, `mx` y
+// `hrefSeguro`, de texto.js.
 
 const ICON_EXTERNAL = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 
@@ -46,54 +38,15 @@ const subiendo = { docs: 0, fotos: 0 };
 const MAX_ARCHIVO = 20 * 1024 * 1024;       // el mismo tope que pone la API
 
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
-const mx = n => Number(n).toLocaleString('es-MX');
-const num = v => { const n = Number(v); return v == null || v === '' || !Number.isFinite(n) ? null : n; };
 
-function parseLocation(loc) {
-  if (loc == null) return null;
-  let v = loc;
-  if (typeof v === 'string') {
-    const s = v.trim();
-    if (!s.startsWith('{')) return s;
-    try { v = JSON.parse(s); } catch { return s; }
-  }
-  return (v && typeof v === 'object') ? (v.name ?? null) : null;
-}
-
-function adaptListing(l) {
-  return {
-    id: l.id, fuente: l.source ?? 'desconocido', codigo: l.source === 'pipeline' ? null : (l.external_id ?? null),
-    titulo: l.title ?? l.broker_name ?? null,
-    direccion: parseLocation(l.location) ?? l.neighborhood ?? null,
-    precio: l.price_numeric ?? null, porM2: l.price_is_per_m2 ?? false, precioTotal: l.precio_total ?? null,
-    alt: l.operacion_alt ? { monto: l.precio_alt, op: l.operacion_alt, porM2: l.precio_alt_por_m2 ?? false, total: l.precio_alt_total } : null,
-    moneda: l.currency ?? 'MXN',
-    fotos: (l.images?.length ? l.images : (l.image ? [l.image] : [])),
-    url: l.url ?? null, whatsapp: l.whatsapp ?? null, mapsUrl: l.maps_url ?? null,
-    status: STATUS_FROM_API[l.status] ?? 'Nuevo', starred: l.starred ?? false, notes: l.notes ?? '',
-    tipo: l.property_type ?? null, size: l.property_size_m2 ?? null,
-    terreno: l.terreno_m2 ?? null, construccion: l.construccion_m2 ?? null,
-    // Las fichas del sheet no dicen si es renta o venta: sin operación, no "Renta".
-    transaccion: TXN_FROM_API[l.transaction_type] ?? (l.source === 'pipeline' ? null : 'Renta'),
-    descripcion: l.description ?? null, features: l.features ?? [], zona: l.zona ?? null,
-    lat: num(l.lat ?? l.latitude ?? l.geo?.lat), lng: num(l.lng ?? l.lon ?? l.longitude ?? l.geo?.lng),
-    geoOrigen: l.geo_origen ?? null,
-  };
-}
-
-// Precio total real: si el portal publicó $/m², se usa el total calculado.
-const precioTotal = l => l.porM2 ? l.precioTotal : l.precio;
-const ppm = l => { const t = precioTotal(l); return t && l.size ? t / l.size : (l.porM2 ? l.precio : null); };
-// Un inmueble puede ofrecerse en renta Y venta: el segundo precio va en línea aparte.
-function altPriceHtml(alt) {
-  if (!alt?.op) return '';
-  const etiqueta = alt.op === 'rent' ? 'También en renta' : 'También en venta';
+const precioTotal = Anuncio.total, ppm = Anuncio.porMetro;
+// El segundo precio de un inmueble que está en renta Y en venta, en línea aparte.
+function altPriceHtml(l) {
+  const s = Anuncio.segundoPrecio(l);
+  if (!s) return '';
   // Se sabe que se ofrece en las dos, pero el precio aún no se ha rescatado.
-  if (alt.monto == null) return `<span class="price-alt">${etiqueta}</span>`;
-  const monto = alt.porM2 && alt.total ? alt.total : alt.monto;
-  const unidad = alt.porM2 && alt.total ? '' : (alt.porM2 ? '/m²' : '');
-  const sufijo = alt.op === 'rent' ? '/mes' : '';
-  return `<span class="price-alt">${etiqueta}: <strong>$${mx(Math.round(monto))}${unidad}${sufijo}</strong></span>`;
+  if (!s.precio) return `<span class="price-alt">${s.etiqueta}</span>`;
+  return `<span class="price-alt">${s.etiqueta}: <strong>${s.precio}</strong>${s.nota ? ' ' + s.nota : ''}</span>`;
 }
 const mapsLink = l => l.mapsUrl ?? (l.lat != null ? `https://maps.google.com/?q=${l.lat},${l.lng}` : null);
 // Una propiedad dada de alta a mano (o venida del sheet): no hay anuncio detrás, la
@@ -109,7 +62,7 @@ const fechaCorta = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day:
 function setState(patch) {
   Object.assign(listing, patch);
   API.put(`/listings/${encodeURIComponent(listing.id)}/estado`, {
-    status: STATUS_TO_API[listing.status] ?? listing.status, starred: listing.starred, notes: listing.notes,
+    status: Anuncio.estadoApi(listing.status), starred: listing.starred, notes: listing.notes,
   }).catch(err => console.warn('No se pudo guardar el estado:', err.message));
 }
 
@@ -247,7 +200,7 @@ async function saveFicha(field, value) {
     // La respuesta trae también lo que la API calculó: con dos de precio / m² / $/m²
     // sale el tercero (derivar_precio en main.py).
     Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, { [field]: val })));
-    listing = adaptListing(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+    listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
     repintar();
   } catch (err) { alert('No se pudo guardar: ' + err.message); }
 }
@@ -317,7 +270,7 @@ async function saveBase(field, crudo) {
   if (JSON.stringify(patch[field]) === JSON.stringify(ficha[field] ?? null)) return;
   try {
     Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, patch)));
-    listing = adaptListing(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+    listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
     repintar();
     pintarUbicacion();
   } catch (err) { alert('No se pudo guardar: ' + err.message); }
@@ -336,7 +289,7 @@ const versionActual = () => versiones.find(x => String(x.id) === versionSel) ?? 
 const fotosBase = () => (ficha?.fotos?.length ? ficha.fotos : listing?.fotos) ?? [];
 const fotosEnEdicion = () => { const v = versionActual(); return (v ? (v.datos.fotos ?? fotosBase()) : (ficha?.fotos ?? [])).slice(); };
 async function refrescarFotos() {
-  listing = adaptListing(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+  listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
   repintar();
 }
 async function subirFotos(files) {
@@ -433,7 +386,7 @@ function mosaicoHtml(l, nav) {
 function render() {
   const l = listing;
   const total = precioTotal(l), pm = ppm(l);
-  const fuente = FUENTE_CONFIG[l.fuente] ?? l.fuente;
+  const fuente = Anuncio.fuente(l.fuente);
   const sufijo = l.transaccion === 'Renta' ? 'MXN/mes' : 'MXN';
   document.title = (l.titulo ?? 'Propiedad') + ' · OfficeLab';
 
@@ -468,10 +421,10 @@ function render() {
       <div class="fx-band-p">
         <b>${total != null ? '$' + mx(Math.round(total)) : (l.porM2 && l.precio != null ? '$' + mx(l.precio) : 'Sin precio')}</b>
         <span>${total != null ? sufijo : (l.porM2 && l.precio != null ? 'por m²' : '')}${pm && total != null ? ` · $${mx(Math.round(pm))}/m²` : ''}</span>
-        ${altPriceHtml(l.alt)}
+        ${altPriceHtml(l)}
       </div>
       <select class="fx-status s-${l.status}" id="detailStatus" aria-label="Estado">
-        ${STATUSES.map(s => `<option${s === l.status ? ' selected' : ''}>${s}</option>`).join('')}
+        ${Anuncio.ESTADOS.map(s => `<option${s === l.status ? ' selected' : ''}>${s}</option>`).join('')}
       </select>
       <button class="fx-star${l.starred ? ' on' : ''}" id="detailStar" aria-pressed="${l.starred}" title="Destacar">${l.starred ? '&#9733;' : '&#9734;'}</button>
       ${l.whatsapp ? `<a class="fx-btn solid" href="https://wa.me/${l.whatsapp.replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
@@ -909,7 +862,7 @@ API.me().then(async user => {
   document.getElementById('authBox').hidden = true;
   document.getElementById('userBox').hidden = false;
   if (!id) { document.getElementById('detail').innerHTML = '<p class="pg-empty">Falta el identificador de la propiedad.</p>'; return; }
-  listing = adaptListing(await API.get(`/listings/${encodeURIComponent(id)}`));
+  listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(id)}`));
   await loadFicha();
   await Promise.all([loadSeguimiento(), loadDocumentos()]);
   render();

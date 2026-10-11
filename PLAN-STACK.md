@@ -121,7 +121,7 @@ ya vive aparte en `documento.py`, pero su entrada está incrustada en `web/listi
 como un botón más de la ficha.
 
 En el frontend la frontera que falta no es de despliegue sino **de importación**: un
-módulo de página puede importar de `ui.js`, `api.js` y `texto.js`, y **nunca de otro
+módulo de página puede importar de `ui.js`, `api.js`, `texto.js` y `anuncio.js`, y **nunca de otro
 módulo de página**. Es la idea de las dependency constraints de Nx sin Nx, y cabe en
 `verificar.py` o en el chequeo de tipos de §5.
 
@@ -305,8 +305,12 @@ pregunta de los micro-frontends (§2.2), puesta donde el acoplamiento sí existe
       maqueta aparte en `documento.py` y es la única de las cuatro genuinamente enredada
       —su entrada está incrustada en `web/listing.js:311`.
 - [ ] `main.py selfcheck` pasa a poder probar un módulo sin arrastrar los otros.
+- [x] **El anuncio fuera de los módulos de página** (2026-10-11). `web/anuncio.js` es el
+      cuarto módulo compartido: tablero, ficha y comparar dejaron de traducir cada uno
+      la fila de la API a su manera. Trajo las primeras pruebas del frontend sin
+      navegador: `npm run probar:web`.
 - [ ] Regla de importación en el frontend: un módulo de página importa de `ui.js`,
-      `api.js` y `texto.js`, nunca de otro módulo de página. Verificarla en `verificar.py`
+      `api.js`, `texto.js` y `anuncio.js`, nunca de otro módulo de página. Verificarla en `verificar.py`
       o en `npm run tipos`.
 - [ ] `SECURITY.md` §6: las rutas no cambian, pero el archivo donde vive cada una sí.
 - **Listo cuando:** ninguna ruta cambió de URL, `selfcheck` pasa, y mover el análisis de

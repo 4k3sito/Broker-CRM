@@ -4,7 +4,6 @@
 
 // Las etapas de un proceso vienen de etapas.js (compartido con tareas y la ficha);
 // `esc` y `norm`, de texto.js.
-const mx = n => Number(n).toLocaleString('es-MX');
 
 let currentUser = null;
 let clientes = [];          // cada uno con .proceso[] embebido
