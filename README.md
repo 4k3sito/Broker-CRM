@@ -60,6 +60,7 @@ apretando una sola.
 ```bash
 npm run dev      # sirve web/ en http://localhost:3000 contra la API del VPS
 npm run verificar  # el sistema de diseño: clases sin regla y marcas retiradas
+npm run probar:api # las pruebas de la API que ejecutan SQL, contra un PostGIS desechable
 ```
 
 Detrás va `dev-server.js` (http/fs de la stdlib, sin dependencias): sirve `web/` y

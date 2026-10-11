@@ -87,7 +87,7 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   usarlo con datos de portales; todo lo que entre a `innerHTML` pasa por ahí, y todo
   `href` que venga de un anuncio o de un adjunto, por `hrefSeguro`.
 - **`api/`** — FastAPI. `main.py` trae la auth propia (scrypt de la stdlib + sesiones
-  opacas en la DB), los endpoints de listings/zonas/CRM/tareas, `GET /api/scrapers`
+  opacas en la DB), los endpoints de zonas/CRM/tareas, `GET /api/scrapers`
   (agregados de `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers;
   **sólo para las cuentas de `SCRAPERS_VEN`**, igual que las tarjetas `tipo = 'Scraper'`
   de tareas — la única restricción por cuenta del sistema, SECURITY.md §5),
@@ -96,6 +96,12 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   **`/api/v1/anuncios` es la puerta para otros programas**: inventario de sólo lectura con
   una llave (`apikey crear "<nombre>"`, `Authorization: Bearer ol_…`), sin acceso al CRM
   — ver SECURITY.md §3 "Llaves de API".
+  **`inventario.py` es la búsqueda de inventario** (2026-10-11): todo lo que el tablero
+  y `/api/v1` le preguntan a `listings` —filtros, precio efectivo, Bolsa y Catálogo,
+  qué ve un asesor y qué ve una llave— detrás de `buscar`, `contar` y `uno`. Las rutas
+  de `main.py` sólo traducen HTTP. No importa FastAPI ni abre conexiones: recibe la
+  conexión y lanza `FiltroInvalido`, que la app convierte en 422. Un archivo nuevo en
+  `api/` hay que agregarlo al `COPY` del `Dockerfile`, que los copia por nombre.
   `documento.py` + `documento.css` son la maqueta del PDF del análisis, y `fuentes/`
   las tres familias de Hermes Tinta empaquetadas en la imagen —el PDF no puede depender
   de que Google Fonts conteste al renderizar—. **La imagen ya no es sólo `pip install`**:
@@ -159,6 +165,7 @@ Los `.dc.html` sueltos en la raíz del repo son de julio y describen un sistema
 npm run dev                       # dev-server.js: sirve web/ en :3000 y proxya /api al VPS
 npm run verificar                 # clases sin regla y marcas retiradas, en las 8 páginas
 npm run verificar:selfcheck       # las trampas del verificador, sin tocar el sitio
+npm run probar:api                # las pruebas de la API que necesitan base (ver abajo)
 
 # API (en el VPS)
 ssh officelab 'cd /srv/officelab/vps && docker compose exec -T api python main.py selfcheck'
@@ -185,6 +192,13 @@ ssh officelab 'TL=600 /srv/officelab/vps/cron-v2.sh lamudi'   # forzar una corri
 
 `--selfcheck` **es la suite de pruebas** de los scrapers: córrelo después de tocar
 cualquier parser, falla cuando los selectores se mueven.
+
+`npm run probar:api` (`api/probar.sh`) son las pruebas de la API **que ejecutan SQL**:
+levanta un PostGIS desechable en Docker, le aplica `vps/schema.sql`, siembra unas 20
+filas escritas a mano y corre cada `api/prueba_*.py` dentro de la imagen de la API. No
+toca producción ni el esquema `dev`, y tarda menos de un minuto. `main.py selfcheck`
+sigue siendo lo que corre sin base. Las pruebas preguntan por la interfaz del módulo y
+miran lo que contesta, nunca el texto del SQL: córrelas después de tocar `inventario.py`.
 
 El frontend tiene un solo chequeo automatizado, `npm run verificar` (`web/verificar.py`,
 ver `DESIGN.md` §6): clases sin regla en `hermes.css` y marcas del sistema terracota.
