@@ -7,7 +7,17 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
-## Inventario en su módulo, bajas escondidas y la Bolsa abre en Monterrey — **en `desarrollo`, sin desplegar** (2026-10-11)
+## Inventario en su módulo, bajas escondidas y la Bolsa abre en Monterrey — **en producción desde el 2026-10-11**
+
+Desplegado con el commit `b414531` de `produccion` (los seis commits de `desarrollo` por
+cherry-pick, como siempre): API reconstruida, sin cambios de esquema ni de Caddy. La
+imagen anterior quedó como `officelab-api:pre-2026-10-11` para dar marcha atrás.
+Comprobado en producción sin sesión (rutas en 401, `selfcheck` en verde, estáticos
+idénticos a los del repo) y con consultas de sólo lectura por el módulo nuevo: 588,665
+en la Bolsa, 30,086 en el mapa de Monterrey, 166 en el Catálogo. **No se abrió una
+sesión de asesor en producción**: el recorrido con navegador se hizo en la copia de
+trabajo.
+
 
 - **`api/inventario.py`**: todo lo que el tablero y `/api/v1` le preguntan a `listings`,
   detrás de `buscar` / `contar` / `uno`. Refactor sin cambio de comportamiento,
@@ -24,16 +34,11 @@ Lo cerrado se borra de aquí, no se tacha.
   escritorio, ~7 km en teléfono): 30,086 anuncios en vez de 588,664. Apagarlo se
   recuerda en ese navegador (`ol-mapa-seguir`). No aplica en el Catálogo —sus
   propiedades casi nunca traen coordenada— ni al llegar con los criterios de un cliente.
+  El chip de Ubicación lo dice: "Monterrey (mapa)" al abrir, "Zona del mapa" después
+  de moverlo, y su ✕ quita ese filtro.
   Probado con navegador a 1440 y 390 px contra la API de desarrollo.
-- **Para desplegar hace falta reconstruir `api`** (el `Dockerfile` copia un archivo
-  más), además del `git pull`.
-
 Lo que apareció y **no se tocó**:
 
-- **El chip de Ubicación dice "Todo México" mientras el mapa filtra a Monterrey.** El
-  filtro de cercanía sale en su propio chip ("Radio: a 10.9 km de el centro del
-  mapa"), pero las dos frases juntas se contradicen. Ya pasaba al marcar la casilla;
-  ahora es lo primero que se ve.
 - **`npm run dev` ya no levanta: el puerto 3000 lo ocupa Obsidian** (127.0.0.1:3000,
   desde el 2026-10-05) y `dev-server.js` lo trae fijo. La verificación de hoy sirvió
   los estáticos desde el navegador automatizado. Hay que darle otro puerto y corregir
