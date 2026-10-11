@@ -337,6 +337,8 @@ _QUEUE_EXTRA = {"inmuebles24": "AND coalesce(images_total, 0) > coalesce(cardina
 
 def detail_queue(source: str, limit: int) -> list[dict]:
     # Nuevo León first: the first load takes weeks and that is where the team works.
+    # Then locales, bodegas and oficinas before terrenos (half of every queue): the
+    # team sells commercial space, and a lot's gallery is the least missed.
     # What no recent sweep returned goes last, whatever its state: nearly all of it is
     # a 404, and the next sweep retires it anyway (once Nuevo León's fresh rows ran
     # out, a Vivanuncios batch was 905 gone to 207 enriched).
@@ -346,7 +348,8 @@ def detail_queue(source: str, limit: int) -> list[dict]:
             WHERE source = %s AND detalle_at IS NULL AND activo IS NOT FALSE
               {_QUEUE_EXTRA.get(source, '')}
             ORDER BY coalesce(observed_at >= now() - interval '10 days', false) DESC,
-                     coalesce(province ILIKE 'Nuevo Le%%', false) DESC, observed_at DESC NULLS LAST
+                     coalesce(province ILIKE 'Nuevo Le%%', false) DESC,
+                     coalesce(tipo <> 'terreno', true) DESC, observed_at DESC NULLS LAST
             LIMIT %s"""
     with connect() as conn:
         return [{"listingId": i, "url": u, "operation": o}
