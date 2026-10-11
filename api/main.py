@@ -40,7 +40,9 @@ from psycopg_pool import ConnectionPool
 # de documento.pdf()—, así que no encarece el arranque de la API.
 import documento
 import entorno
+import fichas
 import inventario
+from fichas import DatoInvalido, MAX_FOTOS, NoExiste, RUTA_ARCHIVO
 from inventario import Asesor, FiltroInvalido, Llave, MAX_LUGARES, norm_txt
 from pydantic import BaseModel, Field
 
@@ -796,10 +798,6 @@ def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_use
 CLIENTE_COLS = ("nombre", "contacto", "empresa", "requerimientos", "notas",
                 "responsable", "responsable_id", "criterios", "estatus", "contactos")
 CONTACTO_CAMPOS = ("nombre", "correo", "telefono")
-FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "construccion_m2", "fotos", "notas",
-              "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng")
-# Lo que guarda una ficha PDF con nombre (ficha_version.datos): sólo lo que imprime.
-VERSION_DATOS = ("titulo", "precio", "tamano_m2", "construccion_m2", "folio", "notas", "precio_m2", "fotos")
 PROCESO_COLS = ("status", "notas", "junta", "numero", "marca", "trae", "trae_id")
 
 
@@ -876,62 +874,6 @@ def resolver_mapa(url: str | None, saltos: int = 4) -> tuple[float, float] | Non
         except Exception:
             return None
     return None
-
-
-def _con_coordenada(body: dict) -> dict:
-    """Si viene una liga del mapa y no viene coordenada, la saca de la liga. Una liga
-    que no se pudo resolver deja la coordenada que hubiera."""
-    if body.get("mapa_url") and "lat" not in body and "lng" not in body:
-        c = resolver_mapa(body["mapa_url"])
-        if c:
-            body = dict(body, lat=c[0], lng=c[1])
-    return body
-
-
-# ── Precio, superficie y precio por m²: con dos se calcula el tercero ─────────
-# El asesor captura lo que sabe —a veces el total, a veces el $/m²— y el que falta
-# sale solo. Vive en la API y no en el navegador porque la ficha se edita desde dos
-# páginas (la ficha y el panel del cliente) y las dos tienen que dar el mismo número.
-#
-# Qué se recalcula depende de qué se acaba de escribir:
-#   precio      → $/m² = precio / m²
-#   $/m²        → precio = $/m² × m²
-#   superficie  → precio = $/m² × m² si hay $/m² (es la base con que se cotiza un
-#                 terreno); si no, $/m² = precio / m²
-#   precio y $/m² sin superficie → m² = precio / $/m²
-# Lo que el usuario mandó nunca se pisa, y borrar un campo no calcula nada.
-PRECIO_CAMPOS = ("precio", "tamano_m2", "precio_m2")
-
-
-def derivar_precio(actual: dict, body: dict) -> dict:
-    """`body` con el campo derivado agregado, si se puede calcular. `actual` es la fila
-    como está guardada (vacía al crear)."""
-    tocados = [k for k in PRECIO_CAMPOS if k in body]
-    if not tocados:
-        return body
-    try:
-        v = {k: (float(body[k]) if body.get(k) is not None else None) if k in body
-                else (float(actual[k]) if actual.get(k) is not None else None)
-             for k in PRECIO_CAMPOS}
-    except (TypeError, ValueError):
-        return body                                # un valor no numérico: que falle el UPDATE
-    precio, m2, ppm = v["precio"], v["tamano_m2"], v["precio_m2"]
-    extra = {}
-    if all(body.get(k) is None for k in tocados):
-        pass                                       # sólo se borró algo
-    elif m2 and m2 > 0:
-        if "precio" in body and "precio_m2" not in body and precio is not None:
-            extra["precio_m2"] = round(precio / m2, 2)
-        elif "precio_m2" in body and "precio" not in body and ppm is not None:
-            extra["precio"] = round(ppm * m2, 2)
-        elif tocados == ["tamano_m2"]:
-            if ppm is not None:
-                extra["precio"] = round(ppm * m2, 2)
-            elif precio is not None:
-                extra["precio_m2"] = round(precio / m2, 2)
-    elif "tamano_m2" not in body and precio and ppm and ppm > 0:
-        extra["tamano_m2"] = round(precio / ppm, 2)
-    return dict(body, **extra) if extra else body
 
 
 def _owned(conn, tabla: str, id_: str | None, user_id=None) -> None:
@@ -1057,7 +999,7 @@ def ordenar_procesos(cid: str, body: dict = Body(...), _: dict = Depends(current
 
 
 @app.get("/api/fichas")
-def fichas(listing: str | None = None, _: dict = Depends(current_user)) -> list[dict]:
+def listar_fichas(listing: str | None = None, _: dict = Depends(current_user)) -> list[dict]:
     q = "SELECT * FROM ficha WHERE true"
     p = []
     if listing and listing.startswith("pipeline:"):
@@ -1071,85 +1013,42 @@ def fichas(listing: str | None = None, _: dict = Depends(current_user)) -> list[
         return conn.execute(q + " ORDER BY created_at DESC", p).fetchall()
 
 
+# Guardar una ficha, sus fichas PDF y sus fotos vive en fichas.py, y cada operación es
+# una sola transacción: la conexión se abre aquí y se confirma al salir del `with`. Las
+# rutas sólo traducen HTTP; `NoExiste` sale como 404 y `DatoInvalido` como 422.
+@app.exception_handler(NoExiste)
+async def _no_existe(_: Request, e: NoExiste) -> JSONResponse:
+    return JSONResponse({"detail": str(e)}, status_code=404)
+
+
+@app.exception_handler(DatoInvalido)
+async def _dato_invalido(_: Request, e: DatoInvalido) -> JSONResponse:
+    return JSONResponse({"detail": str(e)}, status_code=422)
+
+
 @app.post("/api/fichas", status_code=201)
 def crear_ficha(body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    # Sin anuncio de origen es una propiedad que el equipo da de alta a mano en
-    # Inmobiliaria: lo mínimo es que tenga nombre, o la tarjeta sale en blanco.
-    if not body.get("source_listing_id") and not (body.get("titulo") or "").strip():
-        raise HTTPException(422, "El título es obligatorio")
     with POOL.connection() as conn:
-        # Una ficha por listing y por asesor: volver a crearla devuelve la existente.
-        if "fotos" in body:
-            body = dict(body, fotos=_fotos_validas(body["fotos"]))
-        return _insert(conn, "ficha", derivar_precio({}, _con_coordenada(body)), FICHA_COLS, user["id"],
-                       extra="ON CONFLICT (user_id, source_listing_id) "
-                             "DO UPDATE SET updated_at = now()")
+        return fichas.crear(conn, user["id"], body, resolver_mapa)
 
 
 @app.patch("/api/fichas/{fid}")
-def editar_ficha(fid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    if any(k in body for k in PRECIO_CAMPOS):
-        with POOL.connection() as conn:
-            try:
-                actual = conn.execute("SELECT precio, tamano_m2, precio_m2 FROM ficha WHERE id = %s",
-                                      (fid,)).fetchone()
-            except psycopg_errors.InvalidTextRepresentation:
-                actual = None
-        body = derivar_precio(actual or {}, body)
-    if "fotos" in body:
-        body = dict(body, fotos=_fotos_validas(body["fotos"]))
-    fila = _patch("ficha", fid, _con_coordenada(body), FICHA_COLS[1:], user)
-    if "fotos" in body:
-        # Una foto subida que ya no está en la lista se borra con su archivo: si no,
-        # quedaría guardada sin que nada la muestre.
-        with POOL.connection() as conn:
-            _limpiar_fotos(conn, fid)
-    return fila
+def editar_ficha(fid: str, body: dict = Body(...), _: dict = Depends(current_user)) -> dict:
+    with POOL.connection() as conn:
+        return fichas.editar(conn, fid, body, resolver_mapa)
 
 
 @app.delete("/api/fichas/{fid}", status_code=204)
-def borrar_ficha(fid: str, user: dict = Depends(current_user)) -> None:
-    _delete("ficha", fid, user)
-
-
-# ── Fichas guardadas ─────────────────────────────────────────────────────────
-# "Ficha-General" son los datos de la ficha; cada versión es una copia editable para
-# presentarla a un cliente (ver ficha_version en schema.sql).
-
-def _datos_version(d) -> dict:
-    if not isinstance(d, dict):
-        raise HTTPException(422, "datos debe ser un objeto")
-    d = {k: v for k, v in d.items() if k in VERSION_DATOS}
-    # Las fotos de una versión acaban en un `src`, igual que las de la ficha.
-    if d.get("fotos") is not None:
-        d["fotos"] = _fotos_validas(d["fotos"])
-    return d
-
-
-def _limpiar_fotos(conn, fid) -> None:
-    """Borra las fotos subidas de una ficha que ya nadie muestra: ni la ficha ni
-    ninguna de sus versiones. Desde el 2026-10-08 cada ficha PDF lleva su propia lista
-    (`ficha_version.datos.fotos`), así que quitar una foto de la General no puede
-    llevarse el archivo que otra versión sigue usando."""
-    conn.execute(
-        "DELETE FROM archivo a WHERE a.ficha_id = %s AND a.documento_id IS NULL "
-        "AND NOT (%s || a.id::text = ANY (SELECT unnest(fotos) FROM ficha WHERE id = %s)) "
-        "AND NOT EXISTS (SELECT 1 FROM ficha_version v WHERE v.ficha_id = %s "
-        "                AND v.datos -> 'fotos' ? (%s || a.id::text))",
-        (fid, RUTA_ARCHIVO, fid, fid, RUTA_ARCHIVO))
-
-
-VERSION_SELECT = """SELECT v.*, u.nombre AS autor, c.nombre AS cliente_nombre
-                    FROM ficha_version v
-                    LEFT JOIN usuario u ON u.id = v.user_id
-                    LEFT JOIN cliente c ON c.id = v.cliente_id"""
+def borrar_ficha(fid: str, _: dict = Depends(current_user)) -> None:
+    with POOL.connection() as conn:
+        fichas.borrar(conn, fid)
 
 
 @app.get("/api/fichas/{fid}/versiones")
 def versiones(fid: str, _: dict = Depends(current_user)) -> list[dict]:
     with POOL.connection() as conn:
         try:
-            return conn.execute(VERSION_SELECT + " WHERE v.ficha_id = %s ORDER BY v.created_at",
+            return conn.execute(fichas.VERSION_SELECT + " WHERE v.ficha_id = %s ORDER BY v.created_at",
                                 (fid,)).fetchall()
         except psycopg_errors.InvalidTextRepresentation:
             raise HTTPException(404, "No existe") from None
@@ -1157,46 +1056,20 @@ def versiones(fid: str, _: dict = Depends(current_user)) -> list[dict]:
 
 @app.post("/api/fichas/{fid}/versiones", status_code=201)
 def crear_version(fid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    nombre = (body.get("nombre") or "").strip()
-    if not nombre:
-        raise HTTPException(422, "El nombre de la ficha es obligatorio")
     with POOL.connection() as conn:
-        _owned(conn, "ficha", fid)
-        try:
-            fila = _insert(conn, "ficha_version",
-                           {"ficha_id": fid, "nombre": nombre[:80],
-                            "cliente_id": body.get("cliente_id"),
-                            "datos": _datos_version(body.get("datos") or {})},
-                           ("ficha_id", "nombre", "cliente_id", "datos"), user["id"])
-        except (psycopg_errors.ForeignKeyViolation, psycopg_errors.InvalidTextRepresentation):
-            raise HTTPException(422, "Ese cliente no existe") from None
-        return conn.execute(VERSION_SELECT + " WHERE v.id = %s", (fila["id"],)).fetchone()
+        return fichas.crear_version(conn, user["id"], fid, body)
 
 
 @app.patch("/api/versiones/{vid}")
-def editar_version(vid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
-    if "datos" in body:
-        body = dict(body, datos=_datos_version(body["datos"]))
-    if "nombre" in body and not (body["nombre"] or "").strip():
-        raise HTTPException(422, "El nombre de la ficha es obligatorio")
-    fila = _patch("ficha_version", vid, body, ("nombre", "datos"), user)
-    if "datos" in body:
-        with POOL.connection() as conn:
-            _limpiar_fotos(conn, fila["ficha_id"])
-    return fila
+def editar_version(vid: str, body: dict = Body(...), _: dict = Depends(current_user)) -> dict:
+    with POOL.connection() as conn:
+        return fichas.editar_version(conn, vid, body)
 
 
 @app.delete("/api/versiones/{vid}", status_code=204)
-def borrar_version(vid: str, user: dict = Depends(current_user)) -> None:
+def borrar_version(vid: str, _: dict = Depends(current_user)) -> None:
     with POOL.connection() as conn:
-        try:
-            v = conn.execute("DELETE FROM ficha_version WHERE id = %s RETURNING ficha_id",
-                             (vid,)).fetchone()
-        except psycopg_errors.InvalidTextRepresentation:
-            v = None
-        if not v:
-            raise HTTPException(404, "No existe")
-        _limpiar_fotos(conn, v["ficha_id"])
+        fichas.borrar_version(conn, vid)
 
 
 @app.get("/api/procesos")
@@ -1287,11 +1160,9 @@ def borrar_documento(did: str, user: dict = Depends(current_user)) -> None:
 # sólo imágenes y PDF se muestran en la pestaña, y todo lo demás baja como
 # `application/octet-stream` con `Content-Disposition: attachment`. Ver SECURITY.md.
 MAX_ARCHIVO = 20 * 1024 * 1024
-MAX_FOTOS = 40
-RUTA_ARCHIVO = "/api/archivos/"
+# MAX_FOTOS y RUTA_ARCHIVO vienen de fichas.py, que es quien arma la lista de fotos.
 MIME_FOTO = ("image/jpeg", "image/png", "image/webp", "image/gif")
 MIME_EN_LINEA = MIME_FOTO + ("application/pdf",)
-_FOTO_SUBIDA = re.compile(r"^/api/archivos/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
 
 
 def tipo_real(datos: bytes) -> str:
@@ -1313,16 +1184,6 @@ def nombre_archivo(crudo: str | None) -> str:
     """Sólo el nombre: sin ruta, sin caracteres de control, y nunca vacío."""
     n = re.sub(r"[\x00-\x1f\x7f]", "", (crudo or "")).replace("\\", "/").split("/")[-1].strip()
     return n[:150] or "archivo"
-
-
-def _fotos_validas(fotos) -> list[str]:
-    """`ficha.fotos` acepta ligas http(s) y fotos subidas, nada más: lo que entra aquí
-    acaba en un `src`."""
-    if not isinstance(fotos, list):
-        raise HTTPException(422, "fotos debe ser una lista")
-    ok = [f.strip() for f in fotos if isinstance(f, str)
-          and (re.match(r"^https?://", f.strip(), re.I) or _FOTO_SUBIDA.match(f.strip()))]
-    return list(dict.fromkeys(ok))[:MAX_FOTOS]
 
 
 async def _cuerpo(request: Request) -> bytes:
@@ -1372,55 +1233,36 @@ async def subir_archivo(did: str, request: Request, nombre: str = Query("", max_
     return await run_in_threadpool(guardar)
 
 
+async def _foto(request: Request) -> tuple[bytes, str]:
+    """La foto que viene en el cuerpo y su tipo real, o 415 si no es una imagen."""
+    datos = await _cuerpo(request)
+    mime = tipo_real(datos)
+    if mime not in MIME_FOTO:
+        raise HTTPException(415, "Sólo se aceptan imágenes JPG, PNG, WEBP o GIF")
+    return datos, mime
+
+
 @app.post("/api/fichas/{fid}/fotos", status_code=201)
 async def subir_foto(fid: str, request: Request, nombre: str = Query("", max_length=300),
                      user: dict = Depends(current_user)) -> dict:
     """Sube una foto y la agrega al final de `ficha.fotos`. Devuelve la ficha."""
-    datos = await _cuerpo(request)
-    if tipo_real(datos) not in MIME_FOTO:
-        raise HTTPException(415, "Sólo se aceptan imágenes JPG, PNG, WEBP o GIF")
+    datos, mime = await _foto(request)
 
     def guardar() -> dict:
         with POOL.connection() as conn:
-            _owned(conn, "ficha", fid)
-            # FOR UPDATE: dos fotos subidas a la vez no se pisan la lista una a otra.
-            n = conn.execute("SELECT cardinality(fotos) AS n FROM ficha WHERE id = %s FOR UPDATE",
-                             (fid,)).fetchone()["n"]
-            if n >= MAX_FOTOS:
-                raise HTTPException(422, f"Una propiedad acepta {MAX_FOTOS} fotos como máximo")
-            a = _guardar_archivo(conn, user["id"], fid, None, nombre, datos)
-            return conn.execute(
-                "UPDATE ficha SET fotos = array_append(fotos, %s), updated_at = now() "
-                "WHERE id = %s RETURNING *", (f"{RUTA_ARCHIVO}{a['id']}", fid)).fetchone()
+            return fichas.agregar_foto(conn, user["id"], fid, nombre_archivo(nombre), mime, datos)
     return await run_in_threadpool(guardar)
 
 
 @app.post("/api/versiones/{vid}/fotos", status_code=201)
 async def subir_foto_version(vid: str, request: Request, nombre: str = Query("", max_length=300),
                              user: dict = Depends(current_user)) -> dict:
-    """Sube una foto sólo para una ficha PDF: va al final de `datos.fotos` de esa
-    versión y no toca las de la ficha ni las de las otras. Devuelve la versión."""
-    datos = await _cuerpo(request)
-    if tipo_real(datos) not in MIME_FOTO:
-        raise HTTPException(415, "Sólo se aceptan imágenes JPG, PNG, WEBP o GIF")
+    """Sube una foto sólo para una ficha PDF. Devuelve la versión."""
+    datos, mime = await _foto(request)
 
     def guardar() -> dict:
         with POOL.connection() as conn:
-            try:
-                v = conn.execute("SELECT ficha_id, coalesce(datos -> 'fotos', '[]'::jsonb) AS fotos "
-                                 "FROM ficha_version WHERE id = %s FOR UPDATE", (vid,)).fetchone()
-            except psycopg_errors.InvalidTextRepresentation:
-                v = None
-            if not v:
-                raise HTTPException(404, "No existe")
-            if len(v["fotos"]) >= MAX_FOTOS:
-                raise HTTPException(422, f"Una ficha acepta {MAX_FOTOS} fotos como máximo")
-            a = _guardar_archivo(conn, user["id"], v["ficha_id"], None, nombre, datos)
-            conn.execute(
-                "UPDATE ficha_version SET datos = jsonb_set(datos, '{fotos}', %s), "
-                "updated_at = now() WHERE id = %s",
-                (Jsonb([*v["fotos"], f"{RUTA_ARCHIVO}{a['id']}"]), vid))
-            return conn.execute(VERSION_SELECT + " WHERE v.id = %s", (vid,)).fetchone()
+            return fichas.agregar_foto_version(conn, user["id"], vid, nombre_archivo(nombre), mime, datos)
     return await run_in_threadpool(guardar)
 
 
@@ -2049,17 +1891,17 @@ def selfcheck() -> None:
     assert ip_cliente(_Req({})) == "?"
 
     # Con dos de precio / superficie / $/m² sale el tercero, según cuál se escribió.
-    assert derivar_precio({"tamano_m2": 500}, {"precio": 250000}) == {"precio": 250000, "precio_m2": 500.0}
-    assert derivar_precio({"tamano_m2": 500}, {"precio_m2": 91.6}) == {"precio_m2": 91.6, "precio": 45800.0}
-    assert derivar_precio({"precio_m2": 100, "precio": 1}, {"tamano_m2": 300}) == {"tamano_m2": 300, "precio": 30000.0}
-    assert derivar_precio({"precio": 30000}, {"tamano_m2": 300}) == {"tamano_m2": 300, "precio_m2": 100.0}
-    assert derivar_precio({"precio": 30000}, {"precio_m2": 100}) == {"precio_m2": 100, "tamano_m2": 300.0}
-    assert derivar_precio({}, {"precio": 30000, "precio_m2": 100}) == {"precio": 30000, "precio_m2": 100, "tamano_m2": 300.0}
+    assert fichas.derivar_precio({"tamano_m2": 500}, {"precio": 250000}) == {"precio": 250000, "precio_m2": 500.0}
+    assert fichas.derivar_precio({"tamano_m2": 500}, {"precio_m2": 91.6}) == {"precio_m2": 91.6, "precio": 45800.0}
+    assert fichas.derivar_precio({"precio_m2": 100, "precio": 1}, {"tamano_m2": 300}) == {"tamano_m2": 300, "precio": 30000.0}
+    assert fichas.derivar_precio({"precio": 30000}, {"tamano_m2": 300}) == {"tamano_m2": 300, "precio_m2": 100.0}
+    assert fichas.derivar_precio({"precio": 30000}, {"precio_m2": 100}) == {"precio_m2": 100, "tamano_m2": 300.0}
+    assert fichas.derivar_precio({}, {"precio": 30000, "precio_m2": 100}) == {"precio": 30000, "precio_m2": 100, "tamano_m2": 300.0}
     # Lo que se mandó no se pisa; borrar no calcula; sin superficie no se divide.
-    assert derivar_precio({"tamano_m2": 500}, {"precio": 1000, "precio_m2": 7}) == {"precio": 1000, "precio_m2": 7}
-    assert derivar_precio({"tamano_m2": 500, "precio_m2": 9}, {"precio": None}) == {"precio": None}
-    assert derivar_precio({"tamano_m2": 0}, {"precio": 1000}) == {"precio": 1000}
-    assert derivar_precio({}, {"titulo": "x"}) == {"titulo": "x"}
+    assert fichas.derivar_precio({"tamano_m2": 500}, {"precio": 1000, "precio_m2": 7}) == {"precio": 1000, "precio_m2": 7}
+    assert fichas.derivar_precio({"tamano_m2": 500, "precio_m2": 9}, {"precio": None}) == {"precio": None}
+    assert fichas.derivar_precio({"tamano_m2": 0}, {"precio": 1000}) == {"precio": 1000}
+    assert fichas.derivar_precio({}, {"titulo": "x"}) == {"titulo": "x"}
 
     # La coordenada de una liga de Google Maps, en las formas en que llega. El pin
     # (!3d!4d) gana sobre el centro de la vista (@).
@@ -2091,13 +1933,13 @@ def selfcheck() -> None:
     assert nombre_archivo("C:\\Users\\a\\Predial 2026.pdf") == "Predial 2026.pdf"
     assert nombre_archivo(" \r\n ") == "archivo" and nombre_archivo(None) == "archivo"
     u = "/api/archivos/0b0e3c1a-1111-4222-8333-444455556666"
-    assert _fotos_validas(["https://x.mx/a.jpg", u, u, "javascript:alert(1)", "/api/me",
+    assert fichas.fotos_validas(["https://x.mx/a.jpg", u, u, "javascript:alert(1)", "/api/me",
                            u + "/../../me", 7]) == ["https://x.mx/a.jpg", u]
     # Una versión guarda sus propias fotos y su $/m²; lo demás de más se descarta y sus
     # fotos pasan por el mismo filtro que las de la ficha.
-    assert _datos_version({"precio_m2": 150, "fotos": [u, "javascript:x"], "user_id": 1}) == \
+    assert fichas.datos_version({"precio_m2": 150, "fotos": [u, "javascript:x"], "user_id": 1}) == \
         {"precio_m2": 150, "fotos": [u]}
-    assert "fotos" not in _datos_version({"titulo": "x"})
+    assert "fotos" not in fichas.datos_version({"titulo": "x"})
 
     # Quién ve los scrapers: la lista, sin importar mayúsculas; nadie más.
     assert ve_scrapers({"email": "Alex170800@Hotmail.com"})
