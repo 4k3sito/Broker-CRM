@@ -71,3 +71,19 @@
 # dominio, y añadir a la cabecera
 #   Strict-Transport-Security "max-age=31536000; includeSubDomains"
 # que hoy sería mentira: sin TLS, el navegador no podría volver a entrar.
+
+# Obsidian (contenedor aparte, /srv/obsidian). No es parte de OfficeLab: sólo
+# comparte este Caddy para tener TLS. La contraseña la pide el propio contenedor
+# (basic auth, /srv/obsidian/.env). sslip.io resuelve el nombre a la IP sin DNS;
+# con dominio propio basta cambiar esta línea.
+obsidian.31.220.56.100.sslip.io {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+	reverse_proxy obsidian:3000
+}
