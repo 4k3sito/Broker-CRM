@@ -379,7 +379,9 @@ class Pincali(Portal):
     routes = ("residential",)       # the WAF challenges the VPS IP forever
     impersonate = ("chrome131",)
     min_gap = 1.5                   # robots.txt asks for 1 s
-    detail_min_gap = 1.0            # the sweep keeps the 1.5 s it was validated at
+    # The detail keeps 1.5 s too. At 1.0 s (tried 2026-10-11) the first hour ran 1.3x
+    # faster and the second ran slower than before, with 21 galleries cut short in
+    # 490 listings against 7 in 13,000: the WAF challenges a faster visitor mid-token.
     key_parts = 2                   # rent and sale are separate searches of one listing
     needs_display = True
     # One visitor, on purpose. Four detail workers sharing the WAF token were
@@ -503,16 +505,22 @@ class Pincali(Portal):
         total, endpoint, token = gallery_size(html), gallery_endpoint(html), view_token(html)
         if not (endpoint and token) or len(listing.images) >= total:
             return
-        seen, offset = set(listing.images), len(listing.images)
+        seen, offset, retried = set(listing.images), len(listing.images), False
         while offset < min(total, GALLERY_CAP):
             try:
                 more = parse_images(self.get(
                     f, f"{BASE}{endpoint}?offset={offset}&view_token={quote(token, safe='')}",
                     listing.url, JSON, patient=False), listing.listingId)
             except Blocked:
-                log.warning("pincali %s: gallery stopped at %d of %d", listing.listingId,
-                            len(listing.images), total)
-                return
+                # Usually the WAF token turning over mid-gallery. One fresh token
+                # and one more try before settling for the photos already in hand.
+                if retried:
+                    log.warning("pincali %s: gallery stopped at %d of %d", listing.listingId,
+                                len(listing.images), total)
+                    return
+                retried = True
+                self.token.refresh()
+                continue
             if not more:
                 return
             listing.images += [u for u in more if u not in seen]
