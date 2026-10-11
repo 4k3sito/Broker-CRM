@@ -354,3 +354,23 @@ coordenada). La tabla `zona` trae los 2,475 municipios del país, no solo los 51
 León. El tablero pagina server-side; el payload
 bajó de ~25 MB a ~296 KB cuando el filtrado se movió a SQL. No reintroduzcas una carga
 completa al navegador.
+
+## Agent skills
+
+Configuración que leen las skills de ingeniería (`/triage`, `/to-spec`, `/to-tickets`,
+`/implement`, `/grill-with-docs`…). No sustituye a `PENDIENTES.md`, que sigue siendo canon.
+
+### Issue tracker
+
+Los issues y specs viven como markdown local bajo `.scratch/<función>/`, no en GitHub
+Issues (el VPS no tiene `gh`). Ver `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Las cinco etiquetas canónicas, sin renombrar: `needs-triage`, `needs-info`,
+`ready-for-agent`, `ready-for-human`, `wontfix`. Ver `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Un solo contexto: `CONTEXT.md` y `docs/adr/` en la raíz, que se crean cuando haga falta.
+Ver `docs/agents/domain.md`.
