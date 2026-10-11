@@ -2,60 +2,26 @@
 // (?ids=a,b,c) desde la bandeja del tablero; quitar una columna reescribe la URL
 // para que recargar o compartir el enlace muestre lo mismo.
 
-const STATUS_FROM_API = { new: 'Nuevo', reviewed: 'Revisado', contacted: 'Contactado', rented: 'Rentado', discarded: 'Descartado' };
-const TXN_FROM_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
-const FUENTES = { inmuebles24: 'Inmuebles24', lamudi: 'Lamudi', vivanuncios: 'Vivanuncios', mercadolibre: 'MercadoLibre',
-  pincali: 'Pincali', propiedadesmx: 'PropiedadesMX', propiedadesmexico: 'PropiedadesMX', easybroker: 'EasyBroker', metroscubicos: 'Metros²' };
-
-const mx = n => Number(n).toLocaleString('es-MX');
-
-function parseLocation(loc) {
-  if (loc == null) return null;
-  let v = loc;
-  if (typeof v === 'string') {
-    const s = v.trim();
-    if (!s.startsWith('{')) return s;
-    try { v = JSON.parse(s); } catch { return s; }
-  }
-  return (v && typeof v === 'object') ? (v.name ?? null) : null;
-}
-
-function adapt(l) {
-  // Precio total real: si el portal publicó $/m², se usa el total calculado.
-  const total = l.price_is_per_m2 ? (l.precio_total ?? null) : (l.price_numeric ?? null);
-  const size = l.property_size_m2 ?? null;
-  const [terreno, construccion] = ['Terreno', 'Construcción'].map(k => superficies(l.terreno_m2, l.construccion_m2, size).find(x => x[0] === k)?.[1] ?? null);
-  return {
-    id: l.id,
-    titulo: l.title ?? l.broker_name ?? 'Sin título',
-    direccion: parseLocation(l.location) ?? l.neighborhood ?? l.zona ?? null,
-    zona: l.zona ?? null,
-    fuente: FUENTES[l.source] ?? l.source ?? '—',
-    foto: l.images?.[0] ?? l.image ?? null,
-    precio: total,
-    ppm: total && size ? total / size : (l.price_is_per_m2 ? l.price_numeric : null),
-    size, terreno, construccion,
-    tipo: l.property_type ?? null,
-    txn: TXN_FROM_API[l.transaction_type] ?? 'Renta',
-    status: STATUS_FROM_API[l.status] ?? 'Nuevo',
-    starred: !!l.starred,
-    fotos: l.images?.length ?? (l.image ? 1 : 0),
-  };
+// El anuncio viene de anuncio.js; aquí sólo se le agrega lo que esta tabla compara.
+function adapt(fila) {
+  const l = Anuncio.de(fila);
+  const [terreno, construccion] = ['Terreno', 'Construcción'].map(k => superficies(l.terreno, l.construccion, l.size).find(x => x[0] === k)?.[1] ?? null);
+  return { ...l, titulo: l.titulo ?? 'Sin título', terreno, construccion };
 }
 
 // Filas: etiqueta, valor, formato y cuál gana (min/max). Sin `gana` no se resalta.
 const FILAS = [
-  { k: 'Precio',      v: l => l.precio, f: (v, l) => v != null ? `$${mx(Math.round(v))}${l.txn === 'Renta' ? '/mes' : ''}` : '—', cls: 'precio', gana: 'min' },
-  { k: '$ / m²',      v: l => l.ppm,    f: v => v != null ? `$${mx(Math.round(v))}` : '—', cls: 'mono', gana: 'min' },
+  { k: 'Precio',      v: Anuncio.total, f: (v, l) => v != null ? `$${mx(Math.round(v))}${l.transaccion === 'Renta' ? '/mes' : ''}` : '—', cls: 'precio', gana: 'min' },
+  { k: '$ / m²',      v: Anuncio.porMetro,    f: v => v != null ? `$${mx(Math.round(v))}` : '—', cls: 'mono', gana: 'min' },
   { k: 'Superficie',  v: l => l.size,   f: v => v != null ? `${mx(Math.round(v))} m²` : '—', cls: 'mono', gana: 'max' },
   { k: 'Terreno',      v: l => l.terreno,      f: v => v != null ? m2Txt(v) : '—', cls: 'mono', gana: 'max' },
   { k: 'Construcción', v: l => l.construccion, f: v => v != null ? m2Txt(v) : '—', cls: 'mono', gana: 'max' },
   { k: 'Tipo',        v: l => l.tipo,   f: v => v ? v[0].toUpperCase() + v.slice(1) : '—' },
-  { k: 'Operación',   v: l => l.txn,    f: v => v },
-  { k: 'Ubicación',   v: l => l.direccion, f: v => esc(v ?? '—') },
-  { k: 'Fotos',       v: l => l.fotos,  f: v => String(v), cls: 'mono', gana: 'max' },
+  { k: 'Operación',   v: l => l.transaccion, f: v => v ?? '—' },
+  { k: 'Ubicación',   v: Anuncio.ubicacion, f: v => esc(v ?? '—') },
+  { k: 'Fotos',       v: l => l.fotos.length,  f: v => String(v), cls: 'mono', gana: 'max' },
   { k: 'Estado',      v: l => l.status, f: v => `<span style="color:var(--s-${v.toLowerCase()});font-weight:700">${v}</span>` },
-  { k: 'Fuente',      v: l => l.fuente, f: v => esc(v), cls: 'mono' },
+  { k: 'Fuente',      v: l => Anuncio.fuente(l.fuente), f: v => esc(v), cls: 'mono' },
 ];
 
 let items = [];
@@ -91,8 +57,8 @@ function render() {
     <thead><tr><td></td>
       ${items.map(l => `<td>
         <div class="cmp-foto">
-          ${l.foto ? `<img src="${esc(l.foto)}" alt="">` : '<div class="card-img-blueprint"></div>'}
-          <span class="badge badge-src">${esc(l.fuente.toUpperCase())}</span>
+          ${l.fotos[0] ? `<img src="${esc(l.fotos[0])}" alt="">` : '<div class="card-img-blueprint"></div>'}
+          <span class="badge badge-src">${esc(Anuncio.fuente(l.fuente).toUpperCase())}</span>
           <button class="cmp-quitar" data-id="${esc(l.id)}" title="Quitar de la comparación">&times;</button>
         </div>
         <div class="cmp-nombre">${esc(l.titulo)}</div>

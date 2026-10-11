@@ -86,6 +86,13 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   `hrefSeguro`. Llegó a haber cinco copias de `esc` y por eso `listing.js` se olvidó de
   usarlo con datos de portales; todo lo que entre a `innerHTML` pasa por ahí, y todo
   `href` que venga de un anuncio o de un adjunto, por `hrefSeguro`.
+  **`anuncio.js` es el anuncio en el navegador, definido una vez** (2026-10-11): el objeto
+  `Anuncio` convierte la fila de la API en lo que pintan el tablero, la ficha y comparar
+  (`Anuncio.de`), y trae las reglas que dependen de él —`total`, `porMetro`,
+  `precioVisible`, `segundoPrecio`— y sus etiquetas (`ESTADOS`, `estadoApi`, `fuente`,
+  `ubicacion`). `precio` es el número que publicó el portal, con `moneda` aparte. No toca
+  la red ni el DOM; el marcado es de cada página. Una regla de precio o una fuente nueva
+  se cambia ahí y en ningún otro lado.
 - **`api/`** — FastAPI. `main.py` trae la auth propia (scrypt de la stdlib + sesiones
   opacas en la DB), los endpoints de zonas/CRM/tareas, `GET /api/scrapers`
   (agregados de `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers;
@@ -166,6 +173,7 @@ npm run dev                       # dev-server.js: sirve web/ en :3100 y proxya 
 npm run verificar                 # clases sin regla y marcas retiradas, en las 8 páginas
 npm run verificar:selfcheck       # las trampas del verificador, sin tocar el sitio
 npm run probar:api                # las pruebas de la API que necesitan base (ver abajo)
+npm run probar:web                # las pruebas de web/anuncio.js (node --test, sin dependencias)
 
 # API (en el VPS)
 ssh officelab 'cd /srv/officelab/vps && docker compose exec -T api python main.py selfcheck'
@@ -200,10 +208,16 @@ toca producción ni el esquema `dev`, y tarda menos de un minuto. `main.py selfc
 sigue siendo lo que corre sin base. Las pruebas preguntan por la interfaz del módulo y
 miran lo que contesta, nunca el texto del SQL: córrelas después de tocar `inventario.py`.
 
-El frontend tiene un solo chequeo automatizado, `npm run verificar` (`web/verificar.py`,
-ver `DESIGN.md` §6): clases sin regla en `hermes.css` y marcas del sistema terracota.
-**Reporta y sale con 0** — no es una compuerta, y no mira layout ni comportamiento. Todo
-lo demás se sigue verificando con un navegador contra el sitio real (ver abajo).
+`npm run probar:web` (`pruebas/web/`) son las pruebas del frontend que no necesitan
+navegador: cargan `texto.js` y `anuncio.js` como scripts clásicos, igual que la página,
+y preguntan por la interfaz de `Anuncio`. Viven fuera de `web/` para que Caddy no las
+sirva. Córrelas después de tocar `anuncio.js`.
+
+El marcado y el layout tienen un solo chequeo automatizado, `npm run verificar`
+(`web/verificar.py`, ver `DESIGN.md` §6): clases sin regla en `hermes.css` y marcas del
+sistema terracota. **Reporta y sale con 0** — no es una compuerta, y no mira layout ni
+comportamiento. Todo lo demás se sigue verificando con un navegador contra el sitio real
+(ver abajo).
 
 ## Verificar cambios de frontend
 
