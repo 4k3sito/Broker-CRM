@@ -292,6 +292,9 @@ VIVA_STATES = (
 
 class Vivanuncios(Navent):
     name = "vivanuncios"
+    # 15-16 of the account's 27 datacenter IPs pass DataDome here (2026-10-11); ten
+    # extra visitors leave room for the ones it turns away mid-run.
+    detail_datacenter = 10
     base = "https://www.vivanuncios.com.mx"
     impersonate = ("chrome142",)
     # (category root as the site's sitemap spells it, operation)
