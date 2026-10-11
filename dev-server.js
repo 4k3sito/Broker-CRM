@@ -11,6 +11,9 @@ const path = require('path');
 // la API de la copia de trabajo (vps/docker-compose.dev.yml), que es lo que hay que usar
 // cuando el cambio también toca endpoints.
 const VPS = process.env.API || 'http://31.220.56.100';
+// El 3000 de siempre lo ocupa Obsidian desde el 2026-10-05 (127.0.0.1:3000-3001, ver
+// /srv/obsidian): por eso el 3100. `PORT=… npm run dev` lo cambia sin tocar el archivo.
+const PUERTO = Number(process.env.PORT) || 3100;
 const ROOT = path.join(__dirname, 'web');
 const TIPOS = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 
@@ -33,4 +36,10 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': TIPOS[path.extname(ruta)] || 'application/octet-stream' });
     res.end(datos);
   });
-}).listen(3000, () => console.log(`http://localhost:3000  (proxy /api -> ${VPS})`));
+}).listen(PUERTO, () => console.log(`http://localhost:${PUERTO}  (proxy /api -> ${VPS})`))
+  .on('error', err => {
+    console.error(err.code === 'EADDRINUSE'
+      ? `El puerto ${PUERTO} está ocupado. Prueba con otro: PORT=3200 npm run dev`
+      : `No se pudo levantar: ${err.message}`);
+    process.exit(1);
+  });

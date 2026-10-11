@@ -39,10 +39,6 @@ trabajo.
   Probado con navegador a 1440 y 390 px contra la API de desarrollo.
 Lo que apareció y **no se tocó**:
 
-- **`npm run dev` ya no levanta: el puerto 3000 lo ocupa Obsidian** (127.0.0.1:3000,
-  desde el 2026-10-05) y `dev-server.js` lo trae fijo. La verificación de hoy sirvió
-  los estáticos desde el navegador automatizado. Hay que darle otro puerto y corregir
-  `CLAUDE.md` y `README.md`, que siguen diciendo `:3000`.
 - **`vps/schema.sql` no reconstruye una base vacía de una sola pasada.** `user_listing`
   (línea 59) nombra a `usuario` (línea 573) y varios `ALTER` nombran a `tarea` antes de
   que existan. A la segunda pasada entra completo, y eso hace `api/probar.sh`. Sólo
