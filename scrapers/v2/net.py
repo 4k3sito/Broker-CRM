@@ -132,6 +132,51 @@ def residential_template() -> str | None:
             f":{env['PASSWORD']}@proxy.apify.com:8000")
 
 
+def datacenter_template() -> str | None:
+    """Apify datacenter proxies: a fixed group of IPs paid per IP, not per GB.
+    `DATACENTER_GROUP` in scrapers/.env names the group; the password is the
+    account's. Tested 2026-10-11 with 27 IPs: Vivanuncios and Lamudi each accept
+    15-16 of them; Mercado Libre answers its account wall and Inmuebles24 403s all."""
+    env = _env_file()
+    group = os.environ.get("DATACENTER_GROUP") or env.get("DATACENTER_GROUP")
+    if not group or not env.get("PASSWORD"):
+        return None
+    return f"http://groups-{group},session-{{session}}:{env['PASSWORD']}@proxy.apify.com:8000"
+
+
+# Datacenter exits. A session name pins one IP of the group, and several names can
+# land on the same IP, so the names are resolved once into one name per distinct IP.
+# Each portal then hands every exit to at most one fetcher (two visitors on one IP
+# is twice the rate) and remembers the ones that portal refuses.
+_DC_LOCK = threading.Lock()
+_DC_EXITS: list[str] | None = None
+_DC_USED: dict[str, set[str]] = {}
+_DC_BAD: dict[str, set[str]] = {}
+
+
+def _dc_exits(template: str) -> list[str]:
+    global _DC_EXITS
+    if _DC_EXITS is None:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def ip_of(name: str) -> tuple[str, str | None]:
+            proxy = template.format(session=name)
+            try:
+                return name, cffi.get("https://api.ipify.org", proxies={"https": proxy},
+                                      impersonate="chrome131", timeout=20).text.strip()
+            except Exception:  # noqa: BLE001
+                return name, None
+        with ThreadPoolExecutor(12) as pool:
+            found = list(pool.map(ip_of, [f"dc{i}" for i in range(80)]))
+        by_ip: dict[str, str] = {}
+        for name, ip in found:
+            if ip:
+                by_ip.setdefault(ip, name)
+        _DC_EXITS = sorted(by_ip.values(), key=lambda n: int(n[2:]))
+        log.info("datacenter: %d distinct exit IPs", len(_DC_EXITS))
+    return _DC_EXITS
+
+
 def _decoder(encoding: str) -> Callable[[bytes], bytes]:
     """Decompressor for a Content-Encoding."""
     enc = (encoding or "").strip().lower()
@@ -163,6 +208,10 @@ class Fetcher:
         self.impersonate, self.min_gap = tuple(impersonate), min_gap
         self.block_re, self.tries = block_re, tries
         self._last = 0.0
+        self._dc_template = datacenter_template() if "datacenter" in self.routes else None
+        self._dc_exit: str | None = None
+        if "datacenter" in self.routes and not self._dc_template:
+            raise Blocked("no datacenter proxy configured: scrapers/.env has no DATACENTER_GROUP")
         self._template = residential_template() if "residential" in self.routes else None
         if "residential" in self.routes and not self._template:
             if self.routes == ("residential",):
@@ -190,6 +239,26 @@ class Fetcher:
         self._imp = random.choice(pool)
         self._proxy = (self._template.format(session=random.randbytes(6).hex())
                        if self._template and "{session}" in self._template else self._template)
+        if getattr(self, "_dc_template", None):
+            self._take_exit()
+
+    def _take_exit(self, refused: bool = False) -> None:
+        """Swap this fetcher's datacenter IP for one nobody else on the portal holds.
+        `refused` retires the current one for this portal for the rest of the run."""
+        with _DC_LOCK:
+            used = _DC_USED.setdefault(self.portal, set())
+            bad = _DC_BAD.setdefault(self.portal, set())
+            if self._dc_exit:
+                used.discard(self._dc_exit)
+                if refused:
+                    bad.add(self._dc_exit)
+            free = [e for e in _dc_exits(self._dc_template) if e not in used and e not in bad]
+            if not free:
+                self._dc_exit = None
+                raise Blocked(f"{self.portal}: no datacenter exit left "
+                              f"({len(bad)} refused, {len(used)} in use)")
+            self._dc_exit = free[0]
+            used.add(self._dc_exit)
 
     def _climb(self, why: str) -> bool:
         level = _LEVEL.get(self.portal, 0)
@@ -212,7 +281,8 @@ class Fetcher:
     # -- one request --------------------------------------------------------
     def _once(self, url: str, referer, headers, accept, reject) -> Page:
         route = self.route
-        proxy = self._proxy if route == "residential" else None
+        proxy = (self._proxy if route == "residential" else
+                 self._dc_template.format(session=self._dc_exit) if route == "datacenter" else None)
         hdrs = {"Accept-Encoding": ACCEPT_ENCODING, **(headers or {})}
         self._pace()
         try:
@@ -263,6 +333,13 @@ class Fetcher:
                 # paying for the proxy. On the proxy a new identity is a new
                 # visitor: rotate and go again, climb when out of tries.
                 direct = self.route == "direct"
+                if self.route == "datacenter":
+                    # The portal refused this IP, not this browser build: retire the
+                    # exit for the portal and carry on from another one.
+                    self._take_exit(refused=True)       # raises when none is left
+                    self.sess = cffi.Session()
+                    attempt += 1
+                    continue
                 if len(self.impersonate) > 1:
                     _REFUSED.setdefault(self.portal, set()).add(self._imp)
                 if attempt == self.tries - 1:
@@ -307,3 +384,28 @@ def selfcheck() -> None:
     h.rotate()
     assert "t2" not in _REFUSED, "when every build is refused the slate is wiped"
     _REFUSED.pop("t2", None)
+    # datacenter exits: one per fetcher per portal, a refused one never comes back
+    global _DC_EXITS
+    saved, _DC_EXITS = _DC_EXITS, ["dc0", "dc1", "dc2"]
+    try:
+        a = Fetcher.__new__(Fetcher)
+        b = Fetcher.__new__(Fetcher)
+        for x in (a, b):
+            x.portal, x._dc_template, x._dc_exit = "t3", "http://x-{session}", None
+        a._take_exit(); b._take_exit()
+        assert {a._dc_exit, b._dc_exit} == {"dc0", "dc1"}
+        a._take_exit(refused=True)
+        assert a._dc_exit == "dc2" and _DC_BAD["t3"] == {"dc0"}
+        try:
+            a._take_exit(refused=True)
+            raise AssertionError("with every exit refused or taken the fetcher must stop")
+        except Blocked:
+            pass
+        other = Fetcher.__new__(Fetcher)
+        other.portal, other._dc_template, other._dc_exit = "t4", "http://x-{session}", None
+        other._take_exit()
+        assert other._dc_exit == "dc0", "a refusal by one portal says nothing about another"
+    finally:
+        _DC_EXITS = saved
+        for k in ("t3", "t4"):
+            _DC_USED.pop(k, None); _DC_BAD.pop(k, None)
