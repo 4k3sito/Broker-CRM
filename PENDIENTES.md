@@ -7,6 +7,27 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Guardar una ficha en una sola operación — **en la rama `fichas`, sin fusionar** (2026-10-11)
+
+`api/fichas.py` junta todo lo que escribe una ficha, sus fichas PDF y sus fotos. Editar
+una ficha eran hasta tres transacciones (leer el precio, guardar, limpiar fotos) y ahora
+es una, con la fila bloqueada mientras se calcula el número que falta. Las rutas y el
+frontend no cambiaron.
+
+- **Probado:** 19 pruebas nuevas (`api/prueba_fichas.py`) y las 20 del inventario pasan
+  en `npm run probar:api`; `selfcheck` en verde. Además, 70 peticiones HTTP iguales contra
+  la API anterior y la nueva sobre una base desechable: 68 respuestas idénticas.
+- **Las 2 que cambian, a propósito:** un número mal escrito al editar (`precio`, `lat`…)
+  contesta 422 «Valor no permitido» en vez de 404 «No existe».
+- **No se probó con navegador ni contra el esquema `dev`**: la API de la copia de trabajo
+  no se reconstruyó, porque `/srv/officelab-dev` tiene trabajo sin confirmar de otra
+  sesión (duplicados) sobre el mismo `api/main.py`.
+- **Falta:** fusionar `fichas` a `desarrollo` cuando ese trabajo esté confirmado (va a
+  haber que resolver `main.py` y el `COPY` del `Dockerfile` a mano), reconstruir
+  `api-dev` y recorrer la ficha y Clientes en el navegador. La copia aparte está en
+  `/srv/officelab-fichas` (`git worktree remove` cuando se fusione). Desplegarlo pide
+  `docker compose up -d --build api`.
+
 ## El anuncio en el navegador, definido una vez — **en `desarrollo`, sin desplegar** (2026-10-11)
 
 `web/anuncio.js` (objeto `Anuncio`) junta lo que tablero, ficha y comparar repetían para
