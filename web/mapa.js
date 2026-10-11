@@ -47,12 +47,19 @@ const Mapa = (() => {
     // tablero al encuadrar los resultados no traen `originalEvent` ni `usuario`.
     map.on('moveend', e => {
       if (!seguir || !opts.onMove || !(e.originalEvent || e.usuario)) return;
-      const c = map.getCenter(), b = map.getBounds();
-      const radio = Math.round(metros({ lat: c.lat, lng: c.lng }, { lat: c.lat, lng: b.getEast() }) / 100) * 100;
-      opts.onMove({ lat: c.lat, lng: c.lng, radio: Math.max(500, Math.min(12000, radio)) });
+      opts.onMove(area());
     });
     document.getElementById('mapMas')?.addEventListener('click', () => map.zoomIn({}, { usuario: true }));
     document.getElementById('mapMenos')?.addEventListener('click', () => map.zoomOut({}, { usuario: true }));
+  }
+
+  // Lo que el mapa enseña, como lo pide el filtro `near`/`radio`: el centro y la mitad
+  // del ancho visible, acotada a lo que acepta el control de radio. null sin mapa.
+  function area() {
+    if (!map) return null;
+    const c = map.getCenter(), b = map.getBounds();
+    const radio = Math.round(metros({ lat: c.lat, lng: c.lng }, { lat: c.lat, lng: b.getEast() }) / 100) * 100;
+    return { lat: c.lat, lng: c.lng, radio: Math.max(500, Math.min(12000, radio)) };
   }
 
   function pintar(lista) {
@@ -88,7 +95,7 @@ const Mapa = (() => {
   }
 
   return {
-    init, pintar, resaltar,
+    init, pintar, resaltar, area,
     seguir: v => { seguir = v; },
     resize: () => { map?.resize(); },
   };

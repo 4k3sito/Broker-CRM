@@ -1,29 +1,43 @@
 # Pendientes
 
-Estado al **2026-10-05**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-10-11**. Es una foto, no la verdad: verifica antes de actuar.
 Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
 
 - *(nada)*
 
-## La búsqueda de inventario salió de `main.py` — **en la rama `inventario`, sin fusionar** (2026-10-11)
+## Inventario en su módulo, bajas escondidas y la Bolsa abre en Monterrey — **en `desarrollo`, sin desplegar** (2026-10-11)
 
-Refactor sin cambio de comportamiento: `api/inventario.py` tiene ahora todo lo que el
-tablero y `/api/v1` le preguntan a `listings`, y `npm run probar:api` lo prueba contra un
-PostGIS desechable (19 pruebas). Comprobado además contra los datos reales, viejo contra
-nuevo en el mismo momento: 161 de 161 respuestas idénticas (4,772 filas) y 22 de 22
-peticiones HTTP con el mismo código y el mismo cuerpo. **Para desplegar hace falta
-reconstruir `api`** (el `Dockerfile` copia un archivo más).
+- **`api/inventario.py`**: todo lo que el tablero y `/api/v1` le preguntan a `listings`,
+  detrás de `buscar` / `contar` / `uno`. Refactor sin cambio de comportamiento,
+  comprobado viejo contra nuevo sobre los datos reales (161 de 161 respuestas idénticas,
+  22 de 22 peticiones HTTP). `npm run probar:api` corre 20 pruebas contra un PostGIS
+  desechable.
+- **El tablero ya no ofrece anuncios dados de baja** (eran 52,018 con `activo = false`).
+  Dos excepciones: lo que el propio asesor marcó, destacó o anotó —su "Rentado" no
+  desaparece porque el portal retiró el anuncio— y el Catálogo, que no esconde nada.
+  Abrir uno por su liga sigue funcionando. La consulta sin filtros pasó de ~350 a
+  ~490 ms (medido en producción, sólo lectura).
+- **La Bolsa abre buscando en el mapa, en Monterrey.** "Buscar al mover el mapa" viene
+  marcado y la primera búsqueda es lo que el mapa enseña (`OL_CONFIG.centro`, ~11 km en
+  escritorio, ~7 km en teléfono): 30,086 anuncios en vez de 588,664. Apagarlo se
+  recuerda en ese navegador (`ol-mapa-seguir`). No aplica en el Catálogo —sus
+  propiedades casi nunca traen coordenada— ni al llegar con los criterios de un cliente.
+  Probado con navegador a 1440 y 390 px contra la API de desarrollo.
+- **Para desplegar hace falta reconstruir `api`** (el `Dockerfile` copia un archivo
+  más), además del `git pull`.
 
-Lo que apareció al escribir las pruebas y **no se tocó**, a propósito:
+Lo que apareció y **no se tocó**:
 
-- **El tablero enseña anuncios dados de baja.** `/api/listings` no filtra por `activo`
-  (con llave sí: `/api/v1` los esconde salvo `inactivos=true`) y la fila ni siquiera
-  trae el dato, así que el frontend no puede marcarlos. Medido hoy: 52,018 con
-  `activo = false`. En los 700 más recientes no hay ninguno —ordenan al final—, pero
-  un filtro angosto los trae. Es decisión de producto: esconderlos, o enseñarlos
-  marcados. La prueba `el_tablero_sin_filtros` fija lo que pasa hoy.
+- **El chip de Ubicación dice "Todo México" mientras el mapa filtra a Monterrey.** El
+  filtro de cercanía sale en su propio chip ("Radio: a 10.9 km de el centro del
+  mapa"), pero las dos frases juntas se contradicen. Ya pasaba al marcar la casilla;
+  ahora es lo primero que se ve.
+- **`npm run dev` ya no levanta: el puerto 3000 lo ocupa Obsidian** (127.0.0.1:3000,
+  desde el 2026-10-05) y `dev-server.js` lo trae fijo. La verificación de hoy sirvió
+  los estáticos desde el navegador automatizado. Hay que darle otro puerto y corregir
+  `CLAUDE.md` y `README.md`, que siguen diciendo `:3000`.
 - **`vps/schema.sql` no reconstruye una base vacía de una sola pasada.** `user_listing`
   (línea 59) nombra a `usuario` (línea 573) y varios `ALTER` nombran a `tarea` antes de
   que existan. A la segunda pasada entra completo, y eso hace `api/probar.sh`. Sólo
