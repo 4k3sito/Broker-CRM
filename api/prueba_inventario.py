@@ -25,6 +25,7 @@ ALSEA, OXXO = "00000000-0000-4000-8000-0000000000c1", "00000000-0000-4000-8000-0
 F_BODEGA = "00000000-0000-4000-8000-0000000000f1"     # ficha del anuncio vivanuncios:B1
 F_PROPIA = "00000000-0000-4000-8000-0000000000f2"     # ficha propia, presentada a OXXO
 F_SUELTA = "00000000-0000-4000-8000-0000000000f3"     # ficha propia que nadie ha visto
+F_BAJA = "00000000-0000-4000-8000-0000000000f4"       # ficha de un anuncio que ya se dio de baja
 PROPIA, SUELTA = f"pipeline:{F_PROPIA}", f"pipeline:{F_SUELTA}"
 
 MONTERREY, SAN_PEDRO, DEL_VALLE, GUADALUPE, GUADALUPE_ZAC = 1, 2, 3, 4, 5
@@ -44,7 +45,11 @@ ZONAS = [   # id, tipo, nombre, estado, padre
 L1, T1, D1, B1, U1, X1, R1, V1, N1 = ("lamudi:L1", "lamudi:T1", "pincali:D1", "vivanuncios:B1",
                                       "mercadolibre:U1", "inmuebles24:X1", "mercadolibre:R1",
                                       "lamudi:V1", "lamudi:N1")
-TODOS = [L1, T1, D1, B1, U1, X1, R1, V1, N1]
+Z1 = "inmuebles24:Z1"
+# Lo vigente es lo que ve un asesor que no ha tocado nada; lo dado de baja (X1, Z1) sólo
+# sale a quien lo pide con llave, a quien le lleva seguimiento, o en el Catálogo.
+VIGENTES = [L1, T1, D1, B1, U1, R1, V1, N1]
+CON_BAJAS = [L1, T1, D1, B1, U1, X1, R1, V1, Z1, N1]
 
 ANUNCIOS = [
     # Un local en renta común y corriente, en el centro de Monterrey. $150/m².
@@ -74,6 +79,9 @@ ANUNCIOS = [
     # Dice "valle" pero no "del": buscar "del valle" no debe traerlo.
     dict(id=V1, title="Local Valle Oriente", operation="rent", price=15000, area_m2=100,
          property_type="Local Comercial", zona_id=GUADALUPE, dia=3),
+    # Dado de baja también, pero el equipo ya lo trabajaba: tiene ficha.
+    dict(id=Z1, title="Bodega que se rentó", operation="rent", price=50000, area_m2=600,
+         property_type="Bodega", zona_id=MONTERREY, dia=2, activo=False),
     # Sin precio, sin superficie, sin operación y sin fecha.
     dict(id=N1, title="Terreno sin datos", property_type="Terreno"),
 ]
@@ -109,12 +117,16 @@ def sembrar(conn) -> None:
                      (uid, f"{nombre.lower()}@example.mx", nombre))
     # El seguimiento es de cada asesor: Ana y Beto opinan distinto del mismo local.
     conn.execute("INSERT INTO user_listing (user_id, listing_id, status, starred) VALUES "
-                 "(%s, %s, 'contacted', true), (%s, %s, 'discarded', false), (%s, %s, 'reviewed', false)",
-                 (ANA, L1, ANA, B1, BETO, L1))
+                 "(%s, %s, 'contacted', true), (%s, %s, 'discarded', false), (%s, %s, 'reviewed', false), "
+                 # Beto marcó como rentado el local que después se dio de baja.
+                 "(%s, %s, 'rented', false)",
+                 (ANA, L1, ANA, B1, BETO, L1, BETO, X1))
     conn.execute("INSERT INTO cliente (id, user_id, nombre) VALUES (%s, %s, 'ALSEA'), (%s, %s, 'OXXO')",
                  (ALSEA, ANA, OXXO, ANA))
     conn.execute("INSERT INTO ficha (id, user_id, source_listing_id, titulo) VALUES (%s, %s, %s, 'Bodega industrial')",
                  (F_BODEGA, ANA, B1))
+    conn.execute("INSERT INTO ficha (id, user_id, source_listing_id, titulo) VALUES (%s, %s, %s, 'Bodega que se rentó')",
+                 (F_BAJA, ANA, Z1))
     # Ficha propia cotizada por metro: $150/m² × 2,000 m². El asesor le fijó el punto.
     conn.execute("INSERT INTO ficha (id, user_id, titulo, tipo, municipio, precio_m2, tamano_m2, lat, lng) "
                  "VALUES (%s, %s, 'Bodega propia', 'Bodega', 'Guadalupe', 150, 2000, 25.68, -100.25)",
@@ -141,10 +153,27 @@ def invalido(conn, **filtros) -> None:
 
 
 def el_tablero_sin_filtros(conn):
-    """Todo el inventario, de lo visto más recientemente a lo más viejo."""
-    assert ids(conn, Asesor(ANA)) == TODOS
+    """El inventario vigente, de lo visto más recientemente a lo más viejo."""
+    assert ids(conn, Asesor(ANA)) == VIGENTES
     r = inventario.buscar(conn, Asesor(ANA), {})
-    assert (r["total"], r["page"], r["per_page"]) == (9, 1, 70)
+    assert (r["total"], r["page"], r["per_page"]) == (8, 1, 70)
+
+
+def lo_dado_de_baja_se_esconde(conn):
+    """Un anuncio que ningún barrido devuelve ya no se ofrece… salvo a quien le llevaba
+    seguimiento (el estado es del asesor, no del portal) y en el Catálogo, donde el
+    equipo ya lo trabaja."""
+    assert X1 not in ids(conn, Asesor(ANA)) and Z1 not in ids(conn, Asesor(ANA))
+    assert ids(conn, Asesor(ANA), tipo=["local"], operacion="rent", lugar=[f"m{MONTERREY}"]) == [L1]
+    # Beto lo marcó como rentado: lo sigue viendo, y lo encuentra por ese estado.
+    assert ids(conn, Asesor(BETO)) == [L1, T1, D1, B1, U1, X1, R1, V1, N1]
+    assert ids(conn, Asesor(BETO), estado="rented") == [X1]
+    assert ids(conn, Asesor(ANA), estado="rented") == []
+    # Una liga guardada lo sigue abriendo: esconder no es borrar.
+    assert inventario.uno(conn, Asesor(ANA), X1)["title"] == "Local que ya no existe"
+    # Con ficha, sigue en el Catálogo aunque el portal lo haya retirado; en la Bolsa no.
+    assert Z1 in ids(conn, Asesor(ANA), ficha="con")
+    assert Z1 not in ids(conn, Asesor(ANA), ficha="sin")
 
 
 def la_busqueda_pide_cada_palabra(conn):
@@ -157,19 +186,19 @@ def los_lugares_se_suman(conn):
     """Municipio y colonia se unen con O: elegir los dos trae lo de cualquiera."""
     assert ids(conn, Asesor(ANA), lugar=[f"m{SAN_PEDRO}"]) == [T1, D1]
     assert ids(conn, Asesor(ANA), lugar=[f"c{DEL_VALLE}"]) == [D1]
-    assert ids(conn, Asesor(ANA), lugar=[f"m{MONTERREY}", f"c{DEL_VALLE}"]) == [L1, D1, B1, U1, X1]
+    assert ids(conn, Asesor(ANA), lugar=[f"m{MONTERREY}", f"c{DEL_VALLE}"]) == [L1, D1, B1, U1]
     assert ids(conn, Asesor(ANA), zona="San Pedro Garza García") == [T1, D1]
     for malo in (["basura"], ["m"], ["40"], [f"m{i}" for i in range(21)]):
         invalido(conn, lugar=malo)
 
 
 def la_operacion_incluye_la_oferta_alterna(conn):
-    assert ids(conn, Asesor(ANA), operacion="rent") == [L1, D1, B1, X1, V1]
+    assert ids(conn, Asesor(ANA), operacion="rent") == [L1, D1, B1, V1]
     assert ids(conn, Asesor(ANA), operacion="sale") == [T1, D1, U1, R1]
 
 
 def el_tipo_es_el_normalizado(conn):
-    assert ids(conn, Asesor(ANA), tipo=["local"]) == [L1, D1, U1, X1, V1]
+    assert ids(conn, Asesor(ANA), tipo=["local"]) == [L1, D1, U1, V1]
     assert ids(conn, Asesor(ANA), tipo=["bodega", "terreno"]) == [T1, B1, R1, N1]
     assert ids(conn, Asesor(ANA), fuente=["lamudi"]) == [L1, T1, V1, N1]
     invalido(conn, tipo=["edificio"])
@@ -177,16 +206,16 @@ def el_tipo_es_el_normalizado(conn):
 
 def el_precio_es_el_total(conn):
     """Un terreno a $700/m² con 10,000 m² cuesta 7 millones: no cabe en "hasta $30,000"."""
-    assert ids(conn, Asesor(ANA), precio_max=30000) == [L1, X1, V1]
+    assert ids(conn, Asesor(ANA), precio_max=30000) == [L1, V1]
     assert ids(conn, Asesor(ANA), precio_min=6000000) == [T1]
-    assert ids(conn, Asesor(ANA), orden="precio_desc") == [T1, D1, R1, U1, B1, L1, X1, V1, N1]
-    assert ids(conn, Asesor(ANA), orden="precio_asc")[:3] == [V1, X1, L1]
+    assert ids(conn, Asesor(ANA), orden="precio_desc") == [T1, D1, R1, U1, B1, L1, V1, N1]
+    assert ids(conn, Asesor(ANA), orden="precio_asc")[:3] == [V1, L1, B1]
 
 
 def con_operacion_el_precio_es_el_de_esa_operacion(conn):
     """El local en venta por 5 millones también se renta en 40 mil: pidiendo renta, cabe."""
-    assert ids(conn, Asesor(ANA), precio_max=45000) == [L1, X1, V1]
-    assert ids(conn, Asesor(ANA), precio_max=45000, operacion="rent") == [L1, D1, X1, V1]
+    assert ids(conn, Asesor(ANA), precio_max=45000) == [L1, V1]
+    assert ids(conn, Asesor(ANA), precio_max=45000, operacion="rent") == [L1, D1, V1]
     assert ids(conn, Asesor(ANA), precio_min=1000000, operacion="sale") == [T1, D1, R1]
 
 
@@ -202,7 +231,7 @@ def la_superficie_que_se_pide(conn):
     assert ids(conn, Asesor(ANA), m2_min=900, m2_de="construccion") == []
     assert ids(conn, Asesor(ANA), m2_min=700, m2_de="construccion") == [B1]
     assert ids(conn, Asesor(ANA), m2_min=5000, m2_de="terreno") == [T1]
-    assert ids(conn, Asesor(ANA), m2_max=150) == [U1, X1, V1]
+    assert ids(conn, Asesor(ANA), m2_max=150) == [U1, V1]
 
 
 def cerca_de_un_punto(conn):
@@ -224,10 +253,10 @@ def el_seguimiento_es_de_cada_asesor(conn):
 
 def la_bolsa_y_el_catalogo(conn):
     """Bolsa: lo que nadie trabaja. Catálogo: anuncios con ficha y fichas propias."""
-    assert ids(conn, Asesor(ANA), ficha="sin") == [L1, T1, D1, U1, X1, R1, V1, N1]
-    assert sorted(ids(conn, Asesor(ANA), ficha="con")) == sorted([B1, PROPIA, SUELTA])
+    assert ids(conn, Asesor(ANA), ficha="sin") == [L1, T1, D1, U1, R1, V1, N1]
+    assert sorted(ids(conn, Asesor(ANA), ficha="con")) == sorted([B1, PROPIA, SUELTA, Z1])
     # Las fichas propias se filtran igual que un anuncio.
-    assert sorted(ids(conn, Asesor(ANA), ficha="con", tipo=["bodega"])) == sorted([B1, PROPIA])
+    assert sorted(ids(conn, Asesor(ANA), ficha="con", tipo=["bodega"])) == sorted([B1, PROPIA, Z1])
     assert ids(conn, Asesor(ANA), ficha="con", lugar=[f"m{GUADALUPE}"]) == [PROPIA]
     assert ids(conn, Asesor(ANA), ficha="con", lugar=[f"m{GUADALUPE_ZAC}"]) == []
     # Y su precio por metro también se mide por el total: $150 × 2,000 m² = 300 mil.
@@ -240,13 +269,13 @@ def cliente_y_etapa_en_el_mismo_proceso(conn):
     assert ids(conn, Asesor(ANA), ficha="con", etapa=["presentado"]) == [PROPIA]
     assert ids(conn, Asesor(ANA), ficha="con", pcliente=ALSEA, etapa=["presentado"]) == []
     assert ids(conn, Asesor(ANA), ficha="con", pcliente=ALSEA, etapa=["negociacion", "presentado"]) == [B1]
-    assert ids(conn, Asesor(ANA), ficha="con", sin_cliente=True) == [SUELTA]
+    assert sorted(ids(conn, Asesor(ANA), ficha="con", sin_cliente=True)) == sorted([SUELTA, Z1])
 
 
 def las_paginas(conn):
     r = inventario.buscar(conn, Asesor(ANA), {}, page=2, per_page=4)
-    assert [x["id"] for x in r["items"]] == [U1, X1, R1, V1]
-    assert (r["total"], r["page"], r["per_page"]) == (9, 2, 4)
+    assert [x["id"] for x in r["items"]] == [U1, R1, V1, N1]
+    assert (r["total"], r["page"], r["per_page"]) == (8, 2, 4)
     try:
         inventario.buscar(conn, Asesor(ANA), {}, orden="al azar")
         raise AssertionError("un orden desconocido debió rechazarse")
@@ -257,14 +286,15 @@ def las_paginas(conn):
 def los_contadores(conn):
     """A cuántos llegarías por estado y por fuente, con los demás filtros puestos."""
     c = inventario.contar(conn, Asesor(ANA), {})
-    assert (c["total"], c["destacados"]) == (9, 1)
-    assert c["por_estado"] == {"contacted": 1, "discarded": 1, "new": 7}
-    assert c["por_fuente"] == {"lamudi": 4, "mercadolibre": 2, "pincali": 1, "vivanuncios": 1, "inmuebles24": 1}
-    assert inventario.contar(conn, Asesor(BETO), {})["por_estado"] == {"reviewed": 1, "new": 8}
+    assert (c["total"], c["destacados"]) == (8, 1)
+    assert c["por_estado"] == {"contacted": 1, "discarded": 1, "new": 6}
+    assert c["por_fuente"] == {"lamudi": 4, "mercadolibre": 2, "pincali": 1, "vivanuncios": 1}
+    # Beto cuenta también el dado de baja que él marcó como rentado.
+    assert inventario.contar(conn, Asesor(BETO), {})["por_estado"] == {"reviewed": 1, "rented": 1, "new": 7}
     c = inventario.contar(conn, Asesor(ANA), {"operacion": "rent", "tipo": ["local"]})
-    assert (c["total"], c["por_estado"]) == (4, {"contacted": 1, "new": 3})
+    assert (c["total"], c["por_estado"]) == (3, {"contacted": 1, "new": 2})
     c = inventario.contar(conn, Asesor(ANA), {"ficha": "con"})
-    assert (c["total"], c["por_fuente"]) == (3, {"vivanuncios": 1, "pipeline": 2})
+    assert (c["total"], c["por_fuente"]) == (4, {"vivanuncios": 1, "pipeline": 2, "inmuebles24": 1})
     try:
         inventario.contar(conn, Asesor(ANA), {"tipo": ["edificio"]})
         raise AssertionError("un tipo desconocido debió rechazarse")
@@ -305,9 +335,9 @@ def el_punto_de_relleno_se_calla(conn):
 
 def con_llave_solo_el_inventario(conn):
     """Otro programa lee los anuncios vigentes y nada del CRM ni del seguimiento."""
-    vigentes = [x for x in TODOS if x != X1]
+    vigentes = VIGENTES
     assert ids(conn, Llave()) == vigentes
-    assert ids(conn, Llave(), inactivos=True) == TODOS
+    assert ids(conn, Llave(), inactivos=True) == CON_BAJAS
     assert ids(conn, Llave(), desde=datetime(2026, 10, 8, tzinfo=timezone.utc)) == [L1, T1, D1]
     assert ids(conn, Llave(), operacion="rent", precio_max=45000) == [L1, D1, V1]
     r = inventario.buscar(conn, Llave(), {}, per_page=3)
@@ -323,7 +353,7 @@ def con_llave_solo_el_inventario(conn):
     assert inventario.uno(conn, Llave(), X1)["activo"] is False
 
 
-PRUEBAS = [el_tablero_sin_filtros, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
+PRUEBAS = [el_tablero_sin_filtros, lo_dado_de_baja_se_esconde, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
            la_operacion_incluye_la_oferta_alterna, el_tipo_es_el_normalizado, el_precio_es_el_total,
            con_operacion_el_precio_es_el_de_esa_operacion, el_precio_por_metro,
            la_superficie_que_se_pide, cerca_de_un_punto, el_seguimiento_es_de_cada_asesor,

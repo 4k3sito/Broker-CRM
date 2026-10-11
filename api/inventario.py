@@ -10,9 +10,10 @@ tres operaciones:
 `quien` decide tres cosas a la vez, y por eso no son tres parámetros: qué filtros
 existen, de dónde se lee y qué columnas salen.
 
-    Asesor(id)   el tablero. Ve el inventario y, con `ficha=con`, el Catálogo: los
-                 anuncios con ficha y las fichas propias, que se leen como un anuncio
-                 más. Cada fila trae SU seguimiento (estado, destacado, notas).
+    Asesor(id)   el tablero. Ve el inventario vigente y, con `ficha=con`, el Catálogo:
+                 los anuncios con ficha y las fichas propias, que se leen como un anuncio
+                 más. Cada fila trae SU seguimiento (estado, destacado, notas). Lo dado
+                 de baja no sale, salvo lo que él mismo sigue y lo que está en Catálogo.
     Llave()      otro programa. Sólo `listings`, sólo lo vigente salvo que pida lo
                  contrario, y nada del CRM: un filtro del CRM aquí no existe.
 
@@ -345,6 +346,14 @@ def _consulta(quien, filtros: dict) -> tuple[str, list]:
             p.append(filtros["desde"])
         return f"FROM listings l LEFT JOIN zona z ON z.id = l.zona_id WHERE {' AND '.join(w) or 'TRUE'}", p
     w, p = _filtros(filtros)
+    # Lo dado de baja se esconde: un anuncio que ningún barrido devuelve ya no se ofrece.
+    # Dos excepciones. Lo que ESTE asesor marcó, destacó o anotó lo sigue viendo —el
+    # estado es del asesor, no del portal: su "Rentado" no desaparece porque el portal
+    # retiró el anuncio—. Y el Catálogo no esconde nada: ahí el equipo ya lo trabaja.
+    # `uno()` tampoco filtra: una liga guardada lo sigue abriendo.
+    if filtros.get("ficha") != "con":
+        w.append("(l.activo IS NOT FALSE OR ul.starred IS TRUE OR ul.status <> 'new' "
+                 "OR nullif(ul.notes, '') IS NOT NULL)")
     where = ("WHERE " + " AND ".join(w)) if w else ""
     # El LEFT JOIN de user_listing va parametrizado por usuario: el estado es privado.
     return (f"""FROM {_origen(filtros.get("ficha"))}
