@@ -7,6 +7,30 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## El anuncio en el navegador, definido una vez — **en `desarrollo`, sin desplegar** (2026-10-11)
+
+`web/anuncio.js` (objeto `Anuncio`) junta lo que tablero, ficha y comparar repetían para
+preparar un anuncio; `mx` pasó a `texto.js`. 23 pruebas en `npm run probar:web`.
+Comprobado con navegador en la copia de trabajo, versión anterior contra nueva, a 1440 y
+390 px: Bolsa, Catálogo, ocho fichas y dos comparaciones pintan el mismo texto salvo
+tres cambios, los dos primeros decididos:
+
+- **La ficha anota el $/m² del segundo precio**, como ya hacía el tablero:
+  «También en venta: $75,153,827 ($1,850/m²)».
+- **Comparar ya no llama «Renta» a una ficha propia sin operación**: la fila Operación
+  dice «—» y su precio pierde el «/mes» que nadie había dicho.
+- En comparar la fuente de una ficha propia dice «Pipeline» (antes «pipeline», en
+  minúsculas, porque su tabla de fuentes no la traía).
+
+Es sólo `web/`: desplegarlo no pide reconstruir la API.
+
+**Encontrado y no tocado:** asignar a un cliente desde la bandeja del tablero crea la
+ficha con el precio publicado (`fichaDe` en `app.js`), y la ficha con el total
+(`asegurarFicha` en `listing.js`, que a su vez no manda la construcción). En un anuncio
+publicado por m² la ficha creada desde el tablero nace con $700 en vez de 7.5 MDP.
+Escribe en la base, así que quedó igual que estaba; el arreglo es una línea
+(`Anuncio.total(l)`) cuando se decida.
+
 ## Inventario en su módulo, bajas escondidas y la Bolsa abre en Monterrey — **en producción desde el 2026-10-11**
 
 Desplegado con el commit `b414531` de `produccion` (los seis commits de `desarrollo` por
