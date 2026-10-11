@@ -64,8 +64,13 @@ class Portal:
     # independent, so unlike a sweep's keyset they parallelise cleanly.
     detail_datacenter = 0
 
+    # Pause between detail requests when it differs from the sweep's.
+    detail_min_gap: float | None = None
+
     def detail_fetchers(self) -> list[Fetcher]:
         out = [self.fetcher() for _ in range(max(1, self.workers))]
+        for f in out:
+            f.min_gap = self.detail_min_gap or f.min_gap
         for _ in range(self.detail_datacenter):
             try:
                 out.append(Fetcher(self.name, ("datacenter",), self.impersonate,

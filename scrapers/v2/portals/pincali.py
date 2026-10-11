@@ -379,6 +379,7 @@ class Pincali(Portal):
     routes = ("residential",)       # the WAF challenges the VPS IP forever
     impersonate = ("chrome131",)
     min_gap = 1.5                   # robots.txt asks for 1 s
+    detail_min_gap = 1.0            # the sweep keeps the 1.5 s it was validated at
     key_parts = 2                   # rent and sale are separate searches of one listing
     needs_display = True
     # One visitor, on purpose. Four detail workers sharing the WAF token were
