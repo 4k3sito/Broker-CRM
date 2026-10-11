@@ -39,6 +39,16 @@ exact, lot and construction m² separately, description, amenities, photos, and
 | Inmuebles24 | residential | 403s the VPS IP outright |
 | Pincali | residential | AWS WAF challenges the VPS IP forever |
 
+**Datacenter IPs for the detail queue.** The Apify account has a group of 27
+datacenter IPs paid per IP, not per GB (`DATACENTER_GROUP` in `scrapers/.env`).
+Tested 2026-10-11 with real detail pages: Vivanuncios and Lamudi each accept 15–16
+of them (the rest 403), Mercado Libre answers its account-verification wall and
+Inmuebles24 403s all 27. So the detail of Vivanuncios and Lamudi runs with ten
+extra visitors, one IP each, same pause each: 12,500 and 6,900 listings an hour
+against 1,200 from the VPS alone. An IP a portal refuses is retired for that
+portal for the run; a visitor left without an IP stops and the others carry on.
+Sweeps do not use them.
+
 A portal lists its routes cheapest-first (`routes = ("direct", "residential")`).
 All of its requests start on the first; a block climbs one rung for the rest of
 the run, and after 30 minutes it steps back down to re-test the cheap one. So the

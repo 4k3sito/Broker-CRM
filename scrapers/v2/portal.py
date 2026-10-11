@@ -59,6 +59,22 @@ class Portal:
     def fetcher(self) -> Fetcher:
         return Fetcher(self.name, self.routes, self.impersonate, self.min_gap, self.block_re)
 
+    # Extra visitors for the detail queue, each leaving through its own datacenter
+    # IP (paid per IP, not per GB). 0 = the sweep's fetchers only. Detail pages are
+    # independent, so unlike a sweep's keyset they parallelise cleanly.
+    detail_datacenter = 0
+
+    def detail_fetchers(self) -> list[Fetcher]:
+        out = [self.fetcher() for _ in range(max(1, self.workers))]
+        for _ in range(self.detail_datacenter):
+            try:
+                out.append(Fetcher(self.name, ("datacenter",), self.impersonate,
+                                   self.min_gap, self.block_re))
+            except Blocked as exc:          # not configured, or no exit left
+                log.info("%s: %s", self.name, exc)
+                break
+        return out
+
     def shards(self, mode: str) -> list[str]:
         raise NotImplementedError
 
@@ -296,9 +312,14 @@ def run_detail(portal: Portal, rows: list[dict], max_mb: float = 0.0,
         return bool((max_mb and net.billed_mb() - base_mb >= max_mb) or
                     (max_minutes and time.monotonic() - started >= max_minutes * 60))
 
-    def worker(part: list[dict]) -> None:
-        f = portal.fetcher()
-        for row in part:
+    queue = iter(rows)          # shared: a visitor that loses its exit strands nothing
+
+    def worker(f: Fetcher) -> None:
+        while True:
+            with lock:
+                row = next(queue, None)
+            if row is None:
+                return
             if stop.is_set() or over_budget():
                 stop.set()
                 return
@@ -321,6 +342,8 @@ def run_detail(portal: Portal, rows: list[dict], max_mb: float = 0.0,
                 with lock:
                     stats["errors"] += 1
                 log.error("%s detail %s: %s", portal.name, row["listingId"], exc)
+                if f.routes == ("datacenter",) and f._dc_exit is None:
+                    return                  # this visitor ran out of IPs; the rest go on
                 continue
             if patch is None:
                 continue
@@ -329,11 +352,11 @@ def run_detail(portal: Portal, rows: list[dict], max_mb: float = 0.0,
                 sink.write(json.dumps(patch, ensure_ascii=False) + "\n")
                 sink.flush()
 
-    n = max(1, min(portal.workers, len(rows) or 1))
+    fetchers = portal.detail_fetchers()[: max(1, len(rows))]
     with out.open("a", encoding="utf-8") as sink:
         try:
-            with ThreadPoolExecutor(n) as pool:
-                list(pool.map(worker, [rows[i::n] for i in range(n)]))
+            with ThreadPoolExecutor(len(fetchers)) as pool:
+                list(pool.map(worker, fetchers))
         except KeyboardInterrupt:
             stop.set()
             code[0] = 130

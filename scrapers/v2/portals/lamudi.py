@@ -223,6 +223,7 @@ def parse_detail(html: str, row: dict) -> Listing:
 
 class Lamudi(Portal):
     name = "lamudi"
+    detail_datacenter = 10      # 15-16 of 27 datacenter IPs pass its gate (2026-10-11)
     base = "https://www.lamudi.com.mx"
     impersonate = ("chrome142",)
     searches = [("comercial", "for-sale"), ("comercial", "for-rent"), ("terreno", "for-sale"),
