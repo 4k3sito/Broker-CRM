@@ -25,6 +25,8 @@ const FUENTE_CONFIG = {
 // la pestaña sigue siendo `inmobiliaria`: así se llamó en pantalla hasta el 2026-10-06.
 const TAB = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
 const INMO = TAB === 'inmobiliaria';
+// Cómo se llama la vista con que abre el mapa (config.js).
+const CENTRO_NOMBRE = window.OL_CONFIG?.centroNombre ?? 'Monterrey';
 try { sessionStorage.setItem('ol-tab', TAB); } catch { /* sin persistencia */ }
 document.title = `${INMO ? 'Catálogo' : 'Bolsa Inmobiliaria'} · OfficeLab`;
 
@@ -560,7 +562,11 @@ const fbNum = v => {
 const fbImporte = v => { const n = fbNum(v); return n ? mx(n) : ''; };
 
 const fbResumen = {
-  ubicacion: () => !F.lugares.length ? 'Todo México'
+  // Sin lugares elegidos pero buscando cerca de un punto, "Todo México" sería mentira:
+  // manda el mapa (o el punto que se escribió en el filtro de radio).
+  ubicacion: () => !F.lugares.length
+      ? (!F.near ? 'Todo México' : F.nearTxt === CENTRO_NOMBRE ? `${CENTRO_NOMBRE} (mapa)`
+         : F.nearTxt ? 'Zona del mapa' : 'Cerca de un punto')
     : F.lugares.length === 1 ? F.lugares[0].nombre
     : `${F.lugares[0].nombre} +${F.lugares.length - 1}`,
   precio: () => {
@@ -576,7 +582,7 @@ const fbResumen = {
 };
 
 const fbPuesto = {
-  ubicacion: () => F.lugares.length > 0,
+  ubicacion: () => F.lugares.length > 0 || !!F.near,
   precio: () => !!(F.operacion || F.precio_min || F.precio_max),
   tipo: () => F.tipos.length > 0,
   cliente: () => !!F.pcliente,
@@ -748,7 +754,9 @@ function fbAplicar() {
 }
 
 function fbQuitar(k) {
-  if (k === 'ubicacion') F.lugares = [];
+  // Con lugares elegidos la ✕ quita los lugares; sin ellos, lo que el chip dice es el
+  // filtro de cercanía, y es eso lo que quita.
+  if (k === 'ubicacion') { if (F.lugares.length) F.lugares = []; else { F.near = ''; F.nearTxt = ''; } }
   if (k === 'tipo') F.tipos = [];
   if (k === 'cliente') F.pcliente = '';
   if (k === 'etapa') F.etapas = [];
@@ -979,10 +987,11 @@ Mapa.init(document.getElementById('map'), {
   onPinHover: id => document.querySelectorAll('.card').forEach(c => c.classList.toggle('on', c.dataset.id === id)),
   onMove: a => { buscarEnElMapa(a); page = 1; render(); },
 });
-// Lo que el mapa enseña se vuelve el filtro de cercanía.
-function buscarEnElMapa({ lat, lng, radio }) {
+// Lo que el mapa enseña se vuelve el filtro de cercanía. `de` es cómo se le dice a ese
+// punto: al abrir es la vista de fábrica y tiene nombre; después de moverlo, ya no.
+function buscarEnElMapa({ lat, lng, radio }, de = 'el centro del mapa') {
   F.near = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  F.nearTxt = 'el centro del mapa';
+  F.nearTxt = de;
   F.radio = radio;
 }
 // "Buscar al mover el mapa" viene marcado, y el mapa abre en Monterrey
@@ -1234,7 +1243,7 @@ API.me().then(async () => {
   // Se abre buscando en lo que el mapa enseña, si el mapa está a la vista. Con los
   // criterios de un cliente no: sus lugares mandan, y el mapa encuadra lo que salga.
   if (F.cliente) seguirMapa(false);
-  else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area()) buscarEnElMapa(Mapa.area());
+  else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area()) buscarEnElMapa(Mapa.area(), CENTRO_NOMBRE);
   await render();
   if (!INMO) avisarFrescura();
 }).catch(err => {

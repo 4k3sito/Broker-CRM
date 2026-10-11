@@ -4,5 +4,6 @@ window.OL_CONFIG = {
   // Teléfono de oficina que aparece en la ficha PDF de Pro Realtors.
   oficinaTel: '8125074607',
   centro: [-100.36, 25.66],   // [lng, lat] Monterrey / San Pedro
+  centroNombre: 'Monterrey',  // cómo se le dice a esa vista en los filtros
   zoom: 11,
 };
