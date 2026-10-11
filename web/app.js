@@ -1027,12 +1027,13 @@ document.getElementById('trayCliente').addEventListener('focus', cargarClientes)
 document.getElementById('trayCliente').addEventListener('mousedown', cargarClientes);
 
 // Un proceso cuelga de una ficha, no del anuncio. Si el inmueble aún no tiene
-// ficha, se crea con los datos del anuncio (igual que el botón de la ficha).
+// ficha, se crea con los datos del anuncio (igual que el botón de la ficha). El precio
+// es el total: en un anuncio publicado por m², el publicado sería $700 por un terreno.
 async function fichaDe(l) {
   const fs = await API.get(`/fichas?listing=${encodeURIComponent(l.id)}`).catch(() => []);
   if (fs[0]) return fs[0];
   return API.post('/fichas', {
-    source_listing_id: l.id, titulo: l.titulo, precio: l.precio,
+    source_listing_id: l.id, titulo: l.titulo, precio: Anuncio.total(l),
     moneda: l.moneda, tamano_m2: l.size, fotos: l.fotos,
     construccion_m2: l.construccion && l.construccion !== l.size ? l.construccion : null,
   });
