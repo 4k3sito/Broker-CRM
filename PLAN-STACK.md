@@ -292,7 +292,7 @@ formas estaba planeado, y en ningún momento hay una migración grande en vuelo.
 Independiente de todo lo anterior; puede ir antes o después de E0. Es la respuesta a la
 pregunta de los micro-frontends (§2.2), puesta donde el acoplamiento sí existe.
 
-- [x] **Inventario fuera de `main.py`** (2026-10-11, rama `inventario`). No es todavía
+- [x] **Inventario fuera de `main.py`** (2026-10-11). No es todavía
       un router: es el módulo que iría detrás de él. `api/inventario.py` tiene las reglas
       de búsqueda detrás de `buscar` / `contar` / `uno`, y las cinco rutas se quedaron en
       `main.py` traduciendo HTTP. Trajo lo que E5 pedía para `selfcheck` —probar un

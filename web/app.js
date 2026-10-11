@@ -977,14 +977,26 @@ Mapa.init(document.getElementById('map'), {
     setTimeout(() => card.classList.remove('on'), 1600);
   },
   onPinHover: id => document.querySelectorAll('.card').forEach(c => c.classList.toggle('on', c.dataset.id === id)),
-  onMove: ({ lat, lng, radio }) => {
-    F.near = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    F.nearTxt = 'el centro del mapa';
-    F.radio = radio;
-    page = 1; render();
-  },
+  onMove: a => { buscarEnElMapa(a); page = 1; render(); },
 });
-document.getElementById('mapFollow').addEventListener('change', e => Mapa.seguir(e.target.checked));
+// Lo que el mapa enseña se vuelve el filtro de cercanía.
+function buscarEnElMapa({ lat, lng, radio }) {
+  F.near = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  F.nearTxt = 'el centro del mapa';
+  F.radio = radio;
+}
+// "Buscar al mover el mapa" viene marcado, y el mapa abre en Monterrey
+// (OL_CONFIG.centro): la Bolsa arranca con lo que hay ahí y no con el inventario
+// nacional. Quien lo apague lo encuentra apagado la próxima vez. Sólo en la Bolsa: las
+// propiedades del Catálogo casi nunca traen coordenada y buscar por cercanía las
+// escondería.
+const mapFollow = document.getElementById('mapFollow');
+function seguirMapa(v) { mapFollow.checked = v; Mapa.seguir(v); }
+seguirMapa(!INMO && (() => { try { return localStorage.getItem('ol-mapa-seguir'); } catch { return null; } })() !== 'no');
+mapFollow.addEventListener('change', e => {
+  Mapa.seguir(e.target.checked);
+  if (!INMO) try { localStorage.setItem('ol-mapa-seguir', e.target.checked ? 'si' : 'no'); } catch { /* sin persistencia */ }
+});
 
 // ── Selección, bandeja y acciones en lote ────────────────────────────────────
 
@@ -1219,6 +1231,10 @@ API.me().then(async () => {
     await cargarClientes();
     if (url.get('pcliente')) F.pcliente = url.get('pcliente');
   }
+  // Se abre buscando en lo que el mapa enseña, si el mapa está a la vista. Con los
+  // criterios de un cliente no: sus lugares mandan, y el mapa encuadra lo que salga.
+  if (F.cliente) seguirMapa(false);
+  else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area()) buscarEnElMapa(Mapa.area());
   await render();
   if (!INMO) avisarFrescura();
 }).catch(err => {
