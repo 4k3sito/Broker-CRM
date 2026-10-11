@@ -151,7 +151,12 @@ def datacenter_template() -> str | None:
 _DC_LOCK = threading.Lock()
 _DC_EXITS: list[str] | None = None
 _DC_USED: dict[str, set[str]] = {}
-_DC_BAD: dict[str, set[str]] = {}
+_DC_BAD: dict[str, dict[str, list]] = {}       # portal -> exit -> [refusals, last time]
+# A refusal is usually DataDome's rate challenge, not a ban: probed while a run had
+# "retired" 23 of 27 IPs for Vivanuncios, 14 of them answered again. So a refused
+# exit rests and comes back; only one refused three times is out for the run.
+DC_REST_S = 600.0
+DC_STRIKES = 3
 
 
 def _dc_exits(template: str) -> list[str]:
@@ -247,16 +252,19 @@ class Fetcher:
         `refused` retires the current one for this portal for the rest of the run."""
         with _DC_LOCK:
             used = _DC_USED.setdefault(self.portal, set())
-            bad = _DC_BAD.setdefault(self.portal, set())
+            bad = _DC_BAD.setdefault(self.portal, {})
+            now = time.monotonic()
             if self._dc_exit:
                 used.discard(self._dc_exit)
                 if refused:
-                    bad.add(self._dc_exit)
-            free = [e for e in _dc_exits(self._dc_template) if e not in used and e not in bad]
+                    strikes = bad.get(self._dc_exit, [0, 0.0])[0] + 1
+                    bad[self._dc_exit] = [strikes, now]
+            resting = {e for e, (n, t) in bad.items() if n >= DC_STRIKES or now - t < DC_REST_S}
+            free = [e for e in _dc_exits(self._dc_template) if e not in used and e not in resting]
             if not free:
                 self._dc_exit = None
                 raise Blocked(f"{self.portal}: no datacenter exit left "
-                              f"({len(bad)} refused, {len(used)} in use)")
+                              f"({len(resting)} resting or out, {len(used)} in use)")
             self._dc_exit = free[0]
             used.add(self._dc_exit)
 
@@ -395,7 +403,7 @@ def selfcheck() -> None:
         a._take_exit(); b._take_exit()
         assert {a._dc_exit, b._dc_exit} == {"dc0", "dc1"}
         a._take_exit(refused=True)
-        assert a._dc_exit == "dc2" and _DC_BAD["t3"] == {"dc0"}
+        assert a._dc_exit == "dc2" and _DC_BAD["t3"]["dc0"][0] == 1
         try:
             a._take_exit(refused=True)
             raise AssertionError("with every exit refused or taken the fetcher must stop")
@@ -405,6 +413,17 @@ def selfcheck() -> None:
         other.portal, other._dc_template, other._dc_exit = "t4", "http://x-{session}", None
         other._take_exit()
         assert other._dc_exit == "dc0", "a refusal by one portal says nothing about another"
+        _DC_BAD["t3"]["dc0"][1] -= DC_REST_S + 1        # its rest is over
+        c = Fetcher.__new__(Fetcher)
+        c.portal, c._dc_template, c._dc_exit = "t3", "http://x-{session}", None
+        c._take_exit()
+        assert c._dc_exit == "dc0", "a rested exit comes back"
+        _DC_BAD["t3"]["dc0"] = [DC_STRIKES, 0.0]
+        try:
+            c._take_exit()
+            raise AssertionError("three refusals put an exit out for the run")
+        except Blocked:
+            pass
     finally:
         _DC_EXITS = saved
         for k in ("t3", "t4"):
