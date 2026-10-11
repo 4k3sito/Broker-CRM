@@ -232,6 +232,28 @@ al pedir las fuentes a Google.
 
 ---
 
+### Obsidian detrás del mismo Caddy (2026-10-05, en git desde el 2026-10-11)
+
+`obsidian.31.220.56.100.sslip.io` es un segundo sitio en el Caddyfile: la bóveda de
+Obsidian con la memoria del proyecto (`/srv/obsidian`, contenedor aparte, imagen
+`lscr.io/linuxserver/obsidian`). No es parte de OfficeLab; comparte el Caddy para tener
+TLS. El bloque estuvo seis días puesto en el servidor sin commit.
+
+- **Es el único sitio del VPS con TLS**: `sslip.io` resuelve el nombre a la IP y Caddy
+  le saca certificado solo. OfficeLab sigue en claro por IP (H2 no cambia).
+- **La contraseña la pide el contenedor** (basic auth, credenciales en
+  `/srv/obsidian/.env`, fuera de este repo). Sin ellas responde 401 — comprobado el
+  2026-10-11. Caddy no agrega otra capa ni límite de intentos: es una contraseña sola
+  frente a internet.
+- **Lo que hay detrás es un escritorio completo**, no una página: quien entre maneja
+  Obsidian dentro del contenedor y puede leer y escribir `/srv/obsidian/config` (la
+  bóveda). El contenedor no es privilegiado y no monta nada más del host.
+- **Está en la red de Docker de OfficeLab** (`officelab_default`), que es lo que deja a
+  Caddy alcanzarlo. Eso también le deja alcanzar `db:5432` y `api:8000` por dentro, sin
+  pasar por Caddy. La base sigue pidiendo su contraseña, que el contenedor no tiene.
+- Sus puertos 3000-3001 sólo escuchan en `127.0.0.1`: desde fuera, el único camino es
+  Caddy.
+
 ### Endpoints (2026-09-01)
 
 `GET /api/scrapers` se suma a la lista. Como todo lo demás salvo `/api/health` y el
