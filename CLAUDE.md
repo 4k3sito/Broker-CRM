@@ -61,7 +61,7 @@ lo que está corriendo. El trabajo nuevo va en la copia:
 
 ```bash
 git worktree list                      # las dos copias y en qué rama está cada una
-cd /srv/officelab-dev && npm run dev    # la copia, en el :3000; producción no la ve
+cd /srv/officelab-dev && npm run dev    # la copia, en el :3100; producción no la ve
 ```
 
 Dos cosas que conviene tener presentes. Sin `API=http://127.0.0.1:8001`, `dev-server.js`
@@ -162,7 +162,7 @@ Los `.dc.html` sueltos en la raíz del repo son de julio y describen un sistema
 ## Comandos
 
 ```bash
-npm run dev                       # dev-server.js: sirve web/ en :3000 y proxya /api al VPS
+npm run dev                       # dev-server.js: sirve web/ en :3100 y proxya /api al VPS
 npm run verificar                 # clases sin regla y marcas retiradas, en las 8 páginas
 npm run verificar:selfcheck       # las trampas del verificador, sin tocar el sitio
 npm run probar:api                # las pruebas de la API que necesitan base (ver abajo)

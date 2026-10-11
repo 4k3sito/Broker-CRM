@@ -58,7 +58,7 @@ apretando una sola.
 ## Desarrollo
 
 ```bash
-npm run dev      # sirve web/ en http://localhost:3000 contra la API del VPS
+npm run dev      # sirve web/ en http://localhost:3100 contra la API del VPS
 npm run verificar  # el sistema de diseño: clases sin regla y marcas retiradas
 npm run probar:api # las pruebas de la API que ejecutan SQL, contra un PostGIS desechable
 ```
@@ -78,7 +78,7 @@ El servidor tiene **dos copias del repo** y no da lo mismo cuál se toque:
 
 ```bash
 git worktree list                     # las dos copias y su rama
-cd /srv/officelab-dev && npm run dev   # previsualizar en el :3000
+cd /srv/officelab-dev && npm run dev   # previsualizar en el :3100
 ```
 
 Por defecto el previsualizador reenvía `/api` a la **API de producción**, que sirve

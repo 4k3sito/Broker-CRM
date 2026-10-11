@@ -1,6 +1,6 @@
 """Prueba de la barra de filtros con un navegador de verdad.
 
-    OL_URL=http://127.0.0.1:3000 python web/verificar_navegador.py <capturas/> <correo> <contraseña>
+    OL_URL=http://127.0.0.1:3100 python web/verificar_navegador.py <capturas/> <correo> <contraseña>
 
 Es el complemento de `verificar.py`, que sólo mira clases y marcado estático. Aquí se
 inicia sesión, se lee el DOM con `page.evaluate()` **y se guardan capturas**, porque
@@ -22,7 +22,7 @@ import os
 import sys
 from patchright.sync_api import sync_playwright
 
-BASE = os.environ.get("OL_URL", "http://127.0.0.1:3000")
+BASE = os.environ.get("OL_URL", "http://127.0.0.1:3100")
 SALIDA = sys.argv[1]
 fallos = []
 
