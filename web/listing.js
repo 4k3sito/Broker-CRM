@@ -516,24 +516,9 @@ function render() {
         </details>
       </section>
 
-      ${PRESENTA_A ? '' : `<section class="fx-card" id="ctoCard">
-        <h2>Contacto <span class="fx-n">de quién tenemos el inmueble</span></h2>
-        ${(ficha?.contactos ?? []).map((c, i) => `<div class="fx-cto" data-i="${i}">
-            <select class="cto-in" data-k="rol" aria-label="Dueño o asesor">
-              ${ROLES_CTO.map(([v, t]) => `<option value="${v}"${(c.rol ?? 'dueno') === v ? ' selected' : ''}>${t}</option>`).join('')}
-            </select>
-            <input class="cto-in" data-k="nombre" value="${esc(c.nombre ?? '')}" placeholder="Nombre" aria-label="Nombre">
-            <button class="cto-del" title="Quitar contacto">&times;</button>
-            <input class="cto-in" data-k="telefono" value="${esc(c.telefono ?? '')}" placeholder="Teléfono" inputmode="tel" aria-label="Teléfono">
-            <input class="cto-in" data-k="correo" value="${esc(c.correo ?? '')}" placeholder="Correo" type="email" aria-label="Correo">
-            <span class="cto-wa">${waHtml(c.telefono)}</span>
-          </div>`).join('') || `<p class="fx-hint">Sin contacto todavía.${ficha ? '' : ' Al agregar uno, la propiedad se guarda en el Catálogo.'}</p>`}
-        <div class="fx-add">
-          <button class="cto-add" data-rol="dueno">+ Dueño</button>
-          <button class="cto-add" data-rol="asesor">+ Asesor</button>
-        </div>
-      </section>`}
-
+      ${/* Columna de enmedio: documentos y, debajo, el contacto del inmueble. Van en una
+           pila para que la tercera columna siga siendo la de clientes. */''}
+      <div class="fx-stack">
       <section class="fx-card" id="docsCard">
         <h2>Documentos <span class="fx-n">${hechos} / ${documentos.length}</span></h2>
         ${documentos.length ? `<div class="fx-prog"><span style="width:${Math.round(hechos / documentos.length * 100)}%"></span></div>` : ''}
@@ -557,6 +542,25 @@ function render() {
           : 'Puedes arrastrar archivos aquí: PDF, imágenes, Word, Excel… hasta 20 MB cada uno.'}</p>
         <input type="file" id="docFile" multiple hidden>
       </section>
+
+      ${PRESENTA_A ? '' : `<section class="fx-card" id="ctoCard">
+        <h2>Contacto <span class="fx-n">de quién tenemos el inmueble</span></h2>
+        ${(ficha?.contactos ?? []).map((c, i) => `<div class="fx-cto" data-i="${i}">
+            <select class="cto-in" data-k="rol" aria-label="Dueño o asesor">
+              ${ROLES_CTO.map(([v, t]) => `<option value="${v}"${(c.rol ?? 'dueno') === v ? ' selected' : ''}>${t}</option>`).join('')}
+            </select>
+            <input class="cto-in" data-k="nombre" value="${esc(c.nombre ?? '')}" placeholder="Nombre" aria-label="Nombre">
+            <button class="cto-del" title="Quitar contacto">&times;</button>
+            <input class="cto-in" data-k="telefono" value="${esc(c.telefono ?? '')}" placeholder="Teléfono" inputmode="tel" aria-label="Teléfono">
+            <input class="cto-in" data-k="correo" value="${esc(c.correo ?? '')}" placeholder="Correo" type="email" aria-label="Correo">
+            <span class="cto-wa">${waHtml(c.telefono)}</span>
+          </div>`).join('') || `<p class="fx-hint">Sin contacto todavía.${ficha ? '' : ' Al agregar uno, la propiedad se guarda en el Catálogo.'}</p>`}
+        <div class="fx-add">
+          <button class="cto-add" data-rol="dueno">+ Dueño</button>
+          <button class="cto-add" data-rol="asesor">+ Asesor</button>
+        </div>
+      </section>`}
+      </div>
 
       ${PRESENTA_A ? '' : `<div class="fx-stack">
         <section class="fx-card">
