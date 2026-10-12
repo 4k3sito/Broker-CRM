@@ -7,6 +7,22 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Excel de un cliente y filtro por asesor — **en `desarrollo`, sin desplegar** (2026-10-12)
+
+- **Excel de un cliente.** Botón «Excel» en el encabezado del cliente (`clientes.html`):
+  baja `Cliente-<nombre>.xlsx` con tres hojas —Cliente (datos, «Qué busca», notas),
+  Contactos y Propiedades (una fila por propiedad presentada, con ID, precio, m², etapa,
+  quién la presentó, notas, contacto del inmueble y ligas)—. Lo arma la API
+  (`GET /api/clientes/{id}/excel`) con `api/excel.py`, un escritor de .xlsx con la stdlib:
+  sin openpyxl. No sale en modo presentación: trae lo interno. Comprobado abriéndolo con
+  openpyxl; **falta abrirlo en Excel de verdad**.
+- **Filtro «Asesor» en el Catálogo.** Las propiedades que presentó un asesor
+  (`proceso.trae_id`, la columna «Presentó»), con el cliente que sea; se combina con
+  Cliente y Etapa en el mismo proceso. `asesor=<uuid>` en `/api/listings` y `/facets`.
+  34 de los 236 procesos no tienen cuenta ligada en «Presentó» (texto suelto o vacío): esas
+  propiedades no salen con ningún asesor.
+- Desplegar: sólo código (reconstruir `api`); no hay cambios de esquema.
+
 ## Fichas: estado de las propias, operación, moneda, ID y contacto — **en producción desde el 2026-10-12**
 
 - **Error que había en producción:** en el Catálogo, cambiar el estado (o destacar) de una ficha

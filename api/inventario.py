@@ -312,8 +312,12 @@ def _filtros(a: dict) -> tuple[list[str], list]:
     # tienen que cumplirse en EL MISMO proceso: "de ALSEA, en negociación" no es "de
     # ALSEA" y "en negociación con cualquiera".
     etapas = [e for e in (a.get("etapa") or []) if e]
-    if a.get("pcliente") or etapas:
+    # `asesor`: quién presentó la propiedad (`proceso.trae_id`), con el cliente que sea.
+    # Va en el mismo EXISTS: "las de Michelle con ALSEA en negociación" es un solo proceso.
+    if a.get("pcliente") or etapas or a.get("asesor"):
         cond = [FICHA_DE_L]
+        if a.get("asesor"):
+            cond.append("p.trae_id = %s::uuid"); p.append(a["asesor"])
         if a.get("pcliente"):
             cond.append("p.cliente_id = %s::uuid"); p.append(a["pcliente"])
         if etapas:
