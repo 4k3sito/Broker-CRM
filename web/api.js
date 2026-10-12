@@ -69,6 +69,26 @@ const API = {
     return r.blob();
   },
 
+  // Baja un archivo que la API arma al vuelo (un .xlsx) y lo guarda con el nombre que
+  // ella diga. Va por fetch y no por un <a href> por lo mismo que el PDF: si falla, el
+  // motivo se dice en la página.
+  async descargar(ruta) {
+    const r = await fetch(`/api${ruta}`, { credentials: 'same-origin' });
+    if (r.status === 401) { location.href = 'login.html'; throw new Error('Sesión expirada'); }
+    if (!r.ok) {
+      const d = await r.json().catch(() => null);
+      throw new Error(d?.detail ?? `Error ${r.status}`);
+    }
+    const nombre = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') ?? '')?.[1] ?? 'descarga';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await r.blob());
+    a.download = nombre;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  },
+
   me:     ()             => API.get('/me'),
   login:  (email, password) => API.post('/login', { email, password }),
   logout: ()             => API.post('/logout'),

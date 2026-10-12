@@ -22,6 +22,7 @@ import secrets
 import sys
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -41,6 +42,7 @@ from psycopg_pool import ConnectionPool
 import documento
 import duplicados
 import entorno
+import excel
 import inventario
 from duplicados import DuplicadoInvalido
 from inventario import Asesor, FiltroInvalido, Llave, MAX_LUGARES, norm_txt
@@ -504,6 +506,7 @@ def list_listings(
     ficha: str | None = Query(None, pattern="^(con|sin)$"),
     pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
     sin_cliente: bool = False,
+    asesor: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),   # quién la presentó
     etapa: list[str] | None = Query(None),
     estado: str | None = None,
     favoritos: bool = False,
@@ -534,6 +537,7 @@ def facets(
     ficha: str | None = Query(None, pattern="^(con|sin)$"),
     pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
     sin_cliente: bool = False,
+    asesor: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),   # quién la presentó
     etapa: list[str] | None = Query(None),
     favoritos: bool = False, near: str | None = None, radio: int = 2000,
     fusion: bool = True,
@@ -1097,6 +1101,106 @@ def crear_cliente(body: dict = Body(...), user: dict = Depends(current_user)) ->
 @app.patch("/api/clientes/{cid}")
 def editar_cliente(cid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
     return _patch("cliente", cid, _con_contactos(body), CLIENTE_COLS, user)
+
+
+# ── Un cliente a Excel ───────────────────────────────────────────────────────
+# Lo que la página de Clientes enseña de UN cliente, en un .xlsx: sus datos, sus contactos
+# y la tabla de propiedades que se le han presentado. Los nombres de etapa y estatus son
+# los de web/etapas.js y web/clientes.js: si allá cambian, aquí también.
+ETAPA_NOMBRE = {"prospecto": "Prospecto", "por_presentar": "Por presentar", "presentado": "Presentado",
+                "evaluacion": "Evaluación", "aprobado": "Aprobado", "negociacion": "Negociación",
+                "cerrado": "Cerrado", "pausa": "En pausa", "rechazado": "Descartado"}
+ESTATUS_NOMBRE = {"activo": "Activo", "contactando": "Contactando", "por_contactar": "Por contactar",
+                  "inactivo": "Inactivo"}
+OPERACION_NOMBRE = {"rent": "Renta", "sale": "Venta"}
+
+
+def que_busca(cr: dict | None) -> str:
+    """Los criterios de «Qué busca» en una línea, como las píldoras de la página."""
+    cr = cr or {}
+    partes = []
+    if cr.get("tipos"):
+        partes.append("Tipo: " + ", ".join(str(t).capitalize() for t in cr["tipos"]))
+    if cr.get("operacion"):
+        partes.append("Operación: " + OPERACION_NOMBRE.get(cr["operacion"], str(cr["operacion"])))
+    for nombre, lo, hi, unidad in (("Superficie", "m2_min", "m2_max", " m²"), ("Precio por m²", "ppm_min", "ppm_max", ""),
+                                   ("Precio total", "precio_min", "precio_max", "")):
+        a, b = cr.get(lo), cr.get(hi)
+        if a is None and b is None:
+            continue
+        f = lambda v: f"{'' if unidad else '$'}{float(v):,.0f}{unidad}"
+        partes.append(f"{nombre}: " + (f"{f(a)} – {f(b)}" if a is not None and b is not None
+                                       else f"hasta {f(b)}" if b is not None else f"desde {f(a)}"))
+    lugares = [l.get("nombre") for l in cr.get("lugares") or [] if isinstance(l, dict) and l.get("nombre")]
+    if lugares:
+        partes.append("Ubicación: " + ", ".join(lugares))
+    return " · ".join(partes)
+
+
+def _contacto_txt(c: dict) -> str:
+    rol = {"dueno": "Dueño", "asesor": "Asesor"}.get(c.get("rol"), "")
+    dato = ", ".join(x for x in (c.get("nombre"), c.get("telefono"), c.get("correo")) if x)
+    return f"{rol}: {dato}" if rol and dato else dato or rol
+
+
+def cliente_a_hojas(c: dict, filas: list[dict]) -> list[tuple[str, list[list]]]:
+    """Las tres hojas del libro de un cliente. Sin base: recibe las filas ya leídas."""
+    n = lambda v: float(v) if v is not None else None
+    datos = [["Campo", "Valor"],
+             ["Cliente", c["nombre"]], ["Empresa", c.get("empresa")],
+             ["Estatus", ESTATUS_NOMBRE.get(c.get("estatus"), c.get("estatus"))],
+             ["Responsable de la cuenta", c.get("responsable_nombre") or c.get("responsable")],
+             ["Qué busca", que_busca(c.get("criterios"))],
+             ["Requerimientos", c.get("requerimientos")], ["Notas", c.get("notas")],
+             ["Propiedades presentadas", len(filas)],
+             ["Exportado", datetime.now(timezone(timedelta(hours=-6))).strftime("%d/%m/%Y %H:%M")]]
+    contactos = [["Nombre", "Teléfono", "Correo"]] + [
+        [k.get("nombre"), k.get("telefono"), k.get("correo")] for k in c.get("contactos") or []]
+    props = [["#", "ID", "Propiedad", "Tipo", "Operación", "Municipio", "Terreno m²", "Construcción m²",
+              "Precio", "Moneda", "Precio por m²", "Etapa", "Presentó", "Junta", "Marca",
+              "Notas con el cliente", "Descripción", "Contacto del inmueble", "Mapa", "Anuncio", "Agregada"]]
+    for i, p in enumerate(filas, 1):
+        ppm = p["precio_m2"] if p["precio_m2"] is not None else (
+            p["precio"] / p["tamano_m2"] if p["precio"] and p["tamano_m2"] else None)
+        props.append([
+            p["numero"] if p["numero"] is not None else i, p["folio"], p["titulo"], p["tipo"],
+            OPERACION_NOMBRE.get(p["operacion"]), p["municipio"], n(p["tamano_m2"]), n(p["construccion_m2"]),
+            n(p["precio"]), p["moneda"] or "MXN", round(float(ppm), 2) if ppm is not None else None,
+            ETAPA_NOMBRE.get(p["status"], p["status"]), p["trae_nombre"] or p["trae"], p["junta"], p["marca"],
+            p["notas"], p["ficha_notas"],
+            "\n".join(filter(None, (_contacto_txt(k) for k in p["contactos"] or []))),
+            p["mapa_url"], p["url"], p["created_at"].strftime("%d/%m/%Y") if p["created_at"] else None])
+    return [("Cliente", datos), ("Contactos", contactos), ("Propiedades", props)]
+
+
+@app.get("/api/clientes/{cid}/excel")
+def cliente_excel(cid: str, _: dict = Depends(current_user)) -> Response:
+    with POOL.connection() as conn:
+        try:
+            c = conn.execute(
+                "SELECT c.*, r.nombre AS responsable_nombre FROM cliente c "
+                "LEFT JOIN usuario r ON r.id = c.responsable_id WHERE c.id = %s", (cid,)).fetchone()
+        except psycopg_errors.InvalidTextRepresentation:
+            c = None
+        if not c:
+            raise HTTPException(404, "No existe ese cliente")
+        filas = conn.execute(
+            """SELECT p.numero, p.status, p.junta, p.marca, p.notas, p.trae, p.created_at,
+                      tu.nombre AS trae_nombre,
+                      f.folio, f.titulo, f.tipo, f.municipio, f.tamano_m2, f.construccion_m2,
+                      f.precio, f.moneda, f.precio_m2, f.notas AS ficha_notas, f.contactos, f.mapa_url,
+                      coalesce(f.operacion, l.operation) AS operacion, l.url
+               FROM proceso p JOIN ficha f ON f.id = p.ficha_id
+               LEFT JOIN usuario tu ON tu.id = p.trae_id
+               LEFT JOIN listings l ON l.source = split_part(f.source_listing_id, ':', 1)
+                                   AND l.listing_id = substr(f.source_listing_id, strpos(f.source_listing_id, ':') + 1)
+               WHERE p.cliente_id = %s ORDER BY p.numero NULLS LAST, p.created_at""", (cid,)).fetchall()
+    # El nombre del archivo, igual que el del PDF: sólo caracteres que no rompen la cabecera.
+    limpio = re.sub(r"[^A-Za-z0-9._-]+", "-", unicodedata.normalize("NFKD", c["nombre"])
+                    .encode("ascii", "ignore").decode()).strip("-")[:60] or "cliente"
+    return Response(excel.libro(cliente_a_hojas(c, filas)),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="Cliente-{limpio}.xlsx"'})
 
 
 @app.delete("/api/clientes/{cid}", status_code=204)
@@ -2106,6 +2210,23 @@ def get_analisis_pdf(listing_id: str, user: dict = Depends(current_user)) -> Res
 
 # ───────────────────────────────────────────────────────────────────────── cli
 def selfcheck() -> None:
+    excel.selfcheck()
+    assert que_busca({"tipos": ["local", "bodega"], "operacion": "rent", "m2_min": 200, "m2_max": 500,
+                      "precio_max": 80000, "lugares": [{"nombre": "San Pedro"}]}) == \
+        "Tipo: Local, Bodega · Operación: Renta · Superficie: 200 m² – 500 m² · Precio total: hasta $80,000 · Ubicación: San Pedro"
+    assert que_busca(None) == "" and _contacto_txt({"rol": "dueno", "nombre": "Ana", "telefono": "81"}) == "Dueño: Ana, 81"
+    _hojas = cliente_a_hojas(
+        {"nombre": "ALSEA", "contactos": [{"nombre": "Luis", "telefono": "8112345678"}], "criterios": {}},
+        [{"numero": None, "status": "negociacion", "junta": None, "marca": "VIPS", "notas": None, "trae": "Michelle",
+          "trae_nombre": None, "created_at": datetime(2026, 10, 1), "folio": "PR-011026-1", "titulo": "Local Centro",
+          "tipo": "Local", "municipio": "Monterrey", "tamano_m2": 200, "construccion_m2": None, "precio": 60000,
+          "moneda": None, "precio_m2": None, "ficha_notas": None, "contactos": [{"rol": "asesor", "nombre": "Eva"}],
+          "mapa_url": None, "operacion": "rent", "url": None}])
+    assert [h[0] for h in _hojas] == ["Cliente", "Contactos", "Propiedades"] and _hojas[1][1][1][0] == "Luis"
+    _f = dict(zip(_hojas[2][1][0], _hojas[2][1][1]))
+    assert (_f["#"], _f["Etapa"], _f["Presentó"], _f["Precio por m²"], _f["Moneda"], _f["Operación"],
+            _f["Contacto del inmueble"]) == (1, "Negociación", "Michelle", 300.0, "MXN", "Renta", "Asesor: Eva")
+    assert excel.libro(_hojas)[:2] == b"PK"
     h = hash_password("contrasena-larga")
     assert h.startswith("scrypt$") and len(h.split("$")) == 6
     assert verify_password("contrasena-larga", h)
