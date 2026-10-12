@@ -851,6 +851,54 @@ UPDATE cliente SET contactos = jsonb_build_array(jsonb_build_object(
 -- `search_path=dev,public` (ver README.md, "Copia de trabajo").
 ALTER TABLE ficha ADD COLUMN IF NOT EXISTS construccion_m2 numeric;
 
+-- Operación de una ficha propia (2026-10-12): una propiedad dada de alta a mano no decía
+-- si era renta o venta, y el tablero no podía filtrarla ni titular su PDF. NULL = no se
+-- ha dicho. La moneda ya existía (`ficha.moneda`, MXN por defecto); desde hoy se puede
+-- elegir USD en la ficha, y el CHECK impide que entre otra cosa. NOT VALID: no revisa
+-- las filas viejas, sólo lo que se escriba de aquí en adelante.
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS operacion text;
+ALTER TABLE ficha DROP CONSTRAINT IF EXISTS ficha_operacion_check;
+ALTER TABLE ficha ADD CONSTRAINT ficha_operacion_check CHECK (operacion IN ('rent', 'sale'));
+ALTER TABLE ficha DROP CONSTRAINT IF EXISTS ficha_moneda_check;
+ALTER TABLE ficha ADD CONSTRAINT ficha_moneda_check CHECK (moneda IN ('MXN', 'USD')) NOT VALID;
+
+-- ID automático y contactos de la propiedad (2026-10-12).
+--
+-- `folio` es el ID que sale en la ficha PDF: PR-<DDMMAA>-<n>, con la fecha en que se creó
+-- la ficha y n = cuántas van ese día. Antes sólo existía si el asesor lo tecleaba; si no,
+-- el PDF inventaba uno con la fecha DEL DÍA EN QUE SE IMPRIMÍA, que cambiaba de un día a
+-- otro. `asignar_folios()` se lo pone a toda ficha que no lo tenga, en orden de creación
+-- y con la fecha de Monterrey; la API la llama al crear una ficha, y aquí abajo siembra
+-- a las que ya existían. Respeta los que alguien escribió: sigue numerando después del
+-- mayor de ese día. Idempotente. No toca `updated_at`: asignar un ID no es editar la ficha.
+--
+-- `contactos`: de quién tenemos el inmueble. Lista de {rol, nombre, telefono, correo},
+-- como `cliente.contactos` más `rol` ('dueno' | 'asesor'). La API la limpia al guardar.
+ALTER TABLE ficha ADD COLUMN IF NOT EXISTS contactos jsonb NOT NULL DEFAULT '[]';
+
+CREATE OR REPLACE FUNCTION asignar_folios() RETURNS bigint AS $$
+DECLARE n bigint;
+BEGIN
+  PERFORM pg_advisory_xact_lock(7214001);     -- dos altas a la vez no se llevan el mismo número
+  WITH sin AS (
+    SELECT id, to_char(created_at AT TIME ZONE 'America/Monterrey', 'DDMMYY') AS dia,
+           row_number() OVER (PARTITION BY (created_at AT TIME ZONE 'America/Monterrey')::date
+                              ORDER BY created_at, id) AS k
+    FROM ficha WHERE nullif(btrim(folio), '') IS NULL
+  ), usados AS (
+    SELECT m[1] AS dia, max(m[2]::int) AS tope
+    FROM ficha, regexp_match(folio, '^PR-([0-9]{6})-([0-9]{1,6})$') AS m
+    WHERE m IS NOT NULL GROUP BY 1
+  ), u AS (
+    UPDATE ficha f SET folio = 'PR-' || s.dia || '-' || (coalesce(us.tope, 0) + s.k)
+    FROM sin s LEFT JOIN usados us ON us.dia = s.dia
+    WHERE f.id = s.id RETURNING 1)
+  SELECT count(*) INTO n FROM u;
+  RETURN n;
+END $$ LANGUAGE plpgsql;
+
+SELECT asignar_folios();
+
 -- >>> scrapers v2
 -- ───────────────────────────────────────── scrapers v2 (2026-10-08)
 --
@@ -930,3 +978,88 @@ CREATE OR REPLACE FUNCTION copiar_detalle_gemelos() RETURNS bigint AS $$
   SELECT count(*) FROM u;
 $$ LANGUAGE sql;
 -- <<< scrapers v2
+
+-- >>> duplicados
+-- ───────────────────────────────────────── propiedades: anuncios fusionados (2026-10-11)
+--
+-- Un inmueble se anuncia muchas veces: el mismo corredor en cinco portales, y varios
+-- corredores con el mismo piso a precios distintos. `listings` sigue siendo una fila por
+-- ANUNCIO y nada se borra; estas tablas dicen cuáles son la misma PROPIEDAD.
+--
+--   propiedad_anuncio     a qué propiedad pertenece cada anuncio. Sólo trae los anuncios
+--                         que comparten propiedad con otro: sin fila, el anuncio es su
+--                         propia propiedad. La rehace entera `scrapers/v2/duplicados.py
+--                         agrupar` después de cada carga; entre una corrida y otra la
+--                         API la retoca cuando un asesor fusiona o separa.
+--   duplicado_sugerencia  pares que se parecen pero no lo bastante para fusionarlos solos.
+--   duplicado_decision    lo que dijo un asesor, compartido por el equipo. Es lo único de
+--                         aquí que no se puede recalcular: `agrupar` la obedece siempre.
+--                           igual     a y b son la misma propiedad
+--                           distinto  a y b no lo son (y no se vuelve a sugerir)
+--                           solo      a no se fusiona con nadie por regla automática
+--   foto_huella           la huella perceptual (dHash de 64 bits) de cada foto: `h` de la
+--                         imagen entera, `hc` de su cuadro central. Dos corredores que
+--                         suben el mismo render producen archivos distintos y la misma
+--                         huella. `foto_huella_hecho` es la cola: un anuncio se baja una vez.
+--
+-- Los anuncios se nombran como en la API: 'fuente:id'.
+-- Aditivo y se puede correr dos veces. `scrapers/v2/duplicados.py migrar` aplica este bloque.
+CREATE TABLE IF NOT EXISTS propiedad_anuncio (
+  anuncio    text PRIMARY KEY,
+  -- El id del anuncio que da nombre al grupo. COLLATE "C": el tablero ordena y cuenta
+  -- por esta columna en cada consulta, y comparar bytes cuesta la mitad que es_MX.
+  propiedad  text COLLATE "C" NOT NULL,
+  motivo     text,                  -- por qué se juntó: eb_id, gemelo, anunciante, texto, foto, asesor
+  -- La llave de `listings`, para unir por sus dos columnas en vez de concatenar 570 mil
+  -- veces 'fuente:id' en cada búsqueda del tablero.
+  source     text GENERATED ALWAYS AS (split_part(anuncio, ':', 1)) STORED,
+  listing_id text GENERATED ALWAYS AS (substr(anuncio, strpos(anuncio, ':') + 1)) STORED
+);
+CREATE INDEX IF NOT EXISTS propiedad_anuncio_propiedad_idx ON propiedad_anuncio (propiedad);
+CREATE UNIQUE INDEX IF NOT EXISTS propiedad_anuncio_llave_idx ON propiedad_anuncio (source, listing_id);
+
+CREATE TABLE IF NOT EXISTS duplicado_sugerencia (
+  a         text NOT NULL,
+  b         text NOT NULL,
+  senal     text NOT NULL,          -- foto | ubicacion
+  puntos    real NOT NULL,          -- para ordenar: lo más seguro primero
+  -- De `a`, copiados al agrupar: la lista de sugerencias filtra por ellos sin tocar `listings`.
+  tipo      text,
+  zona_id   bigint,
+  colonia_id bigint,
+  creado_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (a, b),
+  CHECK (a < b)
+);
+CREATE INDEX IF NOT EXISTS duplicado_sugerencia_b_idx ON duplicado_sugerencia (b);
+CREATE INDEX IF NOT EXISTS duplicado_sugerencia_orden_idx ON duplicado_sugerencia (puntos DESC, a, b);
+
+CREATE TABLE IF NOT EXISTS duplicado_decision (
+  id         bigserial PRIMARY KEY,
+  tipo       text NOT NULL CHECK (tipo IN ('igual', 'distinto', 'solo')),
+  a          text NOT NULL,
+  b          text,                  -- NULL sólo en 'solo'
+  usuario_id uuid REFERENCES usuario (id) ON DELETE SET NULL,
+  creado_at  timestamptz NOT NULL DEFAULT now(),
+  CHECK ((tipo = 'solo') = (b IS NULL)),
+  CHECK (b IS NULL OR a < b)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS duplicado_decision_par_idx ON duplicado_decision (a, coalesce(b, ''));
+CREATE INDEX IF NOT EXISTS duplicado_decision_b_idx ON duplicado_decision (b) WHERE b IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS foto_huella (
+  source     text NOT NULL,
+  listing_id text NOT NULL,
+  n          smallint NOT NULL,     -- posición de la foto en la galería
+  h          bigint NOT NULL,
+  hc         bigint NOT NULL,
+  PRIMARY KEY (source, listing_id, n)
+);
+CREATE TABLE IF NOT EXISTS foto_huella_hecho (
+  source     text NOT NULL,
+  listing_id text NOT NULL,
+  fotos      smallint NOT NULL,     -- cuántas se pudieron leer (0 = ninguna: no se reintenta)
+  hecho_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (source, listing_id)
+);
+-- <<< duplicados

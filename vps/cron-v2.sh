@@ -23,6 +23,7 @@ TL=${TL:-32400}                     # tope duro 9 h: MercadoLibre nacional tarda
 LOTE_MIN=${LOTE_MIN:-60}            # minutos de un lote de detalle (entre lotes se carga)
 DETALLE_MIN=${DETALLE_MIN:-90}      # minutos de detalle tras cada barrido
 DETALLE_H=${DETALLE_H:-6}           # horas que `detalle` trabaja antes de parar sola
+HUELLAS_MIN=${HUELLAS_MIN:-30}      # minutos de huellas de fotos tras cada carga (duplicados)
 # Tope de proxy del detalle, en MB, por portal y por invocación de este script. Los
 # tres portales directos no deberían gastar nada: su tope es un fusible, no un presupuesto.
 DETALLE_MB=${DETALLE_MB:-400}
@@ -38,6 +39,7 @@ if [ "$f" = selfcheck ]; then
     [ -n "${DATABASE_URL:-}" ] || { echo "vps/.env no define DATABASE_URL"; rc=1; }
     $PY -m v2 selfcheck || rc=1
     $PY -m v2.db selfcheck || rc=1
+    $PY -m v2.duplicados selfcheck || rc=1
     $PY qa.py --selfcheck || rc=1
     [ $rc = 0 ] && echo "cron-v2.sh listo"
     exit $rc
@@ -134,6 +136,15 @@ $PY qa.py "$f" --v2 --modo "$modo" || echo "qa: no se pudo revisar la corrida"
 # Detalle de lo nuevo, salvo que la carga de detalle de fondo ya esté en eso.
 if [ $rc = 0 ] && flock -n .detalle.lock true; then
     detalle "$f" "$DETALLE_MIN" "$(tope_mb "$f")"
+fi
+# Propiedades: qué anuncios son el mismo inmueble (v2/duplicados.py). Las huellas de las
+# fotos salen sin proxy, pero son ~100 KB por foto y ~10 fotos por anuncio: sólo Nuevo
+# León y con tope de tiempo. `agrupar` rehace los grupos aunque no haya huellas nuevas,
+# porque la carga cambió precios y vigencias. Como el control de calidad, no tumba la corrida.
+if [ $rc = 0 ]; then
+    $PY -m v2.duplicados huellas --min "$HUELLAS_MIN" --donde "l.province ILIKE 'nuevo le%'" \
+        || echo "duplicados: fallaron las huellas"
+    $PY -m v2.duplicados agrupar || echo "duplicados: no se pudo agrupar"
 fi
 echo "=== $(date -Is) fin v2 $f modo=$modo scrape rc=$rs load rc=$rc"
 find logs -name '*.log' -mtime +30 -delete

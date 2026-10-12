@@ -32,6 +32,10 @@
   <p class="pg-empty" style="margin:40px 20px">Cargando propiedad&#8230;</p>
 </main>
 
+<!-- Los anuncios que son esta misma propiedad y los que se le parecen (propiedad.js).
+     Fuera de #detail por lo mismo que el mercado comparable. -->
+<section class="mk" id="propiedad" hidden></section>
+
 <!-- Ubicación: fuera de #detail por lo mismo que el mercado comparable. El mapa es
      MapLibre con teselas de OpenFreeMap (ubicacion.js): sin llave de Google. -->
 <section class="mk" id="ubicacion" hidden>
@@ -78,6 +82,7 @@
 <script src="vendor/maplibre-gl.js"></script>
 <script src="ubicacion.js"></script>
 <script src="anuncio.js"></script>
+<script src="propiedad.js"></script>
 <script src="listing.js"></script>
 </body>
 </html>

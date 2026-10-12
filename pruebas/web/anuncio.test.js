@@ -145,3 +145,26 @@ test('el municipio no se confunde con la dirección, pero sirve de ubicación si
 test('mx escribe un número como se escribe en México', () => {
   assert.equal(vm.runInContext('mx(1234567.5)', ctx), '1,234,567.5');
 });
+
+// ── Propiedad: varios anuncios del mismo inmueble ────────────────────────────
+
+test('un anuncio suelto es su propia propiedad, sin rango ni resumen', () => {
+  const a = Anuncio.de(fila());
+  assert.equal(a.propiedad, 'lamudi:1');
+  assert.equal(a.anuncios, 1);
+  assert.equal(Anuncio.rango(a), null);
+  assert.equal(Anuncio.resumen(a), null);
+});
+
+test('una propiedad con varios anuncios dice cuántos y entre qué precios', () => {
+  const a = Anuncio.de(fila({ propiedad: 'inmuebles24:9', anuncios: 12, anunciantes: 8,
+    fuentes: ['inmuebles24', 'lamudi'], precio_min: 115500000, precio_max: 137500000 }));
+  assert.deepEqual(plano(Anuncio.rango(a)), { min: 115500000, max: 137500000 });
+  assert.equal(Anuncio.resumen(a), '12 anuncios · 8 anunciantes');
+});
+
+test('el mismo corredor en dos portales no presume anunciantes ni rango', () => {
+  const a = Anuncio.de(fila({ anuncios: 2, anunciantes: 1, precio_min: null, precio_max: null }));
+  assert.equal(Anuncio.resumen(a), '2 anuncios');
+  assert.equal(Anuncio.rango(a), null);
+});

@@ -7,6 +7,7 @@
     // con la pestaña de la que se vino, que app.js deja en sessionStorage.
     { href: 'index.html',                  label: 'Bolsa Inmobiliaria', de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'bolsa' },
     { href: 'index.html?tab=inmobiliaria', label: 'Catálogo',           de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'inmobiliaria' },
+    { href: 'duplicados.html', label: 'Duplicados', de: ['duplicados.html'] },
     { href: 'clientes.html', label: 'Clientes',  de: ['clientes.html'] },
     { href: 'tareas.html',   label: 'Tareas',    de: ['tareas.html'], badge: 'tareas' },
   ];

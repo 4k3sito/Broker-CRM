@@ -7,6 +7,91 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Estado de fichas propias, operación y moneda — **en `desarrollo`, sin desplegar ni commitear** (2026-10-12)
+
+- **Error en producción, hoy:** en el Catálogo, cambiar el estado (o destacar) de una ficha
+  propia (`pipeline:<uuid>`) no se guarda y la tarjeta vuelve a «Nuevo».
+  `PUT /api/listings/{id}/estado` sólo buscaba el id en `listings` y contestaba 404 (se ve
+  en el log de `api`). Corregido en la copia: acepta una ficha sin anuncio, y el tablero
+  ahora avisa con un toast si un cambio de estado no se guarda. **Hasta desplegar, sigue
+  fallando para los asesores.**
+- **Operación y moneda en una ficha propia.** «Datos de la propiedad» trae Operación (sin
+  definir / venta / renta) y Moneda del precio (pesos por defecto / dólares).
+  `ficha.operacion` es columna nueva (bloque del 2026-10-12 en `vps/schema.sql`: hay que
+  aplicarlo a `public` al desplegar); `ficha.moneda` ya existía y ahora tiene CHECK. La
+  tarjeta, la ficha y el PDF dejan de escribir «MXN» fijo y usan la moneda de la propiedad
+  (`Anuncio.moneda`). Con operación, el filtro Renta/Venta del Catálogo ya incluye a las propias.
+- **ID automático de la ficha.** `ficha.folio` se asigna al crear la ficha:
+  `PR-<DDMMAA de alta, hora de Monterrey>-<n del día>` (`asignar_folios()` en
+  `vps/schema.sql`, que la API llama en `POST /api/fichas`). Antes, sin folio, el PDF
+  inventaba uno con la fecha del día en que se imprimía. El bloque del esquema siembra a
+  las fichas que ya existen con su fecha de creación: en producción son 158 sin ID (122
+  entraron el mismo día con el importador del sheet y quedarán `PR-250926-1…122`). Un ID
+  escrito a mano se respeta. Una ficha PDF guardada sin ID propio usa el de la propiedad.
+- **Contacto del inmueble.** Tarjeta «Contacto» en la ficha: de quién tenemos el terreno
+  o local, con rol Dueño / Asesor, nombre, teléfono (con liga de WhatsApp) y correo.
+  `ficha.contactos` es jsonb nuevo. No sale en el PDF ni en el modo presentación. En un
+  anuncio de portal, agregar el primer contacto crea la ficha (entra al Catálogo), igual
+  que agregar un documento.
+- ⚠️ **Tropiezo del 2026-10-12, corregido:** al probar, `dev.asignar_folios()` se llamó sin
+  `search_path=dev` y escribió el ID en las 159 fichas de **producción** (`public.ficha`).
+  Se revirtió a NULL en 158 a los dos minutos. Quedó una, «Industrial Park Escobedo»
+  (`PR-121026-3`), porque alguien la había editado nueve minutos antes y no se pudo
+  distinguir si ese ID lo tecleó un asesor. La función resuelve `ficha` con el
+  `search_path` de quien la llama: **en dev, siempre `SET search_path = dev, public` antes.**
+- No se tocó: la tabla de Clientes (`clientes.js`) no enseña la moneda, y una ficha PDF
+  guardada (versión) usa la moneda y operación de la propiedad, no una propia.
+
+## Propiedades: anuncios fusionados y duplicados — **en `desarrollo`, sin desplegar ni commitear** (2026-10-11)
+
+Un inmueble se anuncia muchas veces y el tablero enseñaba cada anuncio. Ahora cada tarjeta
+es una **propiedad**: `scrapers/v2/duplicados.py agrupar` decide qué anuncios son el mismo
+inmueble, `api/inventario.py` devuelve una fila por propiedad (`fusion=false` vuelve al
+anuncio por anuncio), y el equipo corrige: «Fusionar» en la bandeja del tablero, «Separar»
+y «Es el mismo / No es el mismo» en la ficha, y la página nueva `duplicados.html`.
+
+Medido el 2026-10-11 en la copia (esquema `dev`): 564,557 anuncios vivos → 375,363
+propiedades. Oficinas en venta a 1.5 km de Punto Central: 259 anuncios → 85 tarjetas; el
+piso de 1,100 m² de Torre Banbajío (22 anuncios, 14 anunciantes) queda en una, de
+$115.5 M a $137.5 M.
+
+- **Desplegar.** (1) bloque `duplicados` de `vps/schema.sql` en `public`
+  (`python -m v2.duplicados migrar`); (2) `pip install pillow` en el venv de
+  `/srv/officelab/scrapers`; (3) reconstruir `api`; (4) copiar las huellas ya bajadas en
+  vez de bajarlas otra vez: `INSERT INTO public.foto_huella SELECT * FROM dev.foto_huella`
+  (y `foto_huella_hecho`); (5) `python -m v2.duplicados agrupar`. `vps/cron-v2.sh` ya
+  llama a `huellas` (30 min, sólo Nuevo León) y a `agrupar` después de cada carga.
+- **Huellas de oficinas de Nuevo León: terminadas el 2026-10-12** (8,992 anuncios, 98,872
+  fotos, 6.4 GB de descarga, 16 MB en la base) y reagrupado: 11,199 anuncios de oficinas
+  → 4,627 propiedades; 1,927 fusiones por foto; el grupo más grande es de 63 anuncios.
+- **Huellas: sólo están las oficinas de Nuevo León.** Bajar fotos sale directo (sin
+  proxy) pero pesa: ~100 KB por foto, ~11 fotos por anuncio. Todo Nuevo León son ~70 mil
+  anuncios, del orden de 70-80 GB de descarga y 5-6 h con 20 hilos; el país, ocho veces
+  eso. Sin huella un anuncio sólo se fusiona por las llaves duras. Falta decidir hasta
+  dónde se baja (pedir permiso antes de pasar de Nuevo León).
+- **Costo en el tablero.** Con el mapa en Monterrey (31 mil anuncios) la búsqueda fusionada
+  tarda ~0.6 s más que sin fusionar; sin ningún filtro, nacional, 3.7 s contra 2.1 s. Lo
+  caro es ordenar para elegir un anuncio por propiedad. Si molesta: guardar el grupo en
+  una columna de `listings` o precalcular el anuncio principal para el caso sin filtros.
+  (La base ya traía 564 mil anuncios vivos, no los 206 mil de antes de la v2: la búsqueda
+  sin fusionar también se hizo más lenta.)
+- **El seguimiento es por anuncio.** Estado, destacado y notas siguen en `user_listing`
+  por anuncio; la tarjeta enseña el anuncio que el asesor ya trabaja. Si marca dos
+  anuncios de la misma propiedad con estados distintos, las píldoras la cuentan en los dos.
+  El Catálogo (fichas) no fusiona: una ficha sigue colgando de UN anuncio.
+- **`/api/v1` y el CSV no fusionan**: siguen siendo anuncio por anuncio. Tampoco el
+  análisis de mercado, que conserva su `deduplicar()` de siempre; podría leer
+  `propiedad_anuncio` y dejar de aproximar.
+- **Las reglas automáticas se calibraron con un edificio.** «Misma foto + mismos m² +
+  precio a ±25%» funde pisos distintos del mismo tamaño en una torre (no hay forma de
+  distinguir el piso 8 del 12 con lo que publican). Revisar los grupos grandes tras la
+  primera corrida completa: `SELECT propiedad, count(*) FROM propiedad_anuncio GROUP BY 1
+  ORDER BY 2 DESC LIMIT 30`.
+- **Sugerencias: 62 mil en el país, 7,945 en Nuevo León**, casi todas por ubicación. La
+  página abre en Nuevo León. Nadie las ha revisado todavía: falta ver cuántas son buenas.
+- En el navegador automatizado las fotos de Navent salen bloqueadas
+  (`ERR_BLOCKED_BY_RESPONSE.NotSameOrigin`); en el del asesor se ven. No es de este cambio.
+
 ## El anuncio en el navegador, definido una vez — **en `desarrollo`, sin desplegar** (2026-10-11)
 
 `web/anuncio.js` (objeto `Anuncio`) junta lo que tablero, ficha y comparar repetían para
