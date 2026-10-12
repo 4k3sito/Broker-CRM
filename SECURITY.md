@@ -264,6 +264,17 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Endpoints (2026-10-12) — Excel de un cliente y filtro por asesor (copia de trabajo)
+
+- `GET /api/clientes/{id}/excel`: con sesión, como todo el CRM (§5). Devuelve en un archivo
+  lo que esa misma cuenta ya ve en `clientes.html` —datos del cliente, contactos, notas y
+  el contacto de cada inmueble—: no abre nada nuevo, pero es la primera salida **en bloque**
+  de datos personales del CRM, y un .xlsx se reenvía con más facilidad que una pantalla.
+  Sin registro de quién exporta (H5). El texto de las celdas se escribe como cadena, nunca
+  como fórmula (`api/excel.py`): un título de portal que empiece con `=` no se ejecuta al
+  abrir el archivo. El nombre del archivo se reduce a `[A-Za-z0-9._-]`.
+- `asesor=<uuid>` en `/api/listings` y `/facets`: filtro parametrizado, validado por patrón.
+
 ### Endpoints (2026-10-11) — propiedades y duplicados (copia de trabajo)
 
 Todo con sesión; nada nuevo es público ni entra por `/api/v1`. Las decisiones son **del
