@@ -7,6 +7,22 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Ficha reacomodada y notas de presentación — **en `desarrollo`, sin desplegar** (2026-10-12)
+
+Sólo `web/`: desplegarlo no pide reconstruir la API.
+
+- **Ficha:** Documentos en medio con Contacto debajo y Clientes a la derecha (la tarjeta de
+  Contacto había mandado Clientes a un segundo renglón).
+- **Notas de presentación** (`clientes.js`). En modo presentación el campo de notas de una
+  propiedad ya no se esconde: sale en blanco, como «Notas de esta presentación». Lo que se
+  escriba se agrega a `proceso.notas` debajo de lo anterior, en renglones que empiezan con
+  `▸ ` y, el primero, «Presentación <fecha>:». Se guarda al salir del campo (no al salir
+  del modo), así que cerrar la pestaña no lo pierde. La columna Notas de la tabla pinta
+  esos renglones en negritas. **En el campo de texto no hay negritas** —un `<textarea>` no
+  las admite—: ahí se distinguen por la marca y la fecha. Si se quiere negrita también al
+  editar, hay que cambiar el campo por uno con formato o guardar las notas de presentación
+  en su propia columna.
+
 ## Excel de un cliente y filtro por asesor — **en producción desde el 2026-10-12**
 
 - **Excel de un cliente.** Botón «Excel» en el encabezado del cliente (`clientes.html`):
