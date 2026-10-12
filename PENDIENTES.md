@@ -7,26 +7,25 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
-## Estado de fichas propias, operación y moneda — **en `desarrollo`, sin desplegar ni commitear** (2026-10-12)
+## Fichas: estado de las propias, operación, moneda, ID y contacto — **en producción desde el 2026-10-12**
 
-- **Error en producción, hoy:** en el Catálogo, cambiar el estado (o destacar) de una ficha
+- **Error que había en producción:** en el Catálogo, cambiar el estado (o destacar) de una ficha
   propia (`pipeline:<uuid>`) no se guarda y la tarjeta vuelve a «Nuevo».
   `PUT /api/listings/{id}/estado` sólo buscaba el id en `listings` y contestaba 404 (se ve
   en el log de `api`). Corregido en la copia: acepta una ficha sin anuncio, y el tablero
-  ahora avisa con un toast si un cambio de estado no se guarda. **Hasta desplegar, sigue
-  fallando para los asesores.**
+  ahora avisa con un toast si un cambio de estado no se guarda.
 - **Operación y moneda en una ficha propia.** «Datos de la propiedad» trae Operación (sin
   definir / venta / renta) y Moneda del precio (pesos por defecto / dólares).
-  `ficha.operacion` es columna nueva (bloque del 2026-10-12 en `vps/schema.sql`: hay que
-  aplicarlo a `public` al desplegar); `ficha.moneda` ya existía y ahora tiene CHECK. La
+  `ficha.operacion` es columna nueva (bloque del 2026-10-12 en `vps/schema.sql`); `ficha.moneda` ya existía y ahora tiene CHECK. La
   tarjeta, la ficha y el PDF dejan de escribir «MXN» fijo y usan la moneda de la propiedad
   (`Anuncio.moneda`). Con operación, el filtro Renta/Venta del Catálogo ya incluye a las propias.
 - **ID automático de la ficha.** `ficha.folio` se asigna al crear la ficha:
   `PR-<DDMMAA de alta, hora de Monterrey>-<n del día>` (`asignar_folios()` en
   `vps/schema.sql`, que la API llama en `POST /api/fichas`). Antes, sin folio, el PDF
   inventaba uno con la fecha del día en que se imprimía. El bloque del esquema siembra a
-  las fichas que ya existen con su fecha de creación: en producción son 158 sin ID (122
-  entraron el mismo día con el importador del sheet y quedarán `PR-250926-1…122`). Un ID
+  las fichas que ya existían con su fecha de creación: las 160 de producción tienen ID
+  desde el despliegue (122 entraron el mismo día con el importador del sheet y son
+  `PR-250926-1…122`). Un ID
   escrito a mano se respeta. Una ficha PDF guardada sin ID propio usa el de la propiedad.
 - **Contacto del inmueble.** Tarjeta «Contacto» en la ficha: de quién tenemos el terreno
   o local, con rol Dueño / Asesor, nombre, teléfono (con liga de WhatsApp) y correo.
@@ -42,7 +41,7 @@ Lo cerrado se borra de aquí, no se tacha.
 - No se tocó: la tabla de Clientes (`clientes.js`) no enseña la moneda, y una ficha PDF
   guardada (versión) usa la moneda y operación de la propiedad, no una propia.
 
-## Propiedades: anuncios fusionados y duplicados — **en `desarrollo`, sin desplegar ni commitear** (2026-10-11)
+## Propiedades: anuncios fusionados y duplicados — **en producción desde el 2026-10-12**
 
 Un inmueble se anuncia muchas veces y el tablero enseñaba cada anuncio. Ahora cada tarjeta
 es una **propiedad**: `scrapers/v2/duplicados.py agrupar` decide qué anuncios son el mismo
@@ -55,12 +54,16 @@ propiedades. Oficinas en venta a 1.5 km de Punto Central: 259 anuncios → 85 ta
 piso de 1,100 m² de Torre Banbajío (22 anuncios, 14 anunciantes) queda en una, de
 $115.5 M a $137.5 M.
 
-- **Desplegar.** (1) bloque `duplicados` de `vps/schema.sql` en `public`
-  (`python -m v2.duplicados migrar`); (2) `pip install pillow` en el venv de
-  `/srv/officelab/scrapers`; (3) reconstruir `api`; (4) copiar las huellas ya bajadas en
-  vez de bajarlas otra vez: `INSERT INTO public.foto_huella SELECT * FROM dev.foto_huella`
-  (y `foto_huella_hecho`); (5) `python -m v2.duplicados agrupar`. `vps/cron-v2.sh` ya
-  llama a `huellas` (30 min, sólo Nuevo León) y a `agrupar` después de cada carga.
+- **Desplegado el 2026-10-12** (commit `39f1a1f` en `desarrollo`, cherry-pick `99a4442` en
+  `produccion`, junto con los tres de `web/anuncio.js`). Respaldo previo:
+  `/srv/backups/officelab-pre-propiedades-2026-10-12.sql.gz`. Se aplicaron a `public` sólo
+  los bloques nuevos de `schema.sql`, se copiaron las huellas de `dev`, Pillow al venv de
+  producción, API reconstruida y `agrupar`: 555,587 anuncios vivos → 370,619 propiedades.
+  `vps/cron-v2.sh` llama a `huellas` (30 min, sólo Nuevo León) y `agrupar` tras cada carga:
+  **la primera noche que corra hay que mirar el log** (`duplicados:` en
+  `scrapers/logs/v2-<fuente>-<fecha>.log`).
+  Verificado por las funciones de la API contra la base real, no con un navegador con
+  sesión: falta que alguien del equipo confirme que lo ve bien.
 - **Huellas de oficinas de Nuevo León: terminadas el 2026-10-12** (8,992 anuncios, 98,872
   fotos, 6.4 GB de descarga, 16 MB en la base) y reagrupado: 11,199 anuncios de oficinas
   → 4,627 propiedades; 1,927 fusiones por foto; el grupo más grande es de 63 anuncios.
