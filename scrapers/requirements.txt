@@ -7,3 +7,4 @@ patchright>=1.52       # pincali only: headful Chrome mints the AWS WAF token
 psycopg[binary]>=3.2   # propdb.py: carga y búsqueda sobre PostGIS
 brotli>=1.1            # v2: decode the body ourselves so the meter reads wire bytes
 zstandard>=0.22        # v2: same, for the portals that answer zstd
+pillow>=10            # v2/duplicados.py: la huella de las fotos (dHash)
