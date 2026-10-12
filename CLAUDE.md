@@ -110,6 +110,8 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   de `main.py` sólo traducen HTTP. No importa FastAPI ni abre conexiones: recibe la
   conexión y lanza `FiltroInvalido`, que la app convierte en 422. Un archivo nuevo en
   `api/` hay que agregarlo al `COPY` del `Dockerfile`, que los copia por nombre.
+  **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
+  tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.
   **`duplicados.py` son las propiedades** (2026-10-11): qué anuncios son el mismo
   inmueble (`de`) y lo que el equipo decide de ellos (`fusionar`, `separar`, `descartar`,
   `sugerencias`). Para un asesor, `inventario.buscar` devuelve **una fila por propiedad**

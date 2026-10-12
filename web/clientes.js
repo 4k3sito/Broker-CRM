@@ -870,6 +870,7 @@ function renderDetalle() {
         <div class="cl-acts">
           <span id="clWhats"></span>
           <button class="fx-btn${presentando ? ' solid' : ''}" id="clPres" aria-pressed="${presentando}" title="${presentando ? 'Volver a la vista completa' : 'Deja en pantalla s&#243;lo a este cliente: sin la lista de clientes ni &#171;Qu&#233; busca&#187;'}">${presentando ? 'Salir de presentaci&#243;n' : 'Modo presentaci&#243;n'}</button>
+          <button class="fx-btn" id="clExcel"${presentando ? ' hidden' : ''} title="Descargar los datos de este cliente y sus propiedades en un archivo de Excel">Excel</button>
           <button class="fx-btn" id="clDel" title="Eliminar cliente">Eliminar</button>
         </div>
       </div>
@@ -893,6 +894,14 @@ function renderDetalle() {
   conectarContactos(c, box);
   pintarWhats(c, box);
   document.getElementById('clDel').addEventListener('click', () => deleteCliente(c.id));
+  // Trae lo interno (notas con el cliente, contacto del inmueble): por eso no sale en
+  // modo presentación.
+  document.getElementById('clExcel').addEventListener('click', async e => {
+    e.currentTarget.disabled = true;
+    try { await API.descargar(`/clientes/${c.id}/excel`); }
+    catch (err) { alert('No se pudo generar el Excel: ' + err.message); }
+    finally { e.currentTarget.disabled = false; }
+  });
   document.getElementById('clBack').addEventListener('click', () => seleccionar(null));
   document.getElementById('clPres').addEventListener('click', () => presentar(!presentando));
   if (traer) box.querySelector('.cl-tr.open')?.scrollIntoView({ block: 'center' });
