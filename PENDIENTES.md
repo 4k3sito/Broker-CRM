@@ -7,7 +7,7 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
-## Excel de un cliente y filtro por asesor — **en `desarrollo`, sin desplegar** (2026-10-12)
+## Excel de un cliente y filtro por asesor — **en producción desde el 2026-10-12**
 
 - **Excel de un cliente.** Botón «Excel» en el encabezado del cliente (`clientes.html`):
   baja `Cliente-<nombre>.xlsx` con tres hojas —Cliente (datos, «Qué busca», notas),
@@ -21,7 +21,10 @@ Lo cerrado se borra de aquí, no se tacha.
   Cliente y Etapa en el mismo proceso. `asesor=<uuid>` en `/api/listings` y `/facets`.
   34 de los 236 procesos no tienen cuenta ligada en «Presentó» (texto suelto o vacío): esas
   propiedades no salen con ningún asesor.
-- Desplegar: sólo código (reconstruir `api`); no hay cambios de esquema.
+- Desplegado el 2026-10-12 (`2d8d40a` en `desarrollo`, cherry-pick en `produccion`, API
+  reconstruida). Sin cambios de esquema. Verificado por las funciones de la API contra la
+  base real; falta la confirmación del equipo y decidir si «Asesor» es quien presentó
+  (como quedó) o quien lleva la cuenta del cliente.
 
 ## Fichas: estado de las propias, operación, moneda, ID y contacto — **en producción desde el 2026-10-12**
 
