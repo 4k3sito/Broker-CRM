@@ -26,6 +26,10 @@ const srcSeguro = u => /^(https?:|\/api\/archivos\/)/i.test(String(u ?? '').trim
 // Un número como se escribe en México: 1,234,567.
 const mx = n => Number(n).toLocaleString('es-MX');
 
+// Un monto que tiene que caber en poco espacio: "$115.5 M" de un millón para arriba,
+// el número entero por debajo.
+const dineroCorto = n => n >= 1e6 ? `$${(n / 1e6).toFixed(n >= 1e8 ? 1 : 2).replace(/\.?0+$/, '')} M` : `$${mx(Math.round(n))}`;
+
 // Superficie de una propiedad, distinguiendo terreno y construcción cuando se sabe.
 // Devuelve pares [etiqueta, m²]: los dos si el portal (o la ficha) los trae distintos;
 // uno etiquetado si sólo se sabe cuál es; y "Superficie" a secas cuando el anuncio da

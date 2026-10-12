@@ -164,3 +164,22 @@ A sweep and the
 detail of the same portal never overlap (`.portal-<name>.lock`): two visitors from
 one IP is what makes a direct portal rate-limit, climb to the proxy and start
 billing 100 KB per listing. The direct portals' detail has a 30 MB proxy fuse.
+
+## Duplicates: one property, many listings
+
+`duplicados.py` is not a scraper but lives here because it runs after every load
+(`vps/cron-v2.sh`) and owns the only other network traffic: listing photos.
+
+- `huellas` downloads the photos of listings that have no fingerprint yet and stores a
+  64-bit dHash of each (whole image and centre crop) in `foto_huella`. Direct from the
+  VPS, no proxy: these are image CDNs. Navent's CDN still wants a Chrome TLS handshake
+  (plain `urllib` gets 403). Only Lamudi lets us ask for a small uncropped version, and
+  even then part of its archive answers 404 and we fall back to the original; Navent's
+  and Mercado Libre's thumbnails are crops, and a crop changes the hash. Measured
+  2026-10-11: ~100 KB per photo, ~11 photos per listing, ~230 listings a minute with 20
+  threads. One photo per listing is not enough: brokers reorder the gallery (on Torre
+  Banbajío the first photo linked 4 of 22 listings of the same floor; all photos, 19).
+- `agrupar` rebuilds `propiedad_anuncio` and `duplicado_sugerencia` for every live
+  listing (~2 minutes for 565k). The rules and why each threshold is what it is are in
+  the module docstring. Advisor decisions (`duplicado_decision`) always win.
+- `selfcheck` covers the rules with hand-written rows, no network or database.

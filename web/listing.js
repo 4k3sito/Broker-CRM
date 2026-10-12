@@ -276,6 +276,26 @@ async function saveBase(field, crudo) {
   } catch (err) { alert('No se pudo guardar: ' + err.message); }
 }
 
+// ── Contacto del inmueble ────────────────────────────────────────────────────
+// De quién tenemos el terreno o el local: el dueño o su asesor (`ficha.contactos`). Es
+// del equipo y no sale en el PDF ni en el modo presentación. Como los documentos, cuelga
+// de la ficha: agregar el primero a un anuncio lo guarda en el Catálogo.
+const ROLES_CTO = [['dueno', 'Dueño'], ['asesor', 'Asesor']];
+function waHtml(telefono) {
+  const d = String(telefono ?? '').replace(/\D/g, '');
+  return d.length >= 10
+    ? `<a class="fx-btn" href="https://wa.me/${d.length === 10 ? '52' + d : d}" target="_blank" rel="noopener">WhatsApp</a>` : '';
+}
+const contactosDelDom = () => [...document.querySelectorAll('#ctoCard .fx-cto')].map(f =>
+  Object.fromEntries([...f.querySelectorAll('.cto-in')].map(el => [el.dataset.k, el.value.trim()])));
+async function guardarContactos(lista, repinta) {
+  try {
+    await asegurarFicha();
+    Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, { contactos: lista })));
+    if (repinta) render();
+  } catch (err) { alert('No se pudo guardar el contacto: ' + err.message); }
+}
+
 // ── Fotos de una propiedad propia ────────────────────────────────────────────
 // `ficha.fotos` es una lista de ligas. Una foto puede ser la liga de una imagen que ya
 // está en internet o un archivo que se sube aquí (queda como `/api/archivos/<id>`): se
@@ -387,7 +407,7 @@ function render() {
   const l = listing;
   const total = precioTotal(l), pm = ppm(l);
   const fuente = Anuncio.fuente(l.fuente);
-  const sufijo = l.transaccion === 'Renta' ? 'MXN/mes' : 'MXN';
+  const sufijo = l.transaccion === 'Renta' ? `${Anuncio.moneda(l)}/mes` : Anuncio.moneda(l);
   document.title = (l.titulo ?? 'Propiedad') + ' · OfficeLab';
 
   const facts = [
@@ -470,7 +490,7 @@ function render() {
             <label>Terreno m²<input type="number" class="ficha-in" data-f="tamano_m2" value="${d.tamano_m2 ?? (vSel ? '' : (l.size ?? ''))}" title="La superficie con la que se calcula el precio por m²"></label>
             <label>Construcción m²<input type="number" class="ficha-in" data-f="construccion_m2" value="${d.construccion_m2 ?? (vSel ? '' : (l.construccion && l.construccion !== l.size ? l.construccion : ''))}" placeholder="Si aplica"></label>
           </div>
-          <label>ID<input class="ficha-in" data-f="folio" value="${esc(d.folio ?? '')}" placeholder="${folioSugerido()}"></label>
+          <label>ID<input class="ficha-in" data-f="folio" value="${esc(d.folio ?? '')}" placeholder="${esc(ficha?.folio || folioSugerido())}" title="Se asigna solo al crear la ficha: PR-fecha-número del día. Se puede cambiar."></label>
           <label>Descripción para el cliente<textarea class="ficha-in" data-f="notas" rows="4" placeholder="Si se deja vacía se usa la descripción ${propia ? 'de la propiedad' : 'del anuncio'}.">${esc(d.notas ?? '')}</textarea></label>
           ${vSel ? `<div class="fx-row">
             <label>Precio por m²<input type="number" class="ficha-in" data-f="precio_m2" value="${d.precio_m2 ?? ''}" placeholder="${d.precio && d.tamano_m2 ? Math.round(d.precio / d.tamano_m2) : 'Precio ÷ m²'}"></label>
@@ -483,10 +503,36 @@ function render() {
             <label>Municipio<input class="base-in" data-f="municipio" value="${esc(ficha.municipio ?? '')}"></label>
             ${vSel ? '' : `<label>Precio por m²<input type="number" class="base-in" data-f="precio_m2" value="${ficha.precio_m2 ?? ''}"></label>`}
           </div>
+          <div class="fx-row">
+            <label>Operación<select class="base-in" data-f="operacion">
+              ${[['', 'Sin definir'], ['sale', 'Venta'], ['rent', 'Renta']].map(([v, t]) => `<option value="${v}"${(ficha.operacion ?? '') === v ? ' selected' : ''}>${t}</option>`).join('')}
+            </select></label>
+            <label>Moneda del precio<select class="base-in" data-f="moneda">
+              ${[['MXN', 'Pesos (MXN)'], ['USD', 'Dólares (USD)']].map(([v, t]) => `<option value="${v}"${(ficha.moneda ?? 'MXN') === v ? ' selected' : ''}>${t}</option>`).join('')}
+            </select></label>
+          </div>
           <label>Liga del mapa<input class="base-in" data-f="mapa_url" value="${esc(ficha.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…"></label>
           ${vSel ? '' : fotosEdHtml(fotosEnEdicion())}` : ''}
         </details>
       </section>
+
+      ${PRESENTA_A ? '' : `<section class="fx-card" id="ctoCard">
+        <h2>Contacto <span class="fx-n">de quién tenemos el inmueble</span></h2>
+        ${(ficha?.contactos ?? []).map((c, i) => `<div class="fx-cto" data-i="${i}">
+            <select class="cto-in" data-k="rol" aria-label="Dueño o asesor">
+              ${ROLES_CTO.map(([v, t]) => `<option value="${v}"${(c.rol ?? 'dueno') === v ? ' selected' : ''}>${t}</option>`).join('')}
+            </select>
+            <input class="cto-in" data-k="nombre" value="${esc(c.nombre ?? '')}" placeholder="Nombre" aria-label="Nombre">
+            <button class="cto-del" title="Quitar contacto">&times;</button>
+            <input class="cto-in" data-k="telefono" value="${esc(c.telefono ?? '')}" placeholder="Teléfono" inputmode="tel" aria-label="Teléfono">
+            <input class="cto-in" data-k="correo" value="${esc(c.correo ?? '')}" placeholder="Correo" type="email" aria-label="Correo">
+            <span class="cto-wa">${waHtml(c.telefono)}</span>
+          </div>`).join('') || `<p class="fx-hint">Sin contacto todavía.${ficha ? '' : ' Al agregar uno, la propiedad se guarda en el Catálogo.'}</p>`}
+        <div class="fx-add">
+          <button class="cto-add" data-rol="dueno">+ Dueño</button>
+          <button class="cto-add" data-rol="asesor">+ Asesor</button>
+        </div>
+      </section>`}
 
       <section class="fx-card" id="docsCard">
         <h2>Documentos <span class="fx-n">${hechos} / ${documentos.length}</span></h2>
@@ -582,6 +628,20 @@ function enlazar() {
   $('procAdd') && ($('procAdd').onchange = e => addProceso(e.target.value));
   document.querySelectorAll('.fx-ph[data-i]').forEach(b => b.onclick = () => abrirVisor(+b.dataset.i));
   document.querySelectorAll('.ficha-in').forEach(el => el.onblur = e => saveFicha(e.target.dataset.f, e.target.value));
+  // Contacto del inmueble. Editar un campo guarda sin repintar (repintar le quitaría
+  // el foco al campo siguiente); agregar y quitar sí repintan.
+  document.querySelectorAll('.cto-add').forEach(b => b.onclick = () =>
+    guardarContactos([...contactosDelDom(), { rol: b.dataset.rol }], true));
+  document.querySelectorAll('.cto-del').forEach(b => b.onclick = () => {
+    const i = +b.closest('.fx-cto').dataset.i, c = contactosDelDom()[i];
+    if ((c.nombre || c.telefono || c.correo) && !confirm(`¿Quitar a ${c.nombre || 'este contacto'}?`)) return;
+    guardarContactos(contactosDelDom().filter((_, k) => k !== i), true);
+  });
+  document.querySelectorAll('.cto-in').forEach(el => el.onchange = () => {
+    const fila = el.closest('.fx-cto');
+    fila.querySelector('.cto-wa').innerHTML = waHtml(fila.querySelector('[data-k="telefono"]').value);
+    guardarContactos(contactosDelDom(), false);
+  });
   document.querySelector('.doc-add').onclick = () => addDocumento(document.querySelector('.doc-input').value);
   document.querySelector('.doc-input').onkeydown = e => { if (e.key === 'Enter') addDocumento(e.target.value); };
   document.querySelectorAll('.doc-chk').forEach(c => c.onchange = e => toggleDocumento(e.target.dataset.id, e.target.checked));
@@ -751,6 +811,56 @@ document.getElementById('ubFijar').onclick = e => {
 document.getElementById('ubMas').onclick = () => Ubicacion.zoom(1);
 document.getElementById('ubMenos').onclick = () => Ubicacion.zoom(-1);
 
+// ── La propiedad: sus anuncios y los que se le parecen ───────────────────────
+// Un inmueble se anuncia varias veces y el tablero lo enseña como una sola tarjeta.
+// Aquí se ve qué hay detrás y se corrige: «Separar» saca un anuncio que no era, «Es el
+// mismo» junta uno que el agrupador sólo se atrevió a sugerir. Las propias (pipeline)
+// no son anuncios de portal y no tienen esta sección.
+async function cargarPropiedad() {
+  const caja = document.getElementById('propiedad');
+  if (listing.id.startsWith('pipeline:')) return;
+  pintarPropiedad(caja, await Propiedad.de(listing.id));
+}
+
+function pintarPropiedad(caja, p) {
+  const varios = p.anuncios.length > 1;
+  if (!varios && !p.sugerencias.length && !p.separado) { caja.hidden = true; return; }
+  const anunciantes = new Set(p.anuncios.map(a => (a.broker_name ?? '').toLowerCase())).size;
+  const propios = !varios ? '' : `
+    <h2>Anuncios de esta propiedad <span class="fx-n">${p.anuncios.length} anuncios${anunciantes > 1 ? ` · ${anunciantes} anunciantes` : ''}</span></h2>
+    <p class="fx-hint">Están fusionados en una sola tarjeta del tablero${p.motivo ? `: ${esc(Propiedad.motivo(p.motivo))}` : ''}.
+      Si alguno no es este inmueble, sepáralo.</p>
+    ${p.anuncios.map(a => Propiedad.fila(a,
+        `<button class="fx-btn" data-separa="${esc(a.id)}">Separar</button>`,
+        a.id === listing.id ? 'este anuncio' : '')).join('')}`;
+  const aviso = !varios && p.separado
+    ? '<h2>Anuncios de esta propiedad</h2><p class="fx-hint">Este anuncio se separó a mano: no se fusiona solo con ningún otro. Para volver a juntarlo, selecciónalo en el tablero junto con el otro y usa «Fusionar».</p>' : '';
+  const parecidos = !p.sugerencias.length ? '' : `
+    <h2>Posibles duplicados <span class="fx-n">se parecen, pero no se fusionaron solos</span></h2>
+    ${p.sugerencias.map(s => Propiedad.fila(s.anuncio,
+        `<button class="fx-btn solid" data-igual="${esc(s.anuncio.id)}">Es el mismo</button>
+         <button class="fx-btn" data-distinto="${esc(s.anuncio.id)}" data-de="${esc(s.de)}">No es el mismo</button>`,
+        Propiedad.senal(s.senal))).join('')}`;
+  caja.innerHTML = `<div class="fx-card">${propios}${aviso}${parecidos}</div>`;
+  caja.hidden = false;
+}
+
+document.getElementById('propiedad').addEventListener('click', async e => {
+  const b = e.target.closest('[data-separa], [data-igual], [data-distinto]');
+  if (!b) return;
+  const caja = document.getElementById('propiedad');
+  b.disabled = true;
+  try {
+    if (b.dataset.separa) await Propiedad.separar(b.dataset.separa);
+    else if (b.dataset.igual) await Propiedad.fusionar([listing.id, b.dataset.igual]);
+    else await Propiedad.descartar(b.dataset.de, b.dataset.distinto);
+    pintarPropiedad(caja, await Propiedad.de(listing.id));
+  } catch (err) {
+    b.disabled = false;
+    alert(`No se pudo guardar: ${err.message}`);
+  }
+});
+
 // ── Visor de fotos ───────────────────────────────────────────────────────────
 let visor = -1;
 function abrirVisor(i) {
@@ -788,6 +898,8 @@ function tituloPdf(l) {
   const calle = (l.direccion ?? '').split(',')[0].trim();
   return [tipo, op].filter(Boolean).join(' ') + (calle ? ' EN ' + calle.toUpperCase() : '');
 }
+// El ID lo asigna la API al crear la ficha (PR-<fecha de alta>-<n del día>). Esto sólo
+// queda para el PDF de un anuncio que todavía no tiene ficha.
 function folioSugerido() {
   const d = new Date();
   const p = n => String(n).padStart(2, '0');
@@ -821,7 +933,7 @@ function imprimirFicha(versionId) {
         <img class="pr-logo" src="img/prorealtors-logo.png" alt="Pro Realtors">
       </header>
       <div class="pr-rule"></div>
-      <div class="pr-precio"><b>${precio != null ? '$' + mx(Math.round(precio)) : 'Precio a consultar'}</b><span>${{ Venta: 'EN VENTA', Renta: 'EN RENTA' }[l.transaccion] ?? ''}</span></div>
+      <div class="pr-precio"><b>${precio != null ? '$' + mx(Math.round(precio)) + (Anuncio.moneda(l) === 'MXN' ? '' : ' ' + Anuncio.moneda(l)) : 'Precio a consultar'}</b><span>${{ Venta: 'EN VENTA', Renta: 'EN RENTA' }[l.transaccion] ?? ''}</span></div>
       ${l.direccion ? `<div class="pr-colonia">${esc(l.direccion)}.</div>` : ''}
       <h1 class="pr-titulo">${esc((f.titulo ?? tituloPdf(l)).toUpperCase())}</h1>
       ${fotos[0] ? `<img class="pr-foto" src="${esc(fotos[0])}" alt="">` : ''}
@@ -829,7 +941,7 @@ function imprimirFicha(versionId) {
         <div><span>Precio x m²</span><b>${pm ? '$' + mx(Math.round(pm)) : '—'}</b></div>
         <div><span>${constr ? 'Terreno' : esc(cap(l.tipo ?? 'Superficie'))}</span><b>${m2 ? mx(Math.round(m2)) + ' m²' : '—'}</b></div>
         ${constr ? `<div><span>Construcción</span><b>${mx(Math.round(constr))} m²</b></div>` : ''}
-        <div><span>ID</span><b>${esc(f.folio || folioSugerido())}</b></div>
+        <div><span>ID</span><b>${esc(f.folio || ficha?.folio || folioSugerido())}</b></div>
       </div>
       <h2 class="pr-h2">Descripción</h2>
       <div class="pr-desc">${desc.map(p => `<p>${esc(p)}</p>`).join('')}
@@ -870,6 +982,7 @@ API.me().then(async user => {
   // Aparte y sin await: el análisis tarda ~400 ms y la ficha no tiene por qué
   // esperarlo, ni caerse si falla.
   cargarMercado().catch(err => console.error(err));
+  cargarPropiedad().catch(err => console.error(err));
 }).catch(err => {
   console.error(err);
   document.getElementById('detail').innerHTML = `<p class="pg-empty">No se pudo cargar esta propiedad.<br>${esc(err.message)}</p>`;

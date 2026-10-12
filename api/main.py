@@ -39,8 +39,10 @@ from psycopg_pool import ConnectionPool
 # Local: la maqueta del PDF. No importa WeasyPrint al cargarse —eso pasa dentro
 # de documento.pdf()—, así que no encarece el arranque de la API.
 import documento
+import duplicados
 import entorno
 import inventario
+from duplicados import DuplicadoInvalido
 from inventario import Asesor, FiltroInvalido, Llave, MAX_LUGARES, norm_txt
 from pydantic import BaseModel, Field
 
@@ -507,6 +509,7 @@ def list_listings(
     favoritos: bool = False,
     near: str | None = None,
     radio: int = Query(2000, ge=100, le=50000),
+    fusion: bool = True,          # una fila por propiedad; False = anuncio por anuncio
     orden: str = Query("recientes"),
     page: int = Query(1, ge=1),
     per_page: int = Query(70, ge=1, le=200),
@@ -533,10 +536,76 @@ def facets(
     sin_cliente: bool = False,
     etapa: list[str] | None = Query(None),
     favoritos: bool = False, near: str | None = None, radio: int = 2000,
+    fusion: bool = True,
 ) -> dict:
     filtros = locals()
     with POOL.connection() as conn:
         return inventario.contar(conn, Asesor(user["id"]), filtros)
+
+
+# ── Propiedades: anuncios que son el mismo inmueble ─────────────────────────────
+# Qué se fusiona solo lo decide scrapers/v2/duplicados.py; lo que decide un asesor entra
+# por aquí y es del equipo, como el CRM (SECURITY.md §5). Van ANTES de
+# /api/listings/{listing_id} sólo por orden de lectura: no comparten prefijo.
+@app.exception_handler(DuplicadoInvalido)
+async def _duplicado_invalido(_: Request, e: DuplicadoInvalido) -> JSONResponse:
+    return JSONResponse({"detail": str(e)}, status_code=422)
+
+
+ID_ANUNCIO = r"^[a-z0-9]+:[^\s]{1,80}$"
+
+
+class FusionIn(BaseModel):
+    ids: list[str] = Field(min_length=2, max_length=duplicados.MAX_FUSION)
+
+
+class AnuncioIn(BaseModel):
+    id: str = Field(pattern=ID_ANUNCIO)
+
+
+class ParIn(BaseModel):
+    a: str = Field(pattern=ID_ANUNCIO)
+    b: str = Field(pattern=ID_ANUNCIO)
+
+
+@app.get("/api/duplicados")
+def duplicados_de(id: str = Query(pattern=ID_ANUNCIO), user: dict = Depends(current_user)) -> dict:
+    """Los anuncios de la propiedad de `id` y los que se le parecen."""
+    with POOL.connection() as conn:
+        return duplicados.de(conn, id)
+
+
+@app.get("/api/duplicados/sugerencias")
+def duplicados_sugerencias(
+    user: dict = Depends(current_user),
+    tipo: list[str] | None = Query(None),
+    lugar: list[str] | None = Query(None, max_length=MAX_LUGARES),
+    estado: str | None = Query(None, max_length=60),
+    senal: str | None = Query(None, pattern="^(foto|ubicacion)$"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=50),
+) -> dict:
+    with POOL.connection() as conn:
+        return duplicados.sugerencias(conn, {"tipo": tipo, "lugar": lugar, "estado": estado, "senal": senal},
+                                      page, per_page)
+
+
+@app.post("/api/duplicados/fusionar")
+def duplicados_fusionar(body: FusionIn, user: dict = Depends(current_user)) -> dict:
+    with POOL.connection() as conn:
+        return duplicados.fusionar(conn, user["id"], body.ids)
+
+
+@app.post("/api/duplicados/separar")
+def duplicados_separar(body: AnuncioIn, user: dict = Depends(current_user)) -> dict:
+    with POOL.connection() as conn:
+        return duplicados.separar(conn, user["id"], body.id)
+
+
+@app.post("/api/duplicados/descartar", status_code=204)
+def duplicados_descartar(body: ParIn, user: dict = Depends(current_user)) -> None:
+    with POOL.connection() as conn:
+        duplicados.descartar(conn, user["id"], body.a, body.b)
 
 
 @app.get("/api/ubicaciones")
@@ -766,8 +835,17 @@ class EstadoIn(BaseModel):
 def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_user)) -> dict:
     """Upsert del estado por usuario. COALESCE deja mandar solo el campo que cambió."""
     with POOL.connection() as conn:
-        if not conn.execute("SELECT 1 FROM listings WHERE source || ':' || listing_id = %s",
-                            (listing_id,)).fetchone():
+        # Una ficha propia (`pipeline:<uuid>`) no está en `listings` pero el Catálogo la
+        # enseña como una tarjeta más, con su selector de estado: también se le puede
+        # llevar seguimiento. Hasta el 2026-10-12 esto daba 404 y la tarjeta volvía a "Nuevo".
+        if listing_id.startswith("pipeline:"):
+            existe = re.fullmatch(r"[0-9a-f-]{36}", listing_id[9:]) and conn.execute(
+                "SELECT 1 FROM ficha WHERE id = %s::uuid AND source_listing_id IS NULL",
+                (listing_id[9:],)).fetchone()
+        else:
+            existe = conn.execute("SELECT 1 FROM listings WHERE source || ':' || listing_id = %s",
+                                  (listing_id,)).fetchone()
+        if not existe:
             raise HTTPException(404, "No existe ese listing")
         row = conn.execute(
             """INSERT INTO user_listing (user_id, listing_id, status, starred, notes, updated_at)
@@ -797,7 +875,7 @@ CLIENTE_COLS = ("nombre", "contacto", "empresa", "requerimientos", "notas",
                 "responsable", "responsable_id", "criterios", "estatus", "contactos")
 CONTACTO_CAMPOS = ("nombre", "correo", "telefono")
 FICHA_COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "construccion_m2", "fotos", "notas",
-              "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng")
+              "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng", "operacion", "contactos")
 # Lo que guarda una ficha PDF con nombre (ficha_version.datos): sólo lo que imprime.
 VERSION_DATOS = ("titulo", "precio", "tamano_m2", "construccion_m2", "folio", "notas", "precio_m2", "fotos")
 PROCESO_COLS = ("status", "notas", "junta", "numero", "marca", "trae", "trae_id")
@@ -984,10 +1062,16 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
                ORDER BY c.orden NULLS FIRST, c.created_at DESC""").fetchall()
 
 
-def _con_contactos(body: dict) -> dict:
+ROLES_CONTACTO = ("dueno", "asesor")
+
+
+def _con_contactos(body: dict, de_ficha: bool = False) -> dict:
     """`cliente.contactos` es jsonb libre: aquí se deja sólo lo que la página pinta
     (nombre, correo y teléfono, como texto corto) y se acota la lista. Va envuelta en
-    Jsonb a mano porque `_adaptar` no envuelve listas (ver ahí)."""
+    Jsonb a mano porque `_adaptar` no envuelve listas (ver ahí).
+
+    Los de una ficha (`de_ficha`) son de quién tenemos el inmueble y llevan además
+    `rol`: el dueño o su asesor. Un rol que no sea uno de los dos se descarta."""
     if "contactos" not in body:
         return body
     cs = body["contactos"]
@@ -995,6 +1079,10 @@ def _con_contactos(body: dict) -> dict:
         raise HTTPException(422, "contactos debe ser una lista de hasta 30 contactos")
     limpios = [{k: str(c[k]).strip()[:200] for k in CONTACTO_CAMPOS
                 if c.get(k) is not None and str(c[k]).strip()} for c in cs]
+    if de_ficha:
+        for limpio, c in zip(limpios, cs):
+            if c.get("rol") in ROLES_CONTACTO:
+                limpio["rol"] = c["rol"]
     return dict(body, contactos=Jsonb([c for c in limpios if c]))
 
 
@@ -1081,9 +1169,16 @@ def crear_ficha(body: dict = Body(...), user: dict = Depends(current_user)) -> d
         # Una ficha por listing y por asesor: volver a crearla devuelve la existente.
         if "fotos" in body:
             body = dict(body, fotos=_fotos_validas(body["fotos"]))
-        return _insert(conn, "ficha", derivar_precio({}, _con_coordenada(body)), FICHA_COLS, user["id"],
+        fila = _insert(conn, "ficha", derivar_precio({}, _con_coordenada(_con_contactos(body, de_ficha=True))),
+                       FICHA_COLS, user["id"],
                        extra="ON CONFLICT (user_id, source_listing_id) "
                              "DO UPDATE SET updated_at = now()")
+        # El ID (PR-<fecha>-<n>) se asigna al nacer la ficha, con la fecha de ese día: si
+        # se dejara para cuando alguien imprime, llevaría la fecha de la impresión.
+        if not (fila.get("folio") or "").strip():
+            conn.execute("SELECT asignar_folios()")
+            fila = conn.execute("SELECT * FROM ficha WHERE id = %s", (fila["id"],)).fetchone()
+        return fila
 
 
 @app.patch("/api/fichas/{fid}")
@@ -1098,7 +1193,7 @@ def editar_ficha(fid: str, body: dict = Body(...), user: dict = Depends(current_
         body = derivar_precio(actual or {}, body)
     if "fotos" in body:
         body = dict(body, fotos=_fotos_validas(body["fotos"]))
-    fila = _patch("ficha", fid, _con_coordenada(body), FICHA_COLS[1:], user)
+    fila = _patch("ficha", fid, _con_coordenada(_con_contactos(body, de_ficha=True)), FICHA_COLS[1:], user)
     if "fotos" in body:
         # Una foto subida que ya no está en la lista se borra con su archivo: si no,
         # quedaría guardada sin que nada la muestre.

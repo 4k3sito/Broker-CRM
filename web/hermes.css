@@ -2020,7 +2020,7 @@ tr.igual.ocultar { display:none; }
 .fx-pdfdata[open] summary { margin-bottom:8px; }
 .fx-pdfdata label { display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--muted); margin-bottom:8px; }
 .fx-row { display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:8px; }
-.fx-pdfdata input, .fx-pdfdata textarea, .fx-add input, .fx-asignar, .fx-notas textarea {
+.fx-pdfdata input, .fx-pdfdata select, .fx-pdfdata textarea, .fx-add input, .fx-asignar, .fx-notas textarea {
   width:100%; padding:7px 9px; border:1px solid var(--border-2); background:var(--surface);
   color:var(--ink); font-family:var(--font-ui); font-size:13px; outline:none;
 }
@@ -2596,6 +2596,62 @@ textarea.base-in { resize:vertical; }
    sin efecto (botones de 32 px en el teléfono) hasta el 2026-10-08. Lo que se
    agregue a este archivo va ARRIBA de aquí. Las pestañas no están: ya miden 52 px
    de alto y su relleno lo decide el bloque de ≤900 px. */
+/* Contacto del inmueble en la ficha: rol y nombre arriba, teléfono y correo abajo. */
+.fx-cto { display:grid; grid-template-columns:128px minmax(0,1fr) 28px; gap:6px; padding:8px 0; border-top:1px solid var(--border); }
+.fx-cto .cto-in {
+  width:100%; min-width:0; padding:7px 9px; border:1px solid var(--border-2); background:var(--surface);
+  color:var(--ink); font-family:var(--font-ui); font-size:13px; outline:none;
+}
+.fx-cto .cto-in:focus { border-color:var(--accent); }
+.fx-cto [data-k="correo"] { grid-column:2 / -1; }
+.fx-cto .cto-del { border:none; background:transparent; color:var(--faint); font-size:15px; cursor:pointer; }
+.fx-cto .cto-del:hover { color:var(--s-rechazado); }
+.fx-cto .cto-wa { grid-column:1 / -1; }
+.fx-cto .cto-wa:empty { display:none; }
+.fx-add .cto-add { padding:7px 12px; }
+
+/* ── Propiedad: anuncios fusionados y posibles duplicados ─────────────────────
+   La tarjeta del tablero (rango de precio y cuántos anuncios junta), la sección de la
+   ficha y la página duplicados.html. El renglón `.dp-fila` lo pinta propiedad.js. */
+.card-price.rango { flex-wrap:wrap; row-gap:0; }
+.card-price.rango strong { font-size:16px; }
+.card-a { font-family:var(--font-mono); font-size:10px; color:var(--muted); }
+.card-dup {
+  display:inline-block; margin-top:6px; padding:2px 6px; border:1px solid var(--border-2);
+  font-family:var(--font-mono); font-size:10px; color:var(--ink); letter-spacing:.02em;
+}
+.dp-fila {
+  display:grid; grid-template-columns:84px minmax(0,1fr) auto; gap:12px; align-items:center;
+  padding:10px 0; border-top:1px solid var(--border);
+}
+.dp-fila.baja { opacity:.6; }
+.dp-foto { width:84px; height:62px; object-fit:cover; background:var(--bg); border:1px solid var(--border); display:block; }
+.dp-txt { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.dp-precio b { font-family:var(--font-display); font-size:18px; font-weight:500; font-feature-settings:'tnum'; }
+.dp-precio span { font-family:var(--font-mono); font-size:11px; color:var(--muted); margin-left:6px; }
+.dp-tit { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dp-meta { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dp-meta b { color:var(--ink); font-weight:700; }
+.dp-meta i { font-style:normal; color:var(--ink); }
+.dp-acc { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.dp-main { max-width:1100px; gap:14px; }
+.dp-main .pg-head { margin-bottom:0; }
+.dp-sep { width:1px; height:20px; background:var(--border-2); margin:0 6px; }
+.dp-par { background:var(--surface); border:1px solid var(--border); padding:12px 16px 4px; margin-bottom:14px; }
+.dp-par.hecho { opacity:.55; }
+.dp-par-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding-bottom:10px; }
+.dp-par-acc { display:flex; gap:6px; }
+.dp-senal { font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.dp-pag { font-family:var(--font-mono); font-size:11px; color:var(--muted); }
+#dpPaginas { display:flex; align-items:center; justify-content:center; gap:12px; }
+#dpPaginas:empty { display:none; }
+@media (max-width: 640px) {
+  .dp-fila { grid-template-columns:64px minmax(0,1fr); }
+  .dp-foto { width:64px; height:48px; }
+  .dp-acc { grid-column:1 / -1; justify-content:flex-start; }
+  .dp-tit, .dp-meta { white-space:normal; }
+}
+
 @media (pointer: coarse) {
   .th-btn { width: 44px; height: 44px; }
   .btn-ghost { height: 44px; padding: 0 18px; }
