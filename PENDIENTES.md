@@ -7,9 +7,9 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
-## Ficha reacomodada y notas de presentación — **en `desarrollo`, sin desplegar** (2026-10-12)
+## Ficha reacomodada y notas de presentación — **en producción desde el 2026-10-13**
 
-Sólo `web/`: desplegarlo no pide reconstruir la API.
+Sólo `web/`: se desplegó con cherry-pick, sin reconstruir la API.
 
 - **Ficha:** Documentos en medio con Contacto debajo y Clientes a la derecha (la tarjeta de
   Contacto había mandado Clientes a un segundo renglón).
