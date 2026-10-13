@@ -13,7 +13,7 @@ aquí, y cada operación es una sola: o queda hecha completa o no queda nada.
     agregar_foto_version(conn, user_id, vid, nombre, mime, datos)    la versión, ídem
 
 Las reglas que antes estaban repartidas por `main.py` se aplican aquí y en este orden:
-las fotos se filtran, la liga del mapa da la coordenada, con dos de precio / superficie /
+las fotos y los contactos se filtran, la liga del mapa da la coordenada, con dos de precio / superficie /
 $/m² sale el tercero, se guarda, y las fotos subidas que ya nadie muestra se borran.
 
 Este módulo no sabe de HTTP, no abre conexiones y no sale a la red. Recibe la conexión
@@ -48,7 +48,7 @@ class DatoInvalido(ValueError):
 
 
 COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "construccion_m2", "fotos", "notas",
-        "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng")
+        "tipo", "municipio", "mapa_url", "precio_m2", "folio", "lat", "lng", "operacion", "contactos")
 # El anuncio del que nació una ficha no se le cambia después.
 EDITABLES = COLS[1:]
 NUMEROS = ("precio", "tamano_m2", "construccion_m2", "precio_m2", "lat", "lng")
@@ -75,6 +75,27 @@ def fotos_validas(fotos) -> list[str]:
     ok = [f.strip() for f in fotos if isinstance(f, str)
           and (re.match(r"^https?://", f.strip(), re.I) or _FOTO_SUBIDA.match(f.strip()))]
     return list(dict.fromkeys(ok))[:MAX_FOTOS]
+
+
+CONTACTO_CAMPOS = ("nombre", "correo", "telefono")
+ROLES_CONTACTO = ("dueno", "asesor")
+
+
+def contactos_limpios(cs, con_rol: bool = False) -> list[dict]:
+    """Una lista de contactos es jsonb libre: aquí se deja sólo lo que la página pinta
+    (nombre, correo y teléfono, como texto corto) y se acota la lista. Sirve igual para
+    los de un cliente (los llama main.py). Los de una ficha (`con_rol`) son de quién
+    tenemos el inmueble y llevan además `rol`: el dueño o su asesor; un rol que no sea
+    uno de los dos se descarta."""
+    if not isinstance(cs, list) or len(cs) > 30 or not all(isinstance(c, dict) for c in cs):
+        raise DatoInvalido("contactos debe ser una lista de hasta 30 contactos")
+    limpios = [{k: str(c[k]).strip()[:200] for k in CONTACTO_CAMPOS
+                if c.get(k) is not None and str(c[k]).strip()} for c in cs]
+    if con_rol:
+        for limpio, c in zip(limpios, cs):
+            if c.get("rol") in ROLES_CONTACTO:
+                limpio["rol"] = c["rol"]
+    return [c for c in limpios if c]
 
 
 def datos_version(d) -> dict:
@@ -135,10 +156,13 @@ def derivar_precio(actual: dict, body: dict) -> dict:
 
 
 def _preparar(datos: dict, resolver) -> dict:
-    """Lo que se puede revisar y completar sin tocar la base: las fotos, los números y
-    la coordenada de la liga del mapa."""
+    """Lo que se puede revisar y completar sin tocar la base: las fotos, los contactos,
+    los números y la coordenada de la liga del mapa."""
     if "fotos" in datos:
         datos = dict(datos, fotos=fotos_validas(datos["fotos"]))
+    if "contactos" in datos:
+        # Envuelta a mano: psycopg adapta una lista a arreglo, y la columna es jsonb.
+        datos = dict(datos, contactos=Jsonb(contactos_limpios(datos["contactos"], con_rol=True)))
     for k in NUMEROS:
         if datos.get(k) is not None:
             try:
@@ -183,10 +207,16 @@ def crear(conn, user_id, datos: dict, resolver=None) -> dict:
     campos = {k: v for k, v in datos.items() if k in COLS and v is not None}
     cols = ["user_id", *campos]
     # Una ficha por anuncio y por asesor: volver a crearla devuelve la que ya estaba.
-    return _guardar(conn,
+    fila = _guardar(conn,
         f"INSERT INTO ficha ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))}) "
         "ON CONFLICT (user_id, source_listing_id) DO UPDATE SET updated_at = now() RETURNING *",
         [user_id, *campos.values()])
+    # El ID (PR-<fecha>-<n>) se asigna al nacer la ficha, con la fecha de ese día: si
+    # se dejara para cuando alguien imprime, llevaría la fecha de la impresión.
+    if not (fila.get("folio") or "").strip():
+        conn.execute("SELECT asignar_folios()")
+        fila = conn.execute("SELECT * FROM ficha WHERE id = %s", (fila["id"],)).fetchone()
+    return fila
 
 
 def editar(conn, fid, cambios: dict, resolver=None) -> dict:

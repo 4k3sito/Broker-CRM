@@ -242,6 +242,33 @@ def las_fotos_de_una_version_son_suyas(conn):
     assert archivos(conn, f["id"]) == 0
 
 
+# ───────────────────────────────────────── ID, operación y contactos (2026-10-12)
+
+def una_ficha_nace_con_su_id(conn):
+    f = propia(conn)
+    assert (f["folio"] or "").startswith("PR-"), f["folio"]
+    # El que ya trae uno se queda con el suyo.
+    assert propia(conn, folio="A-7")["folio"] == "A-7"
+
+
+def la_operacion_es_renta_o_venta(conn):
+    f = propia(conn, operacion="rent")
+    assert fichas.editar(conn, f["id"], {"operacion": "sale"})["operacion"] == "sale"
+    falla(DatoInvalido, "Valor no permitido", lambda: fichas.editar(conn, f["id"], {"operacion": "permuta"}))
+
+
+def los_contactos_de_una_ficha_llevan_rol(conn):
+    f = propia(conn, contactos=[{"rol": "dueno", "nombre": " Ana ", "telefono": 81, "otro": "x"},
+                                {"rol": "jefe", "nombre": "Luis"}, {"correo": "  "}])
+    assert f["contactos"] == [{"nombre": "Ana", "telefono": "81", "rol": "dueno"}, {"nombre": "Luis"}]
+    g = fichas.editar(conn, f["id"], {"contactos": [{"rol": "asesor", "correo": "eva@x.mx"}]})
+    assert g["contactos"] == [{"correo": "eva@x.mx", "rol": "asesor"}]
+    falla(DatoInvalido, "contactos debe ser una lista", lambda: fichas.editar(conn, f["id"], {"contactos": "Ana"}))
+    falla(DatoInvalido, "contactos debe ser una lista", lambda: fichas.editar(conn, f["id"], {"contactos": [{}] * 31}))
+    # Los de un cliente son la misma limpieza, sin rol.
+    assert fichas.contactos_limpios([{"rol": "dueno", "nombre": "Ana"}]) == [{"nombre": "Ana"}]
+
+
 PRUEBAS = [una_ficha_propia_necesita_titulo, la_ficha_de_un_anuncio_es_una_sola,
            al_crear_con_dos_numeros_sale_el_tercero, no_se_escribe_lo_que_no_es_de_la_ficha,
            editar_cambia_solo_lo_que_se_manda, al_editar_el_precio_se_recalcula_con_lo_guardado,
@@ -250,7 +277,8 @@ PRUEBAS = [una_ficha_propia_necesita_titulo, la_ficha_de_un_anuncio_es_una_sola,
            una_version_guarda_solo_lo_que_imprime, lo_que_una_version_no_acepta,
            un_cliente_que_no_existe_no_deja_la_version_a_medias, una_foto_subida_va_al_final,
            una_propiedad_tiene_un_tope_de_fotos, quitar_una_foto_subida_borra_su_archivo,
-           una_foto_que_otra_version_usa_no_se_borra, las_fotos_de_una_version_son_suyas]
+           una_foto_que_otra_version_usa_no_se_borra, las_fotos_de_una_version_son_suyas,
+           una_ficha_nace_con_su_id, la_operacion_es_renta_o_venta, los_contactos_de_una_ficha_llevan_rol]
 
 
 def main() -> int:

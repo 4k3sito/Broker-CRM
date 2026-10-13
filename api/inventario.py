@@ -10,7 +10,9 @@ tres operaciones:
 `quien` decide tres cosas a la vez, y por eso no son tres parámetros: qué filtros
 existen, de dónde se lee y qué columnas salen.
 
-    Asesor(id)   el tablero. Ve el inventario vigente y, con `ficha=con`, el Catálogo:
+    Asesor(id)   el tablero. Cada fila es una PROPIEDAD: los anuncios del mismo inmueble
+                 salen como uno (`propiedad_anuncio`; `fusion=False` lo apaga).
+                 Ve el inventario vigente y, con `ficha=con`, el Catálogo:
                  los anuncios con ficha y las fichas propias, que se leen como un anuncio
                  más. Cada fila trae SU seguimiento (estado, destacado, notas). Lo dado
                  de baja no sale, salvo lo que él mismo sigue y lo que está en Catálogo.
@@ -71,14 +73,38 @@ SELECT_LISTING = """
   CASE WHEN l.geo_origen IS DISTINCT FROM 'relleno' THEN ST_X(l.geom::geometry) END AS lng,
   l.geo_origen
 """
+_TOTAL = "(CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 ELSE l.price END)"
+# Expresión y sentido por separado: al fusionar anuncios la expresión se calcula por
+# anuncio y el orden se aplica después, ya con una fila por propiedad.
 ORDENES = {
-    "recientes": "l.observed_at DESC NULLS LAST",
-    "precio_asc": "(CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 "
-                  "ELSE l.price END) ASC NULLS LAST",
-    "precio_desc": "(CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 "
-                   "ELSE l.price END) DESC NULLS LAST",
+    "recientes": ("l.observed_at", "DESC NULLS LAST"),
+    "precio_asc": (_TOTAL, "ASC NULLS LAST"),
+    "precio_desc": (_TOTAL, "DESC NULLS LAST"),
+    "m2_desc": ("l.area_m2", "DESC NULLS LAST"),
+}
+
+# ── Propiedades: anuncios fusionados ─────────────────────────────────────────
+# `propiedad_anuncio` dice qué anuncios son el mismo inmueble (la llena
+# scrapers/v2/duplicados.py y la retoca duplicados.py cuando un asesor decide). Sin fila,
+# el anuncio es su propia propiedad.
+PROPIEDAD = """coalesce(pa.propiedad, (l.source || ':' || l.listing_id) COLLATE "C")"""
+# Cuántas propiedades hay en un conjunto de anuncios: los sueltos, más los grupos distintos.
+def _propiedades(filtro: str = "") -> str:
+    y = f" AND {filtro}" if filtro else ""
+    o = f" FILTER (WHERE {filtro})" if filtro else ""
+    return f"(count(*) FILTER (WHERE pa.anuncio IS NULL{y}) + count(DISTINCT pa.propiedad){o})"
+# Cuál anuncio da la cara por la propiedad, ENTRE LOS QUE PASAN LOS FILTROS: se elige
+# después de filtrar y no antes, porque si no "sólo Lamudi" escondería la propiedad cuyo
+# anuncio principal está en otro portal. Primero el que el asesor ya trabaja —su estado
+# y sus notas viven en el anuncio—, luego el de más fotos, luego el más barato.
+_CON_SEGUIMIENTO = ("(ul.starred IS TRUE OR ul.status <> 'new' OR nullif(ul.notes, '') IS NOT NULL) "
+                    "DESC NULLS LAST")
+_CARA = {
+    "precio_asc": f"{_TOTAL} ASC NULLS LAST",
+    "precio_desc": f"{_TOTAL} DESC NULLS LAST",
     "m2_desc": "l.area_m2 DESC NULLS LAST",
 }
+_CARA_DEFECTO = f"{_CON_SEGUIMIENTO}, cardinality(l.images) DESC NULLS LAST, {_TOTAL} ASC NULLS LAST"
 
 
 # Tipos comerciales que ofrece el filtro, en el orden en que se muestran. Son valores de
@@ -108,7 +134,8 @@ MAX_LUGARES = 20
 # Sheet del pipeline y no existen en `listings`. Para que Inmobiliaria las muestre con
 # los MISMOS filtros, orden y paginación, esas fichas se vuelven filas del tipo
 # `listings` (jsonb_populate_record) con `source = 'pipeline'` y su uuid como
-# `listing_id`. Lo que no tienen —operación, coordenada, fuente de portal— queda NULL,
+# `listing_id`. Lo que no tienen —fuente de portal, y operación o coordenada mientras el
+# asesor no las ponga en la ficha— queda NULL,
 # y un filtro sobre eso simplemente no las incluye.
 _NORM_SQL = "translate(lower({x}), 'áéíóúüñ', 'aeiouun')"
 FICHA_COMO_LISTING = f"""
@@ -116,7 +143,8 @@ FICHA_COMO_LISTING = f"""
     'source', 'pipeline', 'listing_id', f.id::text, 'title', f.titulo,
     'price', coalesce(f.precio, f.precio_m2),
     'price_is_per_m2', f.precio IS NULL AND f.precio_m2 IS NOT NULL,
-    'currency', coalesce(f.moneda, 'MXN'), 'property_type', f.tipo, 'tipo', tipo_norm(f.tipo),
+    'currency', coalesce(f.moneda, 'MXN'), 'operation', f.operacion,
+    'property_type', f.tipo, 'tipo', tipo_norm(f.tipo),
     'area_m2', f.tamano_m2, 'location', f.municipio, 'maps_url', f.mapa_url,
     -- `tamano_m2` es la superficie de la propiedad: se sabe que es TERRENO cuando la
     -- ficha trae además la construcción, o cuando la propiedad es un terreno.
@@ -284,8 +312,12 @@ def _filtros(a: dict) -> tuple[list[str], list]:
     # tienen que cumplirse en EL MISMO proceso: "de ALSEA, en negociación" no es "de
     # ALSEA" y "en negociación con cualquiera".
     etapas = [e for e in (a.get("etapa") or []) if e]
-    if a.get("pcliente") or etapas:
+    # `asesor`: quién presentó la propiedad (`proceso.trae_id`), con el cliente que sea.
+    # Va en el mismo EXISTS: "las de Michelle con ALSEA en negociación" es un solo proceso.
+    if a.get("pcliente") or etapas or a.get("asesor"):
         cond = [FICHA_DE_L]
+        if a.get("asesor"):
+            cond.append("p.trae_id = %s::uuid"); p.append(a["asesor"])
         if a.get("pcliente"):
             cond.append("p.cliente_id = %s::uuid"); p.append(a["pcliente"])
         if etapas:
@@ -360,29 +392,101 @@ def _consulta(quien, filtros: dict) -> tuple[str, list]:
                LEFT JOIN zona z ON z.id = l.zona_id
                LEFT JOIN user_listing ul ON ul.listing_id = l.source || ':' || l.listing_id
                                         AND ul.user_id = %s
+               LEFT JOIN propiedad_anuncio pa ON pa.source = l.source AND pa.listing_id = l.listing_id
                {where}""", [quien.id, *p])
+
+
+def _fusiona(quien, filtros: dict) -> bool:
+    """¿Se enseña una fila por propiedad? En el tablero sí, salvo que se pida ver los
+    anuncios sueltos (`fusion=False`). En el Catálogo no: ahí cada fila es una ficha. Con
+    llave tampoco: `/api/v1` promete anuncios."""
+    return isinstance(quien, Asesor) and filtros.get("fusion") is not False and filtros.get("ficha") != "con"
 
 
 def buscar(conn, quien, filtros: dict, orden: str = "recientes", page: int = 1,
            per_page: int = 70) -> dict:
     """Una página de lo que `quien` ve con esos filtros, y cuántos son en total.
 
-    Reemplaza el fetchAllListings() del dashboard, que paginaba la tabla entera de 1000
-    en 1000 y la filtraba en el navegador."""
+    Para un asesor cada fila es una PROPIEDAD: de los anuncios fusionados que pasan los
+    filtros sale uno, y con él `anuncios`, `anunciantes`, `fuentes` y el rango de precio
+    (`precio_min`/`precio_max`) de todos los vigentes de la propiedad."""
     if orden not in ORDENES:
         raise FiltroInvalido(f"orden debe ser uno de: {', '.join(ORDENES)}")
     base, p = _consulta(quien, filtros)
     con_llave = isinstance(quien, Llave)
+    expr, sentido = ORDENES[orden]
+    limite = [per_page, (page - 1) * per_page]
+    if _fusiona(quien, filtros):
+        total = conn.execute(f"SELECT {_propiedades()} AS n {base}", p).fetchone()["n"]
+        # En dos pasos. Primero se elige, con filas angostas, qué anuncio da la cara por
+        # cada propiedad y cuáles caen en la página; sólo de ésos se traen las columnas
+        # completas. Ordenar 570 mil filas con sus galerías de fotos costaba 17 s.
+        rows = conn.execute(
+            f"""WITH pag AS (
+                  SELECT * FROM (
+                    SELECT DISTINCT ON ({PROPIEDAD}) l.source, l.listing_id,
+                           {PROPIEDAD} AS propiedad, {expr} AS _orden
+                    {base}
+                    ORDER BY {PROPIEDAD}, {_CARA.get(orden, _CARA_DEFECTO)}, l.source, l.listing_id
+                  ) c ORDER BY _orden {sentido}, listing_id LIMIT %s OFFSET %s)
+                SELECT {SELECT_LISTING}, pag.propiedad
+                FROM pag
+                JOIN listings l ON l.source = pag.source AND l.listing_id = pag.listing_id
+                LEFT JOIN zona z ON z.id = l.zona_id
+                LEFT JOIN user_listing ul ON ul.listing_id = l.source || ':' || l.listing_id
+                                         AND ul.user_id = %s
+                ORDER BY pag._orden {sentido}, l.listing_id""",
+            [*p, *limite, quien.id]).fetchall()
+        _resumir_propiedades(conn, rows)
+        return {"items": rows, "total": total, "page": page, "per_page": per_page}
     columnas = SELECT_ANUNCIO if con_llave else SELECT_LISTING
     desempate = "l.source, l.listing_id" if con_llave else "l.listing_id"
     total = conn.execute(f"SELECT count(*) AS n {base}", p).fetchone()["n"]
     rows = conn.execute(
-        f"SELECT {columnas} {base} ORDER BY {ORDENES[orden]}, {desempate} LIMIT %s OFFSET %s",
-        [*p, per_page, (page - 1) * per_page]).fetchall()
+        f"SELECT {columnas} {base} ORDER BY {expr} {sentido}, {desempate} LIMIT %s OFFSET %s",
+        [*p, *limite]).fetchall()
     out = {"items": rows, "total": total, "page": page, "per_page": per_page}
     if con_llave:
         out["pages"] = -(-total // per_page)
     return out
+
+
+def _resumir_propiedades(conn, rows: list[dict]) -> None:
+    """A cada fila, lo que hay detrás de su propiedad: cuántos anuncios vigentes, de
+    cuántos anunciantes, en qué portales y entre qué precios. El rango es de la misma
+    operación y moneda que el anuncio que se muestra: una renta no ensancha una venta."""
+    for r in rows:
+        r.update(anuncios=1, anunciantes=1, fuentes=[r["source"]], precio_min=None, precio_max=None)
+    claves = [r["propiedad"] for r in rows]
+    if not claves:
+        return
+    miembros = conn.execute(
+        f"""SELECT pa.propiedad, m.source, m.operation, m.currency,
+                   coalesce(nullif(regexp_replace(m.agent_phone, '\\D', '', 'g'), ''), lower(m.agency_name)) AS quien,
+                   (CASE WHEN NOT coalesce(m.price_is_per_m2, false) THEN m.price
+                         WHEN m.area_m2 > 0 THEN m.price * m.area_m2 END)::float8 AS total
+            FROM propiedad_anuncio pa
+            JOIN listings m ON m.source = split_part(pa.anuncio, ':', 1)
+                           AND m.listing_id = substr(pa.anuncio, strpos(pa.anuncio, ':') + 1)
+            WHERE pa.propiedad = ANY(%s) AND m.activo IS NOT FALSE""", (claves,)).fetchall()
+    por: dict[str, list[dict]] = {}
+    for m in miembros:
+        por.setdefault(m["propiedad"], []).append(m)
+    for r in rows:
+        ms = por.get(r["propiedad"])
+        if not ms or len(ms) < 2:
+            continue
+        precios = sorted(m["total"] for m in ms if m["total"] and m["operation"] == r["transaction_type"]
+                         and m["currency"] == r["currency"])
+        # Un precio mal capturado (un $/m² puesto como total) no ensancha el rango: sólo
+        # cuenta lo que está a menos del doble o la mitad de la mediana del grupo.
+        if precios:
+            med = precios[len(precios) // 2]
+            precios = [x for x in precios if med / 2 <= x <= med * 2]
+        r.update(anuncios=len(ms), anunciantes=len({m["quien"] for m in ms if m["quien"]}) or 1,
+                 fuentes=sorted({m["source"] for m in ms}))
+        if precios and min(precios) != max(precios):
+            r.update(precio_min=min(precios), precio_max=max(precios))
 
 
 def contar(conn, quien: Asesor, filtros: dict) -> dict:
@@ -390,9 +494,13 @@ def contar(conn, quien: Asesor, filtros: dict) -> dict:
     estado: las píldoras muestran a cuántos llegarías si cambiaras de estado. Son del
     tablero: cuentan el seguimiento de un asesor, que con llave no existe."""
     base, p = _consulta(quien, {k: v for k, v in filtros.items() if k != "estado"})
+    # Con anuncios fusionados se cuentan propiedades: la píldora tiene que decir lo mismo
+    # que la rejilla. Una propiedad anunciada en dos portales cuenta en los dos.
+    fus = _fusiona(quien, filtros)
     rows = conn.execute(f"""
         SELECT coalesce(ul.status, 'new') AS status, l.source,
-               count(*) AS n, count(*) FILTER (WHERE ul.starred) AS destacados
+               {_propiedades() if fus else "count(*)"} AS n,
+               {_propiedades("ul.starred") if fus else "count(*) FILTER (WHERE ul.starred)"} AS destacados
         {base}
         GROUP BY GROUPING SETS ((coalesce(ul.status, 'new')), (l.source), ())
     """, p).fetchall()

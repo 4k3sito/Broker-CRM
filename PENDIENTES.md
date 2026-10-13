@@ -7,26 +7,144 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
-## Guardar una ficha en una sola operación — **en la rama `fichas`, sin fusionar** (2026-10-11)
+## Guardar una ficha en una sola operación — **en `desarrollo`, sin desplegar** (2026-10-13)
 
 `api/fichas.py` junta todo lo que escribe una ficha, sus fichas PDF y sus fotos. Editar
 una ficha eran hasta tres transacciones (leer el precio, guardar, limpiar fotos) y ahora
 es una, con la fila bloqueada mientras se calcula el número que falta. Las rutas y el
-frontend no cambiaron.
+frontend no cambiaron. Al fusionarlo se le pasaron las reglas del 2026-10-12: el ID
+que se asigna al nacer la ficha, la operación y los contactos con rol (la limpieza de
+contactos vive ahí y la de clientes la reutiliza).
 
-- **Probado:** 19 pruebas nuevas (`api/prueba_fichas.py`) y las 20 del inventario pasan
-  en `npm run probar:api`; `selfcheck` en verde. Además, 70 peticiones HTTP iguales contra
-  la API anterior y la nueva sobre una base desechable: 68 respuestas idénticas.
-- **Las 2 que cambian, a propósito:** un número mal escrito al editar (`precio`, `lat`…)
-  contesta 422 «Valor no permitido» en vez de 404 «No existe».
-- **No se probó con navegador ni contra el esquema `dev`**: la API de la copia de trabajo
-  no se reconstruyó, porque `/srv/officelab-dev` tiene trabajo sin confirmar de otra
-  sesión (duplicados) sobre el mismo `api/main.py`.
-- **Falta:** fusionar `fichas` a `desarrollo` cuando ese trabajo esté confirmado (va a
-  haber que resolver `main.py` y el `COPY` del `Dockerfile` a mano), reconstruir
-  `api-dev` y recorrer la ficha y Clientes en el navegador. La copia aparte está en
-  `/srv/officelab-fichas` (`git worktree remove` cuando se fusione). Desplegarlo pide
-  `docker compose up -d --build api`.
+- **Probado:** 22 pruebas (`api/prueba_fichas.py`) en `npm run probar:api`, `selfcheck`
+  en verde, y el mismo recorrido de peticiones HTTP contra la API anterior y la nueva
+  sobre una base desechable.
+- **Cambia a propósito:** un número mal escrito al editar (`precio`, `lat`…) contesta
+  422 «Valor no permitido» en vez de 404 «No existe».
+- Desplegarlo pide `docker compose up -d --build api`.
+
+## Ficha reacomodada y notas de presentación — **en producción desde el 2026-10-13**
+
+Sólo `web/`: se desplegó con cherry-pick, sin reconstruir la API.
+
+- **Ficha:** Documentos en medio con Contacto debajo y Clientes a la derecha (la tarjeta de
+  Contacto había mandado Clientes a un segundo renglón).
+- **Notas de presentación** (`clientes.js`). En modo presentación el campo de notas de una
+  propiedad ya no se esconde: sale en blanco, como «Notas de esta presentación». Lo que se
+  escriba se agrega a `proceso.notas` debajo de lo anterior, en renglones que empiezan con
+  `▸ ` y, el primero, «Presentación <fecha>:». Se guarda al salir del campo (no al salir
+  del modo), así que cerrar la pestaña no lo pierde. La columna Notas de la tabla pinta
+  esos renglones en negritas. **En el campo de texto no hay negritas** —un `<textarea>` no
+  las admite—: ahí se distinguen por la marca y la fecha. Si se quiere negrita también al
+  editar, hay que cambiar el campo por uno con formato o guardar las notas de presentación
+  en su propia columna.
+
+## Excel de un cliente y filtro por asesor — **en producción desde el 2026-10-12**
+
+- **Excel de un cliente.** Botón «Excel» en el encabezado del cliente (`clientes.html`):
+  baja `Cliente-<nombre>.xlsx` con tres hojas —Cliente (datos, «Qué busca», notas),
+  Contactos y Propiedades (una fila por propiedad presentada, con ID, precio, m², etapa,
+  quién la presentó, notas, contacto del inmueble y ligas)—. Lo arma la API
+  (`GET /api/clientes/{id}/excel`) con `api/excel.py`, un escritor de .xlsx con la stdlib:
+  sin openpyxl. No sale en modo presentación: trae lo interno. Comprobado abriéndolo con
+  openpyxl; **falta abrirlo en Excel de verdad**.
+- **Filtro «Asesor» en el Catálogo.** Las propiedades que presentó un asesor
+  (`proceso.trae_id`, la columna «Presentó»), con el cliente que sea; se combina con
+  Cliente y Etapa en el mismo proceso. `asesor=<uuid>` en `/api/listings` y `/facets`.
+  34 de los 236 procesos no tienen cuenta ligada en «Presentó» (texto suelto o vacío): esas
+  propiedades no salen con ningún asesor.
+- Desplegado el 2026-10-12 (`2d8d40a` en `desarrollo`, cherry-pick en `produccion`, API
+  reconstruida). Sin cambios de esquema. Verificado por las funciones de la API contra la
+  base real; falta la confirmación del equipo y decidir si «Asesor» es quien presentó
+  (como quedó) o quien lleva la cuenta del cliente.
+
+## Fichas: estado de las propias, operación, moneda, ID y contacto — **en producción desde el 2026-10-12**
+
+- **Error que había en producción:** en el Catálogo, cambiar el estado (o destacar) de una ficha
+  propia (`pipeline:<uuid>`) no se guarda y la tarjeta vuelve a «Nuevo».
+  `PUT /api/listings/{id}/estado` sólo buscaba el id en `listings` y contestaba 404 (se ve
+  en el log de `api`). Corregido en la copia: acepta una ficha sin anuncio, y el tablero
+  ahora avisa con un toast si un cambio de estado no se guarda.
+- **Operación y moneda en una ficha propia.** «Datos de la propiedad» trae Operación (sin
+  definir / venta / renta) y Moneda del precio (pesos por defecto / dólares).
+  `ficha.operacion` es columna nueva (bloque del 2026-10-12 en `vps/schema.sql`); `ficha.moneda` ya existía y ahora tiene CHECK. La
+  tarjeta, la ficha y el PDF dejan de escribir «MXN» fijo y usan la moneda de la propiedad
+  (`Anuncio.moneda`). Con operación, el filtro Renta/Venta del Catálogo ya incluye a las propias.
+- **ID automático de la ficha.** `ficha.folio` se asigna al crear la ficha:
+  `PR-<DDMMAA de alta, hora de Monterrey>-<n del día>` (`asignar_folios()` en
+  `vps/schema.sql`, que la API llama en `POST /api/fichas`). Antes, sin folio, el PDF
+  inventaba uno con la fecha del día en que se imprimía. El bloque del esquema siembra a
+  las fichas que ya existían con su fecha de creación: las 160 de producción tienen ID
+  desde el despliegue (122 entraron el mismo día con el importador del sheet y son
+  `PR-250926-1…122`). Un ID
+  escrito a mano se respeta. Una ficha PDF guardada sin ID propio usa el de la propiedad.
+- **Contacto del inmueble.** Tarjeta «Contacto» en la ficha: de quién tenemos el terreno
+  o local, con rol Dueño / Asesor, nombre, teléfono (con liga de WhatsApp) y correo.
+  `ficha.contactos` es jsonb nuevo. No sale en el PDF ni en el modo presentación. En un
+  anuncio de portal, agregar el primer contacto crea la ficha (entra al Catálogo), igual
+  que agregar un documento.
+- ⚠️ **Tropiezo del 2026-10-12, corregido:** al probar, `dev.asignar_folios()` se llamó sin
+  `search_path=dev` y escribió el ID en las 159 fichas de **producción** (`public.ficha`).
+  Se revirtió a NULL en 158 a los dos minutos. Quedó una, «Industrial Park Escobedo»
+  (`PR-121026-3`), porque alguien la había editado nueve minutos antes y no se pudo
+  distinguir si ese ID lo tecleó un asesor. La función resuelve `ficha` con el
+  `search_path` de quien la llama: **en dev, siempre `SET search_path = dev, public` antes.**
+- No se tocó: la tabla de Clientes (`clientes.js`) no enseña la moneda, y una ficha PDF
+  guardada (versión) usa la moneda y operación de la propiedad, no una propia.
+
+## Propiedades: anuncios fusionados y duplicados — **en producción desde el 2026-10-12**
+
+Un inmueble se anuncia muchas veces y el tablero enseñaba cada anuncio. Ahora cada tarjeta
+es una **propiedad**: `scrapers/v2/duplicados.py agrupar` decide qué anuncios son el mismo
+inmueble, `api/inventario.py` devuelve una fila por propiedad (`fusion=false` vuelve al
+anuncio por anuncio), y el equipo corrige: «Fusionar» en la bandeja del tablero, «Separar»
+y «Es el mismo / No es el mismo» en la ficha, y la página nueva `duplicados.html`.
+
+Medido el 2026-10-11 en la copia (esquema `dev`): 564,557 anuncios vivos → 375,363
+propiedades. Oficinas en venta a 1.5 km de Punto Central: 259 anuncios → 85 tarjetas; el
+piso de 1,100 m² de Torre Banbajío (22 anuncios, 14 anunciantes) queda en una, de
+$115.5 M a $137.5 M.
+
+- **Desplegado el 2026-10-12** (commit `39f1a1f` en `desarrollo`, cherry-pick `99a4442` en
+  `produccion`, junto con los tres de `web/anuncio.js`). Respaldo previo:
+  `/srv/backups/officelab-pre-propiedades-2026-10-12.sql.gz`. Se aplicaron a `public` sólo
+  los bloques nuevos de `schema.sql`, se copiaron las huellas de `dev`, Pillow al venv de
+  producción, API reconstruida y `agrupar`: 555,587 anuncios vivos → 370,619 propiedades.
+  `vps/cron-v2.sh` llama a `huellas` (30 min, sólo Nuevo León) y `agrupar` tras cada carga:
+  **la primera noche que corra hay que mirar el log** (`duplicados:` en
+  `scrapers/logs/v2-<fuente>-<fecha>.log`).
+  Verificado por las funciones de la API contra la base real, no con un navegador con
+  sesión: falta que alguien del equipo confirme que lo ve bien.
+- **Huellas de oficinas de Nuevo León: terminadas el 2026-10-12** (8,992 anuncios, 98,872
+  fotos, 6.4 GB de descarga, 16 MB en la base) y reagrupado: 11,199 anuncios de oficinas
+  → 4,627 propiedades; 1,927 fusiones por foto; el grupo más grande es de 63 anuncios.
+- **Huellas: sólo están las oficinas de Nuevo León.** Bajar fotos sale directo (sin
+  proxy) pero pesa: ~100 KB por foto, ~11 fotos por anuncio. Todo Nuevo León son ~70 mil
+  anuncios, del orden de 70-80 GB de descarga y 5-6 h con 20 hilos; el país, ocho veces
+  eso. Sin huella un anuncio sólo se fusiona por las llaves duras. Falta decidir hasta
+  dónde se baja (pedir permiso antes de pasar de Nuevo León).
+- **Costo en el tablero.** Con el mapa en Monterrey (31 mil anuncios) la búsqueda fusionada
+  tarda ~0.6 s más que sin fusionar; sin ningún filtro, nacional, 3.7 s contra 2.1 s. Lo
+  caro es ordenar para elegir un anuncio por propiedad. Si molesta: guardar el grupo en
+  una columna de `listings` o precalcular el anuncio principal para el caso sin filtros.
+  (La base ya traía 564 mil anuncios vivos, no los 206 mil de antes de la v2: la búsqueda
+  sin fusionar también se hizo más lenta.)
+- **El seguimiento es por anuncio.** Estado, destacado y notas siguen en `user_listing`
+  por anuncio; la tarjeta enseña el anuncio que el asesor ya trabaja. Si marca dos
+  anuncios de la misma propiedad con estados distintos, las píldoras la cuentan en los dos.
+  El Catálogo (fichas) no fusiona: una ficha sigue colgando de UN anuncio.
+- **`/api/v1` y el CSV no fusionan**: siguen siendo anuncio por anuncio. Tampoco el
+  análisis de mercado, que conserva su `deduplicar()` de siempre; podría leer
+  `propiedad_anuncio` y dejar de aproximar.
+- **Las reglas automáticas se calibraron con un edificio.** «Misma foto + mismos m² +
+  precio a ±25%» funde pisos distintos del mismo tamaño en una torre (no hay forma de
+  distinguir el piso 8 del 12 con lo que publican). Revisar los grupos grandes tras la
+  primera corrida completa: `SELECT propiedad, count(*) FROM propiedad_anuncio GROUP BY 1
+  ORDER BY 2 DESC LIMIT 30`.
+- **Sugerencias: 62 mil en el país, 7,945 en Nuevo León**, casi todas por ubicación. La
+  página abre en Nuevo León. Nadie las ha revisado todavía: falta ver cuántas son buenas.
+- En el navegador automatizado las fotos de Navent salen bloqueadas
+  (`ERR_BLOCKED_BY_RESPONSE.NotSameOrigin`); en el del asesor se ven. No es de este cambio.
 
 ## El anuncio en el navegador, definido una vez — **en `desarrollo`, sin desplegar** (2026-10-11)
 
