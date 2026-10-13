@@ -30,6 +30,9 @@ const mx = n => Number(n).toLocaleString('es-MX');
 // el número entero por debajo.
 const dineroCorto = n => n >= 1e6 ? `$${(n / 1e6).toFixed(n >= 1e8 ? 1 : 2).replace(/\.?0+$/, '')} M` : `$${mx(Math.round(n))}`;
 
+// El peso de un archivo: "3.4 MB", "120 KB".
+const pesoTxt = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+
 // Superficie de una propiedad, distinguiendo terreno y construcción cuando se sabe.
 // Devuelve pares [etiqueta, m²]: los dos si el portal (o la ficha) los trae distintos;
 // uno etiquetado si sólo se sabe cuál es; y "Superficie" a secas cuando el anuncio da
