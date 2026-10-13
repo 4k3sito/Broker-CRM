@@ -94,6 +94,13 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   `ubicacion`). `precio` es el número que publicó el portal, con `moneda` aparte. No toca
   la red ni el DOM; el marcado es de cada página. Una regla de precio o una fuente nueva
   se cambia ahí y en ningún otro lado.
+  **`fotos.js` son las fotos de una propiedad, como un solo flujo** (2026-10-13): la caja
+  con miniaturas de la ficha y la de la fila desplegada en Clientes son la misma
+  (`Fotos.caja`), con los mismos eventos (`Fotos.escuchar`, una vez por página: clic,
+  soltar, pegar, liga) y la misma subida (`Fotos.subir`: sólo imágenes, reducidas a
+  2,400 px, tope de 20 MB, una por una). La página sólo dice de quién son las fotos de
+  una caja —la ficha o una ficha PDF— con un «destino» (`fotos`, `guardar`, `subir`); el
+  módulo no llama a la API.
 - **`api/`** — FastAPI. `main.py` trae la auth propia (scrypt de la stdlib + sesiones
   opacas en la DB), los endpoints de zonas/CRM/tareas, `GET /api/scrapers`
   (agregados de `listings` por fuente: eso es todo lo que el VPS sabe de los scrapers;
@@ -189,7 +196,7 @@ npm run dev                       # dev-server.js: sirve web/ en :3100 y proxya 
 npm run verificar                 # clases sin regla y marcas retiradas, en las 8 páginas
 npm run verificar:selfcheck       # las trampas del verificador, sin tocar el sitio
 npm run probar:api                # las pruebas de la API que necesitan base (ver abajo)
-npm run probar:web                # las pruebas de web/anuncio.js (node --test, sin dependencias)
+npm run probar:web                # las pruebas de web/anuncio.js y web/fotos.js (node --test, sin dependencias)
 
 # API (en el VPS)
 ssh officelab 'cd /srv/officelab/vps && docker compose exec -T api python main.py selfcheck'
@@ -228,9 +235,11 @@ miran lo que contesta, nunca el texto del SQL: córrelas después de tocar `inve
 o `fichas.py` (`api/prueba_fichas.py` siembra lo suyo y no depende de la otra).
 
 `npm run probar:web` (`pruebas/web/`) son las pruebas del frontend que no necesitan
-navegador: cargan `texto.js` y `anuncio.js` como scripts clásicos, igual que la página,
-y preguntan por la interfaz de `Anuncio`. Viven fuera de `web/` para que Caddy no las
-sirva. Córrelas después de tocar `anuncio.js`.
+navegador: cargan `texto.js` y el módulo (`anuncio.js`, `fotos.js`) como scripts
+clásicos, igual que la página, y preguntan por la interfaz de `Anuncio` y de `Fotos`.
+Viven fuera de `web/` para que Caddy no las sirva. Córrelas después de tocar cualquiera
+de los dos. De `fotos.js` cubren las reglas y el orden de la subida; reducir la imagen,
+arrastrar y pegar sólo se ven en un navegador.
 
 El marcado y el layout tienen un solo chequeo automatizado, `npm run verificar`
 (`web/verificar.py`, ver `DESIGN.md` §6): clases sin regla en `hermes.css` y marcas del

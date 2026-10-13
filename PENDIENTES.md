@@ -7,6 +7,24 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Las fotos de una propiedad como un solo flujo — **en `desarrollo`, sin desplegar** (2026-10-13)
+
+`web/fotos.js` es ahora el objeto `Fotos`: la caja de fotos, sus eventos y la subida,
+que la ficha y la fila desplegada de Clientes tenían cada una por su lado. Sólo `web/`:
+desplegarlo no pide reconstruir la API.
+
+- **Probado sin navegador:** 11 pruebas (`pruebas/web/fotos.test.js`), 37 en total en
+  `npm run probar:web`.
+- **Probado con navegador** en la copia de trabajo, a 1440 y 390 px: la caja pinta lo
+  mismo que la versión anterior en las dos páginas (textos, botones, miniaturas, ancho),
+  y en la nueva se recorrió todo en las dos: elegir una foto de 3000×2000 (llega en JPG
+  de 2400×1600), soltar, pegar, rechazar un PDF, liga con Enter, liga sin https, de
+  portada y quitar. Las capturas se revisaron.
+- **Cambia a propósito:** Clientes avisa de una foto de más de 20 MB antes de subirla
+  (antes la rechazaba el servidor después de mandarla).
+- **No se recorrió en pantalla:** subir fotos a una ficha PDF (versión) desde la ficha.
+  Usa el mismo flujo con otro destino, pero ese camino sólo está cubierto por lectura.
+
 ## Guardar una ficha en una sola operación — **en `desarrollo`, sin desplegar** (2026-10-13)
 
 `api/fichas.py` junta todo lo que escribe una ficha, sus fichas PDF y sus fotos. Editar
