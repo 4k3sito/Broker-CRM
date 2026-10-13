@@ -729,35 +729,13 @@ const esPropia = f => !!f?.id && !f.source_listing_id;
 function fotosHtml(f) {
   const fotos = f.fotos ?? [];
   if (!esPropia(f)) return fotos[0] ? `<img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt="">` : '';
-  return `<div class="cl-exp-fotos fx-fotos">
-    ${fotos[0] ? `<img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt="">` : ''}
-    <span class="fx-lab">Fotos <small>${fotos.length ? 'la primera es la portada' : 'aún no hay'}</small></span>
-    ${fotos.length ? `<div class="fx-thumbs">${fotos.map((u, i) => `<span class="fx-thumb${i ? '' : ' portada'}">
-      <img src="${srcSeguro(u)}" alt="" loading="lazy">
-      ${i ? `<button type="button" class="foto-top" data-i="${i}" title="Usar como portada">&#8593;</button>` : ''}
-      <button type="button" class="foto-del" data-i="${i}" title="Quitar foto">&times;</button></span>`).join('')}</div>` : ''}
-    <div class="fx-add">
-      <input class="foto-url" placeholder="Liga de una foto (https://…)" aria-label="Liga de una foto">
-      <button type="button" class="foto-sube">Subir&#8230;</button>
-    </div>
-    <p class="fx-hint">${subiendoFotos === String(f.id) ? 'Subiendo&#8230;' : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí o pegar una captura con Ctrl+V.'}</p>
-    <input type="file" data-foto-file accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
-  </div>`;
+  return Fotos.caja(fotos, { clase: 'cl-exp-fotos', corta: true, subiendo: subiendoFotos === String(f.id) ? 1 : 0,
+    antes: fotos[0] ? `<img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt="">` : '' });
 }
 // La misma ficha puede estar con otro cliente: que traiga las mismas fotos en todos.
 function ponerFotos(fichaId, fotos) {
   for (const x of clientes) for (const q of x.proceso ?? [])
     if (String(q.ficha?.id) === String(fichaId)) q.ficha.fotos = fotos;
-}
-async function subirFotos(p, files) {
-  files = [...files].filter(f => TIPOS_FOTO.test(f.type));
-  if (!files.length) return alert('Sólo se pueden subir imágenes JPG, PNG, WEBP o GIF.');
-  subiendoFotos = String(p.ficha.id); renderDetalle();
-  try {
-    // Una por una: la API agrega cada foto al final y devuelve la lista como quedó.
-    for (const f of files) ponerFotos(p.ficha.id, (await API.subir(`/fichas/${p.ficha.id}/fotos`, await prepararFoto(f))).fotos);
-  } catch (err) { alert('No se pudo subir la foto: ' + err.message); }
-  subiendoFotos = null; renderDetalle();
 }
 // Quitar, poner de portada o agregar una liga: todo es guardar la lista nueva. La API
 // borra el archivo de una foto subida que ya no esté en ella.
@@ -766,10 +744,18 @@ async function guardarFotos(p, lista) {
   catch (err) { alert('No se pudo guardar: ' + err.message); }
   renderDetalle();
 }
-function agregarLigaFoto(p, crudo) {
-  const ligas = (crudo ?? '').split(/\s+/).filter(u => /^https?:\/\//i.test(u));
-  if (!ligas.length) { if ((crudo ?? '').trim()) alert('La liga de una foto empieza con https://'); return; }
-  guardarFotos(p, [...(p.ficha.fotos ?? []), ...ligas]);
+// De quién son las fotos de una caja (ver fotos.js): de la ficha de esa fila.
+function destinoFotos(caja) {
+  const p = procDe(caja);
+  if (!p) return null;
+  const id = p.ficha.id;
+  return {
+    fotos: () => (p.ficha.fotos ?? []).slice(),
+    guardar: lista => guardarFotos(p, lista),
+    subir: async archivo => ponerFotos(id, (await API.subir(`/fichas/${id}/fotos`, archivo)).fotos),
+    alEmpezar: () => { subiendoFotos = String(id); renderDetalle(); },
+    alTerminar: () => { subiendoFotos = null; renderDetalle(); },
+  };
 }
 
 function panelHtml(c, p) {
@@ -978,16 +964,8 @@ detalle.addEventListener('click', e => {
   if (t.closest('#colsBtn')) { colsAbierto = !colsAbierto; return renderDetalle(); }
   if (t.closest('#catBtn')) { if (catAbierto) { catAbierto = false; return renderDetalle(); } return abrirCatalogo(); }
   if (t.closest('.cl-catopt')) return proponerDeCatalogo(cSel(), t.closest('.cl-catopt').dataset.ficha);
-  // Fotos de la fila desplegada.
-  if (t.closest('.cl-exp-fotos')) {
-    const p = procDe(t), fotos = (p?.ficha.fotos ?? []).slice();
-    if (!p) return;
-    if (t.closest('.foto-sube')) return t.closest('.cl-exp-fotos').querySelector('[data-foto-file]').click();
-    const del = t.closest('.foto-del'), top = t.closest('.foto-top');
-    if (del && confirm('¿Quitar esta foto?')) return guardarFotos(p, fotos.filter((_, i) => i !== +del.dataset.i));
-    if (top) { fotos.unshift(...fotos.splice(+top.dataset.i, 1)); return guardarFotos(p, fotos); }
-    return;
-  }
+  // Las fotos de la fila desplegada las atiende fotos.js.
+  if (t.closest('.cl-exp-fotos')) return;
   const chip = t.closest('.cl-chip[data-etapa]');
   if (chip) { propEtapas.has(chip.dataset.etapa) ? propEtapas.delete(chip.dataset.etapa) : propEtapas.add(chip.dataset.etapa); return renderDetalle(); }
   // Clic en la fila (no en sus controles): despliega o recoge el panel.
@@ -1008,31 +986,12 @@ detalle.addEventListener('change', e => {
     try { localStorage.setItem('ol-cl-cols-2', JSON.stringify(colsOn)); } catch { /* sin persistencia */ }
     return renderDetalle();
   }
-  if (t.matches('[data-foto-file]')) { const p = procDe(t); if (p && t.files.length) subirFotos(p, t.files); return; }
-  if (t.matches('.cl-exp-fotos .foto-url')) { const p = procDe(t), v = t.value; t.value = ''; if (p) agregarLigaFoto(p, v); return; }
+  if (t.closest('.cl-exp-fotos')) return;      // fotos.js
   if (t.matches('.cl-ein')) { const p = procDe(t); if (p) guardarCampo(c, p, t.dataset.tb, t.dataset.f, t.value); }
 });
-// Soltar fotos del equipo sobre la caja. Reordenar filas también usa dragover/drop en
-// este contenedor (más abajo), pero sólo actúa con `arrastrando`, que aquí no hay.
-const cajaFotos = e => [...(e.dataTransfer?.types ?? [])].includes('Files') ? e.target.closest?.('.cl-exp-fotos') : null;
-detalle.addEventListener('dragover', e => { const caja = cajaFotos(e); if (caja) { e.preventDefault(); caja.classList.add('soltar'); } });
-detalle.addEventListener('dragleave', e => { const caja = e.target.closest?.('.cl-exp-fotos'); if (caja && !caja.contains(e.relatedTarget)) caja.classList.remove('soltar'); });
-detalle.addEventListener('drop', e => {
-  const caja = cajaFotos(e), p = caja && procDe(caja);
-  if (!p) return;
-  e.preventDefault();
-  subirFotos(p, e.dataTransfer.files);
-});
-// Pegar una imagen (Ctrl+V) la sube a la caja de fotos donde está el cursor; si la
-// página sólo tiene una caja, a esa. Con varias y el cursor fuera, no se adivina.
-document.addEventListener('paste', e => {
-  const cajas = detalle.querySelectorAll('.cl-exp-fotos');
-  const caja = e.target.closest?.('.cl-exp-fotos') ?? (cajas.length === 1 ? cajas[0] : null);
-  const p = caja && procDe(caja), imgs = p ? fotosPegadas(e) : [];
-  if (!imgs.length) return;
-  e.preventDefault();
-  subirFotos(p, imgs);
-});
+// Las cajas de fotos: clic, soltar y pegar los atiende fotos.js. Reordenar filas también
+// usa dragover/drop en este contenedor (más abajo), pero sólo actúa con `arrastrando`.
+Fotos.escuchar(detalle, destinoFotos);
 detalle.addEventListener('submit', e => {
   e.preventDefault();
   const c = cSel();
