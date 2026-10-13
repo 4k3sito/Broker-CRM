@@ -1,17 +1,27 @@
 # Pendientes
 
-Estado al **2026-10-11**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-10-13**. Es una foto, no la verdad: verifica antes de actuar.
 Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
 
 - *(nada)*
 
-## Las fotos de una propiedad como un solo flujo — **en `desarrollo`, sin desplegar** (2026-10-13)
+## Despliegue del 2026-10-13: `fichas.py` y `fotos.js` — **en producción**
+
+Commits `5ef2f43` y `3334c0f` de `produccion` (el primero junta en uno los tres de
+`desarrollo`, porque una fusión no se trae con cherry-pick). API reconstruida, sin
+cambios de esquema ni de Caddy; la imagen anterior quedó como
+`officelab-api:pre-2026-10-13` para dar marcha atrás. Comprobado en producción:
+`selfcheck` en verde, rutas en 401 sin sesión, estáticos idénticos a los del repo, y
+`fichas.py` contra la base real dentro de una transacción que se deshizo (editar, crear
+con su ID, versión, borrar: 170 fichas antes y después). **No se abrió una sesión de
+asesor en producción**: el recorrido con navegador se hizo en la copia de trabajo.
+
+## Las fotos de una propiedad como un solo flujo — **en producción desde el 2026-10-13**
 
 `web/fotos.js` es ahora el objeto `Fotos`: la caja de fotos, sus eventos y la subida,
-que la ficha y la fila desplegada de Clientes tenían cada una por su lado. Sólo `web/`:
-desplegarlo no pide reconstruir la API.
+que la ficha y la fila desplegada de Clientes tenían cada una por su lado. Sólo `web/`.
 
 - **Probado sin navegador:** 11 pruebas (`pruebas/web/fotos.test.js`), 37 en total en
   `npm run probar:web`.
@@ -25,7 +35,7 @@ desplegarlo no pide reconstruir la API.
 - **No se recorrió en pantalla:** subir fotos a una ficha PDF (versión) desde la ficha.
   Usa el mismo flujo con otro destino, pero ese camino sólo está cubierto por lectura.
 
-## Guardar una ficha en una sola operación — **en `desarrollo`, sin desplegar** (2026-10-13)
+## Guardar una ficha en una sola operación — **en producción desde el 2026-10-13**
 
 `api/fichas.py` junta todo lo que escribe una ficha, sus fichas PDF y sus fotos. Editar
 una ficha eran hasta tres transacciones (leer el precio, guardar, limpiar fotos) y ahora
@@ -43,7 +53,6 @@ contactos vive ahí y la de clientes la reutiliza).
   ficha propia, editarla, el 422 del número mal escrito, subir y quitar una foto, crear
   y borrar una versión, y abrir su ficha. Todo contestó lo esperado; la ficha de
   prueba se borró.
-- Desplegarlo pide `docker compose up -d --build api`.
 
 ## Ficha reacomodada y notas de presentación — **en producción desde el 2026-10-13**
 
