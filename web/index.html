@@ -59,6 +59,12 @@
     </button>
     <button class="fb-x" data-x="cliente" title="Quitar filtro" hidden>&times;</button>
   </span>
+  <span class="fb-chip" data-f="asesor" hidden>
+    <button class="fb-open" data-f="asesor" aria-expanded="false" aria-haspopup="dialog">
+      <span class="fb-k">Asesor</span><span class="fb-v" id="fbv-asesor">Todos</span>
+    </button>
+    <button class="fb-x" data-x="asesor" title="Quitar filtro" hidden>&times;</button>
+  </span>
   <span class="fb-chip" data-f="etapa" hidden>
     <button class="fb-open" data-f="etapa" aria-expanded="false" aria-haspopup="dialog">
       <span class="fb-k">Etapa</span><span class="fb-v" id="fbv-etapa">Todas</span>
@@ -139,6 +145,8 @@
     <select class="tray-btn" id="trayCliente" aria-label="Asignar a cliente">
       <option value="">Asignar a cliente&#8230;</option>
     </select>
+    <!-- Sólo en Bolsa: las tarjetas elegidas son el mismo inmueble y quedan en una. -->
+    <button class="tray-btn" id="trayFusionar">Fusionar</button>
     <!-- Sólo en Bolsa: guarda la selección en la bolsa propia sin asignarla a nadie. -->
     <button class="tray-btn" id="trayInmo">+ Cat&#225;logo</button>
     <!-- Sólo en Inmobiliaria: lo contrario, borra la ficha de lo seleccionado. -->

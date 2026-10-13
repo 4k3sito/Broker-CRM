@@ -22,6 +22,7 @@ import secrets
 import sys
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -39,9 +40,12 @@ from psycopg_pool import ConnectionPool
 # Local: la maqueta del PDF. No importa WeasyPrint al cargarse —eso pasa dentro
 # de documento.pdf()—, así que no encarece el arranque de la API.
 import documento
+import duplicados
 import entorno
+import excel
 import fichas
 import inventario
+from duplicados import DuplicadoInvalido
 from fichas import DatoInvalido, MAX_FOTOS, NoExiste, RUTA_ARCHIVO
 from inventario import Asesor, FiltroInvalido, Llave, MAX_LUGARES, norm_txt
 from pydantic import BaseModel, Field
@@ -504,11 +508,13 @@ def list_listings(
     ficha: str | None = Query(None, pattern="^(con|sin)$"),
     pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
     sin_cliente: bool = False,
+    asesor: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),   # quién la presentó
     etapa: list[str] | None = Query(None),
     estado: str | None = None,
     favoritos: bool = False,
     near: str | None = None,
     radio: int = Query(2000, ge=100, le=50000),
+    fusion: bool = True,          # una fila por propiedad; False = anuncio por anuncio
     orden: str = Query("recientes"),
     page: int = Query(1, ge=1),
     per_page: int = Query(70, ge=1, le=200),
@@ -533,12 +539,79 @@ def facets(
     ficha: str | None = Query(None, pattern="^(con|sin)$"),
     pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
     sin_cliente: bool = False,
+    asesor: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),   # quién la presentó
     etapa: list[str] | None = Query(None),
     favoritos: bool = False, near: str | None = None, radio: int = 2000,
+    fusion: bool = True,
 ) -> dict:
     filtros = locals()
     with POOL.connection() as conn:
         return inventario.contar(conn, Asesor(user["id"]), filtros)
+
+
+# ── Propiedades: anuncios que son el mismo inmueble ─────────────────────────────
+# Qué se fusiona solo lo decide scrapers/v2/duplicados.py; lo que decide un asesor entra
+# por aquí y es del equipo, como el CRM (SECURITY.md §5). Van ANTES de
+# /api/listings/{listing_id} sólo por orden de lectura: no comparten prefijo.
+@app.exception_handler(DuplicadoInvalido)
+async def _duplicado_invalido(_: Request, e: DuplicadoInvalido) -> JSONResponse:
+    return JSONResponse({"detail": str(e)}, status_code=422)
+
+
+ID_ANUNCIO = r"^[a-z0-9]+:[^\s]{1,80}$"
+
+
+class FusionIn(BaseModel):
+    ids: list[str] = Field(min_length=2, max_length=duplicados.MAX_FUSION)
+
+
+class AnuncioIn(BaseModel):
+    id: str = Field(pattern=ID_ANUNCIO)
+
+
+class ParIn(BaseModel):
+    a: str = Field(pattern=ID_ANUNCIO)
+    b: str = Field(pattern=ID_ANUNCIO)
+
+
+@app.get("/api/duplicados")
+def duplicados_de(id: str = Query(pattern=ID_ANUNCIO), user: dict = Depends(current_user)) -> dict:
+    """Los anuncios de la propiedad de `id` y los que se le parecen."""
+    with POOL.connection() as conn:
+        return duplicados.de(conn, id)
+
+
+@app.get("/api/duplicados/sugerencias")
+def duplicados_sugerencias(
+    user: dict = Depends(current_user),
+    tipo: list[str] | None = Query(None),
+    lugar: list[str] | None = Query(None, max_length=MAX_LUGARES),
+    estado: str | None = Query(None, max_length=60),
+    senal: str | None = Query(None, pattern="^(foto|ubicacion)$"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=50),
+) -> dict:
+    with POOL.connection() as conn:
+        return duplicados.sugerencias(conn, {"tipo": tipo, "lugar": lugar, "estado": estado, "senal": senal},
+                                      page, per_page)
+
+
+@app.post("/api/duplicados/fusionar")
+def duplicados_fusionar(body: FusionIn, user: dict = Depends(current_user)) -> dict:
+    with POOL.connection() as conn:
+        return duplicados.fusionar(conn, user["id"], body.ids)
+
+
+@app.post("/api/duplicados/separar")
+def duplicados_separar(body: AnuncioIn, user: dict = Depends(current_user)) -> dict:
+    with POOL.connection() as conn:
+        return duplicados.separar(conn, user["id"], body.id)
+
+
+@app.post("/api/duplicados/descartar", status_code=204)
+def duplicados_descartar(body: ParIn, user: dict = Depends(current_user)) -> None:
+    with POOL.connection() as conn:
+        duplicados.descartar(conn, user["id"], body.a, body.b)
 
 
 @app.get("/api/ubicaciones")
@@ -768,8 +841,17 @@ class EstadoIn(BaseModel):
 def set_estado(listing_id: str, body: EstadoIn, user: dict = Depends(current_user)) -> dict:
     """Upsert del estado por usuario. COALESCE deja mandar solo el campo que cambió."""
     with POOL.connection() as conn:
-        if not conn.execute("SELECT 1 FROM listings WHERE source || ':' || listing_id = %s",
-                            (listing_id,)).fetchone():
+        # Una ficha propia (`pipeline:<uuid>`) no está en `listings` pero el Catálogo la
+        # enseña como una tarjeta más, con su selector de estado: también se le puede
+        # llevar seguimiento. Hasta el 2026-10-12 esto daba 404 y la tarjeta volvía a "Nuevo".
+        if listing_id.startswith("pipeline:"):
+            existe = re.fullmatch(r"[0-9a-f-]{36}", listing_id[9:]) and conn.execute(
+                "SELECT 1 FROM ficha WHERE id = %s::uuid AND source_listing_id IS NULL",
+                (listing_id[9:],)).fetchone()
+        else:
+            existe = conn.execute("SELECT 1 FROM listings WHERE source || ':' || listing_id = %s",
+                                  (listing_id,)).fetchone()
+        if not existe:
             raise HTTPException(404, "No existe ese listing")
         row = conn.execute(
             """INSERT INTO user_listing (user_id, listing_id, status, starred, notes, updated_at)
@@ -927,17 +1009,12 @@ def clientes(_: dict = Depends(current_user)) -> list[dict]:
 
 
 def _con_contactos(body: dict) -> dict:
-    """`cliente.contactos` es jsonb libre: aquí se deja sólo lo que la página pinta
-    (nombre, correo y teléfono, como texto corto) y se acota la lista. Va envuelta en
-    Jsonb a mano porque `_adaptar` no envuelve listas (ver ahí)."""
+    """`cliente.contactos` es jsonb libre: se deja sólo lo que la página pinta. La
+    limpieza es la misma que la de los contactos de una ficha (fichas.py), sin `rol`. Va
+    envuelta en Jsonb a mano porque `_adaptar` no envuelve listas (ver ahí)."""
     if "contactos" not in body:
         return body
-    cs = body["contactos"]
-    if not isinstance(cs, list) or len(cs) > 30 or not all(isinstance(c, dict) for c in cs):
-        raise HTTPException(422, "contactos debe ser una lista de hasta 30 contactos")
-    limpios = [{k: str(c[k]).strip()[:200] for k in CONTACTO_CAMPOS
-                if c.get(k) is not None and str(c[k]).strip()} for c in cs]
-    return dict(body, contactos=Jsonb([c for c in limpios if c]))
+    return dict(body, contactos=Jsonb(fichas.contactos_limpios(body["contactos"])))
 
 
 @app.post("/api/clientes", status_code=201)
@@ -951,6 +1028,106 @@ def crear_cliente(body: dict = Body(...), user: dict = Depends(current_user)) ->
 @app.patch("/api/clientes/{cid}")
 def editar_cliente(cid: str, body: dict = Body(...), user: dict = Depends(current_user)) -> dict:
     return _patch("cliente", cid, _con_contactos(body), CLIENTE_COLS, user)
+
+
+# ── Un cliente a Excel ───────────────────────────────────────────────────────
+# Lo que la página de Clientes enseña de UN cliente, en un .xlsx: sus datos, sus contactos
+# y la tabla de propiedades que se le han presentado. Los nombres de etapa y estatus son
+# los de web/etapas.js y web/clientes.js: si allá cambian, aquí también.
+ETAPA_NOMBRE = {"prospecto": "Prospecto", "por_presentar": "Por presentar", "presentado": "Presentado",
+                "evaluacion": "Evaluación", "aprobado": "Aprobado", "negociacion": "Negociación",
+                "cerrado": "Cerrado", "pausa": "En pausa", "rechazado": "Descartado"}
+ESTATUS_NOMBRE = {"activo": "Activo", "contactando": "Contactando", "por_contactar": "Por contactar",
+                  "inactivo": "Inactivo"}
+OPERACION_NOMBRE = {"rent": "Renta", "sale": "Venta"}
+
+
+def que_busca(cr: dict | None) -> str:
+    """Los criterios de «Qué busca» en una línea, como las píldoras de la página."""
+    cr = cr or {}
+    partes = []
+    if cr.get("tipos"):
+        partes.append("Tipo: " + ", ".join(str(t).capitalize() for t in cr["tipos"]))
+    if cr.get("operacion"):
+        partes.append("Operación: " + OPERACION_NOMBRE.get(cr["operacion"], str(cr["operacion"])))
+    for nombre, lo, hi, unidad in (("Superficie", "m2_min", "m2_max", " m²"), ("Precio por m²", "ppm_min", "ppm_max", ""),
+                                   ("Precio total", "precio_min", "precio_max", "")):
+        a, b = cr.get(lo), cr.get(hi)
+        if a is None and b is None:
+            continue
+        f = lambda v: f"{'' if unidad else '$'}{float(v):,.0f}{unidad}"
+        partes.append(f"{nombre}: " + (f"{f(a)} – {f(b)}" if a is not None and b is not None
+                                       else f"hasta {f(b)}" if b is not None else f"desde {f(a)}"))
+    lugares = [l.get("nombre") for l in cr.get("lugares") or [] if isinstance(l, dict) and l.get("nombre")]
+    if lugares:
+        partes.append("Ubicación: " + ", ".join(lugares))
+    return " · ".join(partes)
+
+
+def _contacto_txt(c: dict) -> str:
+    rol = {"dueno": "Dueño", "asesor": "Asesor"}.get(c.get("rol"), "")
+    dato = ", ".join(x for x in (c.get("nombre"), c.get("telefono"), c.get("correo")) if x)
+    return f"{rol}: {dato}" if rol and dato else dato or rol
+
+
+def cliente_a_hojas(c: dict, filas: list[dict]) -> list[tuple[str, list[list]]]:
+    """Las tres hojas del libro de un cliente. Sin base: recibe las filas ya leídas."""
+    n = lambda v: float(v) if v is not None else None
+    datos = [["Campo", "Valor"],
+             ["Cliente", c["nombre"]], ["Empresa", c.get("empresa")],
+             ["Estatus", ESTATUS_NOMBRE.get(c.get("estatus"), c.get("estatus"))],
+             ["Responsable de la cuenta", c.get("responsable_nombre") or c.get("responsable")],
+             ["Qué busca", que_busca(c.get("criterios"))],
+             ["Requerimientos", c.get("requerimientos")], ["Notas", c.get("notas")],
+             ["Propiedades presentadas", len(filas)],
+             ["Exportado", datetime.now(timezone(timedelta(hours=-6))).strftime("%d/%m/%Y %H:%M")]]
+    contactos = [["Nombre", "Teléfono", "Correo"]] + [
+        [k.get("nombre"), k.get("telefono"), k.get("correo")] for k in c.get("contactos") or []]
+    props = [["#", "ID", "Propiedad", "Tipo", "Operación", "Municipio", "Terreno m²", "Construcción m²",
+              "Precio", "Moneda", "Precio por m²", "Etapa", "Presentó", "Junta", "Marca",
+              "Notas con el cliente", "Descripción", "Contacto del inmueble", "Mapa", "Anuncio", "Agregada"]]
+    for i, p in enumerate(filas, 1):
+        ppm = p["precio_m2"] if p["precio_m2"] is not None else (
+            p["precio"] / p["tamano_m2"] if p["precio"] and p["tamano_m2"] else None)
+        props.append([
+            p["numero"] if p["numero"] is not None else i, p["folio"], p["titulo"], p["tipo"],
+            OPERACION_NOMBRE.get(p["operacion"]), p["municipio"], n(p["tamano_m2"]), n(p["construccion_m2"]),
+            n(p["precio"]), p["moneda"] or "MXN", round(float(ppm), 2) if ppm is not None else None,
+            ETAPA_NOMBRE.get(p["status"], p["status"]), p["trae_nombre"] or p["trae"], p["junta"], p["marca"],
+            p["notas"], p["ficha_notas"],
+            "\n".join(filter(None, (_contacto_txt(k) for k in p["contactos"] or []))),
+            p["mapa_url"], p["url"], p["created_at"].strftime("%d/%m/%Y") if p["created_at"] else None])
+    return [("Cliente", datos), ("Contactos", contactos), ("Propiedades", props)]
+
+
+@app.get("/api/clientes/{cid}/excel")
+def cliente_excel(cid: str, _: dict = Depends(current_user)) -> Response:
+    with POOL.connection() as conn:
+        try:
+            c = conn.execute(
+                "SELECT c.*, r.nombre AS responsable_nombre FROM cliente c "
+                "LEFT JOIN usuario r ON r.id = c.responsable_id WHERE c.id = %s", (cid,)).fetchone()
+        except psycopg_errors.InvalidTextRepresentation:
+            c = None
+        if not c:
+            raise HTTPException(404, "No existe ese cliente")
+        filas = conn.execute(
+            """SELECT p.numero, p.status, p.junta, p.marca, p.notas, p.trae, p.created_at,
+                      tu.nombre AS trae_nombre,
+                      f.folio, f.titulo, f.tipo, f.municipio, f.tamano_m2, f.construccion_m2,
+                      f.precio, f.moneda, f.precio_m2, f.notas AS ficha_notas, f.contactos, f.mapa_url,
+                      coalesce(f.operacion, l.operation) AS operacion, l.url
+               FROM proceso p JOIN ficha f ON f.id = p.ficha_id
+               LEFT JOIN usuario tu ON tu.id = p.trae_id
+               LEFT JOIN listings l ON l.source = split_part(f.source_listing_id, ':', 1)
+                                   AND l.listing_id = substr(f.source_listing_id, strpos(f.source_listing_id, ':') + 1)
+               WHERE p.cliente_id = %s ORDER BY p.numero NULLS LAST, p.created_at""", (cid,)).fetchall()
+    # El nombre del archivo, igual que el del PDF: sólo caracteres que no rompen la cabecera.
+    limpio = re.sub(r"[^A-Za-z0-9._-]+", "-", unicodedata.normalize("NFKD", c["nombre"])
+                    .encode("ascii", "ignore").decode()).strip("-")[:60] or "cliente"
+    return Response(excel.libro(cliente_a_hojas(c, filas)),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="Cliente-{limpio}.xlsx"'})
 
 
 @app.delete("/api/clientes/{cid}", status_code=204)
@@ -1853,6 +2030,23 @@ def get_analisis_pdf(listing_id: str, user: dict = Depends(current_user)) -> Res
 
 # ───────────────────────────────────────────────────────────────────────── cli
 def selfcheck() -> None:
+    excel.selfcheck()
+    assert que_busca({"tipos": ["local", "bodega"], "operacion": "rent", "m2_min": 200, "m2_max": 500,
+                      "precio_max": 80000, "lugares": [{"nombre": "San Pedro"}]}) == \
+        "Tipo: Local, Bodega · Operación: Renta · Superficie: 200 m² – 500 m² · Precio total: hasta $80,000 · Ubicación: San Pedro"
+    assert que_busca(None) == "" and _contacto_txt({"rol": "dueno", "nombre": "Ana", "telefono": "81"}) == "Dueño: Ana, 81"
+    _hojas = cliente_a_hojas(
+        {"nombre": "ALSEA", "contactos": [{"nombre": "Luis", "telefono": "8112345678"}], "criterios": {}},
+        [{"numero": None, "status": "negociacion", "junta": None, "marca": "VIPS", "notas": None, "trae": "Michelle",
+          "trae_nombre": None, "created_at": datetime(2026, 10, 1), "folio": "PR-011026-1", "titulo": "Local Centro",
+          "tipo": "Local", "municipio": "Monterrey", "tamano_m2": 200, "construccion_m2": None, "precio": 60000,
+          "moneda": None, "precio_m2": None, "ficha_notas": None, "contactos": [{"rol": "asesor", "nombre": "Eva"}],
+          "mapa_url": None, "operacion": "rent", "url": None}])
+    assert [h[0] for h in _hojas] == ["Cliente", "Contactos", "Propiedades"] and _hojas[1][1][1][0] == "Luis"
+    _f = dict(zip(_hojas[2][1][0], _hojas[2][1][1]))
+    assert (_f["#"], _f["Etapa"], _f["Presentó"], _f["Precio por m²"], _f["Moneda"], _f["Operación"],
+            _f["Contacto del inmueble"]) == (1, "Negociación", "Michelle", 300.0, "MXN", "Renta", "Asesor: Eva")
+    assert excel.libro(_hojas)[:2] == b"PK"
     h = hash_password("contrasena-larga")
     assert h.startswith("scrypt$") and len(h.split("$")) == 6
     assert verify_password("contrasena-larga", h)

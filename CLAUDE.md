@@ -77,7 +77,8 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
 
 - **`web/`** — frontend estático, sin build ni framework. `index.html` (tablero),
   `listing.html` (ficha), `clientes.html` (CRM), `tareas.html` (tablero del equipo),
-  `scrapers.html` (salud del inventario por fuente), `login.html`, `reset-request.html`,
+  `scrapers.html` (salud del inventario por fuente), `duplicados.html` (pares que se
+  parecen, para que el equipo decida), `login.html`, `reset-request.html`,
   `update-password.html`. `api.js` es la capa de datos (`fetch` contra `/api/*`,
   `credentials: 'same-origin'`); **una sola hoja de estilos, `hermes.css`**; `menu.js`
   inyecta el cajón de navegación y `theme.js` el tema claro/oscuro — ninguna página
@@ -118,6 +119,12 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   en la API, `resolver_mapa`). Lanza `NoExiste` (404) y `DatoInvalido` (422). Los
   `_insert` / `_patch` / `_delete` genéricos de `main.py` siguen sirviendo a clientes,
   procesos, documentos y tareas.
+  **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
+  tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.
+  **`duplicados.py` son las propiedades** (2026-10-11): qué anuncios son el mismo
+  inmueble (`de`) y lo que el equipo decide de ellos (`fusionar`, `separar`, `descartar`,
+  `sugerencias`). Para un asesor, `inventario.buscar` devuelve **una fila por propiedad**
+  (`fusion=false` la apaga); ver "Propiedades" en Modelo de datos.
   `documento.py` + `documento.css` son la maqueta del PDF del análisis, y `fuentes/`
   las tres familias de Hermes Tinta empaquetadas en la imagen —el PDF no puede depender
   de que Google Fonts conteste al renderizar—. **La imagen ya no es sólo `pip install`**:
@@ -194,6 +201,8 @@ cd scrapers && python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m v2 sweep lamudi --only <consulta>   # barrido parcial a data/v2/
 .venv/bin/python -m v2.db selfcheck              # el del cargador, sin DB
 .venv/bin/python -m v2.db report                 # colas de detalle y cruces de EasyBroker
+.venv/bin/python -m v2.duplicados selfcheck      # las reglas de fusión, sin red ni base
+.venv/bin/python -m v2.duplicados agrupar        # rehace propiedad_anuncio y las sugerencias
 
 # Cron (en el VPS)
 ssh officelab 'crontab -l'                       # el calendario de la semana
@@ -286,6 +295,32 @@ Columnas que suelen confundir:
 La API expone `precio_total = price * area_m2` cuando la bandera está puesta, y **filtra y
 ordena por ese total**, no por el unitario.
 
+### Propiedades — anuncios fusionados (2026-10-11)
+
+`listings` es una fila por **anuncio** y nada se borra; `propiedad_anuncio` dice cuáles son
+el mismo **inmueble**. Sólo trae los anuncios que comparten propiedad: sin fila, el anuncio
+es su propia propiedad. La rehace entera `scrapers/v2/duplicados.py agrupar` después de cada
+carga (lo llama `vps/cron-v2.sh`), y `api/duplicados.py` la retoca cuando un asesor decide.
+
+- **Se fusiona solo** por: mismo `eb_id` · gemelo Navent · mismo anunciante con mismo tipo,
+  operación, m² y precio · mismo texto con mismos m² y precio · **una foto en común** con
+  mismos m² (±1%) y precio a ±25%. La foto se compara por huella perceptual (`foto_huella`,
+  dHash de 64 bits que baja `duplicados.py huellas`), no por liga: dos corredores que suben
+  el mismo render tienen archivos distintos y la misma huella.
+- **Sólo se sugiere** (`duplicado_sugerencia`): misma foto y m² con precio que no cuadra, y
+  mismos m² y precio a menos de 150 m con otro anunciante. La regla de ubicación no fusiona
+  sola a propósito: a 250 m encadenó 1,416 lotes de un fraccionamiento.
+- **Misma foto con otros m² no es duplicado**: es otra unidad del mismo edificio.
+- **`duplicado_decision` es lo único que no se recalcula** y manda sobre las reglas:
+  `igual` (a y b son el mismo), `distinto` (no lo son, ni se vuelve a sugerir), `solo` (a no
+  se fusiona con nadie por regla automática).
+- **El tablero elige la cara de la propiedad después de filtrar**, no antes: si no, "sólo
+  Lamudi" escondería la propiedad cuyo anuncio principal está en otro portal. Estado,
+  destacado y notas siguen siendo del anuncio (`user_listing`); da la cara el que el asesor
+  ya trabaja. `/api/v1`, el CSV y el Catálogo no fusionan.
+- En el navegador: `web/propiedad.js` (el renglón de un anuncio y las tres decisiones),
+  que usan la ficha y `duplicados.html`; `Anuncio.rango` y `Anuncio.resumen` para la tarjeta.
+
 ### `precio_historial` — la serie de precios
 
 Segunda tabla del inventario, creada el 2026-09-21. `listings` es una foto y el UPSERT
@@ -343,6 +378,15 @@ ficha. Lo que no es obvio:
 - **`cliente.estatus`** (activo / contactando / por_contactar / inactivo, o NULL) lo
   marca el asesor y **no es la etapa**, que sale de los procesos. **`cliente.orden`** es
   la posición en la lista, compartida por el equipo (`PUT /api/clientes/orden`).
+- **`ficha.operacion`** (`rent` / `sale` / NULL) y **`ficha.moneda`** (`MXN` por defecto,
+  o `USD`) las elige el asesor en una ficha propia (2026-10-12); `FICHA_COMO_LISTING` las
+  presenta como `operation` y `currency`. El seguimiento (`PUT …/estado`) acepta también
+  `pipeline:<uuid>`: el Catálogo pinta las propias con el mismo selector de estado.
+- **`ficha.folio`** es el ID del PDF y nace con la ficha (2026-10-12): `PR-<DDMMAA>-<n>`,
+  fecha de alta en hora de Monterrey y consecutivo del día. Lo pone `asignar_folios()`
+  (`schema.sql`), que la API llama al crear; el asesor puede cambiarlo. **`ficha.contactos`**
+  (jsonb) es de quién tenemos el inmueble: `{rol: dueno|asesor, nombre, telefono, correo}`.
+  Es interno: no va al PDF ni al modo presentación.
 - **`ficha.lat` / `ficha.lng`** sólo aplican a fichas propias: las fija el asesor en el
   mapa. `FICHA_COMO_LISTING` las convierte en `geom` para que la ficha se lea igual que
   un anuncio.

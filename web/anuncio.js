@@ -72,6 +72,11 @@ const Anuncio = (() => {
       lat: num(l.lat ?? l.latitude ?? l.geo?.lat ?? l.location?.lat),
       lng: num(l.lng ?? l.lon ?? l.longitude ?? l.geo?.lng ?? l.location?.lng),
       geoOrigen: l.geo_origen ?? null,
+      // La propiedad: los anuncios que son el mismo inmueble salen como una tarjeta.
+      // `precioMin`/`precioMax` sólo vienen cuando sus anuncios vigentes no piden lo mismo.
+      propiedad: l.propiedad ?? l.id,
+      anuncios: l.anuncios ?? 1, anunciantes: l.anunciantes ?? 1, fuentes: l.fuentes ?? [],
+      precioMin: l.precio_min ?? null, precioMax: l.precio_max ?? null,
     };
   }
 
@@ -116,8 +121,22 @@ const Anuncio = (() => {
     };
   }
 
+  // ── Propiedad: varios anuncios del mismo inmueble ──────────────────────────
+
+  // Entre qué totales se anuncia la propiedad, o null si es un solo precio.
+  const rango = a => a.precioMin != null && a.precioMax != null && a.precioMin !== a.precioMax
+    ? { min: a.precioMin, max: a.precioMax } : null;
+
+  // "12 anuncios · 8 anunciantes", o null si la propiedad es un solo anuncio.
+  function resumen(a) {
+    if (!(a.anuncios > 1)) return null;
+    return `${a.anuncios} anuncios` + (a.anunciantes > 1 ? ` · ${a.anunciantes} anunciantes` : '');
+  }
+
   // ── Etiquetas y ubicación ──────────────────────────────────────────────────
 
+  // La moneda del precio, como se escribe: los portales mandan "MN" por pesos.
+  const moneda = a => !a.moneda || a.moneda === 'MN' ? 'MXN' : a.moneda;
   // El estado del asesor, en la clave que guarda la API.
   const estadoApi = estado => ESTADO_API[estado] ?? estado;
   // El nombre de una fuente a partir de su clave (`anuncio.fuente`, o una faceta).
@@ -125,5 +144,5 @@ const Anuncio = (() => {
   // Dónde está, en una línea: la dirección, y a falta de ella el municipio.
   const ubicacion = a => a.direccion ?? a.zona ?? null;
 
-  return { ESTADOS, de, total, porMetro, precioVisible, segundoPrecio, estadoApi, fuente, ubicacion };
+  return { ESTADOS, de, total, porMetro, precioVisible, segundoPrecio, rango, resumen, moneda, estadoApi, fuente, ubicacion };
 })();

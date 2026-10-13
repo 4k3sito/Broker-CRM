@@ -30,12 +30,35 @@ let colsAbierto = false;    // el menú de "Columnas"
 let presentando = false;
 try { presentando = sessionStorage.getItem('ol-cl-presenta') === '1'; } catch { /* sin persistencia */ }
 function presentar(si) {
+  // Lo que se tenga a medio escribir se guarda antes de cambiar de modo; y al salir, la
+  // siguiente presentación empieza con el campo en blanco otra vez.
+  document.activeElement?.matches?.('.cl-ein') && document.activeElement.blur();
+  if (!si) notasPres.clear();
   presentando = si;
   try { sessionStorage.setItem('ol-cl-presenta', si ? '1' : '0'); } catch { /* sin persistencia */ }
   // La clase va antes de pintar: la tabla mide su ancho para decidir qué columnas caben.
   document.getElementById('clientes').classList.toggle('presenta', presentando && !!cSel());
   renderDetalle();
 }
+// Notas de presentación. En modo presentación el campo de notas sale en blanco —el
+// cliente está viendo la pantalla y no debe leer lo anotado antes—; lo que se escriba ahí
+// se agrega a `proceso.notas` debajo de lo que ya había, en renglones que empiezan con
+// MARCA_PRES y la fecha. La marca es lo que deja distinguirlas después: la tabla las pinta
+// en negritas y en el campo de texto se leen como «▸ Presentación 12/10/2026: …».
+// Se guardan al salir del campo, no al salir del modo: cerrar la pestaña a media junta no
+// las pierde. `notasPres` recuerda, por proceso, qué había antes y qué se lleva escrito.
+const MARCA_PRES = '▸ ';
+const notasPres = new Map();
+function conNotasPres(base, texto) {
+  const lineas = texto.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lineas.length) return base || null;
+  const hoy = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const nuevas = lineas.map((l, i) => MARCA_PRES + (i ? l : `Presentación ${hoy}: ${l}`));
+  return [...(base ? [base] : []), ...nuevas].join('\n');
+}
+// Las notas en una celda: lo anotado en una presentación va en negritas.
+const notasHtml = v => !v ? '—' : String(v).split('\n').filter(l => l.trim()).map(l =>
+  l.startsWith(MARCA_PRES) ? `<b class="cl-nota-pres">${esc(l.slice(MARCA_PRES.length))}</b>` : esc(l)).join(' · ');
 let catAbierto = false;     // el buscador de "+ Proponer desde Catálogo"…
 let catQ = '';              // …lo que se lleva escrito…
 let catFichas = null;       // …y las fichas del Catálogo (se piden al abrirlo)
@@ -151,6 +174,18 @@ function guardarCampo(c, p, tabla, f, crudo) {
   let v = NUMEROS_FICHA.includes(f) ? (crudo === '' ? null : Number(crudo)) : (crudo.trim() === '' ? null : crudo.trim());
   if (Number.isNaN(v)) return;
   const fallo = err => alert('No se pudo guardar: ' + err.message);
+  if (tabla === 'pres') {
+    // Siempre sobre lo que había al empezar a escribir: corregir el campo reescribe los
+    // renglones de esta presentación, no agrega otros.
+    const k = String(p.id), n = notasPres.get(k) ?? { base: p.notas ?? '' };
+    n.texto = crudo;
+    notasPres.set(k, n);
+    const notas = conNotasPres(n.base, crudo);
+    if ((p.notas ?? null) === notas) return;
+    p.notas = notas;
+    API.patch(`/procesos/${p.id}`, { notas }).catch(fallo);
+    return;
+  }
   if (tabla === 'ficha') {
     if (f === 'titulo' && v == null) return;
     if ((p.ficha[f] ?? null) === v) return;
@@ -599,7 +634,7 @@ const COLS = [
   { k: 'ppm',       label: '$/m²',      w: 76,  cls: 'cl-mono', html: p => dinero(ppmDe(p.ficha)) },
   { k: 'junta',     label: 'Junta',     w: 56,  cls: 'cl-mono', html: p => texto(p.junta) },
   { k: 'marca',     label: 'Marca',     w: 100, html: p => texto(p.marca) },
-  { k: 'notas',     label: 'Notas',     w: 200, html: p => texto((presentando ? null : p.notas) || p.ficha.notas) },
+  { k: 'notas',     label: 'Notas',     w: 200, html: p => notasHtml((presentando ? null : p.notas) || p.ficha.notas) },
   { k: 'estatus',   label: 'Estatus',   w: 132, html: p => `<select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>` },
   { k: 'fecha',     label: 'Fecha',     w: 60,  cls: 'cl-mono', html: p => fecha(p.created_at ?? p.creado_el) },
 ];
@@ -772,7 +807,9 @@ function panelHtml(c, p) {
             <a class="cl-btn cl-map-ir" href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener"${hrefSeguro(f.mapa_url) === '#' ? ' hidden' : ''}>Abrir mapa &#8599;</a>
           </div></div>
         ${area('ficha', 'notas', 'Descripción de la propiedad', f.notas, 'Lo que se sabe del inmueble.')}
-        ${presentando ? '' : area('proceso', 'notas', 'Notas con este cliente', p.notas, 'Qué dijo, qué falta, condiciones…')}
+        ${presentando
+          ? area('pres', 'notas', 'Notas de esta presentación', notasPres.get(String(p.id))?.texto, 'Lo que se diga en la junta. Se agrega a tus notas con este cliente, marcado como de presentación.')
+          : area('proceso', 'notas', 'Notas con este cliente', p.notas, 'Qué dijo, qué falta, condiciones…')}
       </div>
     </div>
     <div class="cl-exp-links">
@@ -870,6 +907,7 @@ function renderDetalle() {
         <div class="cl-acts">
           <span id="clWhats"></span>
           <button class="fx-btn${presentando ? ' solid' : ''}" id="clPres" aria-pressed="${presentando}" title="${presentando ? 'Volver a la vista completa' : 'Deja en pantalla s&#243;lo a este cliente: sin la lista de clientes ni &#171;Qu&#233; busca&#187;'}">${presentando ? 'Salir de presentaci&#243;n' : 'Modo presentaci&#243;n'}</button>
+          <button class="fx-btn" id="clExcel"${presentando ? ' hidden' : ''} title="Descargar los datos de este cliente y sus propiedades en un archivo de Excel">Excel</button>
           <button class="fx-btn" id="clDel" title="Eliminar cliente">Eliminar</button>
         </div>
       </div>
@@ -893,6 +931,14 @@ function renderDetalle() {
   conectarContactos(c, box);
   pintarWhats(c, box);
   document.getElementById('clDel').addEventListener('click', () => deleteCliente(c.id));
+  // Trae lo interno (notas con el cliente, contacto del inmueble): por eso no sale en
+  // modo presentación.
+  document.getElementById('clExcel').addEventListener('click', async e => {
+    e.currentTarget.disabled = true;
+    try { await API.descargar(`/clientes/${c.id}/excel`); }
+    catch (err) { alert('No se pudo generar el Excel: ' + err.message); }
+    finally { e.currentTarget.disabled = false; }
+  });
   document.getElementById('clBack').addEventListener('click', () => seleccionar(null));
   document.getElementById('clPres').addEventListener('click', () => presentar(!presentando));
   if (traer) box.querySelector('.cl-tr.open')?.scrollIntoView({ block: 'center' });

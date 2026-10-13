@@ -35,7 +35,7 @@ const F = {
   near: '', radio: 2000, orden: 'recientes',
   cliente: null,   // { id, nombre } cuando se llegó con ?cliente=<id>: sus criterios son los filtros
   // Sólo Inmobiliaria: a qué cliente se presentó y en qué etapa va el proceso.
-  pcliente: '', etapas: [],
+  pcliente: '', etapas: [], asesor: '',
   // Los tres de la barra fija. `lugares` guarda el objeto completo y no sólo el id
   // porque el chip tiene que poder decir "Monterrey" sin volver a preguntarle a la API.
   lugares: [],     // [{ valor:'m40', nombre:'Monterrey', estado:'Nuevo León' }]
@@ -60,6 +60,7 @@ let zonas = [];
 // inmueble completo para que la bandeja no dependa de la página visible.
 const seleccion = new Map();
 const MAX_COMPARAR = 4;
+const MAX_FUSION = 30;      // el tope de la API (duplicados.MAX_FUSION)
 
 // ── Tokens: la sentencia ─────────────────────────────────────────────────────
 
@@ -122,6 +123,7 @@ const paramsBase = () => ({
   // 'sin' no es un cliente: es "lo que no se le ha presentado a nadie".
   pcliente: INMO && F.pcliente !== 'sin' ? F.pcliente : '', sin_cliente: INMO && F.pcliente === 'sin',
   etapa: INMO ? F.etapas : [],
+  asesor: INMO ? F.asesor : '',
 });
 
 async function cargarPagina() {
@@ -146,7 +148,11 @@ function setState(id, patch) {
   Object.assign(l, patch);
   API.put(`/listings/${encodeURIComponent(id)}/estado`, {
     status: Anuncio.estadoApi(l.status), starred: l.starred, notes: l.notes,
-  }).catch(err => console.warn('No se pudo guardar el estado:', err.message));
+  }).catch(err => {
+    // Que no se pierda en silencio: la tarjeta volvía sola a su estado anterior.
+    console.warn('No se pudo guardar el estado:', err.message);
+    toast(`No se pudo guardar el cambio: ${err.message}`);
+  });
 }
 
 // ── Precio ───────────────────────────────────────────────────────────────────
@@ -178,13 +184,17 @@ function renderCard(l) {
   // Si el precio ya es por m², repetirlo aquí sería decir dos veces lo mismo.
   const pm = l.porM2 ? null : Anuncio.porMetro(l);
   const ppm = pm ? `$${mx(Math.round(pm))} / m²` : '';
-  const sufijo = l.transaccion === 'Renta' ? 'MXN / mes' : 'MXN';
+  const sufijo = l.transaccion === 'Renta' ? `${Anuncio.moneda(l)} / mes` : Anuncio.moneda(l);
 
   const imgHtml = foto
     ? `<img src="${esc(foto)}" alt="" loading="lazy">`
     : `<div class="card-img-blueprint"></div><div class="card-img-icon">${ICON_BUILDING_LG}</div>`;
 
-  const priceHtml = p
+  // Varios anuncios del mismo inmueble: la tarjeta enseña entre qué precios se ofrece.
+  const rg = Anuncio.rango(l), dup = Anuncio.resumen(l);
+  const priceHtml = rg
+    ? `<div class="card-price rango"><strong>${dineroCorto(rg.min)}</strong><span class="card-a">a</span><strong>${dineroCorto(rg.max)}</strong><span class="currency">${sufijo}</span></div>`
+    : p
     ? `<div class="card-price"><strong>$${p.n}</strong><span class="currency">${sufijo}</span></div>` +
       (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + mx(l.size) + ' m²'}</span>` : '')
     : `<div class="card-price"><strong class="no-price">Sin precio</strong></div>`;
@@ -193,7 +203,7 @@ function renderCard(l) {
   return `<article class="card ${l.starred ? 'starred' : ''}${sel ? ' sel' : ''} status-${l.status.toLowerCase()}" data-id="${esc(l.id)}">
     <div class="card-img">
       ${imgHtml}
-      <span class="badge badge-src">${esc(blabel)}</span>
+      <span class="badge badge-src">${esc(l.fuentes.length > 1 ? `${l.fuentes.length} PORTALES` : blabel)}</span>
       ${l.fotos?.length ? `<span class="badge badge-foto">FOTO 1/${l.fotos.length}</span>` : ''}
       ${superficies(l.terreno, l.construccion, l.size).map(([k, v]) => `<span class="badge badge-size" title="${k}">${k === 'Superficie' ? '' : k === 'Terreno' ? 'Terreno ' : 'Constr. '}${m2Txt(v)}</span>`).join('')}
       <button class="card-chk" title="Seleccionar" aria-pressed="${sel}">${sel ? '&#10003;' : ''}</button>
@@ -205,6 +215,7 @@ function renderCard(l) {
           ${priceHtml}
           ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
           ${altPriceHtml(l)}
+          ${dup ? `<div class="card-dup" title="Anuncios del mismo inmueble, fusionados en esta tarjeta">${dup}</div>` : ''}
         </div>
         <a class="card-ver" href="listing.html?id=${encodeURIComponent(l.id)}">Ver ${ICON_EXTERNAL}</a>
       </div>
@@ -419,7 +430,7 @@ async function _render() {
 function limpiarTodo() {
   Object.values(CAMPOS).forEach(c => c.clear());
   F.lugares = []; F.tipos = []; F.operacion = ''; F.precio_min = ''; F.precio_max = '';
-  F.pcliente = ''; F.etapas = [];
+  F.pcliente = ''; F.etapas = []; F.asesor = '';
   fbCerrar();
   F.q = ''; searchStreet = ''; filterStatus = 'Todos'; filterStarred = false;
   document.getElementById('searchInput').value = '';
@@ -473,10 +484,10 @@ function exportCSV() {
 // popover descartan el borrador; la ✕ del chip sí limpia de inmediato, porque quitar
 // un filtro no necesita confirmarse.
 
-const FB_CLAVES = ['ubicacion', 'precio', 'tipo', ...(INMO ? ['cliente', 'etapa'] : [])];
-if (INMO) document.querySelectorAll('.fb-chip[data-f="cliente"], .fb-chip[data-f="etapa"]').forEach(c => { c.hidden = false; });
+const FB_CLAVES = ['ubicacion', 'precio', 'tipo', ...(INMO ? ['cliente', 'asesor', 'etapa'] : [])];
+if (INMO) document.querySelectorAll('.fb-chip[data-f="cliente"], .fb-chip[data-f="asesor"], .fb-chip[data-f="etapa"]').forEach(c => { c.hidden = false; });
 const FB_TITULO = { ubicacion: 'Ubicación', precio: 'Precio', tipo: 'Tipo de inmueble',
-                    cliente: 'Presentada a', etapa: 'Etapa del proceso' };
+                    cliente: 'Presentada a', asesor: 'La presentó', etapa: 'Etapa del proceso' };
 const cap = s => String(s ?? '').charAt(0).toUpperCase() + String(s ?? '').slice(1);
 
 let fbAbierto = null;     // cuál popover está abierto, o null
@@ -509,6 +520,7 @@ const fbResumen = {
   tipo: () => !F.tipos.length ? 'Todos'
     : F.tipos.length === 1 ? cap(F.tipos[0]) : `${F.tipos.length} tipos`,
   cliente: () => F.pcliente === 'sin' ? 'Sin cliente' : F.pcliente ? (clientesCache?.find(c => String(c.id) === F.pcliente)?.nombre ?? '1 cliente') : 'Todos',
+  asesor: () => F.asesor ? (equipoCache?.find(u => String(u.id) === F.asesor)?.nombre ?? '1 asesor') : 'Todos',
   etapa: () => !F.etapas.length ? 'Todas'
     : F.etapas.length === 1 ? etapaLabel(F.etapas[0]) : `${F.etapas.length} etapas`,
 };
@@ -518,6 +530,7 @@ const fbPuesto = {
   precio: () => !!(F.operacion || F.precio_min || F.precio_max),
   tipo: () => F.tipos.length > 0,
   cliente: () => !!F.pcliente,
+  asesor: () => !!F.asesor,
   etapa: () => F.etapas.length > 0,
 };
 
@@ -545,7 +558,7 @@ function fbAbrir(k) {
   // que poder tirarse enteros al cancelar.
   fbDraft = { lugares: F.lugares.slice(), tipos: F.tipos.slice(),
               operacion: F.operacion, min: F.precio_min, max: F.precio_max, sug: [],
-              pcliente: F.pcliente, etapas: F.etapas.slice() };
+              pcliente: F.pcliente, etapas: F.etapas.slice(), asesor: F.asesor };
   const pop = document.getElementById('fbPop');
   pop.dataset.f = k;
   pop.hidden = false;
@@ -557,7 +570,7 @@ function fbAbrir(k) {
 
 function fbPintarPop() {
   const cuerpo = { ubicacion: fbCuerpoUbicacion, precio: fbCuerpoPrecio, tipo: fbCuerpoTipo,
-                   cliente: fbCuerpoCliente, etapa: fbCuerpoEtapa }[fbAbierto]();
+                   cliente: fbCuerpoCliente, asesor: fbCuerpoAsesor, etapa: fbCuerpoEtapa }[fbAbierto]();
   document.getElementById('fbPop').innerHTML = `
     <div class="fb-head">
       <span class="fb-title">${esc(FB_TITULO[fbAbierto])}</span>
@@ -647,6 +660,21 @@ function fbCuerpoCliente() {
       <span>${esc(c.nombre)}</span>
     </label>`).join('') + '</div>';
 }
+// Las propiedades que presentó un asesor, con el cliente que sea (`proceso.trae_id`: la
+// columna «Presentó» de la tabla de cada cliente). Se combina con Cliente y Etapa.
+let equipoCache = null;
+async function cargarEquipo() {
+  if (!equipoCache) equipoCache = await API.get('/equipo').catch(() => []);
+  return equipoCache;
+}
+function fbCuerpoAsesor() {
+  if (!equipoCache) return '<p class="fb-nota">Cargando asesores&#8230;</p>';
+  return '<div class="fb-cajas fb-cajas-lista">' + [{ id: '', nombre: 'Todos los asesores' }, ...equipoCache].map(u => `
+    <label class="fb-caja">
+      <input type="radio" name="fbAsesor" data-asesor="${esc(u.id)}"${String(fbDraft.asesor) === String(u.id) ? ' checked' : ''}>
+      <span>${esc(u.nombre || u.email)}</span>
+    </label>`).join('') + '</div>';
+}
 function fbCuerpoEtapa() {
   return '<div class="fb-cajas">' + ETAPAS.map(e => `
     <label class="fb-caja">
@@ -657,6 +685,7 @@ function fbCuerpoEtapa() {
 
 function fbLimpiarBorrador() {
   if (fbAbierto === 'cliente') fbDraft.pcliente = '';
+  if (fbAbierto === 'asesor') fbDraft.asesor = '';
   if (fbAbierto === 'etapa') fbDraft.etapas = [];
   if (fbAbierto === 'ubicacion') { fbDraft.lugares = []; fbDraft.sug = []; }
   if (fbAbierto === 'tipo') fbDraft.tipos = [];
@@ -669,10 +698,15 @@ function fbAplicar() {
     F.pcliente = fbDraft.pcliente;
     // Sin cliente no hay proceso, y sin proceso no hay etapa: las dos juntas no
     // devolverían nada nunca.
-    if (F.pcliente === 'sin') F.etapas = [];
+    if (F.pcliente === 'sin') { F.etapas = []; F.asesor = ''; }
   }
   if (fbAbierto === 'etapa' && fbDraft.etapas.length && F.pcliente === 'sin') F.pcliente = '';
   if (fbAbierto === 'etapa') F.etapas = fbDraft.etapas.slice();
+  if (fbAbierto === 'asesor') {
+    F.asesor = fbDraft.asesor;
+    // Sin cliente no hay proceso, y sin proceso nadie la presentó.
+    if (F.asesor && F.pcliente === 'sin') F.pcliente = '';
+  }
   if (fbAbierto === 'ubicacion') F.lugares = fbDraft.lugares.slice(0, MAX_LUGARES);
   if (fbAbierto === 'tipo') F.tipos = fbDraft.tipos.slice();
   if (fbAbierto === 'precio') {
@@ -692,6 +726,7 @@ function fbQuitar(k) {
   if (k === 'tipo') F.tipos = [];
   if (k === 'cliente') F.pcliente = '';
   if (k === 'etapa') F.etapas = [];
+  if (k === 'asesor') F.asesor = '';
   if (k === 'precio') { F.operacion = ''; F.precio_min = ''; F.precio_max = ''; }
   if (fbAbierto === k) fbCerrar();
   page = 1; render();
@@ -751,6 +786,7 @@ document.getElementById('fbPop').addEventListener('input', e => {
 
 document.getElementById('fbPop').addEventListener('change', e => {
   if (e.target.matches('[data-pcliente]')) { fbDraft.pcliente = e.target.dataset.pcliente; return; }
+  if (e.target.matches('[data-asesor]')) { fbDraft.asesor = e.target.dataset.asesor; return; }
   if (e.target.matches('[data-etapa]')) {
     const v = e.target.dataset.etapa;
     fbDraft.etapas = e.target.checked ? [...new Set([...fbDraft.etapas, v])] : fbDraft.etapas.filter(x => x !== v);
@@ -972,6 +1008,9 @@ function renderTray() {
       <button class="tray-x" title="Quitar">&times;</button>
     </span>`;
   }).join('') + (n > MAX_COMPARAR ? `<span class="tray-more">+${n - MAX_COMPARAR}</span>` : '');
+  const fus = document.getElementById('trayFusionar');
+  fus.disabled = n < 2 || n > MAX_FUSION;
+  fus.title = n < 2 ? 'Selecciona al menos 2 tarjetas del mismo inmueble' : n > MAX_FUSION ? `Máximo ${MAX_FUSION}` : 'Son el mismo inmueble: dejar una sola tarjeta';
   const cmp = document.getElementById('trayComparar');
   cmp.disabled = n < 2 || n > MAX_COMPARAR;
   cmp.title = n < 2 ? 'Selecciona al menos 2' : n > MAX_COMPARAR ? `Máximo ${MAX_COMPARAR}` : '';
@@ -1012,6 +1051,24 @@ document.getElementById('trayEstado').addEventListener('change', e => {
   aplicar(previos.map(([id]) => [id, nuevo]));
   render();
   toast(`${previos.length} ${previos.length === 1 ? 'inmueble' : 'inmuebles'} → ${nuevo}`, () => { aplicar(previos); render(); });
+});
+
+// «Son el mismo inmueble»: las tarjetas elegidas quedan en una, con todo lo que cada una
+// traía detrás. Lo decide un asesor y vale para el equipo; se deshace desde la ficha,
+// separando el anuncio que no era.
+document.getElementById('trayFusionar').hidden = INMO;
+document.getElementById('trayFusionar').addEventListener('click', async () => {
+  const lista = [...seleccion.values()];
+  const anuncios = lista.reduce((t, l) => t + l.anuncios, 0);
+  if (!confirm(`¿Estas ${lista.length} tarjetas son el mismo inmueble?\n\n`
+    + `Quedarán en una sola tarjeta con sus ${anuncios} anuncios, para todo el equipo. `
+    + 'Si alguno no era, se separa desde la ficha.')) return;
+  try {
+    await API.post('/duplicados/fusionar', { ids: lista.map(l => l.id) });
+    toast(`${lista.length} tarjetas fusionadas en una`);
+    seleccion.clear();
+    render();
+  } catch (err) { toast(`No se pudo fusionar: ${err.message}`); }
 });
 
 // Los clientes se piden una sola vez, la primera vez que hace falta.
@@ -1170,8 +1227,9 @@ API.me().then(async () => {
   // Inmobiliaria: los clientes hacen falta para el filtro y su resumen. Desde la ficha
   // de un cliente se llega con ?pcliente=<id> ("lo que ya le presentamos").
   if (INMO) {
-    await cargarClientes();
+    await Promise.all([cargarClientes(), cargarEquipo()]);
     if (url.get('pcliente')) F.pcliente = url.get('pcliente');
+    if (url.get('asesor')) F.asesor = url.get('asesor');
   }
   // Se abre buscando en lo que el mapa enseña, si el mapa está a la vista. Con los
   // criterios de un cliente no: sus lugares mandan, y el mapa encuadra lo que salga.

@@ -264,6 +264,42 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Endpoints (2026-10-12) — Excel de un cliente y filtro por asesor (copia de trabajo)
+
+- `GET /api/clientes/{id}/excel`: con sesión, como todo el CRM (§5). Devuelve en un archivo
+  lo que esa misma cuenta ya ve en `clientes.html` —datos del cliente, contactos, notas y
+  el contacto de cada inmueble—: no abre nada nuevo, pero es la primera salida **en bloque**
+  de datos personales del CRM, y un .xlsx se reenvía con más facilidad que una pantalla.
+  Sin registro de quién exporta (H5). El texto de las celdas se escribe como cadena, nunca
+  como fórmula (`api/excel.py`): un título de portal que empiece con `=` no se ejecuta al
+  abrir el archivo. El nombre del archivo se reduce a `[A-Za-z0-9._-]`.
+- `asesor=<uuid>` en `/api/listings` y `/facets`: filtro parametrizado, validado por patrón.
+
+### Endpoints (2026-10-11) — propiedades y duplicados (copia de trabajo)
+
+Todo con sesión; nada nuevo es público ni entra por `/api/v1`. Las decisiones son **del
+equipo**, igual que el CRM (§5): cualquier cuenta fusiona, separa o descarta, y lo que
+decide lo ven todos en el tablero.
+
+| Endpoint | Qué hace | Lo que se cuidó |
+|---|---|---|
+| `GET /api/duplicados?id=` | Los anuncios de la propiedad de un anuncio y sus parecidos | Sólo lectura de `listings`. |
+| `GET /api/duplicados/sugerencias` | Pares por revisar | Filtros parametrizados; `per_page` ≤ 50. |
+| `POST /api/duplicados/fusionar` | Junta anuncios en una propiedad | 2 a 30 ids, que deben existir en `listings` (una ficha propia `pipeline:` no entra). |
+| `POST /api/duplicados/separar` | Saca un anuncio de su propiedad | |
+| `POST /api/duplicados/descartar` | Marca un par como distinto | |
+
+- **No borran ni editan anuncios.** Sólo escriben `propiedad_anuncio`,
+  `duplicado_sugerencia` y `duplicado_decision`; `listings` y `user_listing` no se tocan.
+  Lo peor que puede hacer una cuenta es agrupar mal, y se deshace desde la ficha.
+- **Queda registro**: `duplicado_decision` guarda quién y cuándo. Guarda la ÚLTIMA
+  decisión sobre cada par, no la historia (H5 sigue abierto).
+- `GET /api/listings` y `/facets` aceptan `fusion=false`; no cambia qué se puede ver.
+- `scrapers/v2/duplicados.py huellas` baja fotos de los CDN de los portales desde el VPS,
+  sin proxy, imitando a Chrome (`curl_cffi`), y las abre con Pillow: es contenido de
+  terceros decodificado en el host, fuera de un contenedor. Sólo se guarda la huella de
+  64 bits; un archivo que Pillow no puede leer se descarta.
+
 ### Endpoints (2026-10-08) — frescura del inventario (copia de trabajo)
 
 `GET /api/frescura` exige sesión, **no** exige `SCRAPERS_VEN`: lo pide el tablero de
