@@ -110,6 +110,15 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   de `main.py` sólo traducen HTTP. No importa FastAPI ni abre conexiones: recibe la
   conexión y lanza `FiltroInvalido`, que la app convierte en 422. Un archivo nuevo en
   `api/` hay que agregarlo al `COPY` del `Dockerfile`, que los copia por nombre.
+  **`fichas.py` es guardar una ficha** (2026-10-11): crear, editar y borrar la ficha,
+  sus fichas PDF (`ficha_version`) y sus fotos, cada cosa en **una sola transacción** que
+  abre y confirma la ruta. Ahí viven las reglas —`derivar_precio`, `fotos_validas`, la
+  coordenada de la liga del mapa, la limpieza de fotos que ya nadie muestra— y las
+  listas blancas de columnas. Mismo trato que `inventario.py`: recibe la conexión, no
+  sabe de HTTP y no sale a la red (la liga del mapa la resuelve la función que le pasen;
+  en la API, `resolver_mapa`). Lanza `NoExiste` (404) y `DatoInvalido` (422). Los
+  `_insert` / `_patch` / `_delete` genéricos de `main.py` siguen sirviendo a clientes,
+  procesos, documentos y tareas.
   **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
   tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.
   **`duplicados.py` son las propiedades** (2026-10-11): qué anuncios son el mismo
@@ -215,7 +224,8 @@ levanta un PostGIS desechable en Docker, le aplica `vps/schema.sql`, siembra una
 filas escritas a mano y corre cada `api/prueba_*.py` dentro de la imagen de la API. No
 toca producción ni el esquema `dev`, y tarda menos de un minuto. `main.py selfcheck`
 sigue siendo lo que corre sin base. Las pruebas preguntan por la interfaz del módulo y
-miran lo que contesta, nunca el texto del SQL: córrelas después de tocar `inventario.py`.
+miran lo que contesta, nunca el texto del SQL: córrelas después de tocar `inventario.py`
+o `fichas.py` (`api/prueba_fichas.py` siembra lo suyo y no depende de la otra).
 
 `npm run probar:web` (`pruebas/web/`) son las pruebas del frontend que no necesitan
 navegador: cargan `texto.js` y `anuncio.js` como scripts clásicos, igual que la página,

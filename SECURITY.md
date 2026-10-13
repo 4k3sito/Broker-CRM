@@ -371,6 +371,18 @@ equipo los usa; `user_id` sólo registra quién creó la fila.
 `POST /api/fichas` sin `source_listing_id` ahora exige `titulo`. `FICHA_COLS` suma
 `folio`, `lat` y `lng`.
 
+**Las reglas de la ficha viven en `api/fichas.py` desde el 2026-10-11** (rama `fichas`):
+las listas blancas (`COLS`, `EDITABLES`, `VERSION_DATOS`), `fotos_validas`,
+`datos_version` y `_limpiar_fotos` salieron de `main.py`; las rutas y sus URLs no
+cambiaron. Lo que sí cambia para quien llama: guardar una ficha es una sola transacción
+(antes eran hasta tres), un id que no es un uuid se rechaza antes de llegar a la base, y
+un número mal escrito en `precio`, `tamano_m2`, `construccion_m2`, `precio_m2`, `lat` o
+`lng` contesta **422 «Valor no permitido»** (antes 404 «No existe» al editar y 500 al
+crear). `fichas.py` no sale a la red: recibe `resolver_mapa` de `main.py`, que sigue
+siendo el único punto por donde la API pide una URL de usuario. El tipo de un archivo
+(`tipo_real`) y su nombre (`nombre_archivo`) se siguen decidiendo en la ruta, antes de
+entrar al módulo.
+
 **La API sale a internet con una URL que escribió un usuario** (`resolver_mapa`): al
 guardar la liga del mapa de una ficha sigue su redirección para sacar la coordenada. Es
 la forma de un SSRF, así que está amarrada: sólo `https`, sólo los hosts de `MAPA_HOSTS`
