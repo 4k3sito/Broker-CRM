@@ -313,8 +313,11 @@ pregunta de los micro-frontends (§2.2), puesta donde el acoplamiento sí existe
       cuarto módulo compartido: tablero, ficha y comparar dejaron de traducir cada uno
       la fila de la API a su manera. Trajo las primeras pruebas del frontend sin
       navegador: `npm run probar:web`.
+- [x] **Las fotos de una propiedad, un solo flujo** (2026-10-13). `web/fotos.js` pasó de
+      tres ayudantes sueltos al objeto `Fotos` (caja, eventos y subida); `listing.js` y
+      `clientes.js` dejaron de repetirlo. 11 pruebas más en `npm run probar:web`.
 - [ ] Regla de importación en el frontend: un módulo de página importa de `ui.js`,
-      `api.js`, `texto.js` y `anuncio.js`, nunca de otro módulo de página. Verificarla en `verificar.py`
+      `api.js`, `texto.js`, `anuncio.js` y `fotos.js`, nunca de otro módulo de página. Verificarla en `verificar.py`
       o en `npm run tipos`.
 - [ ] `SECURITY.md` §6: las rutas no cambian, pero el archivo donde vive cada una sí.
 - **Listo cuando:** ninguna ruta cambió de URL, `selfcheck` pasa, y mover el análisis de

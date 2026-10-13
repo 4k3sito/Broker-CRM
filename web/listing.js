@@ -35,7 +35,7 @@ let listing = null, ficha = null, clientes = [], procesos = [], documentos = [],
 let versiones = [], versionSel = null, pdfAbierto = false;
 // Lo que se está subiendo ahora mismo, para decirlo en su tarjeta: { docs, fotos }.
 const subiendo = { docs: 0, fotos: 0 };
-const MAX_ARCHIVO = 20 * 1024 * 1024;       // el mismo tope que pone la API
+const MAX_ARCHIVO = Fotos.MAX_ARCHIVO;      // el mismo tope que pone la API
 
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 
@@ -126,7 +126,6 @@ async function crearDocumento(label) {
 // documento que ya existe, con "Archivos…" junto al campo de alta, o soltándolos sobre
 // la tarjeta. Al dar de alta con archivos: si se escribió un nombre, van todos a ese
 // documento; si no, cada archivo es un documento con su propio nombre.
-const pesoTxt = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 function cabenTodos(files) {
   const grande = files.find(f => f.size > MAX_ARCHIVO);
   if (grande) alert(`"${grande.name}" pesa ${pesoTxt(grande.size)} y el máximo por archivo es ${pesoTxt(MAX_ARCHIVO)}.`);
@@ -301,7 +300,7 @@ async function guardarContactos(lista, repinta) {
 // está en internet o un archivo que se sube aquí (queda como `/api/archivos/<id>`): se
 // elige del equipo, se arrastra sobre las miniaturas o se pega con Ctrl+V —la captura
 // de pantalla que se acaba de tomar—. La primera es la portada. Lo que comparte con
-// clientes.html (reducir la foto, soltar archivos) está en fotos.js.
+// clientes.html —la caja, sus eventos y el flujo de subida— está en fotos.js.
 // Las fotos que se están editando: las de la versión cargada o las de la ficha. Una
 // versión de antes del 2026-10-08 no trae lista propia: enseña las de la propiedad
 // hasta que se le cambia algo, y en ese momento se queda con su copia.
@@ -312,27 +311,6 @@ async function refrescarFotos() {
   listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
   repintar();
 }
-async function subirFotos(files) {
-  files = [...files].filter(f => TIPOS_FOTO.test(f.type));
-  if (!files.length) return alert('Sólo se pueden subir imágenes JPG, PNG, WEBP o GIF.');
-  if (!ficha) return;
-  const v = versionActual();
-  subiendo.fotos = files.length; repintar();
-  try {
-    // La API agrega al final de la lista de la versión: si todavía no tiene la suya,
-    // primero se queda con la copia de las de la propiedad.
-    if (v && !v.datos.fotos) Object.assign(v, await API.patch(`/versiones/${v.id}`, { datos: { ...v.datos, fotos: fotosBase().slice(0, 40) } }));
-    for (const f of files) {
-      const lista = await prepararFoto(f);
-      if (!cabenTodos([lista])) continue;
-      if (v) Object.assign(v, await API.subir(`/versiones/${v.id}/fotos`, lista));
-      else Object.assign(ficha, numeros(await API.subir(`/fichas/${ficha.id}/fotos`, lista)));
-    }
-  } catch (err) { alert('No se pudo subir la foto: ' + err.message); }
-  subiendo.fotos = 0;
-  if (v) return repintar();
-  await refrescarFotos().catch(err => console.warn(err.message));
-}
 // Quitar, poner de portada o agregar una liga: todo es guardar la lista nueva. La API
 // borra el archivo de una foto subida que ya no esté en ella.
 async function guardarFotos(lista) {
@@ -342,19 +320,25 @@ async function guardarFotos(lista) {
   catch (err) { alert('No se pudo guardar la ficha: ' + err.message); }
   repintar();
 }
-function agregarLigaFoto(crudo) {
-  const ligas = (crudo ?? '').split(/\s+/).filter(u => /^https?:\/\//i.test(u));
-  if (!ligas.length) { if ((crudo ?? '').trim()) alert('La liga de una foto empieza con https://'); return; }
-  guardarFotos([...fotosEnEdicion(), ...ligas]);
+// De quién son las fotos de la caja (ver fotos.js): de la versión cargada o de la ficha.
+function destinoFotos() {
+  if (!ficha) return null;
+  const v = versionActual();
+  return {
+    fotos: fotosEnEdicion,
+    guardar: guardarFotos,
+    // La API agrega al final de la lista de la versión: si todavía no tiene la suya,
+    // primero se queda con la copia de las de la propiedad.
+    preparar: async () => {
+      if (v && !v.datos.fotos) Object.assign(v, await API.patch(`/versiones/${v.id}`, { datos: { ...v.datos, fotos: fotosBase().slice(0, 40) } }));
+    },
+    subir: async archivo => v ? Object.assign(v, await API.subir(`/versiones/${v.id}/fotos`, archivo))
+                              : Object.assign(ficha, numeros(await API.subir(`/fichas/${ficha.id}/fotos`, archivo))),
+    alEmpezar: n => { subiendo.fotos = n; repintar(); },
+    alTerminar: () => { subiendo.fotos = 0; return v ? repintar() : refrescarFotos().catch(err => console.warn(err.message)); },
+  };
 }
-// Pegar una imagen en cualquier parte de la página la sube como foto.
-document.addEventListener('paste', e => {
-  if (!listing || !ficha || !(esPropia(listing) || versionActual())) return;
-  const imgs = fotosPegadas(e);
-  if (!imgs.length) return;
-  e.preventDefault();
-  subirFotos(imgs);
-});
+Fotos.escuchar(document.getElementById('detail'), destinoFotos);
 
 async function guardarEnInmobiliaria() {
   try { await asegurarFicha(); render(); }
@@ -587,23 +571,8 @@ function render() {
   enlazar();
 }
 
-// La caja de fotos del formulario: miniaturas con quitar y "de portada", y el alta.
-function fotosEdHtml(fotos) {
-  return `<div class="fx-fotos" id="fotosEd">
-    <span class="fx-lab">Fotos <small>${fotos.length ? 'la primera es la portada' : 'aún no hay'}</small></span>
-    ${fotos.length ? `<div class="fx-thumbs">${fotos.map((u, i) => `<span class="fx-thumb${i ? '' : ' portada'}">
-      <img src="${srcSeguro(u)}" alt="" loading="lazy">
-      ${i ? `<button class="foto-top" data-i="${i}" title="Usar como portada">&#8593;</button>` : ''}
-      <button class="foto-del" data-i="${i}" title="Quitar foto">&times;</button></span>`).join('')}</div>` : ''}
-    <div class="fx-add">
-      <input class="foto-url" placeholder="Pega la liga de una foto (https://…)" aria-label="Liga de una foto">
-      <button type="button" class="foto-sube">Subir fotos&#8230;</button>
-    </div>
-    <p class="fx-hint">${subiendo.fotos ? `Subiendo ${subiendo.fotos} ${subiendo.fotos === 1 ? 'foto' : 'fotos'}&#8230;`
-      : 'JPG, PNG o WEBP. También puedes arrastrarlas aquí o pegar una captura de pantalla con Ctrl+V.'}</p>
-    <input type="file" id="fotoFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
-  </div>`;
-}
+// La caja de fotos del formulario (fotos.js).
+const fotosEdHtml = fotos => Fotos.caja(fotos, { subiendo: subiendo.fotos });
 
 function enlazar() {
   const $ = id => document.getElementById(id);
@@ -661,23 +630,6 @@ function enlazar() {
   document.querySelectorAll('.file-del').forEach(b => b.onclick = () => removeArchivo(b.dataset.id));
   soltarArchivos($('docsCard'), (files, e) =>
     subirDocumentos(files, { docId: e.target.closest('.fx-doc')?.dataset.id ?? null }));
-  // Fotos de una propiedad propia.
-  if ($('fotosEd')) {
-    const fotos = fotosEnEdicion;
-    $('fotoFile').onchange = e => subirFotos(e.target.files);
-    document.querySelector('.foto-sube').onclick = () => $('fotoFile').click();
-    const url = document.querySelector('.foto-url');
-    // Se vacía antes de guardar: si no, el `change` que sigue al Enter la agregaría dos veces.
-    url.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const v = url.value; url.value = ''; agregarLigaFoto(v); } };
-    url.onchange = () => agregarLigaFoto(url.value);
-    document.querySelectorAll('.foto-del').forEach(b => b.onclick = () => {
-      if (confirm('¿Quitar esta foto?')) guardarFotos(fotos().filter((_, i) => i !== +b.dataset.i));
-    });
-    document.querySelectorAll('.foto-top').forEach(b => b.onclick = () => {
-      const f = fotos(); f.unshift(...f.splice(+b.dataset.i, 1)); guardarFotos(f);
-    });
-    soltarArchivos($('fotosEd'), files => subirFotos(files));
-  }
   document.querySelectorAll('.proc-status').forEach(s => s.onchange = e => {
     setProcesoStatus(e.target.dataset.proc, e.target.value);
     e.target.className = 'proc-status e-' + e.target.value;
