@@ -7,6 +7,26 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Guardar una ficha en una sola operación — **en `desarrollo`, sin desplegar** (2026-10-13)
+
+`api/fichas.py` junta todo lo que escribe una ficha, sus fichas PDF y sus fotos. Editar
+una ficha eran hasta tres transacciones (leer el precio, guardar, limpiar fotos) y ahora
+es una, con la fila bloqueada mientras se calcula el número que falta. Las rutas y el
+frontend no cambiaron. Al fusionarlo se le pasaron las reglas del 2026-10-12: el ID
+que se asigna al nacer la ficha, la operación y los contactos con rol (la limpieza de
+contactos vive ahí y la de clientes la reutiliza).
+
+- **Probado:** 22 pruebas (`api/prueba_fichas.py`) en `npm run probar:api`, `selfcheck`
+  en verde, y el mismo recorrido de peticiones HTTP contra la API anterior y la nueva
+  sobre una base desechable.
+- **Cambia a propósito:** un número mal escrito al editar (`precio`, `lat`…) contesta
+  422 «Valor no permitido» en vez de 404 «No existe».
+- **En el navegador, contra la API de desarrollo reconstruida (2026-10-13):** crear una
+  ficha propia, editarla, el 422 del número mal escrito, subir y quitar una foto, crear
+  y borrar una versión, y abrir su ficha. Todo contestó lo esperado; la ficha de
+  prueba se borró.
+- Desplegarlo pide `docker compose up -d --build api`.
+
 ## Ficha reacomodada y notas de presentación — **en producción desde el 2026-10-13**
 
 Sólo `web/`: se desplegó con cherry-pick, sin reconstruir la API.
@@ -130,7 +150,7 @@ $115.5 M a $137.5 M.
 - En el navegador automatizado las fotos de Navent salen bloqueadas
   (`ERR_BLOCKED_BY_RESPONSE.NotSameOrigin`); en el del asesor se ven. No es de este cambio.
 
-## El anuncio en el navegador, definido una vez — **en `desarrollo`, sin desplegar** (2026-10-11)
+## El anuncio en el navegador, definido una vez — **en producción** (hecho el 2026-10-11)
 
 `web/anuncio.js` (objeto `Anuncio`) junta lo que tablero, ficha y comparar repetían para
 preparar un anuncio; `mx` pasó a `texto.js`. 23 pruebas en `npm run probar:web`.

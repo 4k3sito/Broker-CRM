@@ -298,6 +298,10 @@ pregunta de los micro-frontends (§2.2), puesta donde el acoplamiento sí existe
       `main.py` traduciendo HTTP. Trajo lo que E5 pedía para `selfcheck` —probar un
       módulo sin arrastrar los otros— pero contra una base de verdad:
       `npm run probar:api`. `main.py` bajó de 2,728 a 2,330 líneas.
+- [x] **Guardar una ficha fuera de `main.py`** (2026-10-11, rama `fichas`).
+      `api/fichas.py`: la ficha, sus fichas PDF y sus fotos, cada operación en una sola
+      transacción. `main.py` bajó de 2,330 a 2,172 líneas; 19 pruebas más en
+      `npm run probar:api`.
 - [ ] Partir `api/main.py` en routers de FastAPI: `auth.py`, `listings.py`, `crm.py`,
       `tareas.py`, `analisis.py`, `scrapers.py`, con `current_user`, el pool y `_owned()`
       en un `deps.py` compartido. Mismo proceso, mismo despliegue, mismas rutas.
