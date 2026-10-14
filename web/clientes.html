@@ -59,6 +59,15 @@
   </aside>
   <section class="cl-detail" id="clDetail"></section>
 </main>
+
+<!-- Visor de fotos a pantalla completa: el mismo de la ficha -->
+<div class="fx-lb" id="lightbox" hidden>
+  <button class="fx-lb-x" id="lbClose" aria-label="Cerrar">&times;</button>
+  <button class="fx-lb-nav prev" id="lbPrev" aria-label="Anterior">&#8592;</button>
+  <img id="lbImg" alt="">
+  <button class="fx-lb-nav next" id="lbNext" aria-label="Siguiente">&#8594;</button>
+  <span class="fx-lb-n" id="lbN"></span>
+</div>
 <script src="api.js"></script>
 <script src="texto.js"></script>
 <script src="etapas.js"></script>
