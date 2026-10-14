@@ -7,7 +7,7 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
-## Velocidad del tablero y del filtro de ubicación — **en `desarrollo`, sin desplegar** (2026-10-14)
+## Velocidad del tablero y del filtro de ubicación — **en producción desde el 2026-10-14**
 
 Medido sobre la base real (648 mil anuncios) con la API de desarrollo:
 
@@ -22,7 +22,7 @@ Medido sobre la base real (648 mil anuncios) con la API de desarrollo:
   las corría en serie: "monterrey" eran 9 cargas de listings + facetas y la que
   importaba se pintaba al final. Ahora la barra espera 250 ms y el filtro de ubicación
   200 ms, y las cargas que llegan mientras otra corre se juntan en una sola.
-- Desplegar: `git pull` en producción **y** `docker compose up -d --build api`.
+- Desplegado el 2026-10-14 (0a37928 en `produccion`, API reconstruida). Reversa: la imagen `officelab-api:pre-2026-10-14`. En producción: selfcheck ok, `/api/zonas` 1.0 s la primera vez y 17 ms con la lista en memoria, `/api/lugares` sigue pidiendo sesión (401).
 
 **Abierto — la base tiene la configuración de fábrica:** `shared_buffers` = 128 MB para
 una tabla de 2.2 GB en un VPS de 7.8 GB, así que cada consulta del mapa lee ~24 mil
