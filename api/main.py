@@ -680,15 +680,60 @@ def v1_anuncio(anuncio_id: str, llave: dict = Depends(llave_api)) -> dict:
     return row
 
 
+# Cuántos anuncios hay en cada municipio y en cada colonia, para /zonas y /lugares.
+# Contarlos es recorrer `listings` entera: con `count(l.*)` dentro del JOIN costaba
+# 5-7 s (leía las filas completas, galerías incluidas) y el tablero lo esperaba antes
+# de pintar; /lugares lo pagaba en cada tecla. Agrupando por el índice son ~0.4 s, y
+# como sólo cambian con la carga de la noche, se guardan en memoria como /frescura.
+LUGARES_TTL = 900
+_lugares_cache: dict = {"t": None, "v": None}
+
+
+def _lugares_con_inventario() -> list[dict]:
+    """Municipios y colonias con al menos un anuncio, del que más tiene al que menos."""
+    ahora = time.monotonic()
+    c = _lugares_cache
+    if c["v"] is None or ahora - c["t"] > LUGARES_TTL:
+        with POOL.connection() as conn:
+            c["v"] = conn.execute(
+                """WITH n AS (
+                     SELECT 'm' AS clase, zona_id AS id, count(*) AS anuncios
+                     FROM listings WHERE zona_id IS NOT NULL GROUP BY zona_id
+                     UNION ALL
+                     SELECT 'c', colonia_id, count(*)
+                     FROM listings WHERE colonia_id IS NOT NULL GROUP BY colonia_id)
+                   SELECT n.clase, z.id, z.nombre, z.norm, z.estado, m.nombre AS municipio,
+                          n.anuncios
+                   FROM n JOIN zona z ON z.id = n.id
+                   LEFT JOIN zona m ON m.id = z.padre_id
+                   WHERE z.tipo = CASE n.clase WHEN 'm' THEN 'municipio' ELSE 'colonia' END
+                   ORDER BY n.anuncios DESC, z.id""").fetchall()
+        c["t"] = ahora
+    return c["v"]
+
+
+def _buscar_lugares(filas: list[dict], q: str, tope: int) -> list[dict]:
+    """Los municipios primero y luego las colonias, cada grupo con sus `tope` de más
+    anuncios cuyo nombre contiene `q`. Pura, para el selfcheck: `filas` ya viene
+    ordenada de más a menos anuncios."""
+    patron = norm_txt(q)
+    out = {"m": [], "c": []}
+    for f in filas:
+        grupo = out[f["clase"]]
+        if len(grupo) < tope and patron in (f["norm"] or ""):
+            grupo.append(f)
+    return [{"clase": "m", "valor": f"m{f['id']}", "nombre": f["nombre"],
+             "contexto": f["estado"], "anuncios": f["anuncios"]} for f in out["m"]] + \
+           [{"clase": "c", "valor": f"c{f['id']}", "nombre": f["nombre"],
+             "contexto": (f"{f['municipio']}, " if f["municipio"] else "") + (f["estado"] or ""),
+             "anuncios": f["anuncios"]} for f in out["c"]]
+
+
 @app.get("/api/zonas")
 def zonas() -> list[dict]:
     """Para poblar el filtro de zona. Solo las que tienen inventario."""
-    with POOL.connection() as conn:
-        return conn.execute(
-            """SELECT z.id, z.nombre, z.norm, z.estado, count(l.*) AS listings
-               FROM zona z JOIN listings l ON l.zona_id = z.id
-               GROUP BY z.id, z.nombre, z.norm, z.estado
-               ORDER BY count(l.*) DESC""").fetchall()
+    return [{"id": f["id"], "nombre": f["nombre"], "norm": f["norm"], "estado": f["estado"],
+             "listings": f["anuncios"]} for f in _lugares_con_inventario() if f["clase"] == "m"]
 
 
 @app.get("/api/lugares")
@@ -709,28 +754,7 @@ def lugares(q: str = Query(min_length=2, max_length=80),
     Los municipios van primero a igualdad de coincidencia: quien escribe "san pedro"
     quiere el municipio, no una colonia homónima de otro estado.
     """
-    patron = f"%{norm_txt(q)}%"
-    with POOL.connection() as conn:
-        return conn.execute(
-            """SELECT clase, valor, nombre, contexto, anuncios FROM (
-                 (SELECT 0 AS orden, 'm' AS clase, 'm' || z.id AS valor, z.nombre,
-                         z.estado AS contexto, count(l.*) AS anuncios
-                  FROM zona z JOIN listings l ON l.zona_id = z.id
-                  WHERE z.tipo = 'municipio' AND z.norm LIKE %s
-                  GROUP BY z.id, z.nombre, z.estado
-                  ORDER BY count(l.*) DESC LIMIT %s)
-                 UNION ALL
-                 (SELECT 1, 'c', 'c' || z.id, z.nombre,
-                         coalesce(m.nombre || ', ', '') || coalesce(z.estado, '') AS contexto,
-                         count(l.*)
-                  FROM zona z
-                  JOIN listings l ON l.colonia_id = z.id
-                  LEFT JOIN zona m ON m.id = z.padre_id
-                  WHERE z.tipo = 'colonia' AND z.norm LIKE %s
-                  GROUP BY z.id, z.nombre, m.nombre, z.estado
-                  ORDER BY count(l.*) DESC LIMIT %s)
-               ) s ORDER BY orden, anuncios DESC""",
-            (patron, MAX_LUGARES, patron, MAX_LUGARES)).fetchall()
+    return _buscar_lugares(_lugares_con_inventario(), q, MAX_LUGARES)
 
 
 # Fuentes con scraper propio en scrapers/. Lo que aparezca en la tabla y no aquí es
@@ -2156,6 +2180,19 @@ def selfcheck() -> None:
     assert [f["source"] for f in fr] == list(SCRAPERS), fr
     assert next(f for f in fr if f["source"] == "pincali")["ultima_carga"] == "2026-09-18"
     assert next(f for f in fr if f["source"] == "lamudi")["ultima_carga"] is None
+    # /api/lugares: municipios antes que colonias, sin acentos, y `tope` por grupo.
+    filas = [{"clase": "c", "id": 7, "nombre": "San Jerónimo", "norm": "san jeronimo",
+              "estado": "Nuevo León", "municipio": "Monterrey", "anuncios": 900},
+             {"clase": "m", "id": 1, "nombre": "San Pedro Garza García", "norm": "san pedro garza garcia",
+              "estado": "Nuevo León", "municipio": None, "anuncios": 500},
+             {"clase": "c", "id": 8, "nombre": "Santa Lucía", "norm": "santa lucia",
+              "estado": "Jalisco", "municipio": None, "anuncios": 3},
+             {"clase": "m", "id": 2, "nombre": "Apodaca", "norm": "apodaca",
+              "estado": "Nuevo León", "municipio": None, "anuncios": 400}]
+    lg = _buscar_lugares(filas, "SÁN", 10)
+    assert [x["valor"] for x in lg] == ["m1", "c7", "c8"], lg
+    assert lg[1]["contexto"] == "Monterrey, Nuevo León" and lg[2]["contexto"] == "Jalisco"
+    assert [x["valor"] for x in _buscar_lugares(filas, "san", 1)] == ["m1", "c7"]
 
     # Subir el costo del KDF no invalida los hashes viejos, solo los marca.
     assert not necesita_rehash(h)
