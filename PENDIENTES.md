@@ -7,6 +7,30 @@ Lo cerrado se borra de aquí, no se tacha.
 
 - *(nada)*
 
+## Velocidad del tablero y del filtro de ubicación — **en `desarrollo`, sin desplegar** (2026-10-14)
+
+Medido sobre la base real (648 mil anuncios) con la API de desarrollo:
+
+- **El tablero esperaba `/api/zonas` antes de pintar: 5-7 s** por datos que ya nadie
+  usaba (el editor `zona` era código muerto). Se quitó la llamada.
+- **`/api/lugares` costaba 0.1-4.8 s por tecla** (`"sa"`, `"san"`: 4 s): `count(l.*)`
+  leía cada fila completa de `listings`. Ahora los conteos por municipio y colonia se
+  calculan una vez (~1 s) y se guardan 15 min en memoria, como `/frescura`; cada
+  búsqueda tarda **3-6 ms**. Viejo contra nuevo en 11 búsquedas: iguales salvo dos
+  empates en el último lugar (mismo conteo). `/api/zonas` sale de la misma lista.
+- **Teclear en la barra de búsqueda encolaba una carga completa por letra**, y `render()`
+  las corría en serie: "monterrey" eran 9 cargas de listings + facetas y la que
+  importaba se pintaba al final. Ahora la barra espera 250 ms y el filtro de ubicación
+  200 ms, y las cargas que llegan mientras otra corre se juntan en una sola.
+- Desplegar: `git pull` en producción **y** `docker compose up -d --build api`.
+
+**Abierto — la base tiene la configuración de fábrica:** `shared_buffers` = 128 MB para
+una tabla de 2.2 GB en un VPS de 7.8 GB, así que cada consulta del mapa lee ~24 mil
+bloques de disco (en frío el mapa de Monterrey sale en 1.5 s y en caliente en 0.8 s;
+nacional, 3.5-7.5 s). Propuesta: `shared_buffers=1536MB`, `work_mem=16MB` (el
+`/lugares` viejo ordenaba en disco), y `jit=off` (ganó ~15% en nacional; en el mapa,
+nada). `shared_buffers` exige reiniciar el contenedor `db`. Sin hacer: decide el usuario.
+
 ## Despliegue del 2026-10-13: `fichas.py` y `fotos.js` — **en producción**
 
 Commits `5ef2f43` y `3334c0f` de `produccion` (el primero junta en uno los tres de

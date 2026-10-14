@@ -55,7 +55,6 @@ const PAGE_SIZE = 70;
 
 let listings = [], listingsMap = {}, totalFiltrado = 0;
 let facetas = { total: 0, destacados: 0, por_estado: {}, por_fuente: {} };
-let zonas = [];
 // Selección múltiple: sobrevive a cambios de página y de filtro. Guarda el
 // inmueble completo para que la bandeja no dependa de la página visible.
 const seleccion = new Map();
@@ -299,8 +298,6 @@ function cuerpoEditor(campo) {
   if (campo === 'orden')     return chips(Object.entries(ORDENES).map(([v, label]) => ({ v, label })), F.orden);
   if (campo === 'fuente')    return chips(Object.keys(facetas.por_fuente).sort().map(f =>
                                     ({ v: f, label: Anuncio.fuente(f), count: facetas.por_fuente[f] })), F.fuente);
-  if (campo === 'zona')      return chips(zonas.slice(0, 24).map(z =>
-                                    ({ v: z.norm, label: z.nombre, count: z.listings })), F.zona);
   if (campo === 'radio') return `
     <div class="qpop-row">
       <input class="qpop-num" id="edNear" value="${esc(F.near)}" placeholder="25.6329, -100.3577">
@@ -382,11 +379,19 @@ function renderPagination(totalPages) {
 }
 
 let renderEnCurso = null;
+let renderEnEspera = false;   // hay una carga encolada que todavía no arranca
 
 function render() {
   // Un clic rápido en varios filtros dispararía peticiones que llegan desordenadas;
-  // encadenarlas garantiza que la última en salir es la que se pinta.
-  renderEnCurso = (renderEnCurso ?? Promise.resolve()).then(_render).catch(err => {
+  // encadenarlas garantiza que la última en salir es la que se pinta. Y las que llegan
+  // mientras una corre se juntan en una sola: como lee los filtros al arrancar, las
+  // intermedias sobraban (teclear "monterrey" encadenaba nueve cargas completas).
+  if (renderEnEspera) return renderEnCurso;
+  renderEnEspera = true;
+  renderEnCurso = (renderEnCurso ?? Promise.resolve()).then(() => {
+    renderEnEspera = false;
+    return _render();
+  }).catch(err => {
     console.error(err);
     document.getElementById('grid').innerHTML =
       `<div class="empty"><h2>No se pudo cargar el inventario</h2><p>${esc(err.message)}</p></div>`;
@@ -432,6 +437,7 @@ function limpiarTodo() {
   F.lugares = []; F.tipos = []; F.operacion = ''; F.precio_min = ''; F.precio_max = '';
   F.pcliente = ''; F.etapas = []; F.asesor = '';
   fbCerrar();
+  clearTimeout(busquedaEspera);
   F.q = ''; searchStreet = ''; filterStatus = 'Todos'; filterStarred = false;
   document.getElementById('searchInput').value = '';
   document.getElementById('searchChip').hidden = true;
@@ -493,6 +499,7 @@ const cap = s => String(s ?? '').charAt(0).toUpperCase() + String(s ?? '').slice
 let fbAbierto = null;     // cuál popover está abierto, o null
 let fbDraft = null;       // el borrador; se tira si no se aplica
 let fbPeticion = 0;       // descarta respuestas del autocompletado que llegan tarde
+let fbEspera = 0;         // el temporizador de esa búsqueda: se lanza al dejar de teclear
 
 // Sólo dígitos: el campo se escribe con separadores de miles en vivo.
 const fbNum = v => {
@@ -774,7 +781,14 @@ document.getElementById('fbPop').addEventListener('click', e => {
 });
 
 document.getElementById('fbPop').addEventListener('input', e => {
-  if (e.target.id === 'fbBuscaLugar') return fbBuscarLugares(e.target.value.trim());
+  // Se pregunta cuando se deja de teclear, no en cada letra: "monterrey" eran nueve
+  // consultas y las respuestas viejas, que se descartan, igual ocupaban la base.
+  if (e.target.id === 'fbBuscaLugar') {
+    clearTimeout(fbEspera);
+    const q = e.target.value.trim();
+    fbEspera = setTimeout(() => fbBuscarLugares(q), 200);
+    return;
+  }
   if (e.target.id === 'fbMin' || e.target.id === 'fbMax') {
     // Miles en vivo. El cursor va al final a propósito: reponerlo donde estaba
     // exige contar separadores y aquí se escribe de izquierda a derecha.
@@ -891,9 +905,12 @@ document.getElementById('grid').addEventListener('change', e => {
 });
 
 const searchInput = document.getElementById('searchInput');
+// Se busca cuando se deja de teclear: cada búsqueda son tres consultas a la base.
+let busquedaEspera = 0;
 searchInput.addEventListener('input', e => {
-  F.q = e.target.value.trim(); page = 1;
-  renderSuggestions(F.q); render();
+  clearTimeout(busquedaEspera);
+  const q = e.target.value.trim();
+  busquedaEspera = setTimeout(() => { F.q = q; page = 1; renderSuggestions(F.q); render(); }, 250);
 });
 searchInput.addEventListener('blur', () => {
   setTimeout(() => document.getElementById('searchSuggestions').classList.remove('open'), 150);
@@ -902,6 +919,7 @@ document.getElementById('searchSuggestions').addEventListener('mousedown', e => 
   const row = e.target.closest('.suggestion-row');
   if (!row) return;
   e.preventDefault();
+  clearTimeout(busquedaEspera);
   searchStreet = row.dataset.text;
   F.q = '';
   searchInput.value = '';
@@ -1221,7 +1239,6 @@ async function avisarFrescura() {
 API.me().then(async () => {
   document.getElementById('authBox').hidden = true;
   document.getElementById('userBox').hidden = false;
-  zonas = await API.get('/zonas').catch(() => []);
   const url = new URLSearchParams(location.search);
   if (url.get('cliente')) await aplicarCliente(url.get('cliente'));
   // Inmobiliaria: los clientes hacen falta para el filtro y su resumen. Desde la ficha
