@@ -684,7 +684,7 @@ function filaHtml(c, p) {
   return `<div class="cl-tr${abierto === String(p.id) ? ' open' : ''}" data-proc="${esc(p.id)}">
     <span class="cl-grip${filtrando() ? ' off' : ''}" title="${filtrando() ? 'Quita los filtros para reordenar' : 'Arrastra para cambiar el orden'}" aria-hidden="true">&#8942;&#8942;</span>
     <span class="cl-num">${pos}</span>
-    ${foto ? `<img class="cl-th-img" src="${srcSeguro(foto)}" alt="">` : '<span class="cl-th-img vacio"></span>'}
+    ${foto ? `<button class="cl-th-ver" title="Ver fotos"><img class="cl-th-img" src="${srcSeguro(foto)}" alt=""></button>` : '<span class="cl-th-img vacio"></span>'}
     <span class="cl-inm">${esc(f.titulo ?? '(sin título)')}</span>
     ${colsFila.map(col => `<span class="cl-c ${col.cls ?? ''}" data-c="${col.k}">${col.html(p)}</span>`).join('')}
     ${colsFila.some(col => col.k === 'tareas') ? '' : `<span class="cl-tn${n ? ' on' : ''}"${presentando ? '' : ` title="${n ? `${n} ${n === 1 ? 'tarea abierta' : 'tareas abiertas'}` : 'Sin tareas abiertas'}"`}>${n || ''}</span>`}
@@ -728,7 +728,7 @@ let subiendoFotos = null;      // id de la ficha que está subiendo, para decirl
 const esPropia = f => !!f?.id && !f.source_listing_id;
 function fotosHtml(f) {
   const fotos = f.fotos ?? [];
-  if (!esPropia(f)) return fotos[0] ? `<img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt="">` : '';
+  if (!esPropia(f)) return fotos[0] ? `<button class="cl-th-ver" title="Ver fotos"><img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt=""></button>` : '';
   return Fotos.caja(fotos, { clase: 'cl-exp-fotos', corta: true, subiendo: subiendoFotos === String(f.id) ? 1 : 0,
     antes: fotos[0] ? `<img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt="">` : '' });
 }
@@ -961,6 +961,7 @@ const procDe = el => { const id = el.closest('[data-proc]')?.dataset.proc; retur
 detalle.addEventListener('click', e => {
   const t = e.target;
   if (t.closest('.cl-x')) return removeProceso(t.closest('.cl-x').dataset.proc);
+  if (t.closest('.cl-th-ver')) { const p = procDe(t.closest('.cl-th-ver')); return abrirVisor(p?.ficha?.fotos ?? [], 0); }
   if (t.closest('#colsBtn')) { colsAbierto = !colsAbierto; return renderDetalle(); }
   if (t.closest('#catBtn')) { if (catAbierto) { catAbierto = false; return renderDetalle(); } return abrirCatalogo(); }
   if (t.closest('.cl-catopt')) return proponerDeCatalogo(cSel(), t.closest('.cl-catopt').dataset.ficha);
@@ -1141,8 +1142,34 @@ document.getElementById('new-client-btn').addEventListener('click', () => {
   const nombre = prompt('Nombre del cliente:');
   if (nombre?.trim()) createCliente({ nombre: nombre.trim() });
 });
+// ── Visor de fotos: clic en la foto de una fila. El mismo marcado y las mismas teclas
+// que el de la ficha (listing.js).
+let visorFotos = [], visor = -1;
+function abrirVisor(fotos, i) {
+  visorFotos = fotos.map(srcSeguro).filter(Boolean);
+  if (!visorFotos.length) return;
+  visor = (i + visorFotos.length) % visorFotos.length;
+  document.getElementById('lbImg').src = visorFotos[visor];
+  document.getElementById('lbN').textContent = `${visor + 1} / ${visorFotos.length}`;
+  const una = visorFotos.length < 2;
+  document.getElementById('lbPrev').hidden = una;
+  document.getElementById('lbNext').hidden = una;
+  document.getElementById('lightbox').hidden = false;
+}
+const cerrarVisor = () => { visor = -1; document.getElementById('lightbox').hidden = true; };
+document.getElementById('lbClose').onclick = cerrarVisor;
+document.getElementById('lbPrev').onclick = () => abrirVisor(visorFotos, visor - 1);
+document.getElementById('lbNext').onclick = () => abrirVisor(visorFotos, visor + 1);
+document.getElementById('lightbox').onclick = e => { if (e.target.id === 'lightbox') cerrarVisor(); };
+
 // ↑/↓ recorren la lista cuando el foco no está en un campo.
 document.addEventListener('keydown', e => {
+  if (visor >= 0) {
+    if (e.key === 'Escape') cerrarVisor();
+    if (e.key === 'ArrowLeft') abrirVisor(visorFotos, visor - 1);
+    if (e.key === 'ArrowRight') abrirVisor(visorFotos, visor + 1);
+    return;
+  }
   if (e.target.closest('input, textarea, select') || !['ArrowDown', 'ArrowUp'].includes(e.key)) return;
   const ids = clientes.filter(pasaFiltro).map(c => String(c.id));
   const i = ids.indexOf(selId);
