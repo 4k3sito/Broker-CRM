@@ -192,8 +192,11 @@ LISTEN 0.0.0.0:22    sshd
   `docker compose -p officelab-dev -f docker-compose.dev.yml down`.
 - **`GET /api/lugares`** (autocompletado del filtro de ubicación) pide sesión como el
   resto. Devuelve nombres de municipio y de colonia con su conteo de inventario — datos
-  públicos del catálogo, no del seguimiento privado de ningún asesor. El parámetro `q`
-  va parametrizado contra un `LIKE` sobre la columna `norm`, sin concatenar nada.
+  públicos del catálogo, no del seguimiento privado de ningún asesor. Desde el
+  2026-10-14 `q` ni siquiera llega a la base: se compara en memoria contra la lista de
+  municipios y colonias con inventario, que se lee una vez cada 15 min. `GET /api/zonas`
+  (sin sesión) sale de esa misma lista: antes cada llamada costaba 5-7 s de base y
+  cualquiera podía repetirla.
 - Cabeceras que sí manda (verificadas con `curl -D -`):
 
 ```
