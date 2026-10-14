@@ -7,6 +7,16 @@ services:
   db:
     image: postgis/postgis:17-3.5
     restart: unless-stopped
+    # Memoria (2026-10-14). Con la de fábrica cada consulta del mapa leía ~24 mil bloques
+    # de disco: `listings` pesa 2.2 GB y el VPS tiene 7.8 GB. jit apagado: en consultas de
+    # medio segundo compilar costaba más de lo que ganaba (~190 ms en /lugares).
+    # shm_size: los workers paralelos usan /dev/shm, y el de Docker trae 64 MB.
+    command: >
+      postgres
+      -c shared_buffers=1536MB
+      -c work_mem=16MB
+      -c jit=off
+    shm_size: 1g
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
