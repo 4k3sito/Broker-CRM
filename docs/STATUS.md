@@ -12,6 +12,7 @@ Pipeline completo y probado de punta a punta: PR → CI + revisión de Claude �
 - 2026-10-20: `desarrollo` y `produccion` reconciliadas (PR #4): eran cherry-picks, mismo árbol.
 - 2026-10-20: primer deploy automático (`6a98afa`): API reconstruida, selfcheck ok, sitio 200.
 - 2026-10-20: `npm run probar:web` arreglado (fallaba en Node ≥22 con un directorio).
+- 2026-10-20: H1 cerrado: SSH sólo con llave, `ufw` (22/80/443) y `fail2ban` en el VPS.
 - 2026-10-20: historia de `desarrollo`/`produccion` reescrita sin `Co-Authored-By: Claude`;
   respaldo en `~/backups/broker_CRM-pre-rewrite-2026-10-20.bundle` (máquina local).
 
@@ -28,5 +29,4 @@ Pipeline completo y probado de punta a punta: PR → CI + revisión de Claude �
   y demás docs se actualizaron a la historia nueva; las otras ramas conservan la vieja.
 
 ## Bloqueos
-- H1 (crítico) sigue abierto en SECURITY.md.
 - `schema.sql` sigue siendo manual en cada deploy (bind mount de archivo).
