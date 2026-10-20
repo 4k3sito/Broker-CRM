@@ -1,7 +1,7 @@
 # Estado del proyecto
 Actualizado: 2026-10-20
 
-El detalle vivo de lo pendiente sigue en `PENDIENTES.md`; esto es el resumen del pipeline.
+Las tareas viven en Notion ([Tareas — OfficeLab](https://app.notion.com/p/35a7775c44ee467d99402b87361da28b)); `PENDIENTES.md` es la bitácora técnica.
 
 ## Ahora
 Pipeline completo y probado de punta a punta: PR → CI + revisión de Claude → `desarrollo`
@@ -16,7 +16,6 @@ Pipeline completo y probado de punta a punta: PR → CI + revisión de Claude �
   respaldo en `~/backups/broker_CRM-pre-rewrite-2026-10-20.bundle` (máquina local).
 
 ## Siguiente
-- Decidir la fuente de tareas: Notion (pipeline) o `PENDIENTES.md` / `.scratch/` (repo).
 - Desconectar la integración vieja de Supabase del repo en GitHub.
 
 ## Decisiones
@@ -24,6 +23,7 @@ Pipeline completo y probado de punta a punta: PR → CI + revisión de Claude �
 - Deploy: `deploy.yml` (modo `docker`) entra con una llave dedicada con comando forzado en
   `authorized_keys` de root; sólo puede correr `git pull --ff-only && docker compose up -d --build`.
 - Revisión de PRs con la suscripción de Claude (`CLAUDE_CODE_OAUTH_TOKEN`).
+- Tareas en Notion; `PENDIENTES.md` queda como bitácora técnica (2026-10-20).
 - Sin atribución a Claude en commits ni PRs. Los SHA anteriores al 2026-10-20 en `PENDIENTES.md`
   y demás docs se actualizaron a la historia nueva; las otras ramas conservan la vieja.
 

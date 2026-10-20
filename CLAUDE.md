@@ -164,9 +164,12 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
 
 ## Documentos que hay que mantener al día
 
-- **`PENDIENTES.md`** — lo que falta, con dónde está y qué se midió. **Léelo al abrir
-  una sesión**: trae lo que quedó corriendo, lo que se está degradando solo y los
-  hallazgos abiertos de la última crítica. Lo cerrado se borra de ahí, no se tacha.
+- **Las tareas viven en Notion** (desde el 2026-10-20): [Tareas — OfficeLab](https://app.notion.com/p/35a7775c44ee467d99402b87361da28b). Ahí
+  está lo que falta, su estado y su prioridad; `/status` lo lee al abrir una sesión.
+- **`PENDIENTES.md`** — ya no es la lista de tareas: queda como **bitácora técnica** de
+  lo desplegado y lo medido (qué se cambió, cifras, reversas). Lo abierto que traía se
+  pasó a Notion con su sección de origen en `Notas`. Lo nuevo que haya que hacer va a
+  Notion, no aquí.
 
 - **`SECURITY.md`** — registro vivo de seguridad. **Se actualiza en el mismo commit** que
   cualquier cambio a auth, sesiones, la API, Caddy o el despliegue, y cada vez que se
@@ -449,17 +452,17 @@ completa al navegador.
 ## Agent skills
 
 Configuración que leen las skills de ingeniería (`/triage`, `/to-spec`, `/to-tickets`,
-`/implement`, `/grill-with-docs`…). No sustituye a `PENDIENTES.md`, que sigue siendo canon.
+`/implement`, `/grill-with-docs`…). Las tareas viven en Notion (sección Pipeline → Notion).
 
 ### Issue tracker
 
-Los issues y specs viven como markdown local bajo `.scratch/<función>/`, no en GitHub
-Issues (el VPS no tiene `gh`). Ver `docs/agents/issue-tracker.md`.
+Los issues viven en la base de Notion [Tareas — OfficeLab](https://app.notion.com/p/35a7775c44ee467d99402b87361da28b), no en GitHub Issues ni
+en `.scratch/`. Los specs largos van a `docs/specs/`. Ver `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Las cinco etiquetas canónicas, sin renombrar: `needs-triage`, `needs-info`,
-`ready-for-agent`, `ready-for-human`, `wontfix`. Ver `docs/agents/triage-labels.md`.
+Los cinco roles de las skills se traducen a `Estado` / `Etapa` / `Notas` de Notion. Ver
+`docs/agents/triage-labels.md`.
 
 ### Domain docs
 
