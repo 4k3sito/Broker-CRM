@@ -482,7 +482,7 @@ Ver `docs/agents/domain.md`.
 | Instalar | `pip install -r api/requirements.txt -r scrapers/requirements.txt` (en `scrapers/.venv`) |
 | Desarrollo | `npm run dev` |
 | Lint | TODO (no hay linter; `npm run verificar` es el informe del sistema de diseño) |
-| Tests | `node --test pruebas/web/*.test.js`, `npm run verificar:selfcheck`, `npm run probar:api`, `python api/main.py selfcheck`, y en `scrapers/`: `-m v2 selfcheck`, `-m v2.db selfcheck`, `-m v2.duplicados selfcheck`, `qa.py --selfcheck`, `liveness.py --selfcheck` |
+| Tests | `npm run probar:web`, `npm run verificar:selfcheck`, `npm run probar:api`, `python api/main.py selfcheck`, y en `scrapers/`: `-m v2 selfcheck`, `-m v2.db selfcheck`, `-m v2.duplicados selfcheck`, `qa.py --selfcheck`, `liveness.py --selfcheck` |
 | Build | no aplica |
 
 ### Deploy

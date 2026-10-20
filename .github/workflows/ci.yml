@@ -19,9 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-      # ponytail: glob y no `npm run probar:web` — node 22 no acepta un directorio en --test
       - name: Web - pruebas
-        run: node --test pruebas/web/*.test.js
+        run: npm run probar:web
 
       - uses: actions/setup-python@v5
         with:
