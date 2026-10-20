@@ -1,0 +1,94 @@
+name: Deploy
+
+# OfficeLab -> modo `docker`, al llegar a `produccion` (la rama puesta en /srv/officelab).
+#   DEPLOY_MODE=docker (variable)   DEPLOY_HOST=31.220.56.100
+#   DEPLOY_PATH=/srv/officelab/vps  (ahí vive docker-compose.yml; git pull funciona en subcarpeta)
+#   DEPLOY_USER / DEPLOY_SSH_KEY: usuario con acceso a docker en el VPS
+# Ojo: vps/schema.sql es bind mount de archivo; un cambio de schema sigue siendo manual
+# (docker compose cp + psql -f, ver CLAUDE.md).
+#
+# Deploy al llegar a produccion. NO hace nada hasta que configures la variable de repositorio
+# DEPLOY_MODE (Settings > Secrets and variables > Actions > Variables) con uno de:
+#   rsync   -> VPS: copia archivos por SSH con rsync
+#   docker  -> VPS: git pull + docker compose up -d --build por SSH
+#   ftp     -> hosting tradicional (cPanel/FTP) con lftp
+#   disabled (o vacio) -> no despliega
+#
+# CHECKPOINT: el job usa el environment "production". En Settings > Environments > production
+# agrega "Required reviewers" (tu usuario) para que cada deploy espere tu aprobacion.
+#
+# Secrets (segun el modo):
+#   rsync / docker: DEPLOY_HOST, DEPLOY_USER, DEPLOY_PATH, DEPLOY_SSH_KEY
+#   ftp:            FTP_HOST, FTP_USER, FTP_PASSWORD, FTP_REMOTE_DIR
+# Variable opcional: BUILD_DIR (carpeta a publicar en rsync/ftp; por defecto "." )
+on:
+  push:
+    branches: [produccion]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_MODE == 'rsync' || vars.DEPLOY_MODE == 'docker' || vars.DEPLOY_MODE == 'ftp'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      BUILD_DIR: ${{ vars.BUILD_DIR || '.' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      # Si el proyecto necesita build antes de publicar, agregalo aqui. Ejemplo Node:
+      # - uses: actions/setup-node@v4
+      #   with: { node-version: lts/* }
+      # - run: npm ci && npm run build
+
+      - name: Preparar SSH
+        if: vars.DEPLOY_MODE == 'rsync' || vars.DEPLOY_MODE == 'docker'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy por rsync
+        if: vars.DEPLOY_MODE == 'rsync'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          rsync -az --exclude '.git' --exclude '.github' --exclude 'node_modules' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            "$BUILD_DIR"/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+
+      - name: Deploy con Docker Compose
+        if: vars.DEPLOY_MODE == 'docker'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' && git pull --ff-only && docker compose up -d --build"
+
+      - name: Deploy por FTP
+        if: vars.DEPLOY_MODE == 'ftp'
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+          # Sin --delete a proposito: no borra nada en el servidor.
+          lftp -u "$FTP_USER","$FTP_PASSWORD" "$FTP_HOST" \
+            -e "set ssl:verify-certificate yes; mirror -R --exclude-glob .git/ --exclude-glob .github/ --exclude-glob node_modules/ '$BUILD_DIR' '$FTP_REMOTE_DIR'; quit"

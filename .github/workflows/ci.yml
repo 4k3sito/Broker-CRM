@@ -1,0 +1,50 @@
+name: CI
+
+# Las suites del repo (ver "Comandos" en CLAUDE.md). Todas corren sin red y sin la base
+# real; las de scrapers saltan el parse si faltan .fixtures/, que nunca se commitean.
+on:
+  push:
+    branches: [desarrollo, produccion]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      # ponytail: glob y no `npm run probar:web` — node 22 no acepta un directorio en --test
+      - name: Web - pruebas
+        run: node --test pruebas/web/*.test.js
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python - instalar
+        run: pip install -r api/requirements.txt -r scrapers/requirements.txt
+      - name: Web - verificador
+        run: python web/verificar.py --selfcheck
+      - name: API - selfcheck
+        run: python api/main.py selfcheck
+      - name: Scrapers - selfcheck
+        working-directory: scrapers
+        run: |
+          python -m v2 selfcheck
+          python -m v2.db selfcheck
+          python -m v2.duplicados selfcheck
+          python qa.py --selfcheck
+          python liveness.py --selfcheck
+
+  # api/probar.sh levanta su propio PostGIS desechable en Docker y lo borra al terminar.
+  api-sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: API - pruebas con base
+        run: bash api/probar.sh
