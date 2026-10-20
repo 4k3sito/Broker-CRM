@@ -465,3 +465,40 @@ Las cinco etiquetas canónicas, sin renombrar: `needs-triage`, `needs-info`,
 
 Un solo contexto: `CONTEXT.md` y `docs/adr/` en la raíz, que se crean cuando haga falta.
 Ver `docs/agents/domain.md`.
+
+## Pipeline
+
+> Reglas globales del pipeline: `~/.claude/CLAUDE.md`. Si hay conflicto, gana este archivo.
+
+- **Proyecto**: OfficeLab · **Tipo**: web/app (+ automatización: scrapers con cron).
+- **Idioma**: el global (español en UI, docs y tareas; inglés en código y commits).
+- **Stack**: HTML/JS estático sin build (`web/`), FastAPI + psycopg (`api/`), PostGIS,
+  scrapers Python v2 (curl_cffi, selectolax, patchright), Docker Compose + Caddy.
+- **Ramas (manda sobre la regla global de `main`)**: rama de tarea → PR a `desarrollo` →
+  `produccion`. Llegar a `produccion` = Etapa **Deploy**. `main` no se usa hasta ponerla al día.
+
+| Acción | Comando |
+|---|---|
+| Instalar | `pip install -r api/requirements.txt -r scrapers/requirements.txt` (en `scrapers/.venv`) |
+| Desarrollo | `npm run dev` |
+| Lint | TODO (no hay linter; `npm run verificar` es el informe del sistema de diseño) |
+| Tests | `node --test pruebas/web/*.test.js`, `npm run verificar:selfcheck`, `npm run probar:api`, `python api/main.py selfcheck`, y en `scrapers/`: `-m v2 selfcheck`, `-m v2.db selfcheck`, `-m v2.duplicados selfcheck`, `qa.py --selfcheck`, `liveness.py --selfcheck` |
+| Build | no aplica |
+
+### Deploy
+- **Modo**: `docker` (variable `DEPLOY_MODE` en GitHub). `deploy.yml` se dispara con push a
+  `produccion` y hace `git pull --ff-only` + `docker compose up -d --build` en
+  `/srv/officelab/vps`, con aprobación del environment `production`.
+- **Destino**: VPS `31.220.56.100`, `/srv/officelab` (rama `produccion`).
+- **Rollback**: la imagen etiquetada `officelab-api:pre-<fecha>` (ver PENDIENTES.md) o
+  `git checkout <sha>` en `/srv/officelab` + `docker compose up -d --build api`.
+  Un cambio de `schema.sql` no se revierte solo.
+
+### Notion
+- **Base de tareas**: https://app.notion.com/p/35a7775c44ee467d99402b87361da28b
+- **Data source**: `collection://be24b8df-34d2-44e5-8c10-d2cf6b399dc0`
+
+### No tocar
+- `scrapers/data/`, `scrapers/.fixtures/`, `scrapers/.env`, `vps/.env`, `graphify-out/`.
+- `/srv/officelab` a mano: es producción en vivo. El trabajo va en `/srv/officelab-dev`.
+- La rama `vps-migration` (congelada en `7c3b921`) y los `.dc.html` de la raíz.
