@@ -128,7 +128,7 @@ No hay RLS (eso murió con Supabase). Todo endpoint exige sesión, y el `user_id
 que se crea sale de la cookie: el cliente nunca lo manda. `_patch()` usa lista blanca de
 columnas, así que mandar campos de más no permite escribir `user_id` ni `id`.
 
-**Desde el 2026-09-27 (en producción; `a507832`) el CRM es del equipo.**
+**Desde el 2026-09-27 (en producción; `d34b129`) el CRM es del equipo.**
 Clientes, fichas, procesos y documentos de una ficha los ve y los edita cualquier cuenta
 con sesión; `user_id` sólo dice quién creó la fila. Antes cada endpoint filtraba por el
 `user_id` de la sesión (verificado con dos cuentas: A no veía ni editaba lo de B). Se

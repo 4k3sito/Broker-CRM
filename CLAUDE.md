@@ -494,6 +494,10 @@ Ver `docs/agents/domain.md`.
   `git checkout <sha>` en `/srv/officelab` + `docker compose up -d --build api`.
   Un cambio de `schema.sql` no se revierte solo.
 
+### Atribución
+- **Nunca** "🤖 Generated with Claude Code" en PRs, comentarios ni reviews, ni
+  `Co-Authored-By: Claude` en commits. Aplica también al bot de revisión de PRs.
+
 ### Notion
 - **Base de tareas**: https://app.notion.com/p/35a7775c44ee467d99402b87361da28b
 - **Data source**: `collection://be24b8df-34d2-44e5-8c10-d2cf6b399dc0`
