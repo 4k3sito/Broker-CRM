@@ -492,11 +492,39 @@ Ver `docs/agents/domain.md`.
 ### Deploy
 - **Modo**: `docker` (variable `DEPLOY_MODE` en GitHub). `deploy.yml` se dispara con push a
   `produccion` y hace `git pull --ff-only` + `docker compose up -d --build` en
-  `/srv/officelab/vps`, con aprobación del environment `production`.
+  `/srv/officelab/vps`. Sin aprobación en GitHub: la aprobación es el "sí" al deploy.
 - **Destino**: VPS `31.220.56.100`, `/srv/officelab` (rama `produccion`).
 - **Rollback**: la imagen etiquetada `officelab-api:pre-<fecha>` (ver PENDIENTES.md) o
   `git checkout <sha>` en `/srv/officelab` + `docker compose up -d --build api`.
   Un cambio de `schema.sql` no se revierte solo.
+
+### Checkpoints (reemplazan los 4 globales en este repo)
+
+Dos aprobaciones por cambio, no seis:
+
+1. **Ship** — un solo "sí" cubre commit, push, PR, esperar CI y `--squash` merge a
+   `desarrollo`. Si el CI o el bot de revisión fallan, se para y se avisa; si pasan, no
+   se vuelve a preguntar. La rama y el PR se crean igual (disparan CI y revisión).
+2. **Deploy** — un solo "sí" = `git push origin desarrollo:produccion`; despliega sin
+   más clics. Cambios sólo de docs/Notion no se despliegan: esperan al próximo deploy real.
+
+Siguen pidiendo confirmación aparte, siempre: `--force`/reescribir historia, migraciones
+o `schema.sql`, borrar datos o archivos, y tocar accesos del VPS (SSH, firewall, llaves).
+El subagente `reviewer` local no corre antes de cada ship: el bot de revisión del PR lo
+cubre. Se usa sólo si el cambio es grande o toca auth/datos.
+
+### Uso de tokens
+
+- **Leer por partes.** `CLAUDE.md`, `PENDIENTES.md` y `SECURITY.md` pasan de 500 líneas:
+  `grep -n` para ubicar y `sed -n 'a,bp'` para leer, nunca el archivo entero.
+- **Notion directo.** Mover una tarea (estado, notas, PR) se hace con las herramientas de
+  Notion sin subagente; `pm` sólo para cargas en bloque o reportes (cada `pm` ≈150k tokens).
+- **Sin subagentes por defecto.** Ni `Explore` ni `general-purpose` para búsquedas que
+  resuelve un `grep`. Para preguntas de arquitectura, `graphify-out/` primero.
+- **Salidas cortas.** `git … -q`, `| tail`, `--jq` en `gh api`; logs de CI sólo con
+  `grep` de los errores. `gh pr checks --watch` en vez de bucles de espera.
+- **No releer** un archivo recién editado ni repetir comandos ya verificados.
+- **Respuestas cortas** al usuario: resultado y siguiente paso, sin repetir el plan.
 
 ### Atribución
 - **Nunca** "🤖 Generated with Claude Code" en PRs, comentarios ni reviews, ni

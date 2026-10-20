@@ -14,7 +14,9 @@ name: Deploy
 #   ftp     -> hosting tradicional (cPanel/FTP) con lftp
 #   disabled (o vacio) -> no despliega
 #
-# CHECKPOINT: el job usa el environment "production". En Settings > Environments > production
+# OfficeLab: sin Required reviewers; la aprobación es el "sí" antes del push a produccion
+# (CLAUDE.md > Checkpoints). El environment sólo restringe la rama.
+# Plantilla original: el job usa el environment "production". En Settings > Environments > production
 # agrega "Required reviewers" (tu usuario) para que cada deploy espere tu aprobacion.
 #
 # Secrets (segun el modo):
