@@ -118,9 +118,9 @@ listings` crearía un `dev.listings` vacío que taparía el inventario. Y si el 
 no existe, la API de dev cae a `public` sin avisar.
 
 Sin `API=…`, el previsualizador sigue yendo a la API de **producción**: ahí sí, cambiar el
-estado de un anuncio lo cambia para todos. Y escucha en todas las interfaces sobre un host
-sin firewall (H1 en `SECURITY.md`): mientras corre, es visible desde internet. Apágalo al
-terminar.
+estado de un anuncio lo cambia para todos. Escucha en todas las interfaces, pero
+desde el 2026-10-20 `ufw` sólo deja pasar 22/80/443 (H1 en `SECURITY.md`), así que no es
+visible desde internet. Apágalo igual al terminar.
 
 ### Scrapers
 

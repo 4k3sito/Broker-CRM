@@ -68,8 +68,9 @@ Dos cosas que conviene tener presentes. Sin `API=http://127.0.0.1:8001`, `dev-se
 reenvía `/api/*` a producción y escribe en la **base de datos real**; con ella va a la
 API de la copia, que desde el 2026-09-25 lee y escribe el CRM en el **esquema `dev`**
 (copia de producción, ver README "Copia de trabajo" y `vps/dev-schema.sql`) y el
-inventario en `public`. Y escucha en todas las interfaces sobre un host sin firewall
-(H1), así que mientras corre es visible desde internet. Apágalo al terminar.
+inventario en `public`. Y escucha en todas las interfaces, pero desde el 2026-10-20
+`ufw` sólo deja pasar 22/80/443 (H1), así que ya no es visible desde internet. Apágalo
+igual al terminar.
 
 ## Arquitectura
 
@@ -174,7 +175,7 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
 - **`SECURITY.md`** — registro vivo de seguridad. **Se actualiza en el mismo commit** que
   cualquier cambio a auth, sesiones, la API, Caddy o el despliegue, y cada vez que se
   encuentre algo nuevo del sitio en producción. Trae los hallazgos abiertos con su
-  severidad (H1 es crítico y sigue abierto).
+  severidad (H1, el crítico, se cerró el 2026-10-20).
 - **`DESIGN.md`** — el sistema de diseño "Hermes Tinta" y sus reglas duras (sin
   `border-radius`, sin `box-shadow`, sin `<script>` inline). Trae el script que verifica
   que ninguna clase quede sin regla.

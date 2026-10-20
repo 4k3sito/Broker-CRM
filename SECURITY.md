@@ -345,7 +345,7 @@ CSP (`script-src 'self'`) no protege de eso: un `.html` subido ES `'self'`. Por 
 **Quién puede leerlos.** Cualquier cuenta con sesión, igual que el resto del CRM (§5):
 no hay permisos por archivo. Sin sesión, 401. El id es un uuid, pero la protección es
 la sesión, no que el id sea difícil de adivinar. Predial y escrituras viven ahora en la
-base: **H1 y H2 pesan más** (quien entre al VPS o lea el tráfico en claro los obtiene).
+base: **H2 pesa más** (quien lea el tráfico en claro los obtiene; H1 se cerró el 2026-10-20).
 
 **Caché.** Las fotos salen con `Cache-Control: private, max-age=1 año` (se pintan en
 cada tarjeta); los adjuntos de documentos con `no-store`, para que no se queden en el
@@ -503,28 +503,38 @@ viene del cliente, y WeasyPrint no ejecuta JavaScript.
 
 ## 7. Hallazgos abiertos
 
-### H1 — SSH root con contraseña, sin firewall ni fail2ban · **crítico**
+### H1 — SSH root con contraseña, sin firewall ni fail2ban · **cerrado 2026-10-20**
+
+Antes: `permitrootlogin yes`, `passwordauthentication yes`, `ufw` inactivo y `fail2ban`
+sin instalar. El 22 aceptaba contraseña para root sin nada que frenara la fuerza bruta.
+
+Ahora:
 
 ```
-permitrootlogin yes        passwordauthentication yes
-ufw: inactive              fail2ban: inactive
+permitrootlogin without-password   passwordauthentication no   kbdinteractive no
+ufw: active (entrada denegada salvo 22/80/443)   fail2ban: active, jaula sshd
 ```
 
-El puerto 22 está abierto a internet aceptando **contraseña para root**, sin nada que
-frene la fuerza bruta. Es el agujero más grande del sistema: hoy toda la seguridad de
-la aplicación cuelga de que nadie adivine esa contraseña. Un VPS público recibe miles
-de intentos al día.
+- **SSH sólo con llave.** `/etc/ssh/sshd_config.d/10-hardening.conf`. Se llama `10-`
+  porque en `sshd` gana el primer archivo que define cada opción, y `50-cloud-init.conf`
+  trae `PasswordAuthentication yes`: un drop-in con número mayor no tendría efecto.
+  Comprobado con conexiones nuevas: con llave entra; sin llave el servidor sólo ofrece
+  `publickey` y responde `Permission denied (publickey)`.
+- **`ufw`**: `deny incoming` por defecto, abiertos 22, 80 y 443. Docker publica 80/443
+  por su cuenta (salta `ufw`), lo cual da igual porque deben estar abiertos; lo que
+  `ufw` sí cierra es **cualquier puerto que se abra fuera de Docker**, como `npm run dev`
+  en `/srv/officelab-dev` (probado: un listener en `0.0.0.0:3199` no responde desde
+  fuera). Los contenedores siguen saliendo a internet.
+- **`fail2ban`**, jaula `sshd`, en `/etc/fail2ban/jail.d/officelab.conf` con dos ajustes
+  sin los cuales **no hace nada**: `journalmatch = _SYSTEMD_UNIT=ssh.service` (en Ubuntu
+  24.04 el servicio es `ssh.service`; el de fábrica busca `sshd.service` y no ve ni una
+  línea) y `mode = aggressive` (con las contraseñas apagadas los bots sólo dejan cierres
+  `[preauth]`, que el modo normal no cuenta). Probado: un intento sin llave suma 1.
+- Respaldo del estado anterior en `/root/h1-backup-2026-10-20-1032/`.
 
-Sin `ufw` **cualquier puerto que alguien abra queda expuesto sin decidirlo**. El caso
-concreto es `npm run dev`: `dev-server.js` hace `listen(3000)` sin host, así que escucha
-en todas las interfaces, y mientras corre el previsualizador de `/srv/officelab-dev` es
-alcanzable desde internet. Sirve los mismos estáticos que el sitio y su `/api` sigue
-pidiendo sesión, así que no regala datos, pero es superficie que nadie eligió publicar.
-Mientras H1 siga abierto, el previsualizador se apaga al terminar de usarlo.
-
-**Arreglo:** con la llave ya instalada y probada, `PasswordAuthentication no` y
-`PermitRootLogin prohibit-password` en `/etc/ssh/sshd_config.d/`, más `ufw` limitado a
-22/80/443 y `fail2ban`. *Requiere confirmación: hacerlo mal deja el VPS inaccesible.*
+**Si alguien queda fuera:** la consola web del proveedor no pasa por SSH. Para dar
+acceso a una máquina nueva, agregar su llave pública a `/root/.ssh/authorized_keys`
+desde una que ya entra; no hay vuelta atrás a contraseñas.
 
 ### H2 — Todo el tráfico va en claro · **alto**
 
@@ -689,7 +699,8 @@ proyecto. Es manual y fuera del VPS — nadie puede verificarlo desde aquí.
 - **Baja:** `main.py deluser <correo>` — arrastra sus sesiones y el estado de sus anuncios; sus clientes, fichas y procesos se quedan desde el CRM compartido (§5, 2026-09-27).
 - **Cron de scrapers (2026-09-10):** corre como **root** desde el crontab del host y lee
   `scrapers/.env` (credenciales del proxy residencial) y `vps/.env` (`DATABASE_URL`). No
-  abre puertos ni toca auth, pero hereda H1: quien entre por SSH como root se lleva ambas.
+  abre puertos ni toca auth. Quien entre por SSH como root se lleva ambas; desde H1
+  (cerrado) eso exige una llave autorizada.
   El script (`vps/cron.sh`) valida el nombre de la fuente contra una lista blanca antes de
   borrar nada — el `rm` del JSONL es lo único destructivo que hace.
 
@@ -704,7 +715,7 @@ proyecto. Es manual y fuera del VPS — nadie puede verificarlo desde aquí.
 curl -s -D - -o /dev/null http://31.220.56.100/ | grep -i "content-security\|x-frame\|referrer"
 ssh officelab 'ss -tlnp | grep -v 127.0.0.1'                    # qué escucha hacia fuera
 ssh officelab 'sshd -T | grep -Ei "permitroot|passwordauth"'    # H1
-ssh officelab 'ufw status; systemctl is-active fail2ban'        # H1
+ssh officelab 'ufw status; fail2ban-client status sshd'        # H1
 ssh officelab 'cd /srv/officelab/vps && docker compose exec -T api python main.py selfcheck'
 ```
 
