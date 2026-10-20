@@ -1,7 +1,10 @@
-# Pendientes
+# Pendientes — bitácora técnica
+
+> **Desde el 2026-10-20 las tareas viven en Notion: [Tareas — OfficeLab](https://app.notion.com/p/35a7775c44ee467d99402b87361da28b).**
+> Lo abierto de este archivo se pasó allá; esto queda como registro de lo desplegado y lo
+> medido. Lo nuevo que haya que hacer va a Notion, no aquí.
 
 Estado al **2026-10-13**. Es una foto, no la verdad: verifica antes de actuar.
-Lo cerrado se borra de aquí, no se tacha.
 
 ## Corriendo ahora
 
