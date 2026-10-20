@@ -734,7 +734,7 @@ resolvió acuñando la sesión a mano y dejando el barrido re-ejecutarse bajo Xv
 larga (`ml_geo.py --limit 0 --workers 4`, arrancada el 2026-09-19 23:38 UTC) terminó sola el
 2026-09-21 03:08 UTC: **54,287 coordenadas de 55,894 pendientes (97%)** en 27.5 h, a
 1.8 s/anuncio y ~30 KB de red por anuncio, con 1,504 anuncios de otro host y 103 sin
-coordenada publicada. La proyección de ~30 h que dejó `67aa597` se cumplió.
+coordenada publicada. La proyección de ~30 h que dejó `0f0559c` se cumplió.
 
 `--validate` marcó 1,427 de las 54,426 líneas: 863 por caer a más de 40 km de la ciudad que
 el propio anuncio declara y 564 por no tener centroide contra el cual compararse. Las

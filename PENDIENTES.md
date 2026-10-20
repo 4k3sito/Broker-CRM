@@ -22,7 +22,7 @@ Medido sobre la base real (648 mil anuncios) con la API de desarrollo:
   las corría en serie: "monterrey" eran 9 cargas de listings + facetas y la que
   importaba se pintaba al final. Ahora la barra espera 250 ms y el filtro de ubicación
   200 ms, y las cargas que llegan mientras otra corre se juntan en una sola.
-- Desplegado el 2026-10-14 (0a37928 en `produccion`, API reconstruida). Reversa: la imagen `officelab-api:pre-2026-10-14`. En producción: selfcheck ok, `/api/zonas` 1.0 s la primera vez y 17 ms con la lista en memoria, `/api/lugares` sigue pidiendo sesión (401).
+- Desplegado el 2026-10-14 (d3afc69 en `produccion`, API reconstruida). Reversa: la imagen `officelab-api:pre-2026-10-14`. En producción: selfcheck ok, `/api/zonas` 1.0 s la primera vez y 17 ms con la lista en memoria, `/api/lugares` sigue pidiendo sesión (401).
 
 **Abierto — la base tiene la configuración de fábrica:** `shared_buffers` = 128 MB para
 una tabla de 2.2 GB en un VPS de 7.8 GB, así que cada consulta del mapa lee ~24 mil
@@ -33,7 +33,7 @@ nada). `shared_buffers` exige reiniciar el contenedor `db`. Sin hacer: decide el
 
 ## Despliegue del 2026-10-13: `fichas.py` y `fotos.js` — **en producción**
 
-Commits `5ef2f43` y `3334c0f` de `produccion` (el primero junta en uno los tres de
+Commits `cb254c0` y `9977aba` de `produccion` (el primero junta en uno los tres de
 `desarrollo`, porque una fusión no se trae con cherry-pick). API reconstruida, sin
 cambios de esquema ni de Caddy; la imagen anterior quedó como
 `officelab-api:pre-2026-10-13` para dar marcha atrás. Comprobado en producción:
@@ -108,7 +108,7 @@ Sólo `web/`: se desplegó con cherry-pick, sin reconstruir la API.
   Cliente y Etapa en el mismo proceso. `asesor=<uuid>` en `/api/listings` y `/facets`.
   34 de los 236 procesos no tienen cuenta ligada en «Presentó» (texto suelto o vacío): esas
   propiedades no salen con ningún asesor.
-- Desplegado el 2026-10-12 (`2d8d40a` en `desarrollo`, cherry-pick en `produccion`, API
+- Desplegado el 2026-10-12 (`c02feaa` en `desarrollo`, cherry-pick en `produccion`, API
   reconstruida). Sin cambios de esquema. Verificado por las funciones de la API contra la
   base real; falta la confirmación del equipo y decidir si «Asesor» es quien presentó
   (como quedó) o quien lleva la cuenta del cliente.
@@ -160,7 +160,7 @@ propiedades. Oficinas en venta a 1.5 km de Punto Central: 259 anuncios → 85 ta
 piso de 1,100 m² de Torre Banbajío (22 anuncios, 14 anunciantes) queda en una, de
 $115.5 M a $137.5 M.
 
-- **Desplegado el 2026-10-12** (commit `39f1a1f` en `desarrollo`, cherry-pick `99a4442` en
+- **Desplegado el 2026-10-12** (commit `1fa44fb` en `desarrollo`, cherry-pick `3c41fd4` en
   `produccion`, junto con los tres de `web/anuncio.js`). Respaldo previo:
   `/srv/backups/officelab-pre-propiedades-2026-10-12.sql.gz`. Se aplicaron a `public` sólo
   los bloques nuevos de `schema.sql`, se copiaron las huellas de `dev`, Pillow al venv de
@@ -227,7 +227,7 @@ ficha (`asegurarFicha` en `listing.js`) no manda la construcción y la bandeja s
 
 ## Inventario en su módulo, bajas escondidas y la Bolsa abre en Monterrey — **en producción desde el 2026-10-11**
 
-Desplegado con el commit `b414531` de `produccion` (los seis commits de `desarrollo` por
+Desplegado con el commit `9ce623c` de `produccion` (los seis commits de `desarrollo` por
 cherry-pick, como siempre): API reconstruida, sin cambios de esquema ni de Caddy. La
 imagen anterior quedó como `officelab-api:pre-2026-10-11` para dar marcha atrás.
 Comprobado en producción sin sesión (rutas en 401, `selfcheck` en verde, estáticos
@@ -280,7 +280,7 @@ Lo que apareció y **no se tocó**:
 
 ## Estatus y orden de clientes, archivos y fotos subidas — **en producción desde el 2026-10-05**
 
-Desplegado con el commit `e895908`: bloque del esquema aplicado en `public` (dos
+Desplegado con el commit `b39280c`: bloque del esquema aplicado en `public` (dos
 columnas en `cliente` y la tabla `archivo`), API reconstruida y Caddy recreado con
 `header ?Cache-Control`. Respaldo previo del CRM en
 `/srv/backups/crm-pre-despliegue-2026-10-05-2253.sql.gz`. Probado antes en la copia de
@@ -325,7 +325,7 @@ Lo que conviene saber:
 
 ## Clientes editables, fichas guardadas y mapas sin Google — **en producción desde el 2026-10-02**
 
-Desplegado con el commit `c011692`: esquema aplicado en `public`, API reconstruida,
+Desplegado con el commit `6949ba9`: esquema aplicado en `public`, API reconstruida,
 Caddy recreado con la CSP nueva y `geofichas` corrido (**92 de 93** fichas con liga
 quedaron ubicadas). Los mapas se verificaron detrás de Caddy, con la CSP real, en el
 tablero y en la ficha. Respaldo previo del CRM en
@@ -375,7 +375,7 @@ Lo que falta o conviene saber:
 
 ## Rediseño v0.5: lo que quedó sin encender
 
-Desplegado el 2026-09-29 (`c56841b`). Dos cosas del rediseño no funcionan todavía
+Desplegado el 2026-09-29 (`674982e`). Dos cosas del rediseño no funcionan todavía
 porque dependen de algo fuera del frontend:
 
 - **Mapa del tablero: encendido el 2026-09-29**, con Map ID propio. Llave y Map ID viven
@@ -561,7 +561,7 @@ Dos cosas medidas que conviene no perder de vista:
 ## Pipeline comercial — **en producción e importado el 2026-09-29**
 
 El Google Sheet "PIPELINES PROREALTOR" (una pestaña por cliente, una fila por propiedad
-ofrecida) está en el CRM de producción. Código y esquema desde el 2026-09-27 (`a507832`);
+ofrecida) está en el CRM de producción. Código y esquema desde el 2026-09-27 (`d34b129`);
 **los datos se importaron el 2026-09-29** a `public`: 196 filas de 11 pestañas → 9
 clientes nuevos (otros dos ya existían en el CRM y se reutilizaron), 135 fichas y 196
 procesos, sumados a los 4 que había. Respaldo previo de las tablas del CRM en
@@ -649,7 +649,7 @@ módulos ES, y que hoy ya son deuda:
 El plan es `ui_change.md`. Su §3 dice que esta etapa "ya está hecha" en un patch que
 **no existe en el repo**: no hay rama, ni commit, ni archivo. Se rehízo desde la
 descripción, en la rama `desarrollo`. **API e interfaz están en producción desde el
-2026-09-27** (`a507832`, con la API reconstruida). Falta probarla en producción con una
+2026-09-27** (`d34b129`, con la API reconstruida). Falta probarla en producción con una
 sesión real: la verificación de despliegue se hizo sin sesión.
 
 Lo verificado con navegador real (`npm run verificar:navegador`, 25 comprobaciones a 1440
