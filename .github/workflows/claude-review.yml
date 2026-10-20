@@ -1,9 +1,8 @@
 name: Claude Code Review
 
 # Revision automatica de cada pull request con Claude.
-# Requiere: la GitHub App de Claude instalada en el repo y el secret ANTHROPIC_API_KEY
-# (o, si usas suscripcion, cambia la linea de autenticacion por:
-#   claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }} ).
+# Usa la suscripcion de Claude (no API key). Requiere la GitHub App de Claude instalada
+# en el repo y el secret CLAUDE_CODE_OAUTH_TOKEN, que sale de `claude setup-token`.
 # Atajo: corre /install-github-app dentro de Claude Code y sigue los pasos.
 on:
   pull_request:
@@ -23,7 +22,7 @@ jobs:
           fetch-depth: 1
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
           prompt: "/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
