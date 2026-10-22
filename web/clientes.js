@@ -730,7 +730,7 @@ function fotosHtml(f) {
   const fotos = f.fotos ?? [];
   if (!esPropia(f)) return fotos[0] ? `<button class="cl-th-ver" title="Ver fotos"><img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt=""></button>` : '';
   return Fotos.caja(fotos, { clase: 'cl-exp-fotos', corta: true, subiendo: subiendoFotos === String(f.id) ? 1 : 0,
-    antes: fotos[0] ? `<img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt="">` : '' });
+    antes: fotos[0] ? `<button class="cl-th-ver" title="Ver fotos"><img class="cl-exp-foto" src="${srcSeguro(fotos[0])}" alt=""></button>` : '' });
 }
 // La misma ficha puede estar con otro cliente: que traiga las mismas fotos en todos.
 function ponerFotos(fichaId, fotos) {
@@ -758,7 +758,48 @@ function destinoFotos(caja) {
   };
 }
 
+// En modo presentación el panel no es un formulario: es la lámina que ve el cliente.
+// Sólo las notas de la junta se escriben; lo demás se edita fuera de este modo. Junta,
+// marca y quién la presentó son del equipo y no salen.
+function presentacionHtml(c, p) {
+  const f = p.ficha ?? {};
+  const fotos = (f.fotos ?? []).map(srcSeguro).filter(Boolean);
+  const renta = (f.operacion ?? f.operation) === 'rent';
+  const moneda = (f.moneda ?? f.currency) === 'USD' ? ' USD' : '';
+  const ppm = ppmDe(f);
+  const datos = [
+    ...superficies(f.tamano_m2, f.construccion_m2).map(([l, n]) => [l, m2Txt(n)]),
+    ...(ppm ? [['Precio por m²', dinero(ppm) + moneda]] : []),
+    ...(f.operacion ? [['Operación', renta ? 'Renta' : 'Venta']] : []),
+  ];
+  const sub = [f.tipo, f.municipio].filter(Boolean).map(esc).join(' · ');
+  const notasPresenta = notasPres.get(String(p.id))?.texto;
+  return `<div class="cl-exp cl-pv" data-proc="${esc(p.id)}">
+    <div class="cl-pv-main">
+      <div class="cl-pv-gal">
+        ${fotos.length
+          ? `<button class="cl-th-ver cl-pv-portada" data-i="0" title="Ver fotos"><img src="${fotos[0]}" alt=""></button>
+             ${fotos.length > 1 ? `<div class="cl-pv-mini">${fotos.slice(1, 9).map((u, i) =>
+               `<button class="cl-th-ver" data-i="${i + 1}" title="Ver foto"><img src="${u}" alt="" loading="lazy">${
+                 i === 7 && fotos.length > 9 ? `<span>+${fotos.length - 9}</span>` : ''}</button>`).join('')}</div>` : ''}`
+          : '<span class="cl-pv-portada vacio"></span>'}
+      </div>
+      <div class="cl-pv-info">
+        ${sub ? `<p class="cl-pv-sub">${sub}</p>` : ''}
+        <h3 class="cl-pv-tit">${esc(f.titulo ?? '(sin título)')}</h3>
+        <p class="cl-pv-precio">${f.precio != null ? `${dinero(f.precio)}<small>${moneda}${renta ? ' / mes' : ''}</small>` : '<small>Precio a consultar</small>'}</p>
+        ${datos.length ? `<dl class="cl-pv-datos">${datos.map(([l, v]) => `<div><dt>${esc(l)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+        ${f.notas ? `<p class="cl-pv-desc">${esc(f.notas)}</p>` : ''}
+        ${hrefSeguro(f.mapa_url) !== '#' ? `<a class="cl-pv-mapa" href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener">Ver ubicación en el mapa &#8599;</a>` : ''}
+      </div>
+    </div>
+    <label class="cl-ef wide cl-pv-notas"><span>Notas de esta presentación</span>
+      <textarea class="cl-ein" rows="3" data-tb="pres" data-f="notas" placeholder="Lo que se diga en la junta. Se agrega a tus notas con este cliente, marcado como de presentación.">${esc(notasPresenta ?? '')}</textarea></label>
+  </div>`;
+}
+
 function panelHtml(c, p) {
+  if (presentando) return presentacionHtml(c, p);
   const f = p.ficha ?? {};
   const lid = lidDe(p);
   const suyas = tareas.filter(t => String(t.proceso_id) === String(p.id))
@@ -793,9 +834,7 @@ function panelHtml(c, p) {
             <a class="cl-btn cl-map-ir" href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener"${hrefSeguro(f.mapa_url) === '#' ? ' hidden' : ''}>Abrir mapa &#8599;</a>
           </div></div>
         ${area('ficha', 'notas', 'Descripción de la propiedad', f.notas, 'Lo que se sabe del inmueble.')}
-        ${presentando
-          ? area('pres', 'notas', 'Notas de esta presentación', notasPres.get(String(p.id))?.texto, 'Lo que se diga en la junta. Se agrega a tus notas con este cliente, marcado como de presentación.')
-          : area('proceso', 'notas', 'Notas con este cliente', p.notas, 'Qué dijo, qué falta, condiciones…')}
+        ${area('proceso', 'notas', 'Notas con este cliente', p.notas, 'Qué dijo, qué falta, condiciones…')}
       </div>
     </div>
     <div class="cl-exp-links">
@@ -803,11 +842,11 @@ function panelHtml(c, p) {
       ${f.mapa_url ? `<a href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener">Ver en mapa &#8599;</a>` : ''}
       <span>Los datos del inmueble son de la ficha: cambian para todos los clientes a los que se presentó.</span>
     </div>
-    ${presentando ? '' : `<div class="cl-exp-tareas">
+    <div class="cl-exp-tareas">
       <h3>Tareas de esta propiedad · ${suyas.filter(t => t.columna !== 'completado').length}</h3>
       ${suyas.map(t => tareaHtml(t, false)).join('')}
       ${tareaFormHtml(c, p.id)}
-    </div>`}
+    </div>
   </div>`;
 }
 
@@ -961,7 +1000,8 @@ const procDe = el => { const id = el.closest('[data-proc]')?.dataset.proc; retur
 detalle.addEventListener('click', e => {
   const t = e.target;
   if (t.closest('.cl-x')) return removeProceso(t.closest('.cl-x').dataset.proc);
-  if (t.closest('.cl-th-ver')) { const p = procDe(t.closest('.cl-th-ver')); return abrirVisor(p?.ficha?.fotos ?? [], 0); }
+  const ver = t.closest('.cl-th-ver');
+  if (ver) return abrirVisor(procDe(ver)?.ficha?.fotos ?? [], Number(ver.dataset.i ?? 0));
   if (t.closest('#colsBtn')) { colsAbierto = !colsAbierto; return renderDetalle(); }
   if (t.closest('#catBtn')) { if (catAbierto) { catAbierto = false; return renderDetalle(); } return abrirCatalogo(); }
   if (t.closest('.cl-catopt')) return proponerDeCatalogo(cSel(), t.closest('.cl-catopt').dataset.ficha);

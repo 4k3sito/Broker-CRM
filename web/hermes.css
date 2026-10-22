@@ -2315,6 +2315,29 @@ textarea.cl-ein { resize:vertical; line-height:1.5; }
 .cl-exp-links a { font-weight:600; color:var(--accent); text-decoration:none; }
 .cl-exp-links a:hover { text-decoration:underline; }
 .cl-exp-links span { color:var(--faint); font-size:11.5px; }
+/* Modo presentación: el panel es la lámina de la propiedad, no un formulario. */
+.cl-pv { gap:18px; padding:22px 24px 20px 46px; }
+.cl-pv-main { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:28px; align-items:start; }
+.cl-pv-gal { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.cl-pv-portada { width:100%; aspect-ratio:4/3; }
+.cl-pv-portada img, .cl-pv-mini img { width:100%; height:100%; object-fit:cover; display:block; }
+.cl-pv-portada.vacio { display:block; background:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0 1px,transparent 1px 7px),var(--blue); }
+.cl-pv-mini { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+.cl-pv-mini .cl-th-ver { position:relative; aspect-ratio:4/3; width:100%; }
+.cl-pv-mini span { position:absolute; inset:0; display:grid; place-items:center; background:rgba(10,6,18,.55); color:var(--paper); font-family:var(--font-mono); font-size:13px; }
+.cl-pv-info { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.cl-pv-sub { margin:0; font-family:var(--font-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+.cl-pv-tit { margin:0; font-family:var(--font-display); font-size:32px; font-weight:500; line-height:1.1; color:var(--ink); }
+.cl-pv-precio { margin:0; font-family:var(--font-display); font-size:30px; color:var(--ink); }
+.cl-pv-precio small { margin-left:6px; font-family:var(--font-ui); font-size:14px; color:var(--muted); }
+.cl-pv-datos { margin:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.cl-pv-datos div { padding:10px 12px 10px 0; }
+.cl-pv-datos dt { font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700; }
+.cl-pv-datos dd { margin:4px 0 0; font-size:17px; color:var(--ink); }
+.cl-pv-desc { margin:0; font-size:15px; line-height:1.6; color:var(--ink); white-space:pre-line; }
+.cl-pv-mapa { align-self:flex-start; font-weight:600; font-size:13px; color:var(--accent); text-decoration:none; }
+.cl-pv-mapa:hover { text-decoration:underline; }
+.cl-pv-notas { padding-top:14px; border-top:1px solid var(--border); }
 .cl-exp-tareas { display:flex; flex-direction:column; gap:6px; padding-top:10px; border-top:1px solid var(--border); }
 
 /* Tareas: las de una propiedad (dentro del panel) y las del cliente (bajo la tabla). */
@@ -2406,7 +2429,10 @@ button.cl-chip.on { border-color:currentColor; }
   .cl-exp { min-width:0; padding:12px; }
   .cl-exp-main { flex-direction:column; }
   .cl-exp-foto { width:100%; height:160px; }
-  .cl-exp-main > .cl-th-ver { width:100%; }
+  .cl-exp-main > .cl-th-ver, .cl-exp-fotos > .cl-th-ver { width:100%; }
+  .cl-pv { padding:14px 12px; }
+  .cl-pv-main { grid-template-columns:minmax(0,1fr); gap:16px; }
+  .cl-pv-tit { font-size:26px; } .cl-pv-precio { font-size:24px; }
   .cl-exp-fotos { width:100%; }
   .cl-exp-grid { grid-template-columns:1fr 1fr; width:100%; }
   .cl-addrow { min-width:0; }
