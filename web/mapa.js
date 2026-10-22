@@ -62,6 +62,18 @@ const Mapa = (() => {
     return { lat: c.lat, lng: c.lng, radio: Math.max(500, Math.min(12000, radio)) };
   }
 
+  // La cámara, para guardarla en la URL y volver a ella al recargar. null si no se ha
+  // movido de la de fábrica: esa no hace falta escribirla. `ir` no dispara la
+  // búsqueda: el `moveend` que provoca no trae `originalEvent` ni `usuario`.
+  function vista() {
+    if (!map) return null;
+    const c = map.getCenter(), [lng0, lat0] = cfg.centro ?? [-100.36, 25.66];
+    const z = map.getZoom();
+    if (Math.abs(c.lat - lat0) < 1e-5 && Math.abs(c.lng - lng0) < 1e-5 && Math.abs(z - (cfg.zoom ?? 11)) < 0.01) return null;
+    return { lat: c.lat, lng: c.lng, zoom: z };
+  }
+  function ir({ lat, lng, zoom }) { map?.jumpTo({ center: [lng, lat], zoom }); }
+
   function pintar(lista) {
     if (!map) return;
     pins.forEach(p => p.marker.remove());
@@ -95,7 +107,7 @@ const Mapa = (() => {
   }
 
   return {
-    init, pintar, resaltar, area,
+    init, pintar, resaltar, area, vista, ir,
     seguir: v => { seguir = v; },
     resize: () => { map?.resize(); },
   };
