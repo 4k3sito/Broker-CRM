@@ -3,8 +3,15 @@
 // Ficha · Documentos · Clientes + notas. Anterior/siguiente recorre la página del
 // tablero de la que se vino (el tablero guarda los ids en sessionStorage).
 
-// "Volver" regresa a la pestaña de la que se vino (Bolsa o Inmobiliaria).
-const TABLERO = (() => { try { return sessionStorage.getItem('ol-tab') === 'inmobiliaria' ? 'index.html?tab=inmobiliaria' : 'index.html'; } catch { return 'index.html'; } })();
+// "Volver" regresa a la búsqueda de la que se vino, con sus filtros (app.js la guarda
+// en cada render); sin ella, a la pestaña de la que se vino (Bolsa o Inmobiliaria).
+const TABLERO = (() => {
+  try {
+    const t = sessionStorage.getItem('ol-tablero');
+    if (t?.startsWith('index.html')) return t;
+    return sessionStorage.getItem('ol-tab') === 'inmobiliaria' ? 'index.html?tab=inmobiliaria' : 'index.html';
+  } catch { return 'index.html'; }
+})();
 // Si se llegó desde la tabla de un cliente ("Abrir ficha completa"), se vuelve ahí, a
 // la misma fila, y no al tablero.
 const VOLVER = (() => {
