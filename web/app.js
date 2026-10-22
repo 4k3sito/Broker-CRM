@@ -458,6 +458,28 @@ function sincronizarURL() {
   });
   const url = location.pathname + (qs ? `?${qs}` : '') + location.hash;
   if (url !== location.pathname + location.search + location.hash) history.replaceState(null, '', url);
+  // "Volver al tablero" de la ficha regresa a esta misma búsqueda, no a la de fábrica.
+  try { sessionStorage.setItem('ol-tablero', 'index.html' + (qs ? `?${qs}` : '')); } catch { /* sin persistencia */ }
+}
+
+// Volver de la ficha al mismo punto de la lista. El scroll vive en `.inm-list` y no en
+// la ventana, y la rejilla se pinta cuando llega la API: el navegador no sabe
+// restaurarlo solo y siempre regresaba arriba. Se guarda al salir, atado a la URL de
+// la búsqueda, y se aplica después del primer render si la búsqueda es la misma.
+const SCROLL_KEY = 'ol-scroll';
+addEventListener('pagehide', () => {
+  try {
+    sessionStorage.setItem(SCROLL_KEY, JSON.stringify({
+      busqueda: location.search, lista: document.getElementById('inmList').scrollTop, ventana: scrollY,
+    }));
+  } catch { /* sin persistencia */ }
+});
+function restaurarScroll() {
+  let s = null;
+  try { s = JSON.parse(sessionStorage.getItem(SCROLL_KEY) ?? 'null'); } catch { /* sin contexto */ }
+  if (!s || s.busqueda !== location.search) return;
+  document.getElementById('inmList').scrollTop = s.lista;
+  scrollTo(0, s.ventana);
 }
 
 // Lo que trae la URL al abrir. Lo que no viene o no es válido se queda de fábrica.
@@ -1308,6 +1330,7 @@ API.me().then(async () => {
   else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area())
     buscarEnElMapa(Mapa.area(), u.mapa ? MAPA_TXT : CENTRO_NOMBRE);
   await render();
+  restaurarScroll();
   if (!INMO) avisarFrescura();
 }).catch(err => {
   // El 401 lo maneja api.js redirigiendo al login; aquí sólo quedan fallos reales.
