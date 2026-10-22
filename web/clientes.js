@@ -19,6 +19,7 @@ let critAbierto = null;     // qué criterio se está editando en el menú de "Q
 let lugarSugs = [];         // sugerencias del autocompletado de ubicación
 let filterCuenta = 'all';   // lista: 'all' | 'none' (sin asignar) | id de quien lleva la cuenta
 let filterEstatus = 'all';  // lista: 'all' | 'none' (sin estatus) | llave de ESTATUS
+let filterAsesor = 'all';   // lista: 'all' | id de quien presentó alguna de sus propiedades
 let abierto = null;         // id del proceso cuya fila está desplegada
 let colsAbierto = false;    // el menú de "Columnas"
 // Modo presentación: para enseñarle su pipeline a un cliente sin que vea a los demás ni
@@ -300,7 +301,12 @@ const ESTATUS = [
 const estatusLabel = k => ESTATUS.find(e => e.key === k)?.label ?? null;
 // Búsqueda, estatus y "quién lleva la cuenta": la base sobre la que cuentan las
 // píldoras de etapa.
+// "Asesor" no es la cuenta: es quien presentó la propiedad (`proceso.trae_id`). Un
+// cliente pasa si alguna de sus propiedades es de esa persona, lleve quien lleve la
+// cuenta; y si además se pide una etapa, tiene que ser esa misma propiedad.
+const delAsesor = c => (c.proceso ?? []).filter(p => filterAsesor === 'all' || String(p.trae_id) === filterAsesor);
 function pasaBase(c) {
+  if (filterAsesor !== 'all' && !delAsesor(c).length) return false;
   if (searchQ && !norm(`${c.nombre} ${c.empresa ?? ''} ${(c.contactos ?? []).map(k => Object.values(k).join(' ')).join(' ')}`).includes(norm(searchQ))) return false;
   if (filterEstatus !== 'all' && (c.estatus ?? 'none') !== filterEstatus) return false;
   if (filterCuenta === 'none') return !c.responsable_id && !c.responsable;
@@ -316,7 +322,17 @@ function cuentaEstatus() {
   filterEstatus = puesto;
   return n;
 }
-const pasaFiltro = c => pasaBase(c) && (filterStatus === 'all' || (c.proceso ?? []).some(p => p.status === filterStatus));
+const pasaFiltro = c => pasaBase(c) && (filterStatus === 'all' || delAsesor(c).some(p => p.status === filterStatus));
+// Cuántos clientes trae cada asesor con lo demás aplicado (sin el propio filtro).
+function cuentaAsesor() {
+  const puesto = filterAsesor;
+  filterAsesor = 'all';
+  const base = clientes.filter(pasaBase);
+  filterAsesor = puesto;
+  const n = {};
+  for (const c of base) for (const id of new Set((c.proceso ?? []).map(p => String(p.trae_id ?? '')).filter(Boolean))) n[id] = (n[id] ?? 0) + 1;
+  return n;
+}
 const fecha = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '—';
 const telDe = s => { const d = String(s ?? '').replace(/\D/g, ''); return d.length >= 10 ? d : null; };
 
@@ -555,6 +571,12 @@ function renderLista() {
     equipo.map(p => `<option value="${esc(p.id)}">${esc(nombreDe(p))}</option>`).join('');
   fc.value = filterCuenta;
   fc.classList.toggle('on', filterCuenta !== 'all');
+  const fa = document.getElementById('fAsesor');
+  const porAsesor = cuentaAsesor();
+  fa.innerHTML = `<option value="all">Asesor: todos</option>` + equipo.map(p =>
+    `<option value="${esc(p.id)}">${esc(nombreDe(p))} (${porAsesor[String(p.id)] ?? 0})</option>`).join('');
+  fa.value = filterAsesor;
+  fa.classList.toggle('on', filterAsesor !== 'all');
   // Cuántos hay de cada estatus, con la búsqueda y la cuenta ya aplicadas.
   const fe = document.getElementById('fEstatus');
   const sinEst = cuentaEstatus();
@@ -568,11 +590,11 @@ function renderLista() {
   const base = clientes.filter(pasaBase);
   const ft = document.getElementById('fEtapa');
   ft.innerHTML = `<option value="all">Estatus propiedades: todos</option>` + ETAPAS.map(e =>
-    `<option value="${e.key}">${e.label} (${base.filter(c => (c.proceso ?? []).some(p => p.status === e.key)).length})</option>`).join('');
+    `<option value="${e.key}">${e.label} (${base.filter(c => delAsesor(c).some(p => p.status === e.key)).length})</option>`).join('');
   ft.value = filterStatus;
   ft.classList.toggle('on', filterStatus !== 'all');
   document.getElementById('fTodosN').textContent = base.length;
-  document.getElementById('fTodos').classList.toggle('active', filterStatus === 'all' && filterCuenta === 'all' && filterEstatus === 'all');
+  document.getElementById('fTodos').classList.toggle('active', filterStatus === 'all' && filterCuenta === 'all' && filterEstatus === 'all' && filterAsesor === 'all');
   const lista = clientes.filter(pasaFiltro);
   document.getElementById('countTag').hidden = false;
   document.getElementById('countNum').textContent = lista.length;
@@ -931,6 +953,8 @@ function renderDetalle() {
   // Al cambiar de cliente: sin fila desplegada, sin filtros de tabla, y sus tareas.
   if (tareasDe !== String(c.id)) {
     abierto = null; propEtapas.clear(); propTrae = 'all'; colsAbierto = false; catAbierto = false; ctoSel = 0;
+    // Con un asesor en la lista, el cliente abre enseñando lo que trae esa persona.
+    if (filterAsesor !== 'all' && (c.proceso ?? []).some(p => traeKey(p) === filterAsesor)) propTrae = filterAsesor;
     cargarTareas(String(c.id));
   }
   const traer = volverA && (c.proceso ?? []).some(p => String(p.id) === volverA);
@@ -1000,9 +1024,9 @@ function render() {
 }
 
 // ── Eventos ──────────────────────────────────────────────────────────────────
-// "Todos" quita los tres filtros de una vez.
+// "Todos" quita los cuatro filtros de una vez.
 document.getElementById('fTodos').addEventListener('click', () => {
-  filterStatus = filterCuenta = filterEstatus = 'all';
+  filterStatus = filterCuenta = filterEstatus = filterAsesor = 'all';
   render();
 });
 document.getElementById('fEtapa').addEventListener('change', e => { filterStatus = e.target.value; render(); });
@@ -1119,6 +1143,7 @@ detalle.addEventListener('dragend', () => {
 });
 
 document.getElementById('fCuenta').addEventListener('change', e => { filterCuenta = e.target.value; render(); });
+document.getElementById('fAsesor').addEventListener('change', e => { filterAsesor = e.target.value; render(); });
 document.getElementById('fEstatus').addEventListener('change', e => { filterEstatus = e.target.value; render(); });
 
 // ── Orden de la lista de clientes ────────────────────────────────────────────
