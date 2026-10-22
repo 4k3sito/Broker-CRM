@@ -1060,7 +1060,8 @@ def editar_cliente(cid: str, body: dict = Body(...), user: dict = Depends(curren
 # los de web/etapas.js y web/clientes.js: si allá cambian, aquí también.
 ETAPA_NOMBRE = {"prospecto": "Prospecto", "por_presentar": "Por presentar", "presentado": "Presentado",
                 "evaluacion": "Evaluación", "aprobado": "Aprobado", "negociacion": "Negociación",
-                "cerrado": "Cerrado", "pausa": "En pausa", "rechazado": "Descartado"}
+                "cerrado": "Cerrado", "finalizado": "Finalizado", "pausa": "En pausa",
+                "rechazado": "Descartado"}
 ESTATUS_NOMBRE = {"activo": "Activo", "contactando": "Contactando", "por_contactar": "Por contactar",
                   "inactivo": "Inactivo"}
 OPERACION_NOMBRE = {"rent": "Renta", "sale": "Venta"}

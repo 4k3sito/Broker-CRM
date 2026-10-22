@@ -668,9 +668,10 @@ ALTER TABLE proceso ADD COLUMN IF NOT EXISTS trae_id uuid REFERENCES usuario (id
 -- `rechazado` son laterales, no pasos del avance. `evaluacion` se agregó el 2026-10-07,
 -- entre presentado y aprobado; va en esta misma lista (y no en un bloque nuevo al final)
 -- porque si no, volver a correr el archivo fallaría aquí con filas en esa etapa.
+-- `finalizado` (2026-10-22) va después de `cerrado`: firmado y además concluido.
 ALTER TABLE proceso DROP CONSTRAINT IF EXISTS proceso_status_check;
 ALTER TABLE proceso ADD CONSTRAINT proceso_status_check CHECK (status IN
-  ('prospecto','por_presentar','presentado','evaluacion','aprobado','negociacion','cerrado','pausa','rechazado'));
+  ('prospecto','por_presentar','presentado','evaluacion','aprobado','negociacion','cerrado','finalizado','pausa','rechazado'));
 
 -- El CRM pasa a ser del equipo (clientes, fichas, procesos y documentos; ver
 -- SECURITY.md §5). Eso cambia qué significa borrar a un asesor: antes `deluser` se

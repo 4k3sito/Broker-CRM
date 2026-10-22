@@ -674,12 +674,22 @@ let colsFila = [];          // las de la última pintada: fila y encabezado tien
 
 const traeKey = p => String(p.trae_id ?? p.trae ?? '');
 const filtrando = () => propEtapas.size > 0 || propTrae !== 'all';
+// Lo que ya terminó —cerrado, finalizado o descartado— no se ve hasta que se pica su
+// chip: la lista es para lo que sigue en movimiento. Picar una de éstas la suma a lo
+// que se ve; picar una de las otras filtra entre las otras, como siempre.
+const OCULTAS = new Set(['cerrado', 'finalizado', 'rechazado']);
+function seVe(p) {
+  if (propTrae !== 'all' && traeKey(p) !== propTrae) return false;
+  if (OCULTAS.has(p.status)) return propEtapas.has(p.status);
+  const activas = [...propEtapas].filter(k => !OCULTAS.has(k));
+  return !activas.length || activas.includes(p.status);
+}
 const tareasAbiertas = procId => tareas.filter(t => String(t.proceso_id) === String(procId) && t.columna !== 'completado').length;
 
 function filaHtml(c, p) {
   const f = p.ficha ?? {};
   const foto = f.fotos?.[0];
-  const pos = (c.proceso ?? []).indexOf(p) + 1;
+  const pos = (c.proceso ?? []).filter(seVe).indexOf(p) + 1;
   const n = presentando ? 0 : tareasAbiertas(p.id);
   return `<div class="cl-tr${abierto === String(p.id) ? ' open' : ''}" data-proc="${esc(p.id)}">
     <span class="cl-grip${filtrando() ? ' off' : ''}" title="${filtrando() ? 'Quita los filtros para reordenar' : 'Arrastra para cambiar el orden'}" aria-hidden="true">&#8942;&#8942;</span>
@@ -853,13 +863,18 @@ function panelHtml(c, p) {
 function propiedadesHtml(c) {
   const ps = c.proceso ?? [];
   colsFila = colsQueCaben();
-  const visibles = ps.filter(p => (!propEtapas.size || propEtapas.has(p.status)) && (propTrae === 'all' || traeKey(p) === propTrae));
+  const visibles = ps.filter(seVe);
   // Quién ha presentado algo a este cliente, para el filtro. Sin repetir.
   const quienes = [...new Map(ps.filter(p => traeKey(p)).map(p => [traeKey(p), p.trae_nombre || p.trae])).entries()];
   return `
     <div class="cl-props-head">
-      <h2>Propiedades · ${filtrando() ? `${visibles.length} de ${ps.length}` : ps.length}</h2>
-      ${ETAPAS.map(e => cuenta(ps, e.key) ? `<button class="cl-chip e-${e.key}${propEtapas.has(e.key) ? ' on' : ''}" data-etapa="${e.key}" aria-pressed="${propEtapas.has(e.key)}" title="Filtrar por etapa (puedes marcar varias)">${cuenta(ps, e.key)} ${e.label.toLowerCase()}</button>` : '').join('')}
+      <h2>Propiedades · ${visibles.length !== ps.length ? `${visibles.length} de ${ps.length}` : ps.length}</h2>
+      ${ETAPAS.map(e => {
+        if (!cuenta(ps, e.key)) return '';
+        const on = propEtapas.has(e.key), oculta = OCULTAS.has(e.key) && !on;
+        return `<button class="cl-chip e-${e.key}${on ? ' on' : ''}${oculta ? ' oculta' : ''}" data-etapa="${e.key}" aria-pressed="${on}" title="${
+          oculta ? 'Escondidas: pica para mostrarlas' : OCULTAS.has(e.key) ? 'Pica para esconderlas otra vez' : 'Filtrar por etapa (puedes marcar varias)'}">${cuenta(ps, e.key)} ${e.label.toLowerCase()}</button>`;
+      }).join('')}
       ${quienes.length ? `<select class="cl-fsel${propTrae !== 'all' ? ' on' : ''}" id="propTrae" aria-label="Filtrar por quién presentó">
         <option value="all">Presentó: todos</option>
         ${quienes.map(([k, n]) => `<option value="${esc(k)}"${propTrae === k ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : ''}
@@ -881,7 +896,8 @@ function propiedadesHtml(c) {
       ${ps.length ? `<div class="cl-tr cl-th"><span></span><span>N°</span><span></span><span>Inmueble</span>
         ${colsFila.map(col => `<span>${col.label}</span>`).join('')}${colsFila.some(col => col.k === 'tareas') ? '' : '<span></span>'}<span></span></div>` : ''}
       ${visibles.map(p => filaHtml(c, p) + (abierto === String(p.id) ? panelHtml(c, p) : '')).join('')}
-      ${ps.length && !visibles.length ? '<p class="cl-empty">Ninguna propiedad pasa el filtro.</p>' : ''}
+      ${ps.length && !visibles.length ? `<p class="cl-empty">${filtrando() ? 'Ninguna propiedad pasa el filtro.'
+        : 'Todas están cerradas, finalizadas o descartadas: pica su etapa arriba para verlas.'}</p>` : ''}
       <form class="cl-addrow" id="addProp">
         <input placeholder="+ Agregar propiedad: escribe el nombre y Enter…" aria-label="Agregar propiedad">
         <button>Agregar</button>

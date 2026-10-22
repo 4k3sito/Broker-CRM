@@ -1,4 +1,4 @@
-// Etapas del proceso comercial (cliente × propiedad): las nueve de `proceso.status`.
+// Etapas del proceso comercial (cliente × propiedad): las diez de `proceso.status`.
 //
 // Vive aparte porque la usan tres páginas —tareas (el pipeline), clientes y la ficha
 // de un inmueble— y una lista de estados copiada en tres archivos se desincroniza:
@@ -15,6 +15,7 @@ const ETAPAS = [
   { key: 'aprobado',      label: 'Aprobado',      ayuda: 'El cliente la aprobó: QHSE, levantamiento, plano, precio con el dueño.' },
   { key: 'negociacion',   label: 'Negociación',   ayuda: 'Carta intención u oferta en curso.' },
   { key: 'cerrado',       label: 'Cerrado',       ayuda: 'Contrato firmado.' },
+  { key: 'finalizado',    label: 'Finalizado',    ayuda: 'Todo concluido después de la firma: entrega, pagos y comisión.' },
   { key: 'pausa',         label: 'En pausa',      ayuda: 'On hold: se espera al dueño, al cliente o a un tercero.', lateral: true },
   { key: 'rechazado',     label: 'Descartado',    ayuda: 'Cancelada, descartada o rentada a otro.', lateral: true },
 ];

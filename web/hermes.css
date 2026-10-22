@@ -1293,6 +1293,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   --e-prospecto:#83808C; --e-por_presentar:#6B3FB5; --e-presentado:var(--s-presentado);
   --e-evaluacion:#0F6E7A; --er-evaluacion:rgba(15,110,122,.10);
   --e-aprobado:var(--s-aprobado); --e-negociacion:#A85F14; --e-cerrado:#0E4A30;
+  --e-finalizado:#3B4658; --er-finalizado:rgba(59,70,88,.10);
   --e-pausa:#6B7D6E; --e-rechazado:var(--s-rechazado);
   --er-prospecto:rgba(131,128,140,.10); --er-por_presentar:rgba(107,63,181,.10);
   --er-presentado:var(--r-presentado); --er-aprobado:var(--r-aprobado);
@@ -1303,6 +1304,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   --e-prospecto:#C6C4CF; --e-por_presentar:#D3BFF7; --e-negociacion:#F5C98C;
   --e-evaluacion:#9FDDE6; --er-evaluacion:rgba(159,221,230,.14);
   --e-cerrado:#C3F2D8; --e-pausa:#A8C0AC;
+  --e-finalizado:#C9D3E2; --er-finalizado:rgba(201,211,226,.14);
   --er-prospecto:rgba(198,196,207,.12); --er-por_presentar:rgba(211,191,247,.14);
   --er-negociacion:rgba(245,201,140,.14); --er-cerrado:rgba(195,242,216,.14);
   --er-pausa:rgba(168,192,172,.14);
@@ -1314,6 +1316,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .e-aprobado      { --e:var(--e-aprobado);      --er:var(--er-aprobado); }
 .e-negociacion   { --e:var(--e-negociacion);   --er:var(--er-negociacion); }
 .e-cerrado       { --e:var(--e-cerrado);       --er:var(--er-cerrado); }
+.e-finalizado    { --e:var(--e-finalizado);    --er:var(--er-finalizado); }
 .e-pausa         { --e:var(--e-pausa);         --er:var(--er-pausa); }
 .e-rechazado     { --e:var(--e-rechazado);     --er:var(--er-rechazado); }
 
@@ -2376,6 +2379,7 @@ textarea.cl-ein { resize:vertical; line-height:1.5; }
 .cl-colchk { accent-color:var(--accent); }
 button.cl-chip { border:1px solid transparent; font-family:var(--font-ui); cursor:pointer; }
 button.cl-chip.on { border-color:currentColor; }
+button.cl-chip.oculta { background:transparent; border:1px dashed var(--border-2); color:var(--muted); }
 .cl-resp { width:22px; height:22px; font-size:9px; }
 /* Estatus del cliente (activo, contactando…): un color por estatus, en la lista y en
    el selector de su ficha. Y el asa para reordenar la lista, que sólo se ve al pasar. */
