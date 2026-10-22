@@ -408,6 +408,7 @@ async function _render() {
   renderFB();
   renderStatusPills();
   renderTray();
+  sincronizarURL();
 
   const grid = document.getElementById('grid');
   if (!listings.length) {
@@ -430,6 +431,61 @@ async function _render() {
   // La ficha usa esto para anterior/siguiente sin volver al tablero.
   try { sessionStorage.setItem('ol-nav', JSON.stringify(listings.map(l => String(l.id)))); } catch { /* sin contexto */ }
   Mapa.pintar(listings);
+}
+
+// ── La URL ───────────────────────────────────────────────────────────────────
+
+// Cada render deja los filtros en la URL (filtros-url.js), para que recargar no los
+// pierda y la búsqueda se pueda mandar por liga. replaceState y no pushState: teclear
+// una búsqueda no debe llenar el historial de "atrás".
+// Cuando el mapa va siguiendo, la cercanía es lo que el mapa enseña: se guarda la
+// cámara y no el punto, y al volver el mapa sigue siguiendo desde ahí.
+const MAPA_TXT = 'el centro del mapa';
+const nearEsMapa = () => !!F.near && [MAPA_TXT, CENTRO_NOMBRE].includes(F.nearTxt);
+
+function sincronizarURL() {
+  const sigue = !INMO && mapFollow.checked && inm.classList.contains('split') && nearEsMapa();
+  const qs = FiltrosURL.escribir({
+    tab: TAB, cliente: F.cliente?.id ?? '',
+    q: searchStreet ? '' : F.q, calle: searchStreet,
+    operacion: F.operacion, fuente: F.fuente,
+    precio_min: F.precio_min, precio_max: F.precio_max,
+    m2_min: F.m2_min, m2_max: F.m2_max, m2_de: F.m2_de, ppm_min: F.ppm_min, ppm_max: F.ppm_max,
+    near: sigue ? '' : F.near, near_txt: F.nearTxt, radio: F.radio, mapa: sigue ? Mapa.vista() : null,
+    orden: F.orden, lugares: F.lugares, tipos: F.tipos,
+    pcliente: INMO ? F.pcliente : '', asesor: INMO ? F.asesor : '', etapas: INMO ? F.etapas : [],
+    estado: filterStatus, destacados: filterStarred, pagina: page,
+  });
+  const url = location.pathname + (qs ? `?${qs}` : '') + location.hash;
+  if (url !== location.pathname + location.search + location.hash) history.replaceState(null, '', url);
+}
+
+// Lo que trae la URL al abrir. Lo que no viene o no es válido se queda de fábrica.
+function aplicarURL() {
+  const u = FiltrosURL.leer(location.search, {
+    tipos: TIPOS_COM, ordenes: Object.keys(ORDENES), estados: ['Todos', ...Anuncio.ESTADOS], maxLugares: MAX_LUGARES,
+  });
+  for (const k of ['q', 'operacion', 'fuente', 'precio_min', 'precio_max', 'm2_min', 'm2_max', 'm2_de', 'ppm_min', 'ppm_max', 'orden'])
+    if (u[k] != null) F[k] = u[k];
+  if (u.lugares) F.lugares = u.lugares;
+  if (u.tipos) F.tipos = u.tipos;
+  if (INMO) {
+    if (u.pcliente) F.pcliente = u.pcliente;
+    if (u.asesor) F.asesor = u.asesor;
+    if (u.etapas) F.etapas = u.etapas;
+  }
+  if (u.calle) {
+    searchStreet = u.calle;
+    document.getElementById('searchChipText').textContent = searchStreet;
+    document.getElementById('searchChip').hidden = false;
+  } else if (u.q) searchInput.value = u.q;
+  if (u.estado) filterStatus = u.estado;
+  if (u.destacados) filterStarred = true;
+  if (u.pagina) page = u.pagina;
+  if (u.mapa) Mapa.ir(u.mapa);
+  // Un punto puesto a mano manda sobre el mapa: si siguiera, lo pisaría al abrir.
+  if (u.near) { F.near = u.near; F.nearTxt = u.near_txt ?? ''; if (u.radio) F.radio = u.radio; seguirMapa(false); }
+  return u;
 }
 
 function limpiarTodo() {
@@ -975,7 +1031,7 @@ Mapa.init(document.getElementById('map'), {
 });
 // Lo que el mapa enseña se vuelve el filtro de cercanía. `de` es cómo se le dice a ese
 // punto: al abrir es la vista de fábrica y tiene nombre; después de moverlo, ya no.
-function buscarEnElMapa({ lat, lng, radio }, de = 'el centro del mapa') {
+function buscarEnElMapa({ lat, lng, radio }, de = MAPA_TXT) {
   F.near = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   F.nearTxt = de;
   F.radio = radio;
@@ -1243,15 +1299,14 @@ API.me().then(async () => {
   if (url.get('cliente')) await aplicarCliente(url.get('cliente'));
   // Inmobiliaria: los clientes hacen falta para el filtro y su resumen. Desde la ficha
   // de un cliente se llega con ?pcliente=<id> ("lo que ya le presentamos").
-  if (INMO) {
-    await Promise.all([cargarClientes(), cargarEquipo()]);
-    if (url.get('pcliente')) F.pcliente = url.get('pcliente');
-    if (url.get('asesor')) F.asesor = url.get('asesor');
-  }
+  if (INMO) await Promise.all([cargarClientes(), cargarEquipo()]);
+  // Después del cliente: si la URL trae filtros, son los que el asesor ajustó encima.
+  const u = aplicarURL();
   // Se abre buscando en lo que el mapa enseña, si el mapa está a la vista. Con los
   // criterios de un cliente no: sus lugares mandan, y el mapa encuadra lo que salga.
   if (F.cliente) seguirMapa(false);
-  else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area()) buscarEnElMapa(Mapa.area(), CENTRO_NOMBRE);
+  else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area())
+    buscarEnElMapa(Mapa.area(), u.mapa ? MAPA_TXT : CENTRO_NOMBRE);
   await render();
   if (!INMO) avisarFrescura();
 }).catch(err => {
