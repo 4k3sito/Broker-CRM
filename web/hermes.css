@@ -62,7 +62,7 @@
 }
 
 body {
-  min-height:100vh; background:var(--bg); color:var(--ink);
+  min-height:100vh; min-height:100dvh; background:var(--bg); color:var(--ink);
   font-family:var(--font-ui); -webkit-font-smoothing:antialiased;
 }
 ::-webkit-scrollbar { width:9px; height:9px; }
@@ -676,7 +676,7 @@ button, input, textarea, select { font: inherit; }
    páginas comparten la misma composición.
    ═══════════════════════════════════════════════════════════════════════════ */
 .login-shell {
-  display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh;
+  display: grid; grid-template-columns: 1fr 1fr; min-height:100vh; min-height:100dvh;
   background: var(--bg); color: var(--ink);
 }
 
@@ -1118,7 +1118,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
    Del mock `OfficeLab - Panel.dc.html`: la página no scrollea, scrollea cada
    columna. Por eso el body es una columna de altura fija y el tablero es una
    rejilla de cuatro con divisores, no cuatro tarjetas sueltas. */
-.tk-page { height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+.tk-page { height:100vh; height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
 .tk-shell { flex:1; min-height:0; display:flex; align-items:stretch; }
 .tk-board { flex:1; min-width:0; display:flex; flex-direction:column; }
 
@@ -1654,7 +1654,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
      una tira vertical y el panel se encimaba encima de ella. En el teléfono la
      página deja de ser una cáscara de altura fija y vuelve a ser una página que
      se desplaza, con el panel debajo del tablero en vez de a un lado. */
-  .tk-page { height: auto; min-height: 100vh; overflow: visible; }
+  .tk-page { height: auto; min-height:100vh; min-height:100dvh; overflow: visible; }
   .tk-shell { flex-direction: column; }
   .tk-aside { width: auto; overflow-y: visible;
               border-left: 0; border-top: 1px solid var(--border-2); }
@@ -1732,7 +1732,7 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 .appfoot, .statsbar { display:none; }
 
 /* ── Inmuebles: página a pantalla completa, sólo la lista scrollea ──────── */
-body.inm-page { height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+body.inm-page { height:100vh; height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
 .inm-page .topbar, .inm-page .qbar, .inm-page .statebar { flex-shrink:0; }
 
 .qbar { padding:9px 20px; }
@@ -1814,7 +1814,7 @@ body.inm-page { height:100vh; display:flex; flex-direction:column; overflow:hidd
 .card-price strong { font-size:19px; }
 .card-ppm, .price-note { margin-top:2px; font-size:10px; }
 .card-ver, .card-sep, .card-tags { display:none; }
-.card-title { font-size:12.5px; font-weight:600; -webkit-line-clamp:1; }
+.card-title { font-size:12.5px; font-weight:600; -webkit-line-clamp:2; line-clamp:2; }
 .card-dir { font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .card-dir svg { display:none; }
 .card-status { margin-top:3px; }
@@ -2218,7 +2218,7 @@ tr.igual.ocultar { display:none; }
 
 
 /* ── Clientes (1a): maestro-detalle ───────────────────────────────────────── */
-.cl { display:grid; grid-template-columns:340px minmax(0,1fr); height:calc(100vh - 52px); }
+.cl { display:grid; grid-template-columns:340px minmax(0,1fr); height:calc(100vh - 52px); height:calc(100dvh - 52px); }
 /* Modo presentación (clientes.js): en pantalla sólo el cliente abierto. */
 .cl.presenta { grid-template-columns:minmax(0,1fr); }
 .cl.presenta .cl-list, .cl.presenta .cl-busca, .cl.presenta .cl-back, .cl.presenta #clDel { display:none; }
@@ -2508,7 +2508,7 @@ button.cl-chip.on { border-color:currentColor; }
 @media (max-width: 800px) {
   /* minmax(0,1fr): con `1fr` a secas las píldoras de etapa empujaban la lista 8 px
      más allá de la pantalla. */
-  .cl { grid-template-columns:minmax(0,1fr); height:auto; min-height:calc(100vh - 52px); }
+  .cl { grid-template-columns:minmax(0,1fr); height:auto; min-height:calc(100vh - 52px); min-height:calc(100dvh - 52px); }
   .cl.has-sel .cl-list { display:none; }
   .cl:not(.has-sel) .cl-detail { display:none; }
   .cl-back { display:inline-flex; align-self:flex-start; border:none; background:transparent; padding:6px 0; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; }
@@ -2880,3 +2880,52 @@ textarea.base-in { resize:vertical; }
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
+
+/* ── Teclado y dedo (2026-10-28, revisión con UI UX Pro Max) ────────────────────
+   Hasta aquí diez controles quitaban el contorno (`outline:none`) y sólo tres ponían
+   uno con `:focus-visible`: con el teclado no se sabía dónde estaba el foco. Un solo
+   contorno recto de tinta para todo; sobre la topbar y sobre la foto, crema, porque
+   la tinta ahí no se ve. `:is()` sube la especificidad a (0,2,0) para ganarle a los
+   `outline:none` de clase sin tocar cada regla. */
+:is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline:2px solid var(--accent); outline-offset:2px;
+}
+.topbar :is(a, button, input, select, summary, [tabindex]):focus-visible,
+.card-img :is(a, button):focus-visible,
+.fx-mosaic :is(a, button):focus-visible { outline-color:var(--topbar-text); }
+/* El destino de «Saltar al contenido» recibe el foco por programa: sin contorno. */
+.salto-destino:focus, .salto-destino:focus-visible { outline:none; }
+
+/* «Saltar al contenido» (menu.js lo pone primero en cada página): invisible hasta
+   que el teclado llega a él. */
+.saltar {
+  position:absolute; left:8px; top:-60px; z-index:1000; padding:10px 14px;
+  background:var(--surface); color:var(--ink); border:2px solid var(--accent);
+  font-family:var(--font-ui); font-size:14px; font-weight:600; text-decoration:none;
+}
+.saltar:focus { top:8px; }
+
+/* Sin los 300 ms de espera del doble toque en lo que se toca. */
+a, button, select, summary, label, [role="button"] { touch-action:manipulation; }
+
+@media (pointer: coarse) {
+  /* Safari en iPhone hace zoom al enfocar un campo con texto de menos de 16 px, y aquí
+     iban de 11 a 14. Sólo campos de escribir: el selector de estado de la tarjeta es
+     una etiqueta y a 16 px rompería la tarjeta. `!important` porque cada campo trae su
+     tamaño con su propia clase. */
+  textarea, input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]) {
+    font-size:16px !important;
+  }
+  /* La casilla de selección sólo aparecía con el mouse encima. Se ve siempre, y la
+     casilla y la ☆ tocan en 44×44 sin crecer a la vista: el área se extiende con un
+     ::after transparente. */
+  .card-chk { opacity:1; }
+  .card-chk::after, .btn-star::after { content:''; position:absolute; inset:-8px; }
+  .fx-btn, .fx-mas-menu > summary { min-height:44px; }
+}
+
+/* Contacto de la ficha: «+ Dueño» y «+ Asesor» iban en tinta sólida y competían con
+   el precio, el estado y «Más». Con borde, como «Archivos…»; el relleno se queda en
+   la acción principal de cada panel («Agregar» documento). */
+.fx-add .cto-add { background:transparent; color:var(--ink); border-color:var(--border-2); }
+.fx-add .cto-add:hover { border-color:var(--accent); color:var(--accent); }

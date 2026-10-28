@@ -24,6 +24,24 @@
   document.addEventListener('DOMContentLoaded', () => {
     const topbar = document.querySelector('.topbar');
     if (!topbar) return;
+
+    // «Saltar al contenido»: lo primero que alcanza el tabulador. No navega a un #ancla
+    // porque clientes.js lee el hash como el cliente abierto; enfoca por programa.
+    const destino = document.querySelector('main, .tk-shell');
+    if (destino) {
+      const saltar = document.createElement('a');
+      saltar.className = 'saltar';
+      saltar.href = '#';
+      saltar.textContent = 'Saltar al contenido';
+      saltar.addEventListener('click', e => {
+        e.preventDefault();
+        if (!destino.hasAttribute('tabindex')) destino.setAttribute('tabindex', '-1');
+        destino.classList.add('salto-destino');
+        destino.focus();
+      });
+      document.body.prepend(saltar);
+    }
+
     topbar.querySelector('.topbar-nav')?.remove();
     const nav = document.createElement('nav');
     nav.className = 'topbar-nav';
