@@ -115,6 +115,14 @@ Hanken Grotesk + Space Mono). Es lo único externo que la CSP permite.
   9.5px. Se subieron todos a 10px. Para revisarlo:
   `grep -nE "font-size: ?([0-9]|9\.[0-9])px" web/hermes.css`.
 - **`prefers-reduced-motion` apaga las transiciones** (el bloque al final de `hermes.css`).
+- **El foco del teclado siempre se ve** (2026-10-28): un contorno recto de 2 px en
+  `--accent` para todo lo enfocable, y crema sobre la topbar y sobre la foto. Un
+  `outline:none` nuevo no lo apaga (la regla global va con `:is()` y gana); si un
+  control necesita otro contorno, se cambia el color, no se quita. `menu.js` pone
+  «Saltar al contenido» primero en cada página con topbar.
+- **En pantalla táctil (`pointer: coarse`) los campos de escribir van a 16 px**: con
+  menos, Safari en iPhone hace zoom al enfocarlos. La casilla de selección de la
+  tarjeta se ve siempre y ella y la ☆ tocan en 44×44 con un `::after` transparente.
 
 ## 4 bis. La referencia es el proyecto de Claude Design
 

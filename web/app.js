@@ -221,8 +221,8 @@ function renderCard(l) {
         </div>
         <a class="card-ver" href="listing.html?id=${encodeURIComponent(l.id)}">Ver ${ICON_EXTERNAL}</a>
       </div>
-      ${l.titulo ? `<div class="card-title">${esc(l.titulo)}</div>` : ''}
-      ${Anuncio.ubicacion(l) ? `<div class="card-dir">${ICON_PIN}${esc(Anuncio.ubicacion(l))}</div>` : ''}
+      ${l.titulo ? `<div class="card-title" title="${esc(l.titulo)}">${esc(l.titulo)}</div>` : ''}
+      ${Anuncio.ubicacion(l) ? `<div class="card-dir" title="${esc(Anuncio.ubicacion(l))}">${ICON_PIN}${esc(Anuncio.ubicacion(l))}</div>` : ''}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
         ${l.transaccion ? `<span class="tag-txn">${esc(l.transaccion)}</span>` : ''}
