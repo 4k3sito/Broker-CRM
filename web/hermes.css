@@ -2738,3 +2738,25 @@ textarea.base-in { resize:vertical; }
      sin esta caja, en el teléfono no había manera de buscar entre los clientes. */
   .cl-filtro-busca { display:flex; }
 }
+
+/* ── Escritorio ancho y escritorio chico (2026-10-28) ──────────────────────────
+   A 1920 las barras iban de borde a borde: el cursor se escribía en x=52 y
+   «Limpiar» quedaba en x=1,860, y el conteo a 1,500 px de las píldoras que describe.
+   El fondo sigue a todo lo ancho; el contenido se queda en 1,560 px al centro. */
+@media (min-width: 901px) {
+  .topbar, .qbar, .statebar, .frescura { padding-inline:max(20px, calc((100% - 1560px) / 2)); }
+  .fb-pop, .qpop { left:max(20px, calc((100% - 1560px) / 2)); }
+  /* Los tres chips y el buscador eran dos renglones para lo mismo: van en uno. */
+  .qbar { display:flex; align-items:center; gap:8px; }
+  .fb { margin-bottom:0; flex-wrap:nowrap; flex-shrink:0; }
+  .qbar-box { flex:1; min-width:0; }
+  /* El mapa se lleva a lo más 640 px: a 1920 se quedaba con 845 y la lista con cuatro
+     columnas de 251, más angostas que a 1440. */
+  .inm.split { grid-template-columns:minmax(0,1fr) clamp(360px, 40%, 640px); }
+  .inm.split .grid { grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); }
+}
+/* A 720 de alto la foto de la ficha se llevaba 250 px y el primer dato útil caía en
+   y=432: en pantallas bajas se encoge. */
+@media (max-height: 800px) and (min-width: 901px) {
+  .fx-mosaic { height:clamp(180px, 26vh, 380px); }
+}

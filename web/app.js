@@ -1025,10 +1025,11 @@ document.addEventListener('keydown', e => {
 
 const inm = document.getElementById('inm');
 // En el teléfono el mapa se dibujaba primero y empujaba la primera tarjeta a y=587 de
-// 780: ahí se abre en rejilla y el mapa queda detrás del botón «+ Mapa». La
-// preferencia se guarda aparte por tamaño, para que la del escritorio no la pise.
-const CHICO = matchMedia('(max-width: 900px)').matches;
-const VISTA_KEY = CHICO ? 'ol-vista-movil' : 'ol-vista';
+// 780, y a 1280 dejaba tarjetas de 219 px: hasta 1366 se abre en rejilla y el mapa
+// queda detrás de «+ mapa». La preferencia se guarda aparte por tamaño, para que la
+// de un monitor grande no decida la de la laptop.
+const CHICO = matchMedia('(max-width: 1366px)').matches;
+const VISTA_KEY = matchMedia('(max-width: 900px)').matches ? 'ol-vista-movil' : CHICO ? 'ol-vista-media' : 'ol-vista';
 function ponerVista(v) {
   inm.classList.toggle('split', v === 'split');
   inm.classList.toggle('grid-only', v !== 'split');
@@ -1040,8 +1041,8 @@ document.querySelector('.seg').addEventListener('click', e => {
   const b = e.target.closest('[data-vista]');
   if (b) ponerVista(b.dataset.vista);
 });
-// El mapa ya no depende de una llave (mapa.js): en escritorio la vista por defecto es
-// rejilla + mapa; en el teléfono, rejilla.
+// El mapa ya no depende de una llave (mapa.js): en un monitor grande la vista por
+// defecto es rejilla + mapa; hasta 1366 px, rejilla.
 ponerVista((() => { try { return localStorage.getItem(VISTA_KEY); } catch { return null; } })() ?? (CHICO ? 'grid' : 'split'));
 
 Mapa.init(document.getElementById('map'), {
@@ -1346,13 +1347,14 @@ API.me().then(async () => {
   if (INMO) await Promise.all([cargarClientes(), cargarEquipo()]);
   // Después del cliente: si la URL trae filtros, son los que el asesor ajustó encima.
   const u = aplicarURL();
-  // Se abre buscando en lo que el mapa enseña, si el mapa está a la vista. Con los
-  // criterios de un cliente no: sus lugares mandan, y el mapa encuadra lo que salga.
-  // El área de partida es la de `config.js`, no la del viewport: si la URL traía cámara
-  // se respeta esa —es una búsqueda que alguien compartió, no la de fábrica—.
+  // Se abre buscando en el área de partida de `config.js`, esté o no el mapa a la vista:
+  // hasta 1366 px el tablero abre en rejilla, y sin esto una laptop vería el inventario
+  // nacional y un monitor grande el de Monterrey. Con los criterios de un cliente no: sus
+  // lugares mandan, y el mapa encuadra lo que salga. Si la URL traía cámara y el mapa se
+  // ve, se respeta esa —es una búsqueda que alguien compartió, no la de fábrica—.
   if (F.cliente) seguirMapa(false);
-  else if (mapFollow.checked && inm.classList.contains('split')) {
-    const area = u.mapa ? Mapa.area() : areaInicial();
+  else if (mapFollow.checked) {
+    const area = u.mapa && inm.classList.contains('split') ? Mapa.area() : areaInicial();
     if (area) buscarEnElMapa(area, u.mapa ? MAPA_TXT : CENTRO_NOMBRE);
   }
   await render();
