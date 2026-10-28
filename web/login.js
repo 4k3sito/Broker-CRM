@@ -68,8 +68,20 @@ function validateCredentials() {
   return true;
 }
 
+// A dónde volver después de entrar. `next` lo escribe `api.js` cuando la sesión caduca,
+// pero llega en una URL que cualquiera puede escribir: sólo se acepta una ruta de este
+// sitio. `//otro.sitio` o `https://…` serían un redirect abierto; `\` también.
+function destino() {
+  const v = new URLSearchParams(location.search).get('next') ?? '';
+  if (!v.startsWith('/') || v.startsWith('//') || v.includes('\\')) return 'index.html';
+  const u = new URL(v, location.origin);
+  if (u.origin !== location.origin || u.pathname.endsWith('login.html')) return 'index.html';
+  return u.pathname + u.search + u.hash;
+}
+const VOLVER = destino();
+
 // Si ya hay sesión, no tiene caso mostrar el formulario.
-API.me().then(() => location.replace('index.html')).catch(() => {});
+API.me().then(() => location.replace(VOLVER)).catch(() => {});
 
 form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -80,7 +92,7 @@ form.addEventListener('submit', async event => {
   try {
     await API.login(emailInput.value.trim(), passwordInput.value);
     try { localStorage.setItem('ol-email', emailInput.value.trim()); } catch { /* sin persistencia */ }
-    location.replace('index.html');
+    location.replace(VOLVER);
   } catch (err) {
     // 429 del limitador trae su propio mensaje; el resto se generaliza para no
     // revelar si el correo existe.
