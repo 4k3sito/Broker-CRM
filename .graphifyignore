@@ -1,0 +1,18 @@
+# Grafo = código del proyecto. Fuera dependencias de terceros, artefactos y salidas.
+web/vendor/
+node_modules/
+.next/
+.venv/
+__pycache__/
+
+# Corridas de scrapeo y datos
+scrapers/data/
+scrapers/.fixtures/
+scrapers/logs/
+error_logs/
+output/
+cache/
+
+# Herramientas y sus cachés
+graphify-out/
+.agents/
