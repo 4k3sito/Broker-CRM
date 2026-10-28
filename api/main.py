@@ -622,18 +622,8 @@ def listings_csv(
     entra por el tablero, no por `/api/v1` (SECURITY.md §6).
     """
     filtros = locals()
-    filas: list[dict] = []
     with POOL.connection() as conn:
-        quien = Asesor(user["id"])
-        pagina = 1
-        while len(filas) < CSV_TOPE:
-            trozo = inventario.buscar(conn, quien, filtros, orden, pagina, 200)
-            items = trozo.get("items") or []
-            filas.extend(items)
-            if len(items) < 200:
-                break
-            pagina += 1
-    filas = filas[:CSV_TOPE]
+        filas = inventario.exportar(conn, Asesor(user["id"]), filtros, orden, CSV_TOPE)
     nombre = f"officelab-{datetime.now(timezone(timedelta(hours=-6))):%Y-%m-%d}.csv"
     # El conteo va en una cabecera para que el tablero diga cuántos renglones tiene el
     # archivo: el total filtrado puede ser mayor que el tope y el aviso lo diría mal.
