@@ -280,6 +280,15 @@ seguimiento de un asesor no se filtra a otro.
   Las celdas se citan siempre y un texto que empiece con `=`/`+`/`-`/`@` sale con un
   apóstrofo delante: los títulos vienen de portales, o sea de terceros (misma regla que
   `api/excel.py`).
+  **Mismo día, PR #14:** la ruta ya no pagina por dentro; pide `inventario.exportar()`, una
+  sola consulta con `LIMIT CSV_TOPE`. Mismos filtros, misma cuenta (`Asesor`), mismo tope:
+  no cambia qué sale, sólo cuánto tarda.
+
+### Frontend (2026-10-28) — `web/ui.js`
+
+- `UI.confirmar()` y `UI.aviso()` sustituyen a `confirm()`/`alert()`. Pintan todo con
+  `textContent` (títulos de clientes y anuncios incluidos), así que no abren un camino
+  nuevo a `innerHTML`. Sin `<script>` inline: la CSP no cambia.
 - `next=` en el login: `web/api.js` manda al login con la ruta actual y `web/login.js`
   la valida antes de volver (ruta absoluta del sitio, sin `//`, mismo origen, nunca
   `login.html`). Sin esa validación sería un redirect abierto; con ella, lo único que

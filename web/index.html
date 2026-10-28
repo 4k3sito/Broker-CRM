@@ -28,6 +28,8 @@
     <span id="userBox" hidden><button class="btn-ghost" id="logout-btn">Salir</button></span>
   </div>
 </header>
+<!-- El título que anuncia un lector al llegar; la topbar ya lo dice a la vista. -->
+<h1 class="sr-only" id="pageTitle">Bolsa Inmobiliaria</h1>
 
 <!-- Búsqueda y filtros en una sola caja: el buscador es el primer "token". -->
 <div class="qbar" id="qbar">
@@ -107,12 +109,17 @@
   <div class="statebar-right">
     <div class="seg" role="group" aria-label="Vista">
       <button data-vista="grid">Rejilla</button>
-      <button data-vista="split">Rejilla + mapa</button>
+      <button data-vista="split"><span class="seg-ancho">Rejilla </span>+ mapa</button>
     </div>
     <!-- Sólo en Inmobiliaria (app.js lo muestra): alta de una propiedad propia. -->
     <button class="btn-clear" id="nueva-prop" hidden>+ Nueva propiedad</button>
     <button class="btn-clear" id="export-btn">CSV</button>
-    <span class="count-tag"><strong id="countNum">0</strong> / <span id="countTotal">0</span></span>
+    <span class="cargando-txt" id="cargandoTxt" role="status" hidden>Actualizando&#8230;</span>
+    <!-- El orden estaba escondido en la paleta (+ filtro / ⌘K). El total ya lo dice la
+         píldora de estado, así que aquí no se repite. -->
+    <label class="orden-chip"><span>Ordenar</span>
+      <select id="ordenSel" aria-label="Ordenar por"></select>
+    </label>
   </div>
 </div>
 
@@ -160,6 +167,7 @@
 <script src="config.js"></script>
 <script src="api.js"></script>
 <script src="texto.js"></script>
+<script src="ui.js"></script>
 <script src="etapas.js"></script>
 <script src="menu.js"></script>
 <script src="vendor/maplibre-gl.js"></script>

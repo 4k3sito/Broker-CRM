@@ -1,9 +1,10 @@
 """El inventario: buscar, contar y leer anuncios.
 
 Todo lo que el tablero y `/api/v1` saben preguntarle a `listings` vive aquí, detrás de
-tres operaciones:
+cuatro operaciones:
 
     buscar(conn, quien, filtros, orden, page, per_page)   una página y su total
+    exportar(conn, quien, filtros, orden, tope)           todas de una vez, para el CSV
     contar(conn, quien, filtros)                          a cuántos llegarías por estado y fuente
     uno(conn, quien, id)                                  un anuncio, o None
 
@@ -410,18 +411,40 @@ def buscar(conn, quien, filtros: dict, orden: str = "recientes", page: int = 1,
     Para un asesor cada fila es una PROPIEDAD: de los anuncios fusionados que pasan los
     filtros sale uno, y con él `anuncios`, `anunciantes`, `fuentes` y el rango de precio
     (`precio_min`/`precio_max`) de todos los vigentes de la propiedad."""
+    base, p = _consulta(quien, filtros)
+    fusiona = _fusiona(quien, filtros)
+    rows = _filas(conn, quien, filtros, orden, per_page, (page - 1) * per_page)
+    total = conn.execute(f"SELECT {_propiedades() if fusiona else 'count(*)'} AS n {base}",
+                         p).fetchone()["n"]
+    if fusiona:
+        _resumir_propiedades(conn, rows)
+        return {"items": rows, "total": total, "page": page, "per_page": per_page}
+    out = {"items": rows, "total": total, "page": page, "per_page": per_page}
+    if isinstance(quien, Llave):
+        out["pages"] = -(-total // per_page)
+    return out
+
+
+def exportar(conn, quien, filtros: dict, orden: str = "recientes", tope: int = 20_000) -> list[dict]:
+    """Lo mismo que `buscar` vería página tras página, hasta `tope` filas, en UNA consulta.
+
+    Es el CSV del tablero. Antes salía de pedir `buscar` de 200 en 200: hasta 100 vueltas
+    a la vista fusionada, cada una con su conteo y su OFFSET creciente, y el archivo
+    tardaba uno o dos minutos. Sin conteo ni resumen de propiedades: el CSV no los lleva."""
+    return _filas(conn, quien, filtros, orden, tope, 0)
+
+
+def _filas(conn, quien, filtros: dict, orden: str, limite: int, desde: int) -> list[dict]:
+    """Las filas de `buscar` y `exportar`: el mismo orden y la misma cara de cada propiedad."""
     if orden not in ORDENES:
         raise FiltroInvalido(f"orden debe ser uno de: {', '.join(ORDENES)}")
     base, p = _consulta(quien, filtros)
-    con_llave = isinstance(quien, Llave)
     expr, sentido = ORDENES[orden]
-    limite = [per_page, (page - 1) * per_page]
     if _fusiona(quien, filtros):
-        total = conn.execute(f"SELECT {_propiedades()} AS n {base}", p).fetchone()["n"]
         # En dos pasos. Primero se elige, con filas angostas, qué anuncio da la cara por
         # cada propiedad y cuáles caen en la página; sólo de ésos se traen las columnas
         # completas. Ordenar 570 mil filas con sus galerías de fotos costaba 17 s.
-        rows = conn.execute(
+        return conn.execute(
             f"""WITH pag AS (
                   SELECT * FROM (
                     SELECT DISTINCT ON ({PROPIEDAD}) l.source, l.listing_id,
@@ -436,19 +459,13 @@ def buscar(conn, quien, filtros: dict, orden: str = "recientes", page: int = 1,
                 LEFT JOIN user_listing ul ON ul.listing_id = l.source || ':' || l.listing_id
                                          AND ul.user_id = %s
                 ORDER BY pag._orden {sentido}, l.listing_id""",
-            [*p, *limite, quien.id]).fetchall()
-        _resumir_propiedades(conn, rows)
-        return {"items": rows, "total": total, "page": page, "per_page": per_page}
+            [*p, limite, desde, quien.id]).fetchall()
+    con_llave = isinstance(quien, Llave)
     columnas = SELECT_ANUNCIO if con_llave else SELECT_LISTING
     desempate = "l.source, l.listing_id" if con_llave else "l.listing_id"
-    total = conn.execute(f"SELECT count(*) AS n {base}", p).fetchone()["n"]
-    rows = conn.execute(
+    return conn.execute(
         f"SELECT {columnas} {base} ORDER BY {expr} {sentido}, {desempate} LIMIT %s OFFSET %s",
-        [*p, *limite]).fetchall()
-    out = {"items": rows, "total": total, "page": page, "per_page": per_page}
-    if con_llave:
-        out["pages"] = -(-total // per_page)
-    return out
+        [*p, limite, desde]).fetchall()
 
 
 def _resumir_propiedades(conn, rows: list[dict]) -> None:

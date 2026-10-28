@@ -103,7 +103,7 @@ async function addProceso(clienteId) {
     await asegurarFicha();
     await API.post('/procesos', { cliente_id: clienteId, ficha_id: ficha.id });
     await loadSeguimiento(); render();
-  } catch (err) { alert('No se pudo asignar: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo asignar: ' + err.message); }
 }
 function setProcesoStatus(id, status) {
   const p = procesos.find(x => String(x.id) === String(id));
@@ -112,13 +112,13 @@ function setProcesoStatus(id, status) {
 }
 async function removeProceso(id) {
   try { await API.del(`/procesos/${id}`); procesos = procesos.filter(p => String(p.id) !== String(id)); render(); }
-  catch (err) { alert('No se pudo quitar: ' + err.message); }
+  catch (err) { UI.aviso('No se pudo quitar: ' + err.message); }
 }
 async function addDocumento(label) {
   label = (label ?? '').trim();
   if (!label) return;
   try { await crearDocumento(label); render(); }
-  catch (err) { alert('No se pudo agregar el documento: ' + err.message); }
+  catch (err) { UI.aviso('No se pudo agregar el documento: ' + err.message); }
 }
 async function crearDocumento(label) {
   await asegurarFicha();
@@ -135,7 +135,7 @@ async function crearDocumento(label) {
 // documento; si no, cada archivo es un documento con su propio nombre.
 function cabenTodos(files) {
   const grande = files.find(f => f.size > MAX_ARCHIVO);
-  if (grande) alert(`"${grande.name}" pesa ${pesoTxt(grande.size)} y el máximo por archivo es ${pesoTxt(MAX_ARCHIVO)}.`);
+  if (grande) UI.aviso(`"${grande.name}" pesa ${pesoTxt(grande.size)} y el máximo por archivo es ${pesoTxt(MAX_ARCHIVO)}.`);
   return !grande;
 }
 // Sube `files` al documento `d`. Con el archivo ya adjunto el documento se da por
@@ -158,15 +158,16 @@ async function subirDocumentos(files, { docId = null, label = '' } = {}) {
     if (docId) await adjuntar(documentos.find(x => String(x.id) === String(docId)), files);
     else if (label) await adjuntar(await crearDocumento(label), files);
     else for (const f of files) await adjuntar(await crearDocumento(sinExtension(f.name)), [f]);
-  } catch (err) { alert('No se pudo subir el archivo: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo subir el archivo: ' + err.message); }
   subiendo.docs = 0; render();
 }
 async function removeArchivo(id) {
   const d = documentos.find(x => (x.archivos ?? []).some(a => String(a.id) === String(id)));
   const a = d?.archivos.find(x => String(x.id) === String(id));
-  if (!a || !confirm(`¿Borrar el archivo "${a.nombre}"?`)) return;
+  if (!a || !(await UI.confirmar({ titulo: `¿Borrar el archivo «${a.nombre}»?`, texto: 'No se puede deshacer.',
+    verbo: 'Borrar', peligro: true }))) return;
   try { await API.del(`/archivos/${id}`); d.archivos = d.archivos.filter(x => x !== a); render(); }
-  catch (err) { alert('No se pudo borrar el archivo: ' + err.message); }
+  catch (err) { UI.aviso('No se pudo borrar el archivo: ' + err.message); }
 }
 function toggleDocumento(id, done) {
   const d = documentos.find(x => String(x.id) === String(id));
@@ -176,9 +177,11 @@ function toggleDocumento(id, done) {
 }
 async function removeDocumento(id) {
   const n = documentos.find(x => String(x.id) === String(id))?.archivos?.length ?? 0;
-  if (n && !confirm(`Este documento tiene ${n} ${n === 1 ? 'archivo adjunto' : 'archivos adjuntos'}. ¿Borrarlo con ${n === 1 ? 'su archivo' : 'sus archivos'}?`)) return;
+  if (n && !(await UI.confirmar({ titulo: `¿Borrar el documento con ${n === 1 ? 'su archivo' : `sus ${n} archivos`}?`,
+    texto: `Tiene ${n} ${n === 1 ? 'archivo adjunto' : 'archivos adjuntos'}. No se puede deshacer.`,
+    verbo: 'Borrar', peligro: true }))) return;
   try { await API.del(`/documentos/${id}`); documentos = documentos.filter(x => String(x.id) !== String(id)); render(); }
-  catch (err) { alert('No se pudo quitar el documento: ' + err.message); }
+  catch (err) { UI.aviso('No se pudo quitar el documento: ' + err.message); }
 }
 // El formulario "Datos de la ficha" escribe en la versión que esté cargada; sin
 // versión, en la ficha misma (la General).
@@ -188,7 +191,7 @@ async function saveFicha(field, value) {
   if (v) {
     if ((v.datos[field] ?? null) === val) return;
     v.datos = { ...v.datos, [field]: val };
-    API.patch(`/versiones/${v.id}`, { datos: v.datos }).catch(err => alert('No se pudo guardar la ficha: ' + err.message));
+    API.patch(`/versiones/${v.id}`, { datos: v.datos }).catch(err => UI.aviso('No se pudo guardar la ficha: ' + err.message));
     // El $/m² que se propone cuando se deja vacío sale de precio y m²: que se actualice.
     if (field === 'precio' || field === 'tamano_m2') repintar();
     return;
@@ -208,7 +211,7 @@ async function saveFicha(field, value) {
     Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, { [field]: val })));
     listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
     repintar();
-  } catch (err) { alert('No se pudo guardar: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo guardar: ' + err.message); }
 }
 // Postgres manda los `numeric` como texto ("45800.00"): se vuelven número para que el
 // formulario no enseñe decimales que nadie escribió.
@@ -249,17 +252,19 @@ async function crearVersion(nombre, clienteId) {
     versionSel = String(v.id);
     pdfAbierto = true;
     render();
-  } catch (err) { alert('No se pudo guardar la ficha: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo guardar la ficha: ' + err.message); }
 }
 async function borrarVersion(id) {
   const v = versiones.find(x => String(x.id) === id);
-  if (!v || !confirm(`¿Borrar ${nombrePdf(v)}.pdf?`)) return;
+  if (!v || !(await UI.confirmar({ titulo: `¿Borrar ${nombrePdf(v)}.pdf?`,
+    texto: 'Se pierden sus datos propios: precio, fotos y textos de esta ficha. La General no cambia.',
+    verbo: 'Borrar', peligro: true }))) return;
   try {
     await API.del(`/versiones/${id}`);
     versiones = versiones.filter(x => String(x.id) !== id);
     if (versionSel === id) versionSel = null;
     render();
-  } catch (err) { alert('No se pudo borrar: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo borrar: ' + err.message); }
 }
 
 // Los datos de una propiedad propia (tipo, municipio, fotos, liga del mapa) viven en
@@ -279,7 +284,7 @@ async function saveBase(field, crudo) {
     listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
     repintar();
     pintarUbicacion();
-  } catch (err) { alert('No se pudo guardar: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo guardar: ' + err.message); }
 }
 
 // ── Contacto del inmueble ────────────────────────────────────────────────────
@@ -299,7 +304,7 @@ async function guardarContactos(lista, repinta) {
     await asegurarFicha();
     Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, { contactos: lista })));
     if (repinta) render();
-  } catch (err) { alert('No se pudo guardar el contacto: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo guardar el contacto: ' + err.message); }
 }
 
 // ── Fotos de una propiedad propia ────────────────────────────────────────────
@@ -324,7 +329,7 @@ async function guardarFotos(lista) {
   const v = versionActual();
   if (!v) return saveBase('fotos', lista);
   try { Object.assign(v, await API.patch(`/versiones/${v.id}`, { datos: { ...v.datos, fotos: lista } })); }
-  catch (err) { alert('No se pudo guardar la ficha: ' + err.message); }
+  catch (err) { UI.aviso('No se pudo guardar la ficha: ' + err.message); }
   repintar();
 }
 // De quién son las fotos de la caja (ver fotos.js): de la versión cargada o de la ficha.
@@ -349,22 +354,24 @@ Fotos.escuchar(document.getElementById('detail'), destinoFotos);
 
 async function guardarEnInmobiliaria() {
   try { await asegurarFicha(); render(); }
-  catch (err) { alert('No se pudo guardar en el Catálogo: ' + err.message); }
+  catch (err) { UI.aviso('No se pudo guardar en el Catálogo: ' + err.message); }
 }
 // Lo contrario. Un anuncio de portal vuelve a la Bolsa y la página sigue sirviendo; una
 // propiedad propia ES su ficha, así que al borrarla ya no hay nada que mostrar.
 async function quitarDeInmobiliaria() {
   const propia = esPropia(listing), n = procesos.length;
-  if (!confirm((propia ? '¿Eliminar esta propiedad?' : '¿Quitar esta propiedad del Catálogo?') + '\n\n'
-    + 'Se borra su ficha con sus documentos, fotos subidas y fichas PDF'
-    + (n ? `, y lo presentado a ${n} ${n === 1 ? 'cliente' : 'clientes'}` : '') + '. No se puede deshacer.'
-    + (propia ? '' : '\n\nEl anuncio vuelve a la Bolsa.'))) return;
+  if (!(await UI.confirmar({
+    titulo: propia ? '¿Eliminar esta propiedad?' : '¿Quitar esta propiedad del Catálogo?',
+    texto: 'Se borra su ficha con sus documentos, fotos subidas y fichas PDF'
+      + (n ? `, y lo presentado a ${n} ${n === 1 ? 'cliente' : 'clientes'}` : '') + '. No se puede deshacer.'
+      + (propia ? '' : '\n\nEl anuncio vuelve a la Bolsa.'),
+    verbo: propia ? 'Eliminar' : 'Quitar', peligro: true }))) return;
   try {
     await API.quitarDeInmobiliaria(listing.id);
     if (propia) { location.replace('index.html?tab=inmobiliaria'); return; }
     ficha = null; versiones = []; versionSel = null; procesos = []; documentos = [];
     render();
-  } catch (err) { alert('No se pudo eliminar: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo eliminar: ' + err.message); }
 }
 
 // ── Anterior / siguiente dentro de la página del tablero ─────────────────────
@@ -377,21 +384,32 @@ function vecinos() {
 const irA = id => { if (id) location.href = `listing.html?id=${encodeURIComponent(id)}`; };
 
 // ── Render ───────────────────────────────────────────────────────────────────
-function mosaicoHtml(l, nav) {
+function mosaicoHtml(l) {
   const f = l.fotos;
+  // Sin nombre accesible un lector anunciaba «botón» a secas: la foto es la imagen
+  // decorativa (alt="") y el botón dice qué abre.
+  const nombre = i => `aria-label="Ver foto ${i + 1} de ${f.length}: ${esc(l.titulo ?? 'la propiedad')}"`;
   const celda = (i, cls) => f[i]
-    ? `<button class="fx-ph ${cls}" data-i="${i}"><img src="${esc(f[i])}" alt="" loading="${i ? 'lazy' : 'eager'}"></button>`
+    ? `<button class="fx-ph ${cls}" data-i="${i}" ${nombre(i)}><img src="${esc(f[i])}" alt="" loading="${i ? 'lazy' : 'eager'}"></button>`
     : `<span class="fx-ph ${cls} vacio"></span>`;
   return `<div class="fx-mosaic${f.length <= 1 ? ' uno' : ''}">
     ${celda(0, 'grande')}
     ${f.length > 1 ? [1, 2, 3].map(i => celda(i, '')).join('') +
-      (f[4] ? `<button class="fx-ph" data-i="4"><img src="${esc(f[4])}" alt="" loading="lazy">${f.length > 5 ? `<span class="fx-mas">Ver las ${f.length} fotos</span>` : ''}</button>` : '<span class="fx-ph vacio"></span>') : ''}
+      (f[4] ? `<button class="fx-ph" data-i="4" ${nombre(4)}><img src="${esc(f[4])}" alt="" loading="lazy">${f.length > 5 ? `<span class="fx-mas">Ver las ${f.length} fotos</span>` : ''}</button>` : '<span class="fx-ph vacio"></span>') : ''}
     <a class="fx-over fx-back" href="${esc(VOLVER.href)}">&#8592; ${VOLVER.texto}</a>
-    ${nav ? `<span class="fx-over fx-nav">
-      <button id="navPrev" ${nav.prev ? '' : 'disabled'} title="Anterior (K)">&#8592;</button>
-      <span>${nav.i + 1} / ${nav.n}</span>
-      <button id="navNext" ${nav.next ? '' : 'disabled'} title="Siguiente (J)">&#8594;</button></span>` : ''}
   </div>`;
+}
+
+// Anterior / siguiente en la página del tablero. Iba encima de la foto con forma de
+// carrusel («1 / 70») y se leía como el contador de fotos: ahora va fuera, dice de qué
+// cuenta y anuncia sus atajos.
+function pasosHtml(nav) {
+  if (!nav) return '';
+  return `<nav class="fx-pasos" aria-label="Propiedades de la búsqueda">
+    <button class="fx-paso" id="navPrev" ${nav.prev ? '' : 'disabled'}>&#8592; Anterior <kbd>K</kbd></button>
+    <span class="fx-pasos-n">Propiedad ${nav.i + 1} de ${nav.n}<span class="fx-pasos-de"> en la página del tablero</span></span>
+    <button class="fx-paso" id="navNext" ${nav.next ? '' : 'disabled'}>Siguiente <kbd>J</kbd> &#8594;</button>
+  </nav>`;
 }
 
 function render() {
@@ -422,7 +440,8 @@ function render() {
   const respDe = cid => { const c = clientes.find(x => String(x.id) === String(cid)); return c ? (c.responsable_nombre || c.responsable || null) : null; };
 
   document.getElementById('detail').innerHTML = `
-    ${mosaicoHtml(l, nav)}
+    ${mosaicoHtml(l)}
+    ${pasosHtml(nav)}
     <section class="fx-band">
       <div class="fx-band-t">
         <h1>${esc(l.titulo ?? 'Sin título')}</h1>
@@ -434,18 +453,28 @@ function render() {
         <span>${total != null ? sufijo : (l.porM2 && l.precio != null ? 'por m²' : '')}${pm && total != null ? ` · $${mx(Math.round(pm))}/m²` : ''}</span>
         ${altPriceHtml(l)}
       </div>
-      <select class="fx-status s-${l.status}" id="detailStatus" aria-label="Estado">
-        ${Anuncio.ESTADOS.map(s => `<option${s === l.status ? ' selected' : ''}>${s}</option>`).join('')}
-      </select>
-      <button class="fx-star${l.starred ? ' on' : ''}" id="detailStar" aria-pressed="${l.starred}" title="Destacar">${l.starred ? '&#9733;' : '&#9734;'}</button>
-      ${l.whatsapp ? `<a class="fx-btn solid" href="https://wa.me/${l.whatsapp.replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
-      ${l.url ? `<a class="fx-btn" href="${hrefSeguro(l.url)}" target="_blank" rel="noopener">Anuncio ${ICON_EXTERNAL}</a>` : ''}
-      ${esPropia(l) ? (ficha ? '<button class="fx-btn" id="btnQuitar" title="Borra la propiedad con todo lo que cuelga de ella">Eliminar</button>' : '') : (ficha
-        ? '<span class="fx-tag" title="Tiene ficha: aparece en la pestaña Catálogo">En Catálogo</span>'
-          + '<button class="fx-btn" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar</button>'
-        : '<button class="fx-btn" id="btnInmo" title="Guardarla en la bolsa propia, sin asignarla a nadie">+ Catálogo</button>')}
-      <button class="fx-btn" id="btnPdf" title="Imprime ${esc(nombrePdf(vSel))}.pdf">Ficha PDF</button>
-      <button class="fx-btn" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
+      ${!esPropia(l) && ficha ? '<span class="fx-tag" title="Tiene ficha: aparece en la pestaña Catálogo">En Catálogo</span>' : ''}
+      <!-- Ocho acciones con el mismo peso competían entre sí: quedan a la vista el
+           estado, destacar y WhatsApp; lo demás va en «Más». En el teléfono esta fila
+           es una barra fija abajo (hermes.css). -->
+      <div class="fx-acciones">
+        <select class="fx-status s-${l.status}" id="detailStatus" aria-label="Estado">
+          ${Anuncio.ESTADOS.map(s => `<option${s === l.status ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
+        <button class="fx-star${l.starred ? ' on' : ''}" id="detailStar" aria-pressed="${l.starred}" title="Destacar" aria-label="Destacar">${l.starred ? '&#9733;' : '&#9734;'}</button>
+        ${l.whatsapp ? `<a class="fx-btn solid" href="https://wa.me/${l.whatsapp.replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+        <details class="fx-mas-menu" id="fxMas">
+          <summary class="fx-btn">&#8943; Más</summary>
+          <div class="fx-mas-lista">
+            ${l.url ? `<a class="fx-mas-item" href="${hrefSeguro(l.url)}" target="_blank" rel="noopener">Ver el anuncio ${ICON_EXTERNAL}</a>` : ''}
+            <button class="fx-mas-item" id="btnPdf" title="Imprime ${esc(nombrePdf(vSel))}.pdf">Ficha PDF</button>
+            <button class="fx-mas-item" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
+            ${esPropia(l) ? (ficha ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra la propiedad con todo lo que cuelga de ella">Eliminar propiedad</button>' : '') : (ficha
+              ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar del Catálogo</button>'
+              : '<button class="fx-mas-item" id="btnInmo" title="Guardarla en la bolsa propia, sin asignarla a nadie">+ Guardar en Catálogo</button>')}
+          </div>
+        </details>
+      </div>
     </section>
 
     <div class="fx-cols${PRESENTA_A ? ' pres' : ''}">
@@ -603,6 +632,10 @@ function enlazar() {
   });
   document.querySelectorAll('.base-in').forEach(el => el.onchange = e => saveBase(e.target.dataset.f, e.target.value));
   $('mkt-pdf').onclick = e => descargarAnalisis(e.currentTarget);
+  // «Más» se cierra al elegir algo, salvo el análisis, que dice «Generando…» en su botón.
+  $('fxMas').onclick = e => {
+    if (e.target.closest('.fx-mas-item') && !e.target.closest('#mkt-pdf')) $('fxMas').open = false;
+  };
   $('navPrev') && ($('navPrev').onclick = () => irA(vecinos()?.prev));
   $('navNext') && ($('navNext').onclick = () => irA(vecinos()?.next));
   $('procAdd') && ($('procAdd').onchange = e => addProceso(e.target.value));
@@ -612,9 +645,10 @@ function enlazar() {
   // el foco al campo siguiente); agregar y quitar sí repintan.
   document.querySelectorAll('.cto-add').forEach(b => b.onclick = () =>
     guardarContactos([...contactosDelDom(), { rol: b.dataset.rol }], true));
-  document.querySelectorAll('.cto-del').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.cto-del').forEach(b => b.onclick = async () => {
     const i = +b.closest('.fx-cto').dataset.i, c = contactosDelDom()[i];
-    if ((c.nombre || c.telefono || c.correo) && !confirm(`¿Quitar a ${c.nombre || 'este contacto'}?`)) return;
+    if ((c.nombre || c.telefono || c.correo)
+        && !(await UI.confirmar({ titulo: `¿Quitar a ${c.nombre || 'este contacto'}?`, verbo: 'Quitar', peligro: true }))) return;
     guardarContactos(contactosDelDom().filter((_, k) => k !== i), true);
   });
   document.querySelectorAll('.cto-in').forEach(el => el.onchange = () => {
@@ -760,7 +794,7 @@ function pintarUbicacion() {
         Object.assign(ficha, await API.patch(`/fichas/${ficha.id}`, { lat, lng }));
         Object.assign(listing, { lat, lng });
         pintarUbicacion();
-      } catch (err) { alert('No se pudo guardar la ubicación: ' + err.message); }
+      } catch (err) { UI.aviso('No se pudo guardar la ubicación: ' + err.message); }
     },
   });
   // Sin ubicación todavía, el mapa arranca esperando el clic.
@@ -820,7 +854,7 @@ document.getElementById('propiedad').addEventListener('click', async e => {
     pintarPropiedad(caja, await Propiedad.de(listing.id));
   } catch (err) {
     b.disabled = false;
-    alert(`No se pudo guardar: ${err.message}`);
+    UI.aviso(`No se pudo guardar: ${err.message}`);
   }
 });
 
@@ -838,7 +872,14 @@ document.getElementById('lbClose').onclick = cerrarVisor;
 document.getElementById('lbPrev').onclick = () => abrirVisor(visor - 1);
 document.getElementById('lbNext').onclick = () => abrirVisor(visor + 1);
 document.getElementById('lightbox').onclick = e => { if (e.target.id === 'lightbox') cerrarVisor(); };
+// «Más» se cierra al tocar fuera o con Escape, como cualquier menú.
+document.addEventListener('click', e => {
+  const m = document.getElementById('fxMas');
+  if (m?.open && !m.contains(e.target)) m.open = false;
+});
 document.addEventListener('keydown', e => {
+  const m = document.getElementById('fxMas');
+  if (e.key === 'Escape' && m?.open) { m.open = false; m.querySelector('summary').focus(); return; }
   if (e.target.closest('input, textarea, select')) return;
   if (visor >= 0) {
     if (e.key === 'Escape') cerrarVisor();

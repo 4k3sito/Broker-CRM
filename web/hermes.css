@@ -14,8 +14,10 @@
   --accent:#201333; --accent-soft:rgba(32,19,51,.10); --on-accent:#EFEDE6;
   --topbar:#201333; --topbar-text:#EFEDE6;
   /* Estados del seguimiento de propiedades */
-  --s-nuevo:#2B3FC4; --s-revisado:#6B3FB5; --s-contactado:#A85F14;
-  --s-rentado:#1F6F4A; --s-descartado:#83808C;
+  /* Contactado era #A85F14 y Descartado #83808C: 4.28 y 3.87 sobre su propio tinte o
+     sobre blanco, por debajo de AA en texto de estado (2026-10-28). */
+  --s-nuevo:#2B3FC4; --s-revisado:#6B3FB5; --s-contactado:#8F500E;
+  --s-rentado:#1F6F4A; --s-descartado:#6B6875;
   --r-nuevo:rgba(43,63,196,.10); --r-revisado:rgba(107,63,181,.10);
   --r-contactado:rgba(168,95,20,.10); --r-rentado:rgba(31,111,74,.10);
   --r-descartado:rgba(131,128,140,.10);
@@ -26,6 +28,8 @@
   --font-display:'Bodoni Moda',Didot,Georgia,serif;
   --font-mono:'Space Mono',monospace;
   --photo-h:212px; --card-pad:18px; --gap:18px;
+  /* La insignia de tareas vencidas vive sobre la topbar, que es tinta en los dos temas. */
+  --tb-badge:#F0A18E;
 }
 
 /* Tema oscuro. Se activa con data-theme="dark" en <html> (lo pone theme.js antes
@@ -36,8 +40,9 @@
 :root[data-theme="dark"] {
   color-scheme:dark;
   --bg:#201333; --surface:#2A1A42; --ink:#EFEDE6;
-  /* .46 daba 4.06:1 sobre --bg y también reprobaba AA; .50 llega a 4.59:1. */
-  --muted:rgba(239,237,230,.72); --faint:rgba(239,237,230,.50);
+  /* .46 daba 4.06:1 sobre --bg y también reprobaba AA; .50 llegaba a 4.59:1 sobre --bg
+     pero a 4.40 sobre --surface, que es donde vive casi todo el texto. .55 da 5.02. */
+  --muted:rgba(239,237,230,.72); --faint:rgba(239,237,230,.55);
   --border:rgba(239,237,230,.24); --border-2:rgba(239,237,230,.42);
   --accent:#EFEDE6; --accent-soft:rgba(239,237,230,.14); --on-accent:#201333;
   --topbar:#160C24;
@@ -515,7 +520,7 @@ a:hover { color:var(--ink); }
 .street-chip {
   display:inline-flex; align-items:center; gap:5px; flex-shrink:0;
   background:var(--paper); color:var(--blue); padding:3px 7px;
-  font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:.06em;
+  font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.06em;
   max-width:190px; white-space:nowrap; overflow:hidden;
 }
 .street-chip-close { cursor:pointer; font-size:12px; line-height:1; opacity:.6; }
@@ -577,7 +582,7 @@ a:hover { color:var(--ink); }
 .btn-star {
   position:absolute; top:9px; right:9px; width:34px; height:34px; background:var(--paper);
   border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
-  font-size:17px; color:rgba(32,19,51,.38); line-height:1; padding:0;
+  font-size:17px; color:rgba(32,19,51,.6); line-height:1; padding:0;   /* control: ≥3:1 (4.39) */
 }
 .btn-star:hover { color:var(--blue); }
 .card.starred .btn-star { color:var(--blue); }
@@ -736,7 +741,7 @@ button, input, textarea, select { font: inherit; }
    páginas, que sí necesitan nombrar en qué paso está el usuario. */
 .eyebrow {
   margin-bottom: 10px; color: var(--faint);
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
   letter-spacing: .1em; text-transform: uppercase;
 }
 
@@ -1090,15 +1095,16 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
    prioridad a la izquierda de cada tarjeta y el peso tipográfico.
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  --p-alta:#A83B22; --p-media:#A85F14; --p-baja:#6B7D6E;
+  --p-alta:#A83B22; --p-media:#8F500E; --p-baja:#6B7D6E;   /* media era #A85F14: 4.28:1 */
   --r-alta:rgba(168,59,34,.10); --r-media:rgba(168,95,20,.10); --r-baja:rgba(107,125,110,.10);
   --c-pendiente:#83808C; --c-asignado:#2B3FC4; --c-encurso:#A85F14; --c-completado:#1F6F4A;
   /* Tintes de avatar: `tareas.js` deriva uno del id de la persona. Son tokens y no
      hexes en el JS porque en oscuro tienen que subir de luminosidad como cualquier
      otro color del sistema; con los hexes puestos a mano no lo hacían. No son
      colores de estado y no deben reutilizarse como tales. */
-  --tono-0:#2B3FC4; --tono-1:#1F6F4A; --tono-2:#A85F14; --tono-3:#6B3FB5;
-  --tono-4:#A83B22; --tono-5:#6B7D6E; --tono-6:#83808C;
+  /* 2, 5 y 6 bajan: las iniciales crema sobre ellos daban 4.16, 3.75 y 3.30. */
+  --tono-0:#2B3FC4; --tono-1:#1F6F4A; --tono-2:#8F500E; --tono-3:#6B3FB5;
+  --tono-4:#A83B22; --tono-5:#56685A; --tono-6:#6B6875;
 }
 :root[data-theme="dark"] {
   --p-alta:#F0A18E; --p-media:#F5C98C; --p-baja:#A8C0AC;
@@ -1147,6 +1153,36 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 }
 .kb-col.over .kb-list { background:var(--accent-soft); }
 .kb-empty { border:1px dashed var(--border-2); padding:18px; text-align:center; font-size:12px; color:var(--faint); }
+
+/* Columna vacía plegada: sigue recibiendo lo que se suelta, sin quitarle media
+   pantalla a las que tienen tarjetas. Sólo cuando las cuatro van en una fila. */
+@media (min-width: 1101px) {
+  .kb:not(.kb-pipe) { display:flex; }
+  .kb:not(.kb-pipe) > .kb-col { flex:1 1 0; }
+  .kb:not(.kb-pipe) > .kb-col.vacia { flex:0 0 172px; }
+}
+.kb-col.vacia .kb-empty { padding:12px 10px; }
+
+/* ── Lista de tareas (tareas.js, renderLista) ────────────────────────────── */
+.tk-lista { flex:1; min-height:0; overflow-y:auto; padding:14px 18px 40px; display:flex; flex-direction:column; gap:6px; }
+.tk-lista-seg { align-self:flex-start; margin-bottom:6px; }
+.tk-lista-seg button { height:32px; }
+.tk-fila {
+  display:flex; align-items:center; gap:12px; min-height:56px; padding:8px 12px;
+  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border-2);
+}
+.tk-fila.p-alta  { border-left-color:var(--p-alta); }
+.tk-fila.p-media { border-left-color:var(--p-media); }
+.tk-fila.p-baja  { border-left-color:var(--p-baja); }
+.tk-fila-chk { width:20px; height:20px; flex-shrink:0; accent-color:var(--accent); cursor:pointer; }
+.tk-fila-abrir {
+  flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; padding:4px 0;
+  border:none; background:transparent; color:var(--ink); text-align:left; cursor:pointer; font-family:var(--font-ui);
+}
+.tk-fila-tit { font-size:14px; font-weight:600; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tk-fila.hecha .tk-fila-tit { color:var(--muted); text-decoration:line-through; }
+.tk-fila-meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+.tk-fila-meta .tk-prio { padding:2px 6px; }
 
 /* ── Tarjeta de tarea ────────────────────────────────────────────────────── */
 .tk {
@@ -1393,65 +1429,6 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 @media (max-width: 1100px) { .kb { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 620px)  { .kb { grid-template-columns: 1fr; padding: 14px 16px 40px; } }
 
-/* ── Menú lateral (menu.js) ──────────────────────────────────────────────────
-   El cajón vive sobre la tinta, como la topbar, y usa el mismo vocabulario:
-   mono en mayúsculas para las etiquetas, cajas rectas, sin sombra. */
-.mn-btn {
-  order:-1; margin-right:-8px;   /* a la izquierda de la marca, pegado a ella */
-  display: grid; place-items: center; width: 38px; height: 38px; flex-shrink: 0; cursor: pointer;
-  border: 1px solid rgba(255,255,255,.14); background: transparent; color: rgba(239,237,230,.85);
-}
-.mn-btn:hover { background: rgba(255,255,255,.12); }
-.mn { position: fixed; inset: 0; z-index: 80; }
-.mn-scrim { position: absolute; inset: 0; background: rgba(17,17,32,.45); }
-.mn-panel {
-  position: absolute; top: 0; left: 0; bottom: 0; width: min(310px, 86vw);
-  display: flex; flex-direction: column;
-  background: var(--topbar); color: var(--topbar-text);
-  border-right: 1px solid rgba(0,0,0,.35);
-}
-.mn-head { display: flex; align-items: center; gap: 12px; padding: 20px; }
-.mn-brand { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1; }
-.mn-brand strong { font-family: var(--font-display); font-size: 20px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
-.mn-brand strong i { font-style: italic; }
-.mn-brand small { margin-top: 5px; font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .2em; text-transform: uppercase; opacity: .45; }
-.mn-x {
-  width: 28px; height: 28px; flex-shrink: 0; cursor: pointer; font-size: 16px; line-height: 1;
-  border: 1px solid rgba(255,255,255,.22); background: transparent; color: var(--topbar-text);
-}
-.mn-x:hover { background: rgba(255,255,255,.12); }
-.mn-label {
-  padding: 14px 20px 9px; opacity: .35;
-  font-family: var(--font-mono); font-size:10px; font-weight: 700;
-  letter-spacing: .16em; text-transform: uppercase;
-}
-.mn-nav { display: flex; flex-direction: column; }
-.mn-item {
-  display: flex; align-items: center; gap: 12px; padding: 12px 20px;
-  color: var(--topbar-text); text-decoration: none; border-left: 3px solid transparent;
-}
-.mn-item:hover { background: rgba(255,255,255,.07); color: var(--topbar-text); }
-.mn-item.active { background: rgba(255,255,255,.12); border-left-color: var(--paper); }
-.mn-item.soon { opacity: .4; cursor: default; }
-.mn-item.soon:hover { background: transparent; }
-.mn-txt { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.3; }
-.mn-txt strong { font-family: var(--font-ui); font-size: 13.5px; font-weight: 600; }
-.mn-txt small { margin-top: 2px; font-size: 11px; opacity: .45; }
-.mn-soon {
-  flex-shrink: 0; padding: 3px 6px; background: rgba(255,255,255,.09); opacity: .7;
-  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
-  letter-spacing: .08em; text-transform: uppercase;
-}
-.mn-foot {
-  display: flex; align-items: center; gap: 11px; margin-top: auto; padding: 16px 20px;
-  border-top: 1px solid rgba(255,255,255,.09);
-}
-.mn-ava {
-  display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0;
-  background: var(--paper); color: var(--topbar);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
-}
-
 /* ── Editor markdown del panel de tarea ──────────────────────────────────── */
 .md-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .md-b {
@@ -1619,25 +1596,21 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
    El corte está donde se rompe el contenido, no en un tamaño de aparato:
    324 de navegación + ~210 de marca + ~160 de la derecha + los huecos ≈ 760.
 
-   La navegación no se encoge: desaparece. `menu.js` ya inyecta un cajón con las
-   mismas cuatro entradas y su botón vive en la topbar desde siempre — repetirlas
-   en una fila horizontal era la versión de escritorio de algo que ya tenía su
-   versión de teléfono. Y el buscador pasa a su propio renglón: con `flex:1` y
-   `min-width:0` se encogía hasta 0 px de ancho, o sea que en el teléfono no
-   estaba estrecho, estaba inutilizable. Sólo lo tienen index, clientes y tareas;
-   en las demás la topbar sigue siendo una sola fila. */
+   La navegación la resuelve el bloque de ≤900 px de más abajo: un botón «Menú»
+   con hoja inferior (menu.js). Y el buscador pasa a su propio renglón: con
+   `flex:1` y `min-width:0` se encogía hasta 0 px de ancho, o sea que en el
+   teléfono no estaba estrecho, estaba inutilizable. Sólo lo tienen index,
+   clientes y tareas; en las demás la topbar sigue siendo una sola fila. */
 @media (max-width: 760px) {
   .topbar {
     flex-wrap: wrap; height: auto; min-height: 58px;
     gap: 12px; padding: 0 14px;
   }
-  .topbar-nav { display: none; }            /* el cajón de menu.js hace este trabajo */
   .topbar-rule { display: none; }           /* filete decorativo, no información */
   .topbar-right { gap: 10px; min-width: 0; }
   .brand-group { gap: 10px; }
-  /* Para que la marca, el botón del cajón y los controles quepan en un renglón:
-     235 + 38 + 239 no entran en 390. Se va el subtítulo de la marca —el cajón lo
-     sigue mostrando— y el contador, que el tablero ya repite en su propia barra.
+  /* Para que la marca, el botón «Menú» y los controles quepan en un renglón:
+     235 + 38 + 239 no entran en 390. Se va el subtítulo de la marca y el contador, que el tablero ya repite en su propia barra.
      Si se quedaran, `.topbar-right` se iría a un renglón propio y la barra
      pegajosa pasaría de 58 a 176 px: una quinta parte de la pantalla, siempre. */
   .brand-sub { display: none; }
@@ -1688,8 +1661,6 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
   .tk-bar { padding: 10px 14px; }
 }
 
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    REDISEÑO v0.5 — pantallas aprobadas en "OfficeLab Final.dc.html".
    Todo lo de abajo sobrescribe reglas anteriores; se deja al final a propósito
@@ -1699,13 +1670,54 @@ textarea.ficha-in { height: auto; min-height: 60px; padding: 9px 11px; resize: v
 /* ── Topbar compacta con pestañas (sin hamburguesa) ─────────────────────── */
 .topbar { height:52px; gap:20px; padding:0 20px; }
 .brand { font-size:17px; }
-.brand-sub, .topbar-rule, .mn-btn { display:none; }
+.brand-sub, .topbar-rule { display:none; }
 .brand-mark { width:22px; height:22px; }
 .topbar-nav a { height:52px; padding:0 14px; font-size:13px; white-space:nowrap; }
 .topbar-nav a.active { border-bottom:none; box-shadow:inset 0 -2px 0 var(--paper); }
+/* Botón «Menú» y su hoja inferior (menu.js). Sólo aparecen a ≤900 px, donde las
+   pestañas no caben; la hoja vive sobre la tinta, como la topbar. */
+.nav-menu {
+  display:none; align-items:center; gap:7px; height:32px; padding:0 11px; flex-shrink:0;
+  border:1px solid rgba(255,255,255,.18); background:transparent; color:var(--topbar-text);
+  font-family:var(--font-ui); font-size:13px; font-weight:600; cursor:pointer;
+}
+.nav-menu:hover { background:rgba(255,255,255,.12); }
+.nav-hoja {
+  margin:auto 0 0; width:100%; max-width:none; max-height:85vh; padding:0 0 env(safe-area-inset-bottom);
+  border:none; border-top:1px solid rgba(255,255,255,.12);
+  background:var(--topbar); color:var(--topbar-text); overflow-y:auto;
+}
+.nav-hoja::backdrop { background:rgba(17,17,32,.45); }
+.nav-hoja-head {
+  display:flex; align-items:center; justify-content:space-between; padding:14px 18px 8px;
+  font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.16em;
+  text-transform:uppercase; color:rgba(239,237,230,.6);
+}
+.nav-hoja-x {
+  width:44px; height:44px; margin:-10px -12px -10px 0; border:none; background:transparent;
+  color:var(--topbar-text); font-size:22px; line-height:1; cursor:pointer;
+}
+.nav-hoja-lista { display:flex; flex-direction:column; padding-bottom:8px; }
+.nav-hoja-lista a {
+  display:flex; align-items:center; gap:10px; min-height:50px; padding:0 18px;
+  border-left:3px solid transparent; color:var(--topbar-text); text-decoration:none;
+  font-family:var(--font-ui); font-size:15px; font-weight:500;
+}
+.nav-hoja-lista a:hover { background:rgba(255,255,255,.07); }
+.nav-hoja-lista a.active { font-weight:700; background:rgba(255,255,255,.1); border-left-color:var(--paper); }
+.nav-hoja-pie {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:12px 18px 16px; border-top:1px solid rgba(255,255,255,.1);
+}
+.nav-hoja-pie[hidden] { display:none; }
+.nav-hoja-quien { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:rgba(239,237,230,.7); }
+.nav-hoja-salir {
+  height:40px; padding:0 14px; flex-shrink:0; border:1px solid rgba(255,255,255,.22);
+  background:transparent; color:var(--topbar-text); font-family:var(--font-ui); font-size:13px; font-weight:600; cursor:pointer;
+}
 .tb-badge {
   font-family:var(--font-mono); font-size:10px; font-weight:700; line-height:1;
-  padding:2px 5px; background:#F0A18E; color:#201333;
+  padding:2px 5px; background:var(--tb-badge); color:var(--topbar);
 }
 .topbar-search { max-width:360px; }
 .search-box { height:32px; }
@@ -1786,7 +1798,7 @@ body.inm-page { height:100vh; display:flex; flex-direction:column; overflow:hidd
 .card.on { border-color:var(--accent); box-shadow:3px 3px 0 var(--accent); }
 .card.sel { border-color:var(--accent); }
 .card-img { height:120px; }
-.card .badge-src { top:auto; bottom:8px; left:8px; font-size:9px; padding:2px 6px; }
+.card .badge-src { top:auto; bottom:8px; left:8px; font-size:10px; padding:2px 6px; }
 .card .badge-size { bottom:8px; right:8px; font-size:10px; padding:2px 6px; }
 .card .badge-foto { display:none; }
 .btn-star { top:6px; right:6px; width:28px; height:28px; font-size:15px; }
@@ -1800,7 +1812,7 @@ body.inm-page { height:100vh; display:flex; flex-direction:column; overflow:hidd
 .card.sel .card-chk { background:var(--blue); color:var(--paper); border-color:var(--paper); }
 .card-body { padding:9px 11px 10px; gap:4px; }
 .card-price strong { font-size:19px; }
-.card-ppm, .price-note { margin-top:2px; font-size:9.5px; }
+.card-ppm, .price-note { margin-top:2px; font-size:10px; }
 .card-ver, .card-sep, .card-tags { display:none; }
 .card-title { font-size:12.5px; font-weight:600; -webkit-line-clamp:1; }
 .card-dir { font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1809,7 +1821,7 @@ body.inm-page { height:100vh; display:flex; flex-direction:column; overflow:hidd
 .card-status .status-dot { display:none; }
 .status-select {
   flex:0 0 auto; height:24px; padding:0 8px; font-family:var(--font-mono);
-  font-size:9.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
 }
 .pagination { padding:0 20px 24px; }
 body.has-tray .inm-list { padding-bottom:70px; }
@@ -1829,7 +1841,7 @@ body.has-tray .inm-list { padding-bottom:70px; }
 }
 .tray-item img, .tray-thumb {
   width:46px; height:44px; object-fit:cover; flex-shrink:0; display:block;
-  background:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0 1px,transparent 1px 7px),#140a22;
+  background:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0 1px,transparent 1px 7px),var(--blue);
 }
 .tray-txt { flex:1; min-width:0; display:flex; flex-direction:column; }
 .tray-txt b { font-family:var(--font-display); font-size:15px; font-weight:500; }
@@ -1881,7 +1893,7 @@ body.has-tray .inm-list { padding-bottom:70px; }
 .cmp-table thead td { padding:10px; vertical-align:top; }
 .cmp-k {
   width:170px; padding:0 14px; height:40px; text-align:left;
-  font-family:var(--font-mono); font-size:9.5px; font-weight:400; letter-spacing:.1em;
+  font-family:var(--font-mono); font-size:10px; font-weight:400; letter-spacing:.1em;
   text-transform:uppercase; color:var(--faint);
 }
 .cmp-v { padding:8px 12px; font-size:13px; }
@@ -1889,8 +1901,8 @@ body.has-tray .inm-list { padding-bottom:70px; }
 .cmp-v.precio { font-family:var(--font-display); font-size:18px; }
 .cmp-v.mejor { background:var(--r-rentado); }
 .cmp-v.mejor::after {
-  content:'MEJOR'; float:right; margin-top:2px; padding:1px 5px; background:var(--s-rentado); color:#fff;
-  font-family:var(--font-mono); font-size:8.5px; font-weight:700; letter-spacing:.06em;
+  content:'MEJOR'; float:right; margin-top:2px; padding:1px 5px; background:var(--s-rentado); color:var(--surface);
+  font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.06em;
 }
 .cmp-foto { position:relative; height:130px; background:var(--blue); overflow:hidden; }
 .cmp-foto img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -1920,26 +1932,45 @@ tr.igual.ocultar { display:none; }
 /* ── Móvil ────────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .topbar { gap:10px; padding:0 12px; }
-  /* El bloque de ≤760 px de arriba escondía la navegación porque la hacía el cajón
-     de menu.js; el rediseño quitó el cajón, así que las pestañas se quedan y se
-     desplazan de lado. La topbar vuelve a ser una sola fila de 52 px. */
+  /* Cinco pestañas no caben: a 390 px la fila medía 440 contra 254 de caja, se
+     cortaba a media palabra y Clientes/Tareas quedaban fuera sin señal de que se
+     deslizaba. Aquí las sustituye el botón «Menú» de menu.js, que abre una hoja
+     inferior con los mismos enlaces. La topbar es una sola fila de 52 px. */
   .topbar { flex-wrap:nowrap; height:52px; min-height:0; }
-  .topbar-nav { display:flex; overflow-x:auto; min-width:0; flex:1 1 auto; }
-  .topbar-nav a { padding:0 10px; }
+  .topbar-nav { display:none; }
+  .nav-menu { display:inline-flex; }
   .topbar-search { display:none; }
   .inm.split { grid-template-columns:minmax(0,1fr); grid-template-rows:34vh minmax(0,1fr); }
   .inm.split .inm-map { order:-1; border-left:none; border-bottom:1px solid var(--border-2); }
   .grid, .inm.split .grid { grid-template-columns:repeat(2,minmax(0,1fr)); padding:10px 12px; gap:8px; }
   .card-img { height:92px; }
   .card-chk { opacity:1; width:30px; height:30px; }
+  .card-status { margin-top:auto; padding-top:4px; }
   .statebar { flex-wrap:nowrap; overflow-x:auto; }
   .statebar-right .btn-clear, .statebar .count-tag { display:none; }
+  /* Las píldoras se deslizan por debajo; Rejilla / + mapa se queda pegado a la
+     derecha, que si no quedaba fuera de la pantalla detrás de siete píldoras. */
+  .statebar { padding-right:0; }
+  .statebar-right { position:sticky; right:0; z-index:1; align-self:stretch; padding:0 12px 0 10px;
+                    background:var(--bg); border-left:1px solid var(--border); }
+  .seg button { white-space:nowrap; }
+  .seg-ancho { display:none; }
   .qbar { padding:8px 12px; }
   .qbar-search { flex-basis:100%; }
   .tray { padding:8px 12px; }
   .tray-items { display:none; }
   .tray-actions { margin-left:auto; }
   #trayClear { display:none; }
+}
+/* Tarjeta horizontal: a 390 px dos columnas eran de 179 px y no cabían precio, título,
+   dirección y estado. Una columna con la foto a la izquierda enseña más tarjetas por
+   pantalla que una columna de tarjetas verticales. */
+@media (max-width: 700px) {
+  .grid, .inm.split .grid { grid-template-columns:minmax(0,1fr); }
+  .card { flex-direction:row; min-height:124px; }
+  .card-img { width:124px; height:auto; }
+  .card .badge-size { right:auto; left:8px; bottom:30px; }
+  .card-body { flex:1; min-width:0; }
 }
 @media (max-width: 560px) {
   .brand-text { display:none; }
@@ -1970,11 +2001,24 @@ tr.igual.ocultar { display:none; }
   background:var(--paper); color:var(--blue); font-size:12.5px; font-weight:600; text-decoration:none;
 }
 .fx-back { left:20px; padding:6px 11px; }
-.fx-back:hover { color:var(--blue); background:#fff; }
-.fx-nav { right:20px; gap:0; }
-.fx-nav span { padding:0 10px; font-family:var(--font-mono); font-size:11px; }
-.fx-nav button { width:32px; height:30px; border:none; background:transparent; color:inherit; font-size:14px; cursor:pointer; }
-.fx-nav button:disabled { opacity:.3; cursor:default; }
+.fx-back:hover { color:var(--blue); background:var(--paper); text-decoration:underline; }
+/* Anterior / siguiente de la página del tablero: una franja propia bajo la foto. */
+.fx-pasos {
+  display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 24px;
+  background:var(--bg); border-bottom:1px solid var(--border);
+}
+.fx-paso {
+  display:inline-flex; align-items:center; gap:7px; min-height:32px; padding:0 8px;
+  border:none; background:transparent; color:var(--ink); cursor:pointer;
+  font-family:var(--font-ui); font-size:13px; font-weight:600;
+}
+.fx-paso:hover:not(:disabled) { text-decoration:underline; }
+.fx-paso:disabled { color:var(--faint); cursor:default; }
+.fx-paso kbd {
+  padding:1px 5px; border:1px solid var(--border-2); font-family:var(--font-mono);
+  font-size:10px; font-weight:700; color:var(--muted);
+}
+.fx-pasos-n { font-family:var(--font-mono); font-size:11px; color:var(--muted); text-align:center; }
 
 .fx-band {
   display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 24px;
@@ -2000,6 +2044,25 @@ tr.igual.ocultar { display:none; }
 .fx-btn:hover { border-color:var(--accent); color:var(--accent); }
 .fx-btn.solid { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 .fx-btn.solid:hover { color:var(--on-accent); opacity:.9; }
+/* Estado, destacar, WhatsApp y «Más». El menú es un <details>: abre sin JS y con
+   teclado; listing.js sólo lo cierra al tocar fuera o con Escape. */
+.fx-acciones { display:flex; align-items:center; gap:8px; }
+.fx-mas-menu { position:relative; }
+.fx-mas-menu > summary { list-style:none; }
+.fx-mas-menu > summary::-webkit-details-marker { display:none; }
+.fx-mas-menu[open] > summary { border-color:var(--accent); }
+.fx-mas-lista {
+  position:absolute; right:0; top:calc(100% + 4px); z-index:30; min-width:230px;
+  display:flex; flex-direction:column; padding:4px; background:var(--surface); border:1px solid var(--border-2);
+}
+.fx-mas-item {
+  display:flex; align-items:center; gap:8px; min-height:40px; padding:0 12px; border:none;
+  background:transparent; color:var(--ink); text-align:left; text-decoration:none; cursor:pointer;
+  font-family:var(--font-ui); font-size:13.5px; font-weight:600;
+}
+.fx-mas-item:hover { background:var(--accent-soft); color:var(--ink); }
+.fx-mas-item:disabled { color:var(--faint); cursor:progress; }
+.fx-mas-item.peligro { color:var(--s-rechazado); }
 
 .fx-cols {
   display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);
@@ -2011,7 +2074,7 @@ tr.igual.ocultar { display:none; }
 .fx-card { background:var(--surface); border:1px solid var(--border); padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
 .fx-card h2 {
   display:flex; align-items:center; gap:8px;
-  font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:.12em;
+  font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.12em;
   text-transform:uppercase; color:var(--faint);
 }
 .fx-n { font-weight:400; color:var(--muted); }
@@ -2020,7 +2083,7 @@ tr.igual.ocultar { display:none; }
 .fx-facts dd { font-family:var(--font-mono); font-size:13px; font-weight:700; margin-top:2px; }
 .fx-desc { font-size:13px; line-height:1.6; color:var(--ink); white-space:pre-line; }
 .fx-feat { display:flex; flex-wrap:wrap; gap:5px; list-style:none; }
-.fx-feat li { padding:3px 8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:9.5px; color:var(--muted); }
+.fx-feat li { padding:3px 8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:10px; color:var(--muted); }
 .fx-pdfdata { border-top:1px solid var(--border); padding-top:10px; display:flex; flex-direction:column; gap:8px; }
 .fx-pdfdata summary { cursor:pointer; font-size:12.5px; font-weight:600; color:var(--muted); }
 .fx-pdfdata[open] summary { margin-bottom:8px; }
@@ -2053,7 +2116,7 @@ tr.igual.ocultar { display:none; }
 .fx-doc .doc-clip:hover, .fx-add .doc-file:hover, .fx-add .foto-sube:hover { border-color:var(--accent); color:var(--ink); }
 .fx-file { display:flex; align-items:center; gap:8px; margin:-2px 0 0 24px; padding-left:9px; border-left:2px solid var(--border); font-size:12.5px; }
 .fx-file a { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--accent); }
-.fx-file small { font-family:var(--font-mono); font-size:9.5px; color:var(--faint); flex-shrink:0; }
+.fx-file small { font-family:var(--font-mono); font-size:10px; color:var(--faint); flex-shrink:0; }
 .fx-file .file-del, .fx-thumb button { border:none; cursor:pointer; }
 .fx-file .file-del { width:24px; height:22px; background:transparent; color:var(--faint); font-size:14px; }
 .fx-file .file-del:hover { color:var(--s-rechazado); }
@@ -2098,6 +2161,20 @@ tr.igual.ocultar { display:none; }
   .fx-cols, .fx-cols.pres { grid-template-columns:1fr; padding:12px 12px 90px; }
   .fx-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .fx-btn, .fx-status, .fx-star { height:44px; }
+  /* Barra fija abajo: antes las acciones se partían en dos filas y «Ficha PDF /
+     Análisis» colgaban detrás. `.fx-cols` ya deja 90 px abajo para ella. */
+  .fx-acciones {
+    position:fixed; left:0; right:0; bottom:0; z-index:40;
+    padding:8px 12px calc(8px + env(safe-area-inset-bottom));
+    background:var(--surface); border-top:1px solid var(--border-2);
+  }
+  .fx-acciones .fx-status { flex:1; min-width:0; }
+  .fx-mas-lista { top:auto; bottom:calc(100% + 6px); }
+  .fx-pasos { padding:4px 8px; }
+  .fx-pasos-n { font-size:10px; }
+  .fx-pasos-de { display:none; }
+  .fx-paso { white-space:nowrap; }
+  .fx-paso kbd { display:none; }
 }
 
 /* ── Ficha técnica PDF · formato Pro Realtors ─────────────────────────────── */
@@ -2179,7 +2256,7 @@ tr.igual.ocultar { display:none; }
 .cl-txt b { font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cl-txt small { font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cl-meta { display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0; }
-.cl-meta small { font-family:var(--font-mono); font-size:9.5px; color:var(--muted); }
+.cl-meta small { font-family:var(--font-mono); font-size:10px; color:var(--muted); }
 .cl-bars { display:flex; gap:2px; }
 .cl-bars i { display:block; height:6px; }
 .cl-empty { padding:24px 14px; font-size:13px; color:var(--faint); }
@@ -2201,7 +2278,7 @@ tr.igual.ocultar { display:none; }
 .cl-fields { display:grid; grid-template-columns:1fr 1fr 2fr; border:1px solid var(--border); }
 .cl-f { display:flex; flex-direction:column; gap:2px; padding:7px 10px 6px; }
 .cl-f + .cl-f { border-left:1px solid var(--border); }
-.cl-f > span { font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.cl-f > span { font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
 .cl-f .cli-in { font-size:13px; }
 /* Cuenta: selector del equipo, con la misma presencia que los campos de texto. */
 .cl-sel { height:26px; border:none; background:transparent; padding:0; font-family:var(--font-ui); font-size:13px; color:var(--ink); cursor:pointer; }
@@ -2221,7 +2298,7 @@ tr.igual.ocultar { display:none; }
 .cl-f .crit-pill { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 4px 0 10px;
   border:1px solid var(--accent); background:var(--accent-soft); color:var(--ink);
   font-family:var(--font-ui); font-size:12.5px; font-weight:600; letter-spacing:0; text-transform:none; }
-.crit-pill b { font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); }
+.crit-pill b { font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); }
 .crit-x { width:20px; height:20px; border:none; background:transparent; color:var(--muted); font-size:15px; line-height:1; cursor:pointer; }
 .crit-x:hover { color:var(--ink); }
 .cl-f .crit-wrap { position:relative; font-family:var(--font-ui); font-size:inherit; letter-spacing:0; text-transform:none; color:inherit; }
@@ -2238,7 +2315,7 @@ tr.igual.ocultar { display:none; }
 .crit-opt { height:32px; padding:0 10px; border:none; background:transparent; text-align:left;
   font-family:var(--font-ui); font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; }
 .crit-opt:hover { background:var(--accent-soft); }
-.crit-pop-t { font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.crit-pop-t { font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
 .crit-chips { display:flex; flex-wrap:wrap; gap:6px 12px; }
 .crit-chips label { display:inline-flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; }
 .crit-rango { display:flex; align-items:center; gap:6px; }
@@ -2395,7 +2472,7 @@ textarea.cl-ein { resize:vertical; line-height:1.5; }
 .cl-colchk { accent-color:var(--accent); }
 button.cl-chip { border:1px solid transparent; font-family:var(--font-ui); cursor:pointer; }
 button.cl-chip.on { border-color:currentColor; }
-.cl-resp { width:22px; height:22px; font-size:9px; }
+.cl-resp { width:22px; height:22px; font-size:10px; }
 /* Estatus del cliente (activo, contactando…): un color por estatus, en la lista y en
    el selector de su ficha. Y el asa para reordenar la lista, que sólo se ve al pasar. */
 .est-activo { --est:var(--s-aprobado); }
@@ -2412,7 +2489,7 @@ button.cl-chip.on { border-color:currentColor; }
 .cl-item.dragging { opacity:.4; }
 .cl-item.drop-a { border-top:2px solid var(--accent); }
 .cl-item.drop-b { border-bottom:2px solid var(--accent); }
-.cl-th { min-height:28px; font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.cl-th { min-height:28px; font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
 .cl-th-img { width:52px; height:36px; object-fit:cover; display:block; }
 .cl-th-ver { padding:0; border:none; background:none; cursor:zoom-in; display:block; flex-shrink:0; }
 .cl-th-img.vacio { background:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0 1px,transparent 1px 7px),var(--blue); }
@@ -2423,7 +2500,7 @@ button.cl-chip.on { border-color:currentColor; }
 .cl-mono { font-family:var(--font-mono); font-size:11px; color:var(--muted); }
 /* Quién presentó: avatar de tono (el mismo del pipeline) + nombre. */
 .cl-trae { display:flex; align-items:center; gap:8px; min-width:0; }
-.cl-trae .tk-ava { width:24px; height:24px; font-size:9.5px; }
+.cl-trae .tk-ava { width:24px; height:24px; font-size:10px; }
 .cl-trae-n { font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cl-trae-n.sin { font-weight:400; color:var(--faint); }
 .cl-x { width:24px; height:24px; border:none; background:transparent; color:var(--faint); font-size:16px; cursor:pointer; }
@@ -2489,12 +2566,12 @@ button.cl-chip.on { border-color:currentColor; }
   align-items:center; padding:0 16px; min-height:54px; border-bottom:1px solid var(--border); min-width:980px;
 }
 .sc-tr:last-child { border-bottom:none; }
-.sc-th { min-height:32px; border-bottom-color:var(--border-2); font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.sc-th { min-height:32px; border-bottom-color:var(--border-2); font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
 .sc-tr.e-rentado { --sc-color:var(--s-rentado); } .sc-tr.e-contactado { --sc-color:var(--s-contactado); } .sc-tr.e-descartado { --sc-color:var(--s-descartado); }
 .sc-src { display:flex; align-items:center; gap:9px; min-width:0; }
 .sc-src > i { width:9px; height:9px; flex-shrink:0; background:var(--sc-color); }
 .sc-src b { display:block; font-size:13.5px; }
-.sc-src small { font-family:var(--font-mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--sc-color); }
+.sc-src small { font-family:var(--font-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--sc-color); }
 .sc-ago { font-family:var(--font-mono); font-size:11px; color:var(--muted); }
 .sc-tr.e-contactado .sc-ago, .sc-tr.e-descartado .sc-ago { color:var(--sc-color); }
 .sc-big { font-family:var(--font-display); font-size:18px; font-feature-settings:'tnum'; }
@@ -2551,7 +2628,7 @@ button.cl-chip.on { border-color:currentColor; }
 .tk-aside-body h2 { font-family:var(--font-display); font-size:22px; font-weight:500; line-height:1.2; color:var(--ink); }
 .tk-aside-body label {
   display:block; margin-bottom:6px; color:var(--faint);
-  font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
 }
 .tk-aside-body input, .tk-aside-body select, .tk-aside-body textarea {
   width:100%; padding:8px 10px; border:1px solid var(--border-2); background:var(--bg); color:var(--ink);
@@ -2632,7 +2709,7 @@ button.cl-chip.on { border-color:currentColor; }
 textarea.base-in { resize:vertical; }
 .fx-tag { display:inline-flex; align-items:center; height:36px; padding:0 10px; border:1px dashed var(--border-2); font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
 /* Quién lleva la cuenta de cada cliente al que se propuso la propiedad. */
-.fx-resp { width:22px; height:22px; font-size:9px; font-style:normal; }
+.fx-resp { width:22px; height:22px; font-size:10px; font-style:normal; }
 .fx-proc > span small { display:block; font-size:10.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
 
 /* ── Dedos, no cursor ────────────────────────────────────────────────────────
@@ -2712,4 +2789,94 @@ textarea.base-in { resize:vertical; }
   /* El buscador de clientes vive en la topbar, y en este corte la topbar lo esconde:
      sin esta caja, en el teléfono no había manera de buscar entre los clientes. */
   .cl-filtro-busca { display:flex; }
+}
+
+/* ── Escritorio ancho y escritorio chico (2026-10-28) ──────────────────────────
+   A 1920 las barras iban de borde a borde: el cursor se escribía en x=52 y
+   «Limpiar» quedaba en x=1,860, y el conteo a 1,500 px de las píldoras que describe.
+   El fondo sigue a todo lo ancho; el contenido se queda en 1,560 px al centro. */
+@media (min-width: 901px) {
+  .topbar, .qbar, .statebar, .frescura { padding-inline:max(20px, calc((100% - 1560px) / 2)); }
+  .fb-pop, .qpop { left:max(20px, calc((100% - 1560px) / 2)); }
+  /* Los tres chips y el buscador eran dos renglones para lo mismo: van en uno. */
+  .qbar { display:flex; align-items:center; gap:8px; }
+  .fb { margin-bottom:0; flex-wrap:nowrap; flex-shrink:0; }
+  .qbar-box { flex:1; min-width:0; }
+  /* El mapa se lleva a lo más 640 px: a 1920 se quedaba con 845 y la lista con cuatro
+     columnas de 251, más angostas que a 1440. */
+  .inm.split { grid-template-columns:minmax(0,1fr) clamp(360px, 40%, 640px); }
+  .inm.split .grid { grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); }
+}
+/* A 720 de alto la foto de la ficha se llevaba 250 px y el primer dato útil caía en
+   y=432: en pantallas bajas se encoge. */
+@media (max-height: 800px) and (min-width: 901px) {
+  .fx-mosaic { height:clamp(180px, 26vh, 380px); }
+}
+
+/* Quien pide menos movimiento al sistema no ve transiciones ni animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration:.01ms !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; }
+}
+
+/* ── Confirmación y aviso compartidos (ui.js) ───────────────────────────────
+   Sustituyen a confirm() y alert(). La consecuencia va en el texto y el verbo en
+   el botón; la acción que no se deshace va en rojo y el foco empieza en Cancelar. */
+.ui-dlg {
+  margin:auto; width:min(440px, calc(100vw - 32px)); padding:0;
+  border:1px solid var(--border-2); background:var(--surface); color:var(--ink);
+}
+.ui-dlg::backdrop { background:rgba(17,17,32,.45); }
+.ui-dlg form { display:flex; flex-direction:column; gap:12px; padding:20px 20px 16px; }
+.ui-dlg-t { font-family:var(--font-display); font-size:20px; font-weight:500; line-height:1.25; }
+.ui-dlg-x { font-size:14px; line-height:1.5; color:var(--muted); white-space:pre-line; }
+.ui-dlg-acc { display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+.ui-dlg-acc button {
+  min-height:38px; padding:0 16px; cursor:pointer;
+  font-family:var(--font-ui); font-size:13.5px; font-weight:600;
+}
+.ui-dlg-no { border:1px solid var(--border-2); background:transparent; color:var(--ink); }
+.ui-dlg-si { border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); }
+.ui-dlg-si.peligro { border-color:var(--s-rechazado); background:var(--s-rechazado); color:var(--surface); }
+.ui-aviso {
+  position:fixed; left:50%; bottom:84px; transform:translateX(-50%); z-index:95;
+  display:flex; align-items:center; gap:12px; max-width:min(560px, 92vw); padding:10px 8px 10px 16px;
+  background:var(--ink); color:var(--bg); font-size:13.5px; line-height:1.4;
+}
+.ui-aviso[hidden] { display:none; }
+.ui-aviso button {
+  width:32px; height:32px; flex-shrink:0; border:none; background:transparent;
+  color:inherit; font-size:18px; line-height:1; cursor:pointer; opacity:.7;
+}
+
+/* ── Jerarquía del tablero (2026-10-28) ─────────────────────────────────────── */
+/* Mientras llega la respuesta de un filtro (app.js, cargando()). */
+.grid.cargando { opacity:.55; cursor:progress; transition:opacity .15s; }
+.cargando-txt { font-family:var(--font-mono); font-size:11px; color:var(--muted); white-space:nowrap; }
+.cargando-txt[hidden] { display:none; }
+/* «Ordenar: Recientes ▾»: un select nativo vestido de chip, para que el teléfono abra
+   su propio selector. */
+.orden-chip {
+  display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 4px 0 9px;
+  border:1px solid var(--border-2); background:var(--surface); cursor:pointer;
+  font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--faint); white-space:nowrap;
+}
+.orden-chip select {
+  height:26px; border:none; background:transparent; color:var(--ink); cursor:pointer; outline:none;
+  font-family:var(--font-ui); font-size:12.5px; font-weight:600; letter-spacing:0; text-transform:none;
+}
+.orden-chip:focus-within { border-color:var(--accent); }
+/* El estado en la tarjeta es una etiqueta: un select nativo sin flecha propia, que al
+   tocarlo abre el selector del sistema. «Nuevo» —casi todo el inventario— va sin
+   relleno para que setenta tarjetas no se lean como setenta cajas moradas; los
+   estados que sí dicen algo conservan su color. */
+.card-status { align-items:center; gap:0; }
+.card-status::after { content:'▾'; margin-left:-16px; pointer-events:none; font-size:10px; color:var(--muted); }
+.card .status-select { padding-right:20px; }
+.card .status-select.s-Nuevo { background:transparent; border-color:var(--border-2); color:var(--muted); }
+
+/* Texto sólo para lectores de pantalla (los <h1> de index, clientes y tareas). */
+.sr-only {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }

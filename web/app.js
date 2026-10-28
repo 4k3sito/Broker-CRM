@@ -12,6 +12,7 @@
 // la pestaña sigue siendo `inmobiliaria`: así se llamó en pantalla hasta el 2026-10-06.
 const TAB = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
 const INMO = TAB === 'inmobiliaria';
+document.getElementById('pageTitle').textContent = INMO ? 'Catálogo' : 'Bolsa Inmobiliaria';
 // Cómo se llama la vista con que abre el mapa (config.js).
 const CENTRO_NOMBRE = window.OL_CONFIG?.centroNombre ?? 'Monterrey';
 try { sessionStorage.setItem('ol-tab', TAB); } catch { /* sin persistencia */ }
@@ -103,7 +104,9 @@ const activos = () => Object.keys(CAMPOS).filter(k =>
   k === 'radio'  ? !!F.near :
   k === 'm2'     ? !!(F.m2_min || F.m2_max) :
   k === 'ppm'    ? !!(F.ppm_min || F.ppm_max) :
-  k === 'orden'  ? F.orden !== 'recientes' : !!F[k]);
+  // El orden tiene su propio selector en la fila de estado: no es un filtro y no va
+  // como token (seguía en la paleta, que es otro camino al mismo selector).
+  k === 'orden'  ? false : !!F[k]);
 
 console.assert(activos().length === 0, 'sin filtros no debe haber tokens');
 
@@ -388,6 +391,7 @@ function render() {
   // intermedias sobraban (teclear "monterrey" encadenaba nueve cargas completas).
   if (renderEnEspera) return renderEnCurso;
   renderEnEspera = true;
+  cargando(true);
   renderEnCurso = (renderEnCurso ?? Promise.resolve()).then(() => {
     renderEnEspera = false;
     return _render();
@@ -395,15 +399,31 @@ function render() {
     console.error(err);
     document.getElementById('grid').innerHTML =
       `<div class="empty"><h2>No se pudo cargar el inventario</h2><p>${esc(err.message)}</p></div>`;
-  });
+  }).finally(() => { if (!renderEnEspera) cargando(false); });
   return renderEnCurso;
 }
+
+// Filtrar no daba señal: la rejilla conservaba las tarjetas viejas hasta que llegaba la
+// respuesta. Se atenúa y la fila de estado dice «Actualizando…»; sólo si tarda más de
+// 150 ms, para que una respuesta rápida no parpadee.
+let cargandoReloj = 0;
+function cargando(si) {
+  clearTimeout(cargandoReloj);
+  const aplicar = v => {
+    document.getElementById('grid').classList.toggle('cargando', v);
+    document.getElementById('grid').setAttribute('aria-busy', v);
+    document.getElementById('cargandoTxt').hidden = !v;
+  };
+  if (si) cargandoReloj = setTimeout(() => aplicar(true), 150); else aplicar(false);
+}
+const ordenSel = document.getElementById('ordenSel');
+ordenSel.innerHTML = Object.entries(ORDENES).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+ordenSel.addEventListener('change', () => { F.orden = ordenSel.value; page = 1; render(); });
 
 async function _render() {
   await cargarPagina();
 
-  document.getElementById('countNum').textContent = mx(totalFiltrado);
-  document.getElementById('countTotal').textContent = mx(facetas.total);
+  document.getElementById('ordenSel').value = F.orden;
   renderTokens();
   renderFB();
   renderStatusPills();
@@ -1024,19 +1044,26 @@ document.addEventListener('keydown', e => {
 // ── Vista: rejilla sola o rejilla + mapa ─────────────────────────────────────
 
 const inm = document.getElementById('inm');
+// En el teléfono el mapa se dibujaba primero y empujaba la primera tarjeta a y=587 de
+// 780, y a 1280 dejaba tarjetas de 219 px: hasta 1366 se abre en rejilla y el mapa
+// queda detrás de «+ mapa». La preferencia se guarda aparte por tamaño, para que la
+// de un monitor grande no decida la de la laptop.
+const CHICO = matchMedia('(max-width: 1366px)').matches;
+const VISTA_KEY = matchMedia('(max-width: 900px)').matches ? 'ol-vista-movil' : CHICO ? 'ol-vista-media' : 'ol-vista';
 function ponerVista(v) {
   inm.classList.toggle('split', v === 'split');
   inm.classList.toggle('grid-only', v !== 'split');
   document.querySelectorAll('.seg [data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === v));
-  try { localStorage.setItem('ol-vista', v); } catch { /* sin persistencia */ }
+  try { localStorage.setItem(VISTA_KEY, v); } catch { /* sin persistencia */ }
   requestAnimationFrame(() => Mapa.resize());
 }
 document.querySelector('.seg').addEventListener('click', e => {
   const b = e.target.closest('[data-vista]');
   if (b) ponerVista(b.dataset.vista);
 });
-// El mapa ya no depende de una llave (mapa.js): la vista por defecto es rejilla + mapa.
-ponerVista((() => { try { return localStorage.getItem('ol-vista'); } catch { return null; } })() ?? 'split');
+// El mapa ya no depende de una llave (mapa.js): en un monitor grande la vista por
+// defecto es rejilla + mapa; hasta 1366 px, rejilla.
+ponerVista((() => { try { return localStorage.getItem(VISTA_KEY); } catch { return null; } })() ?? (CHICO ? 'grid' : 'split'));
 
 Mapa.init(document.getElementById('map'), {
   onPin: id => {
@@ -1172,9 +1199,11 @@ document.getElementById('trayFusionar').hidden = INMO;
 document.getElementById('trayFusionar').addEventListener('click', async () => {
   const lista = [...seleccion.values()];
   const anuncios = lista.reduce((t, l) => t + l.anuncios, 0);
-  if (!confirm(`¿Estas ${lista.length} tarjetas son el mismo inmueble?\n\n`
-    + `Quedarán en una sola tarjeta con sus ${anuncios} anuncios, para todo el equipo. `
-    + 'Si alguno no era, se separa desde la ficha.')) return;
+  if (!(await UI.confirmar({
+    titulo: `¿Estas ${lista.length} tarjetas son el mismo inmueble?`,
+    texto: `Quedarán en una sola tarjeta con sus ${anuncios} anuncios, para todo el equipo. `
+      + 'Si alguno no era, se separa desde la ficha.',
+    verbo: 'Fusionar' }))) return;
   try {
     await API.post('/duplicados/fusionar', { ids: lista.map(l => l.id) });
     toast(`${lista.length} tarjetas fusionadas en una`);
@@ -1246,10 +1275,12 @@ document.getElementById('trayQuitar').addEventListener('click', async () => {
   const lista = [...seleccion.values()];
   const propias = lista.filter(l => l.id.startsWith('pipeline:')).length;
   const cuantas = lista.length === 1 ? 'esta propiedad' : `estas ${lista.length} propiedades`;
-  if (!confirm(`¿Eliminar ${cuantas} del Catálogo?\n\n`
-    + 'Se borra su ficha con sus documentos, fotos subidas, fichas PDF y lo presentado a clientes. No se puede deshacer.\n\n'
-    + (propias < lista.length ? 'Los anuncios de portal vuelven a la Bolsa. ' : '')
-    + (propias ? `${propias === 1 ? 'La que se dio' : `Las ${propias} que se dieron`} de alta a mano se ${propias === 1 ? 'pierde' : 'pierden'} por completo.` : ''))) return;
+  if (!(await UI.confirmar({
+    titulo: `¿Eliminar ${cuantas} del Catálogo?`,
+    texto: 'Se borra su ficha con sus documentos, fotos subidas, fichas PDF y lo presentado a clientes. No se puede deshacer.\n\n'
+      + (propias < lista.length ? 'Los anuncios de portal vuelven a la Bolsa. ' : '')
+      + (propias ? `${propias === 1 ? 'La que se dio' : `Las ${propias} que se dieron`} de alta a mano se ${propias === 1 ? 'pierde' : 'pierden'} por completo.` : ''),
+    verbo: 'Eliminar', peligro: true }))) return;
   const res = await Promise.allSettled(lista.map(l => API.quitarDeInmobiliaria(l.id)));
   const ok = res.filter(r => r.status === 'fulfilled').length;
   toast(ok === lista.length
@@ -1340,13 +1371,14 @@ API.me().then(async () => {
   if (INMO) await Promise.all([cargarClientes(), cargarEquipo()]);
   // Después del cliente: si la URL trae filtros, son los que el asesor ajustó encima.
   const u = aplicarURL();
-  // Se abre buscando en lo que el mapa enseña, si el mapa está a la vista. Con los
-  // criterios de un cliente no: sus lugares mandan, y el mapa encuadra lo que salga.
-  // El área de partida es la de `config.js`, no la del viewport: si la URL traía cámara
-  // se respeta esa —es una búsqueda que alguien compartió, no la de fábrica—.
+  // Se abre buscando en el área de partida de `config.js`, esté o no el mapa a la vista:
+  // hasta 1366 px el tablero abre en rejilla, y sin esto una laptop vería el inventario
+  // nacional y un monitor grande el de Monterrey. Con los criterios de un cliente no: sus
+  // lugares mandan, y el mapa encuadra lo que salga. Si la URL traía cámara y el mapa se
+  // ve, se respeta esa —es una búsqueda que alguien compartió, no la de fábrica—.
   if (F.cliente) seguirMapa(false);
-  else if (mapFollow.checked && inm.classList.contains('split')) {
-    const area = u.mapa ? Mapa.area() : areaInicial();
+  else if (mapFollow.checked) {
+    const area = u.mapa && inm.classList.contains('split') ? Mapa.area() : areaInicial();
     if (area) buscarEnElMapa(area, u.mapa ? MAPA_TXT : CENTRO_NOMBRE);
   }
   await render();

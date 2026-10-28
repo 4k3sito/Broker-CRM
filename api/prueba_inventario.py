@@ -283,6 +283,20 @@ def las_paginas(conn):
         pass
 
 
+def el_csv_es_todas_las_paginas(conn):
+    """`exportar` devuelve lo mismo que `buscar` página tras página, en el mismo orden."""
+    for quien, filtros in ((Asesor(ANA), {}), (Asesor(ANA), {"fusion": False}), (Llave(), {})):
+        paginas = [x["id"] for pg in (1, 2, 3, 4) for x in
+                   inventario.buscar(conn, quien, filtros, orden="precio_asc", page=pg, per_page=3)["items"]]
+        assert [x["id"] for x in inventario.exportar(conn, quien, filtros, "precio_asc")] == paginas
+    assert len(inventario.exportar(conn, Asesor(ANA), {}, tope=5)) == 5
+    try:
+        inventario.exportar(conn, Asesor(ANA), {}, "al azar")
+        raise AssertionError("un orden desconocido debió rechazarse")
+    except FiltroInvalido:
+        pass
+
+
 def los_contadores(conn):
     """A cuántos llegarías por estado y por fuente, con los demás filtros puestos."""
     c = inventario.contar(conn, Asesor(ANA), {})
@@ -353,7 +367,7 @@ def con_llave_solo_el_inventario(conn):
     assert inventario.uno(conn, Llave(), X1)["activo"] is False
 
 
-PRUEBAS = [el_tablero_sin_filtros, lo_dado_de_baja_se_esconde, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
+PRUEBAS = [el_csv_es_todas_las_paginas, el_tablero_sin_filtros, lo_dado_de_baja_se_esconde, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
            la_operacion_incluye_la_oferta_alterna, el_tipo_es_el_normalizado, el_precio_es_el_total,
            con_operacion_el_precio_es_el_de_esa_operacion, el_precio_por_metro,
            la_superficie_que_se_pide, cerca_de_un_punto, el_seguimiento_es_de_cada_asesor,
