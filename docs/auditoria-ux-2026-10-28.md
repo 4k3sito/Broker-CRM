@@ -9,6 +9,9 @@
 ver H8 en `PENDIENTES.md` — hay que borrarla al cerrar el trabajo).
 **Artefactos:** capturas y `reporte.json` en `/home/ake/auditoria-ol/`.
 
+> **Estado:** esto describe el sitio **antes** del PR #13, que cierra S1.1, S1.2, S1.3, S1.4,
+> S2.13 y R1. El resto sigue abierto y se reparte en los otros tres PR del plan.
+
 ---
 
 ## Veredicto
@@ -75,10 +78,10 @@ Es la misma que ya existe: mover el `<input>` al bloque de la lista y que el fil
 ### S1.4 A 1280 px el botón «Agregar» de una propiedad queda cortado · S
 En `clientes.html`, a 1280×720 el compositor de propiedades se sale de la ventana:
 `form.cl-addrow` mide **958 px** dentro de una columna de ~917, así que el botón «Agregar»
-termina **29 px fuera de la pantalla** — y no se puede alcanzar de ninguna manera, porque el
-documento **no** tiene scroll horizontal (`scrollWidth` = `clientWidth`): lo que sobra se
-recorta. Es el ancho de un portátil de 13" cualquiera, y 1366×768 —que es más común todavía—
-queda igual o peor.
+termina **29 px fuera de la ventana**. Se alcanza sólo si uno adivina que la tabla se desliza
+de lado: el `overflow-x` está en `.cl-table`, así que el documento no delata nada
+(`scrollWidth` = `clientWidth`) y no hay barra a la vista. Es el ancho de un portátil de 13"
+cualquiera, y 1366×768 —más común todavía— queda igual o peor.
 **Arreglo:** `min-width:0` en el `input` de `.cl-addrow` y `flex-wrap:wrap`, o el botón en su
 propio renglón por debajo de 1400 px. Re-medir a 1366×768 antes de cerrarlo.
 
