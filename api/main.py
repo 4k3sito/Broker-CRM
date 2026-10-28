@@ -14,8 +14,10 @@ asesores, no un SaaS — un formulario de alta abierto solo regala acceso al inv
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import hmac
+import io
 import os
 import re
 import secrets
@@ -547,6 +549,97 @@ def facets(
     filtros = locals()
     with POOL.connection() as conn:
         return inventario.contar(conn, Asesor(user["id"]), filtros)
+
+
+# ── CSV del inventario ──────────────────────────────────────────────────────────
+# El tope no es un límite técnico: el inventario nacional son ~464k anuncios y nadie manda
+# eso por correo. Con un filtro puesto —que es como se usa— 20,000 sobran.
+CSV_TOPE = 20_000
+
+
+def _csv_celda(v):
+    """Una celda. Un texto que empiece con `=`/`+`/`-`/`@` sale con apóstrofo delante:
+    los títulos vienen de portales, o sea de terceros (misma regla que `excel.py`)."""
+    return "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@") else v
+
+
+CSV_ENCABEZADO = ["ID", "Fuente", "Precio", "Moneda", "Título", "Dirección", "Municipio",
+                  "Operación", "Superficie m²", "Estado", "Destacado", "Notas", "URL", "Teléfono"]
+
+
+def csv_inventario(filas) -> str:
+    """El CSV de un conjunto de filas de `inventario.buscar`, sin el BOM.
+
+    Va aparte de la ruta para poder probarlo sin base: lo que puede salir mal aquí es el
+    escapado —una coma o una comilla en un título de portal—, no la consulta.
+    """
+    salida = io.StringIO()
+    w = csv.writer(salida, lineterminator="\r\n")
+    w.writerow(CSV_ENCABEZADO)
+    for fila in filas:
+        w.writerow(_csv_celda(v) for v in (
+            fila.get("id"), fila.get("source"), fila.get("price_numeric"), fila.get("currency"),
+            fila.get("title"), fila.get("location"), fila.get("zona"),
+            fila.get("transaction_type"), fila.get("property_size_m2"), fila.get("status"),
+            "Sí" if fila.get("starred") else "No", fila.get("notes"), fila.get("url"),
+            fila.get("whatsapp")))
+    return salida.getvalue()
+
+
+@app.get("/api/listings.csv")
+def listings_csv(
+    user: dict = Depends(current_user),
+    q: str | None = None,
+    zona: str | None = None,
+    lugar: list[str] | None = Query(None),
+    operacion: str | None = Query(None, pattern="^(rent|sale)$"),
+    tipo: list[str] | None = Query(None),
+    fuente: list[str] | None = Query(None),
+    precio_min: float | None = None,
+    precio_max: float | None = None,
+    m2_min: float | None = None,
+    m2_max: float | None = None,
+    m2_de: str | None = Query(None, pattern="^(terreno|construccion)$"),
+    ppm_min: float | None = None,
+    ppm_max: float | None = None,
+    ficha: str | None = Query(None, pattern="^(con|sin)$"),
+    pcliente: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
+    sin_cliente: bool = False,
+    asesor: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
+    etapa: list[str] | None = Query(None),
+    estado: str | None = None,
+    favoritos: bool = False,
+    near: str | None = None,
+    radio: int = Query(2000, ge=100, le=50000),
+    fusion: bool = True,
+    orden: str = Query("recientes"),
+) -> Response:
+    """El inventario con estos filtros, en CSV, sin paginar.
+
+    Antes el botón «CSV» del tablero armaba el archivo en el navegador con la **página
+    visible**: 70 renglones de 13,362, y el botón no lo decía. Ahora lo arma el servidor,
+    con los mismos filtros y el mismo orden que la pantalla. Va con sesión y no con llave:
+    entra por el tablero, no por `/api/v1` (SECURITY.md §6).
+    """
+    filtros = locals()
+    filas: list[dict] = []
+    with POOL.connection() as conn:
+        quien = Asesor(user["id"])
+        pagina = 1
+        while len(filas) < CSV_TOPE:
+            trozo = inventario.buscar(conn, quien, filtros, orden, pagina, 200)
+            items = trozo.get("items") or []
+            filas.extend(items)
+            if len(items) < 200:
+                break
+            pagina += 1
+    filas = filas[:CSV_TOPE]
+    nombre = f"officelab-{datetime.now(timezone(timedelta(hours=-6))):%Y-%m-%d}.csv"
+    # El conteo va en una cabecera para que el tablero diga cuántos renglones tiene el
+    # archivo: el total filtrado puede ser mayor que el tope y el aviso lo diría mal.
+    return Response("\ufeff" + csv_inventario(filas), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"',
+                             "X-Filas": str(len(filas))})
 
 
 # ── Propiedades: anuncios que son el mismo inmueble ─────────────────────────────
@@ -2099,6 +2192,20 @@ def selfcheck() -> None:
     assert deps("/api/v1/anuncios") == {llave_api} == deps("/api/v1/anuncios/{anuncio_id:path}")
     con_llave = [p for p in rutas if llave_api in deps(p)]
     assert sorted(con_llave) == ["/api/v1/anuncios", "/api/v1/anuncios/{anuncio_id:path}"], con_llave
+    # El CSV del inventario entra por el tablero: con sesión, nunca con una llave.
+    assert deps("/api/listings.csv") == {current_user}, deps("/api/listings.csv")
+    # Y una celda que empiece con `=` no se convierte en fórmula al abrir el archivo.
+    assert _csv_celda("=SUMA(A1:A2)") == "'=SUMA(A1:A2)"
+    assert _csv_celda("-100") == "'-100" and _csv_celda(100) == 100
+    assert _csv_celda(None) is None
+    # Coma, comilla y salto de línea dentro de un título: una fila, no tres.
+    _csv = csv_inventario([{"id": "lamudi:X1", "source": "lamudi", "title": 'Local "Centro", 100 m2',
+                            "price_numeric": 15000.5, "status": "new", "notes": None,
+                            "starred": False}])
+    _lineas = _csv.split("\r\n")
+    assert _lineas[0].startswith("ID,Fuente,Precio") and _lineas[1].startswith("lamudi:X1,lamudi,15000.5")
+    assert '""Centro"", 100 m2' in _lineas[1] and len(_lineas) == 3, _lineas
+    assert ",No," in _lineas[1], "sin notas ni destacado, pero con las columnas en su sitio"
 
     # El límite de intentos cuenta por visitante, no por la IP del proxy.
     class _Req:                                   # lo mínimo que lee ip_cliente

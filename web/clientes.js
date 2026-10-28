@@ -1177,7 +1177,20 @@ listaEl.addEventListener('click', e => {
 listaEl.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.matches('.cl-item')) seleccionar(e.target.dataset.id);
 });
-document.getElementById('clientSearch').addEventListener('input', e => { searchQ = e.target.value.trim(); render(); });
+// Dos cajas, un solo filtro: la de la topbar (escritorio) y la de la lista (teléfono,
+// donde la topbar esconde la suya). Escribe una y la otra se entera.
+const buscador = document.getElementById('clientSearch');
+const buscadorLista = document.getElementById('clientSearchLista');
+const buscarCliente = (v, origen) => {
+  searchQ = v.trim();
+  // Se copia a la OTRA caja, no a sí misma: escribir el valor en el input que tiene el
+  // foco manda el cursor al final, y corregir el principio de la palabra se vuelve un lío.
+  if (origen !== buscador) buscador.value = v;
+  if (buscadorLista && origen !== buscadorLista) buscadorLista.value = v;
+  render();
+};
+buscador.addEventListener('input', e => buscarCliente(e.target.value, buscador));
+buscadorLista?.addEventListener('input', e => buscarCliente(e.target.value, buscadorLista));
 document.getElementById('new-client-btn').addEventListener('click', () => {
   const nombre = prompt('Nombre del cliente:');
   if (nombre?.trim()) createCliente({ nombre: nombre.trim() });

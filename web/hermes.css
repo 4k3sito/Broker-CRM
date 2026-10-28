@@ -1857,6 +1857,12 @@ body.has-tray .inm-list { padding-bottom:70px; }
   height:30px; padding:0 12px; border:1px solid currentColor; background:transparent;
   color:inherit; font-weight:700; cursor:pointer;
 }
+/* La ✕ del aviso: se cierra, y con menos peso que «Deshacer», que sí es una acción. */
+.toast #toastCerrar {
+  width:30px; padding:0; border:none; font-size:17px; font-weight:400; line-height:1;
+  opacity:.7;
+}
+.toast #toastCerrar:hover { opacity:1; }
 
 /* ── Comparar ─────────────────────────────────────────────────────────────── */
 .cmp { padding:14px 20px 40px; }
@@ -2142,6 +2148,16 @@ tr.igual.ocultar { display:none; }
 .cl-list { display:flex; flex-direction:column; min-height:0; background:var(--surface); border-right:1px solid var(--border); }
 .cl-list-head { display:flex; align-items:center; gap:5px; flex-wrap:wrap; padding:10px 12px; border-bottom:1px solid var(--border); }
 .cl-list-head .pill-line { height:26px; padding:0 8px; font-size:11.5px; }
+/* Sólo en pantalla chica, donde `.topbar-search` desaparece (bloque de 900 px al final
+   del archivo): el mismo filtro, en el panel donde se usa. */
+.cl-filtro-busca { display:none; align-items:center; gap:7px; width:100%;
+  padding:0 9px; height:34px; border:1px solid var(--border-2); background:var(--surface); }
+.cl-filtro-busca svg { flex-shrink:0; color:var(--faint); }
+.cl-filtro-busca input { flex:1; min-width:0; height:100%; border:none; background:transparent;
+  color:var(--ink); font-family:var(--font-ui); font-size:13px; outline:none; }
+.cl-filtro-busca input:focus { outline:none; }
+/* El input no dibuja borde propio: el foco lo enseña la caja que lo envuelve. */
+.cl-filtro-busca:focus-within { border-color:var(--accent); }
 .cl-new {
   margin-left:auto; width:28px; height:28px; border:none; cursor:pointer;
   background:var(--accent); color:var(--on-accent); font-size:17px; line-height:1;
@@ -2355,7 +2371,10 @@ textarea.cl-ein { resize:vertical; line-height:1.5; }
 .cl-tadd select { width:auto; max-width:190px; }
 .cl-tadd input[type=date] { width:140px; }
 .cl-tadd button, .cl-addrow button { padding:0 12px; border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); font-family:var(--font-ui); font-size:12.5px; font-weight:600; cursor:pointer; }
-.cl-addrow { padding:8px 12px; min-width:var(--cl-min); }
+/* Sin `--cl-min`: el ancho mínimo de la tabla empujaba el compositor 41 px fuera de la
+   ventana a 1280 y el botón «Agregar» quedaba cortado (y había que adivinar que la tabla
+   se desliza de lado). La alineación con las columnas se pierde; el botón se ve. */
+.cl-addrow { padding:8px 12px; min-width:0; }
 .cl-addrow input { border-style:dashed; }
 
 /* Filtros: quién lleva la cuenta (lista) y quién presentó (tabla); el botón de columnas. */
@@ -2687,4 +2706,10 @@ textarea.base-in { resize:vertical; }
   .th-btn { width: 44px; height: 44px; }
   .btn-ghost { height: 44px; padding: 0 18px; }
   .topbar-search .search-box { height: 44px; }
+}
+
+@media (max-width: 900px) {
+  /* El buscador de clientes vive en la topbar, y en este corte la topbar lo esconde:
+     sin esta caja, en el teléfono no había manera de buscar entre los clientes. */
+  .cl-filtro-busca { display:flex; }
 }

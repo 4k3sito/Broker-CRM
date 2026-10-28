@@ -267,6 +267,24 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Endpoints (2026-10-28) — CSV del inventario (copia de trabajo)
+
+- `GET /api/listings.csv`: los mismos filtros y el mismo orden que `/api/listings`, con
+  sesión (`Depends(current_user)`); **no** acepta llave y no entra por `/api/v1` —el
+  selfcheck lo fija—. Hasta hoy el botón «CSV» del tablero armaba el archivo **en el
+  navegador con la página visible** (70 renglones de 13,362, sin decirlo); ahora lo arma
+  el servidor, hasta `CSV_TOPE` (20,000 filas). Lo que cambia de verdad: **una sola
+  petición puede sacar miles de filas del inventario**, más fácil de reenviar que una
+  pantalla, igual que el Excel del cliente. Sin registro de quién exporta (H5). No abre
+  nada que esa cuenta no viera ya: el inventario es el mismo del tablero.
+  Las celdas se citan siempre y un texto que empiece con `=`/`+`/`-`/`@` sale con un
+  apóstrofo delante: los títulos vienen de portales, o sea de terceros (misma regla que
+  `api/excel.py`).
+- `next=` en el login: `web/api.js` manda al login con la ruta actual y `web/login.js`
+  la valida antes de volver (ruta absoluta del sitio, sin `//`, mismo origen, nunca
+  `login.html`). Sin esa validación sería un redirect abierto; con ella, lo único que
+  cambia es que caducar la sesión deja de costar la página abierta.
+
 ### Endpoints (2026-10-12) — Excel de un cliente y filtro por asesor (copia de trabajo)
 
 - `GET /api/clientes/{id}/excel`: con sesión, como todo el CRM (§5). Devuelve en un archivo

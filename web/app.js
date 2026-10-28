@@ -546,17 +546,16 @@ async function renderSuggestions(q) {
 // ── Export ───────────────────────────────────────────────────────────────────
 
 function exportCSV() {
-  // ponytail: exporta la página visible. Si hace falta el filtro completo, se
-  // agrega ?formato=csv a /api/listings y lo arma el servidor.
-  const header = ['ID', 'Fuente', 'Precio', 'Moneda', 'Título', 'Dirección', 'Estado', 'Destacado', 'Notas', 'URL', 'Teléfono'];
-  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const filas = listings.map(l => [l.id, l.fuente, l.precio ?? '', l.precio != null ? l.moneda : '',
-    l.titulo ?? '', Anuncio.ubicacion(l) ?? '', l.status, l.starred ? 'Sí' : 'No', l.notes, l.url ?? '', l.whatsapp ?? '']);
-  const csv = '﻿' + [header, ...filas].map(r => r.map(q).join(',')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-  a.download = `officelab_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
+  // Lo arma el servidor con los filtros puestos. Hasta hoy salían las 70 de la página
+  // visible —el botón decía «CSV» y no lo aclaraba— y el asesor lo mandaba al cliente
+  // creyendo que iba el inventario filtrado. `API.descargar` ya sabe de 401 y de
+  // errores con motivo, así que un fallo se dice en la página y no en un JSON.
+  const qs = API.qs({ ...paramsBase(), orden: F.orden,
+    estado: filterStatus !== 'Todos' ? Anuncio.estadoApi(filterStatus) : '' });
+  toast(`Preparando el CSV de ${mx(totalFiltrado)} inmuebles\u2026`);
+  API.descargar(`/listings.csv${qs}`)
+     .then(n => toast(`CSV listo: ${mx(n ?? totalFiltrado)} inmuebles`))
+     .catch(err => toast('No se pudo exportar: ' + err.message));
 }
 
 // ── Barra fija: Ubicación, Precio y Tipo ─────────────────────────────────────
@@ -1051,6 +1050,13 @@ Mapa.init(document.getElementById('map'), {
   onPinHover: id => document.querySelectorAll('.card').forEach(c => c.classList.toggle('on', c.dataset.id === id)),
   onMove: a => { buscarEnElMapa(a); page = 1; render(); },
 });
+// El área de fábrica: el centro de `config.js` y un radio fijo en metros. Existe para que
+// la Bolsa de partida no dependa del tamaño de la ventana.
+function areaInicial() {
+  const cfg = window.OL_CONFIG ?? {};
+  const [lng, lat] = cfg.centro ?? [-100.36, 25.66];
+  return { lat, lng, radio: cfg.radioInicial ?? 10000 };
+}
 // Lo que el mapa enseña se vuelve el filtro de cercanía. `de` es cómo se le dice a ese
 // punto: al abrir es la vista de fábrica y tiene nombre; después de moverlo, ya no.
 function buscarEnElMapa({ lat, lng, radio }, de = MAPA_TXT) {
@@ -1115,11 +1121,21 @@ function renderTray() {
 let toastTimer = null;
 function toast(msg, deshacer) {
   const t = document.getElementById('toast');
-  t.innerHTML = `<span>${esc(msg)}</span>` + (deshacer ? '<button id="toastUndo">Deshacer</button>' : '');
+  t.innerHTML = `<span>${esc(msg)}</span>` +
+    (deshacer ? '<button id="toastUndo">Deshacer</button>' : '') +
+    '<button id="toastCerrar" aria-label="Cerrar aviso">&times;</button>';
   t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 10000);
-  if (deshacer) document.getElementById('toastUndo').onclick = () => { t.hidden = true; deshacer(); };
+  const cerrar = () => { clearTimeout(toastTimer); t.hidden = true; };
+  const programar = () => { clearTimeout(toastTimer); toastTimer = setTimeout(cerrar, 10000); };
+  programar();
+  // Con el puntero o el foco encima no corre el reloj: era la otra forma de perder el
+  // aviso — diez segundos y adiós, sin manera de volver a leerlo.
+  t.onmouseenter = () => clearTimeout(toastTimer);
+  t.onmouseleave = programar;
+  t.onfocusin = () => clearTimeout(toastTimer);
+  t.onfocusout = programar;
+  document.getElementById('toastCerrar').onclick = cerrar;
+  if (deshacer) document.getElementById('toastUndo').onclick = () => { cerrar(); deshacer(); };
 }
 
 document.getElementById('trayItems').addEventListener('click', e => {
@@ -1326,9 +1342,13 @@ API.me().then(async () => {
   const u = aplicarURL();
   // Se abre buscando en lo que el mapa enseña, si el mapa está a la vista. Con los
   // criterios de un cliente no: sus lugares mandan, y el mapa encuadra lo que salga.
+  // El área de partida es la de `config.js`, no la del viewport: si la URL traía cámara
+  // se respeta esa —es una búsqueda que alguien compartió, no la de fábrica—.
   if (F.cliente) seguirMapa(false);
-  else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area())
-    buscarEnElMapa(Mapa.area(), u.mapa ? MAPA_TXT : CENTRO_NOMBRE);
+  else if (mapFollow.checked && inm.classList.contains('split')) {
+    const area = u.mapa ? Mapa.area() : areaInicial();
+    if (area) buscarEnElMapa(area, u.mapa ? MAPA_TXT : CENTRO_NOMBRE);
+  }
   await render();
   restaurarScroll();
   if (!INMO) avisarFrescura();

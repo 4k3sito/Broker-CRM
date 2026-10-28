@@ -54,6 +54,12 @@
       <button class="cl-new" id="new-client-btn" title="Nuevo cliente">+</button>
       <select class="cl-fsel ancho" id="fEstatus" aria-label="Filtrar por estatus del cliente"><option value="all">Estatus cliente: todos</option></select>
       <select class="cl-fsel ancho" id="fEtapa" aria-label="Filtrar por estatus de sus propiedades"><option value="all">Estatus propiedades: todos</option></select>
+      <!-- La topbar esconde su buscador por debajo de 900 px, y con él se iba la única
+           manera de buscar un cliente en el teléfono. Es el mismo filtro, aquí. -->
+      <div class="cl-filtro-busca">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="search" id="clientSearchLista" placeholder="Buscar clientes&#8230;" aria-label="Buscar clientes" autocomplete="off">
+      </div>
     </div>
     <div class="cl-items" id="clList"><p class="pg-empty">Cargando clientes&#8230;</p></div>
   </aside>
