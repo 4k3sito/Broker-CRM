@@ -13,7 +13,10 @@ const COLS = [
 const PRIOS = ['alta', 'media', 'baja'];
 const TIPOS = ['Visita', 'Llamada', 'Fotos', 'Contrato', 'Documentos', 'Publicación', 'Seguimiento', 'Otro'];
 
-let tareas = [], equipo = [], vista = 'tablero', prio = 'all', persona = null, q = '';
+// En el teléfono el kanban medía 7,374 px de alto: ahí se abre en Lista.
+let tareas = [], equipo = [], vista = matchMedia('(max-width: 760px)').matches ? 'lista' : 'tablero';
+let prio = 'all', persona = null, q = '';
+let listaVer = 'abiertas';       // la Lista: «Abiertas» o «Completadas»
 let abierta = null;              // id de la tarea en el panel, o 'nueva'
 let coments = [];                // comentarios de la tarea abierta
 let previo = false;              // el editor de descripción muestra la vista previa
@@ -208,7 +211,10 @@ function renderTablero(lista) {
   for (const col of COLS) {
     const items = lista.filter(t => t.columna === col.key);
     const div = document.createElement('div');
-    div.className = 'kb-col';
+    // Una columna vacía se pliega (hermes.css): «Pendiente 0» y «En curso 0» ocupaban
+    // media pantalla mientras 38 tarjetas se apretaban en las otras dos. Sigue siendo
+    // un lugar donde soltar.
+    div.className = `kb-col${items.length ? '' : ' vacia'}`;
     div.innerHTML = `<div class="kb-head"><span class="kb-dot" style="background:var(--c-${col.key})"></span>` +
                      `<span>${col.label}</span><span class="kb-n">${items.length}</span></div>`;
     const cont = document.createElement('div');
@@ -225,6 +231,78 @@ function renderTablero(lista) {
     kb.appendChild(div);
   }
   return kb;
+}
+
+// ── Lista: la bandeja del teléfono (ui_change.md §5.4) ───────────────────────
+// Una fila por tarea, de la que vence antes a la que vence después; sin fecha al final.
+const DIA = 864e5;
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+function venceTxt(fecha, hecha) {
+  if (!fecha) return { txt: 'Sin fecha', tarde: false };
+  const dias = Math.round((Date.parse(fecha) - Date.parse(hoyISO())) / DIA);
+  if (dias < 0 && !hecha) return { txt: `Vencida · hace ${-dias} ${-dias === 1 ? 'día' : 'días'}`, tarde: true };
+  if (dias === 0) return { txt: 'Hoy', tarde: false };
+  if (dias === 1) return { txt: 'Mañana', tarde: false };
+  const f = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+  return { txt: f.charAt(0).toUpperCase() + f.slice(1).replace(/\./g, ''), tarde: false };
+}
+
+function filaLista(t) {
+  const p = equipo.find(e => e.id === t.asignado_a);
+  const chk = checklist(t.descripcion);
+  const hecha = t.columna === 'completado';
+  const v = venceTxt(t.vence_el, hecha);
+  const liga = t.cliente_nombre || t.proceso_titulo || t.listing_id;
+  const fila = document.createElement('div');
+  fila.className = `tk-fila p-${t.prioridad}${hecha ? ' hecha' : ''}`;
+  fila.innerHTML = `
+    <input type="checkbox" class="tk-fila-chk" ${hecha ? 'checked' : ''}
+           aria-label="${hecha ? 'Reabrir' : 'Completar'}: ${esc(t.titulo)}">
+    <button type="button" class="tk-fila-abrir">
+      <span class="tk-fila-tit">${esc(t.titulo)}${chk.length ? ` <span class="tk-chk">${chk.filter(c => c.done).length}/${chk.length}</span>` : ''}</span>
+      <span class="tk-fila-meta">
+        <span class="tk-vence${v.tarde ? ' tarde' : ''}">${esc(v.txt)}</span>
+        <span class="tk-tipo">${esc(t.tipo ?? 'Tarea')}</span>
+        <span class="tk-prio p-${esc(t.prioridad)}">${esc(t.prioridad)}</span>
+        ${liga ? `<span class="tk-cod">${esc(liga)}</span>` : ''}
+      </span>
+    </button>
+    <span class="tk-ava${p ? '' : ' sin'}" ${p ? `style="background:${tono(p.id)}"` : ''}
+          title="${esc(p?.nombre ?? p?.email ?? 'Sin asignar')}">${p ? iniciales(p) : '—'}</span>`;
+  fila.querySelector('.tk-fila-abrir').addEventListener('click', () => abrirTarea(t.id));
+  // Reabrir la regresa a donde le toca: asignada si tiene dueño, si no pendiente.
+  fila.querySelector('.tk-fila-chk').addEventListener('change', e =>
+    guardar(t.id, { columna: e.target.checked ? 'completado' : (t.asignado_a ? 'asignado' : 'pendiente') }));
+  return fila;
+}
+
+function renderLista(lista) {
+  const wrap = document.createElement('div');
+  wrap.className = 'tk-lista';
+  const abiertas = lista.filter(t => t.columna !== 'completado');
+  const hechas = lista.filter(t => t.columna === 'completado');
+  const seg = document.createElement('div');
+  seg.className = 'seg tk-lista-seg';
+  seg.setAttribute('role', 'group');
+  seg.setAttribute('aria-label', 'Qué tareas');
+  seg.innerHTML = `<button type="button" data-ver="abiertas" class="${listaVer === 'abiertas' ? 'on' : ''}">Abiertas ${abiertas.length}</button>` +
+                  `<button type="button" data-ver="completadas" class="${listaVer === 'completadas' ? 'on' : ''}">Completadas ${hechas.length}</button>`;
+  seg.addEventListener('click', e => {
+    const b = e.target.closest('[data-ver]');
+    if (b) { listaVer = b.dataset.ver; render(); }
+  });
+  wrap.appendChild(seg);
+  const filas = (listaVer === 'abiertas' ? abiertas : hechas).slice().sort((a, b) =>
+    (a.vence_el ?? '9999') < (b.vence_el ?? '9999') ? -1 : (a.vence_el ?? '9999') > (b.vence_el ?? '9999') ? 1
+      : PRIOS.indexOf(a.prioridad) - PRIOS.indexOf(b.prioridad));
+  if (!filas.length) {
+    const vacio = document.createElement('div');
+    vacio.className = 'kb-empty';
+    vacio.textContent = listaVer === 'abiertas' ? 'No tienes tareas abiertas para este filtro.' : 'Nada completado con este filtro.';
+    wrap.appendChild(vacio);
+  }
+  filas.forEach(t => wrap.appendChild(filaLista(t)));
+  return wrap;
 }
 
 function renderEquipo(lista) {
@@ -866,11 +944,12 @@ function render() {
   document.getElementById('nueva-txt').textContent = esPipe ? 'Agregar propiedad' : 'Nueva tarea';
   document.getElementById('prioGroup').hidden = esPipe;
   document.getElementById('pipeGroup').hidden = !esPipe;
+  document.querySelector('.tk-bar-hint').hidden = vista === 'lista';
   if (esPipe) renderPipeFiltros();
 
   const vp = document.getElementById('viewPills');
   vp.innerHTML = '';
-  [['tablero', 'Tablero'], ['pipeline', 'Pipeline'], ['equipo', 'Equipo'], ['persona', 'Persona']].forEach(([k, l]) =>
+  [['lista', 'Lista'], ['tablero', 'Tablero'], ['pipeline', 'Pipeline'], ['equipo', 'Equipo'], ['persona', 'Persona']].forEach(([k, l]) =>
     vp.appendChild(pill(l, vista === k, () => {
       vista = k;
       // La vista de una persona necesita una persona: si no hay, toma la primera.
@@ -892,7 +971,7 @@ function render() {
   if (!pg.hidden) {
     const cont = document.getElementById('personaPills');
     cont.innerHTML = '';
-    if (vista === 'tablero') cont.appendChild(pill('Todo el equipo', !persona, () => { persona = null; render(); }));
+    if (vista === 'tablero' || vista === 'lista') cont.appendChild(pill('Todo el equipo', !persona, () => { persona = null; render(); }));
     equipo.forEach(p => cont.appendChild(pill(
       `${esc(p.nombre ?? p.email)}<span class="pill-count">${p.abiertas}</span>`,
       persona === p.id, () => { persona = p.id; render(); })));
@@ -903,6 +982,7 @@ function render() {
   main.appendChild(esPipe ? renderPipeline(lista)
                  : vista === 'equipo' ? renderEquipo(lista)
                  : vista === 'persona' ? renderPersona(lista)
+                 : vista === 'lista' ? renderLista(lista)
                  : renderTablero(lista));
   renderEquipoAside();
   renderPanel();

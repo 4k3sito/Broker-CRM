@@ -1024,19 +1024,25 @@ document.addEventListener('keydown', e => {
 // ── Vista: rejilla sola o rejilla + mapa ─────────────────────────────────────
 
 const inm = document.getElementById('inm');
+// En el teléfono el mapa se dibujaba primero y empujaba la primera tarjeta a y=587 de
+// 780: ahí se abre en rejilla y el mapa queda detrás del botón «+ Mapa». La
+// preferencia se guarda aparte por tamaño, para que la del escritorio no la pise.
+const CHICO = matchMedia('(max-width: 900px)').matches;
+const VISTA_KEY = CHICO ? 'ol-vista-movil' : 'ol-vista';
 function ponerVista(v) {
   inm.classList.toggle('split', v === 'split');
   inm.classList.toggle('grid-only', v !== 'split');
   document.querySelectorAll('.seg [data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === v));
-  try { localStorage.setItem('ol-vista', v); } catch { /* sin persistencia */ }
+  try { localStorage.setItem(VISTA_KEY, v); } catch { /* sin persistencia */ }
   requestAnimationFrame(() => Mapa.resize());
 }
 document.querySelector('.seg').addEventListener('click', e => {
   const b = e.target.closest('[data-vista]');
   if (b) ponerVista(b.dataset.vista);
 });
-// El mapa ya no depende de una llave (mapa.js): la vista por defecto es rejilla + mapa.
-ponerVista((() => { try { return localStorage.getItem('ol-vista'); } catch { return null; } })() ?? 'split');
+// El mapa ya no depende de una llave (mapa.js): en escritorio la vista por defecto es
+// rejilla + mapa; en el teléfono, rejilla.
+ponerVista((() => { try { return localStorage.getItem(VISTA_KEY); } catch { return null; } })() ?? (CHICO ? 'grid' : 'split'));
 
 Mapa.init(document.getElementById('map'), {
   onPin: id => {

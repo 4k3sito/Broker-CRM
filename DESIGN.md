@@ -198,7 +198,7 @@ encontraron sus cinco primeros defectos.
 | `index.html` | topbar + filtros + stats + rejilla de tarjetas |
 | `clientes.html` | topbar + rejilla de tarjetas de cliente |
 | `listing.html` | topbar + ficha a dos columnas (contenido + sidebar) |
-| `tareas.html` | cáscara de altura fija: topbar + barra + kanban de 4 columnas + panel derecho de 336 px |
+| `tareas.html` | cáscara de altura fija: topbar + barra + Lista o kanban de 4 columnas + panel derecho de 336 px |
 | `scrapers.html` | topbar + rejilla de tarjetas por fuente + tabla de historial |
 | `login.html`, `reset-request.html`, `update-password.html` | `login-shell`: dos mitades — intro de marca a la izquierda, tarjeta de formulario a la derecha |
 
@@ -215,27 +215,34 @@ selector de estado) y sólo aporta las suyas con prefijo `detail-`, `ficha-`,
 
 ## 5 bis. Pantalla chica
 
-Un solo corte, **760 px**, elegido por donde se rompe el contenido y no por el tamaño
-de un aparato: 324 px de `.topbar-nav` + ~210 de marca + ~160 de controles + los huecos.
-Más el kanban, que ya tenía los suyos en 1100 y 620.
+Dos cortes, elegidos por donde se rompe el contenido y no por el tamaño de un aparato:
+**900 px** (la navegación y el tablero) y **760 px** (el buscador de la topbar y la
+cáscara de tareas). Más el kanban, que tiene los suyos en 1100 y 620, y la tarjeta
+horizontal del tablero a 700.
 
-Cuatro decisiones, todas reversibles leyendo el bloque `@media (max-width: 760px)` al
-final de `hermes.css`:
+Las decisiones, todas reversibles leyendo los bloques `@media` de `hermes.css`
+(actualizado el 2026-10-28):
 
-1. **La navegación no se encoge: desaparece.** `menu.js` ya inyecta un cajón con las
-   mismas cuatro entradas y su botón vive en la topbar desde siempre. La fila horizontal
-   era la versión de escritorio de algo que ya tenía versión de teléfono.
-2. **El buscador pasa a su propio renglón.** Con `flex:1; min-width:0` se encogía a
-   **0 px de ancho**: en el teléfono no estaba estrecho, estaba inutilizable. Sólo lo
-   tienen `index`, `clientes` y `tareas`; en las demás la topbar sigue siendo una fila
-   de 58 px.
-3. **Se van el subtítulo de la marca y el contador** para que la primera fila quepa. Si
-   se quedan, `.topbar-right` salta a un renglón propio y la barra pegajosa pasa de 58
-   a 176 px: una quinta parte de la pantalla, todo el tiempo.
-4. **`tareas.html` deja de ser una cáscara de altura fija.** `.tk-page` es `100vh` con
-   `overflow:hidden` y `.tk-shell` pone filtros, kanban y un panel de 336 px en una sola
-   fila; en 390 px al kanban le quedaban 54 y el panel se encimaba. En el teléfono la
-   página vuelve a desplazarse y el panel va debajo del tablero.
+1. **La navegación es un botón «Menú» con hoja inferior** (≤900 px). Cinco pestañas no
+   caben en 390: la fila medía 440 contra 254 de caja, se cortaba a media palabra
+   («Duplica…») y Clientes/Tareas quedaban fuera sin señal de que se deslizaba.
+   `menu.js` inyecta el botón y un `<dialog>` con los mismos enlaces que la barra
+   (la insignia de tareas y Scrapers incluidos) y «Cerrar sesión». Hasta esa fecha este
+   párrafo hablaba de un cajón lateral de `menu.js` que el rediseño v0.5 ya había quitado.
+2. **El tablero abre en rejilla y el mapa queda detrás de «+ mapa»** (≤900 px). El mapa
+   se dibujaba primero y la primera tarjeta empezaba en y=587 de 780. La preferencia del
+   teléfono se guarda en `localStorage['ol-vista-movil']`, aparte de la del escritorio.
+   «Rejilla / + mapa» se queda pegado a la derecha de la fila de estado, que se desliza.
+3. **Tarjeta horizontal en una columna** (≤700 px): foto de 124 px a la izquierda y los
+   datos a la derecha. Dos columnas de 179 px no cabían precio, título, dirección y estado.
+4. **El buscador pasa a su propio renglón** (≤760 px). Con `flex:1; min-width:0` se
+   encogía a **0 px de ancho**. Sólo lo tienen `index`, `clientes` y `tareas`.
+5. **Se van el subtítulo de la marca y el contador** para que la primera fila quepa.
+6. **`tareas.html` deja de ser una cáscara de altura fija** (≤760 px) y **abre en
+   Lista**: una fila por tarea, Abiertas | Completadas, de la que vence antes a la que
+   vence después, con casilla para completarla. El kanban del teléfono medía 7,374 px.
+   En escritorio, una columna del kanban sin tarjetas se pliega a 172 px y sigue
+   recibiendo lo que se suelta.
 
 Las filas de cifras (`.statsbar`, `.pg-kpis`) pasan a dos columnas. Ojo con `1fr`: es
 `minmax(auto,1fr)` y ese `auto` es el min-content de la celda, así que una etiqueta
@@ -247,9 +254,8 @@ archivo** a propósito: `.th-btn`, `.pg-kpis` y `.statsbar` se declaran más aba
 topbar, y a igual especificidad gana el último. Puestos arriba, las reglas de contenido
 no se aplican y el bloque parece no hacer nada.
 
-Lo que **no** se resolvió: el tablero de tareas invita a "arrastrar una tarjeta a otra
-columna" y el arrastre HTML5 no funciona con el dedo. En el teléfono hay que cambiar el
-estado desde el detalle de la tarea.
+El arrastre HTML5 no funciona con el dedo: en el teléfono una tarea se completa con la
+casilla de la Lista, y cualquier otro cambio de columna se hace desde su detalle.
 
 ## 6. Cómo verificar que no rompiste el sistema
 
