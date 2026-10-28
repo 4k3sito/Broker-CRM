@@ -76,7 +76,7 @@ async function createCliente(patch) {
     const c = await API.post('/clientes', patch);
     clientes.unshift({ proceso: [], ...c });
     seleccionar(c.id);
-  } catch (err) { alert('No se pudo crear el cliente: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo crear el cliente: ' + err.message); }
 }
 function saveCliente(id, field, value) {
   const c = clientes.find(x => String(x.id) === String(id));
@@ -86,12 +86,18 @@ function saveCliente(id, field, value) {
   renderLista();
 }
 async function deleteCliente(id) {
-  if (!confirm('¿Eliminar este cliente y todos sus procesos?')) return;
+  const c = clientes.find(x => String(x.id) === String(id));
+  const n = c?.proceso?.length ?? 0;
+  if (!(await UI.confirmar({
+    titulo: `¿Eliminar a ${c?.nombre ?? 'este cliente'}?`,
+    texto: n ? `Se borran también ${n} ${n === 1 ? 'propiedad propuesta' : 'propiedades propuestas'} con su estado y notas. No se puede deshacer.`
+             : 'No tiene propiedades propuestas. No se puede deshacer.',
+    verbo: 'Eliminar', peligro: true }))) return;
   try {
     await API.del(`/clientes/${id}`);
     clientes = clientes.filter(c => String(c.id) !== String(id));
     selId = null; render();
-  } catch (err) { alert('No se pudo eliminar: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo eliminar: ' + err.message); }
 }
 function setProcesoStatus(procId, status) {
   for (const c of clientes) {
@@ -102,13 +108,15 @@ function setProcesoStatus(procId, status) {
   render();
 }
 async function removeProceso(procId) {
-  if (!confirm('¿Quitar esta propuesta?')) return;
+  if (!(await UI.confirmar({ titulo: '¿Quitar esta propuesta?',
+    texto: 'Se pierden su estado, junta y notas con este cliente. La propiedad sigue en el Catálogo.',
+    verbo: 'Quitar', peligro: true }))) return;
   try {
     await API.del(`/procesos/${procId}`);
     for (const c of clientes) c.proceso = (c.proceso ?? []).filter(p => String(p.id) !== String(procId));
     if (abierto === String(procId)) abierto = null;
     render();
-  } catch (err) { alert('No se pudo quitar: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo quitar: ' + err.message); }
 }
 
 // Una fila nueva escrita a mano: una ficha sin anuncio de origen (queda en
@@ -126,7 +134,7 @@ async function agregarPropiedad(c, titulo) {
     abierto = String(p.id);
     propEtapas.clear(); propTrae = 'all';
     render();
-  } catch (err) { alert('No se pudo agregar la propiedad: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo agregar la propiedad: ' + err.message); }
 }
 
 // "+ Proponer desde Catálogo": un buscador por título sobre lo que ya tiene ficha, para
@@ -136,7 +144,7 @@ async function abrirCatalogo() {
   catAbierto = true; catQ = '';
   renderDetalle();
   try { catFichas = await API.get('/fichas'); }
-  catch (err) { catFichas = []; alert('No se pudo cargar el Catálogo: ' + err.message); }
+  catch (err) { catFichas = []; UI.aviso('No se pudo cargar el Catálogo: ' + err.message); }
   if (catAbierto) renderDetalle();
 }
 function catalogoListaHtml(c) {
@@ -161,7 +169,7 @@ async function proponerDeCatalogo(c, fichaId) {
     propEtapas.clear(); propTrae = 'all';
     render();
     document.getElementById('catQ')?.focus();   // para seguir buscando la siguiente
-  } catch (err) { alert('No se pudo proponer: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo proponer: ' + err.message); }
 }
 
 // Un campo del panel desplegado. Los de la propiedad van a la ficha (que es la misma
@@ -173,7 +181,7 @@ const NUMEROS_FICHA = [...NUMERICOS, 'construccion_m2'];     // se guardan como 
 function guardarCampo(c, p, tabla, f, crudo) {
   let v = NUMEROS_FICHA.includes(f) ? (crudo === '' ? null : Number(crudo)) : (crudo.trim() === '' ? null : crudo.trim());
   if (Number.isNaN(v)) return;
-  const fallo = err => alert('No se pudo guardar: ' + err.message);
+  const fallo = err => UI.aviso('No se pudo guardar: ' + err.message);
   if (tabla === 'pres') {
     // Siempre sobre lo que había al empezar a escribir: corregir el campo reescribe los
     // renglones de esta presentación, no agrega otros.
@@ -237,7 +245,7 @@ function reordenar(c, deId, aId, despues) {
   ps.splice(a + (despues ? 1 : 0), 0, fila);
   ps.forEach((p, i) => { p.numero = i + 1; });
   API.put(`/clientes/${c.id}/orden`, { ids: ps.map(p => p.id) })
-    .catch(err => alert('No se pudo guardar el orden: ' + err.message));
+    .catch(err => UI.aviso('No se pudo guardar el orden: ' + err.message));
   renderDetalle();
 }
 
@@ -265,13 +273,13 @@ async function crearTarea(c, form) {
       vence_el: v('vence') || null,
     }));
     renderDetalle();
-  } catch (err) { alert('No se pudo crear la tarea: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo crear la tarea: ' + err.message); }
 }
 function completarTarea(id, hecha) {
   const t = tareas.find(x => String(x.id) === String(id));
   if (!t) return;
   t.columna = hecha ? 'completado' : (t.asignado_a ? 'asignado' : 'pendiente');
-  API.patch(`/tareas/${id}`, { columna: t.columna }).catch(err => alert('No se pudo guardar: ' + err.message));
+  API.patch(`/tareas/${id}`, { columna: t.columna }).catch(err => UI.aviso('No se pudo guardar: ' + err.message));
   renderDetalle();
 }
 
@@ -368,7 +376,7 @@ function guardarContactos(c, cs) {
   c.contactos = cs;
   // `contacto: null` jubila el campo viejo de texto libre (ver schema.sql, 2026-10-07).
   c.contacto = null;
-  API.patch(`/clientes/${c.id}`, { contactos: cs, contacto: null }).catch(err => alert('No se pudo guardar el contacto: ' + err.message));
+  API.patch(`/clientes/${c.id}`, { contactos: cs, contacto: null }).catch(err => UI.aviso('No se pudo guardar el contacto: ' + err.message));
 }
 function conectarContactos(c, box) {
   box.querySelector('#clContacto').addEventListener('change', e => {
@@ -389,9 +397,10 @@ function conectarContactos(c, box) {
     if (op) op.textContent = ctoNombre(cs[ctoSel]);
     pintarWhats(c, box);
   }));
-  box.querySelector('#clCtoDel')?.addEventListener('click', () => {
+  box.querySelector('#clCtoDel')?.addEventListener('click', async () => {
     const k = c.contactos[ctoSel];
-    if (!confirm(`¿Quitar a ${ctoNombre(k)} de los contactos de ${c.nombre}?`)) return;
+    if (!(await UI.confirmar({ titulo: `¿Quitar a ${ctoNombre(k)} de los contactos de ${c.nombre}?`,
+      verbo: 'Quitar', peligro: true }))) return;
     guardarContactos(c, c.contactos.filter((_, i) => i !== ctoSel));
     ctoSel = 0;
     renderDetalle();
@@ -414,7 +423,7 @@ function asignarCuenta(c, uid) {
   const p = equipo.find(x => String(x.id) === uid);
   const patch = { responsable_id: uid || null, ...(p ? { responsable: nombreDe(p) } : {}) };
   Object.assign(c, patch, { responsable_nombre: p ? nombreDe(p) : null });
-  API.patch(`/clientes/${c.id}`, patch).catch(err => alert('No se pudo asignar la cuenta: ' + err.message));
+  API.patch(`/clientes/${c.id}`, patch).catch(err => UI.aviso('No se pudo asignar la cuenta: ' + err.message));
   renderLista();
 }
 
@@ -490,7 +499,7 @@ function guardarCriterios(c, cr) {
   for (const k of Object.keys(cr))
     if (cr[k] == null || cr[k] === '' || (Array.isArray(cr[k]) && !cr[k].length)) delete cr[k];
   c.criterios = cr;
-  API.patch(`/clientes/${c.id}`, { criterios: cr }).catch(err => alert('No se pudo guardar: ' + err.message));
+  API.patch(`/clientes/${c.id}`, { criterios: cr }).catch(err => UI.aviso('No se pudo guardar: ' + err.message));
   critAbierto = null;
   render();
 }
@@ -741,7 +750,7 @@ function ponerFotos(fichaId, fotos) {
 // borra el archivo de una foto subida que ya no esté en ella.
 async function guardarFotos(p, lista) {
   try { ponerFotos(p.ficha.id, (await API.patch(`/fichas/${p.ficha.id}`, { fotos: lista })).fotos); }
-  catch (err) { alert('No se pudo guardar: ' + err.message); }
+  catch (err) { UI.aviso('No se pudo guardar: ' + err.message); }
   renderDetalle();
 }
 // De quién son las fotos de una caja (ver fotos.js): de la ficha de esa fila.
@@ -961,7 +970,7 @@ function renderDetalle() {
   document.getElementById('clExcel').addEventListener('click', async e => {
     e.currentTarget.disabled = true;
     try { await API.descargar(`/clientes/${c.id}/excel`); }
-    catch (err) { alert('No se pudo generar el Excel: ' + err.message); }
+    catch (err) { UI.aviso('No se pudo generar el Excel: ' + err.message); }
     finally { e.currentTarget.disabled = false; }
   });
   document.getElementById('clBack').addEventListener('click', () => seleccionar(null));
@@ -1121,7 +1130,7 @@ function reordenarClientes(deId, aId, despues) {
   let i = 0;
   clientes = clientes.map(c => vis.includes(String(c.id)) ? porId.get(vis[i++]) : c);
   API.put('/clientes/orden', { ids: clientes.map(c => c.id) })
-    .catch(err => alert('No se pudo guardar el orden: ' + err.message));
+    .catch(err => UI.aviso('No se pudo guardar el orden: ' + err.message));
   renderLista();
 }
 const listaEl = document.getElementById('clList');

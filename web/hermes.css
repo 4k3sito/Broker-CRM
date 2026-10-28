@@ -2771,3 +2771,60 @@ textarea.base-in { resize:vertical; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration:.01ms !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; }
 }
+
+/* ── Confirmación y aviso compartidos (ui.js) ───────────────────────────────
+   Sustituyen a confirm() y alert(). La consecuencia va en el texto y el verbo en
+   el botón; la acción que no se deshace va en rojo y el foco empieza en Cancelar. */
+.ui-dlg {
+  margin:auto; width:min(440px, calc(100vw - 32px)); padding:0;
+  border:1px solid var(--border-2); background:var(--surface); color:var(--ink);
+}
+.ui-dlg::backdrop { background:rgba(17,17,32,.45); }
+.ui-dlg form { display:flex; flex-direction:column; gap:12px; padding:20px 20px 16px; }
+.ui-dlg-t { font-family:var(--font-display); font-size:20px; font-weight:500; line-height:1.25; }
+.ui-dlg-x { font-size:14px; line-height:1.5; color:var(--muted); white-space:pre-line; }
+.ui-dlg-acc { display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+.ui-dlg-acc button {
+  min-height:38px; padding:0 16px; cursor:pointer;
+  font-family:var(--font-ui); font-size:13.5px; font-weight:600;
+}
+.ui-dlg-no { border:1px solid var(--border-2); background:transparent; color:var(--ink); }
+.ui-dlg-si { border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); }
+.ui-dlg-si.peligro { border-color:var(--s-rechazado); background:var(--s-rechazado); color:var(--surface); }
+.ui-aviso {
+  position:fixed; left:50%; bottom:84px; transform:translateX(-50%); z-index:95;
+  display:flex; align-items:center; gap:12px; max-width:min(560px, 92vw); padding:10px 8px 10px 16px;
+  background:var(--ink); color:var(--bg); font-size:13.5px; line-height:1.4;
+}
+.ui-aviso[hidden] { display:none; }
+.ui-aviso button {
+  width:32px; height:32px; flex-shrink:0; border:none; background:transparent;
+  color:inherit; font-size:18px; line-height:1; cursor:pointer; opacity:.7;
+}
+
+/* ── Jerarquía del tablero (2026-10-28) ─────────────────────────────────────── */
+/* Mientras llega la respuesta de un filtro (app.js, cargando()). */
+.grid.cargando { opacity:.55; cursor:progress; transition:opacity .15s; }
+.cargando-txt { font-family:var(--font-mono); font-size:11px; color:var(--muted); white-space:nowrap; }
+.cargando-txt[hidden] { display:none; }
+/* «Ordenar: Recientes ▾»: un select nativo vestido de chip, para que el teléfono abra
+   su propio selector. */
+.orden-chip {
+  display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 4px 0 9px;
+  border:1px solid var(--border-2); background:var(--surface); cursor:pointer;
+  font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--faint); white-space:nowrap;
+}
+.orden-chip select {
+  height:26px; border:none; background:transparent; color:var(--ink); cursor:pointer; outline:none;
+  font-family:var(--font-ui); font-size:12.5px; font-weight:600; letter-spacing:0; text-transform:none;
+}
+.orden-chip:focus-within { border-color:var(--accent); }
+/* El estado en la tarjeta es una etiqueta: un select nativo sin flecha propia, que al
+   tocarlo abre el selector del sistema. «Nuevo» —casi todo el inventario— va sin
+   relleno para que setenta tarjetas no se lean como setenta cajas moradas; los
+   estados que sí dicen algo conservan su color. */
+.card-status { align-items:center; gap:0; }
+.card-status::after { content:'▾'; margin-left:-16px; pointer-events:none; font-size:10px; color:var(--muted); }
+.card .status-select { padding-right:20px; }
+.card .status-select.s-Nuevo { background:transparent; border-color:var(--border-2); color:var(--muted); }

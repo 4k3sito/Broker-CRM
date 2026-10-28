@@ -121,7 +121,7 @@ async function guardar(id, patch) {
     tareas[i] = await API.patch(`/tareas/${id}`, patch);
   } catch (err) {
     tareas[i] = previo;                          // el servidor manda: se revierte
-    alert(err.message);
+    UI.aviso(err.message);
   }
   render();
 }
@@ -225,7 +225,7 @@ function renderTablero(lista) {
     // Soltar en la columna mueve la tarea; sin asignado, "asignado" no tiene sentido.
     zonaSoltar(div, id => {
       const t = tareas.find(x => x.id === id);
-      if (col.key === 'asignado' && !t.asignado_a) return alert('Asigna la tarea a alguien primero.');
+      if (col.key === 'asignado' && !t.asignado_a) return UI.aviso('Asigna la tarea a alguien primero.');
       if (t.columna !== col.key) guardar(id, { columna: col.key });
     });
     kb.appendChild(div);
@@ -533,16 +533,19 @@ function conectarPanel(t, nueva) {
   });
   document.getElementById('tkSave').addEventListener('click', async () => {
     const body = cuerpo();
-    if (!body.titulo) return alert('El título es obligatorio.');
+    if (!body.titulo) return UI.aviso('El título es obligatorio.');
     try {
       if (nueva) tareas.unshift(await API.post('/tareas', body));
       else await guardar(abierta, body);
       abierta = null;
       render();
-    } catch (err) { alert(err.message); }
+    } catch (err) { UI.aviso(err.message); }
   });
   document.getElementById('tkDel')?.addEventListener('click', async () => {
-    if (!confirm('¿Borrar esta tarea?')) return;
+    const t = tareas.find(x => x.id === abierta), nc = coments.length;
+    if (!(await UI.confirmar({ titulo: `¿Borrar «${t?.titulo ?? 'esta tarea'}»?`,
+      texto: (nc ? `Se borran también sus ${nc} ${nc === 1 ? 'comentario' : 'comentarios'}. ` : '') + 'No se puede deshacer.',
+      verbo: 'Borrar', peligro: true }))) return;
     await API.del(`/tareas/${abierta}`);
     tareas = tareas.filter(x => x.id !== abierta);
     abierta = null;
@@ -789,7 +792,7 @@ async function guardarProc(p, proc, ficha) {
     if (Object.keys(proc).length) await API.patch(`/procesos/${p.id}`, proc);
     if (Object.keys(ficha).length) await API.patch(`/fichas/${p.ficha_id}`, ficha);
   } catch (err) {
-    alert(err.message);
+    UI.aviso(err.message);
   }
   await cargarPipeline().catch(() => {});
   render();
@@ -902,18 +905,18 @@ function renderProcPanel() {
   }));
   document.getElementById('ppSave').addEventListener('click', async () => {
     let datos;
-    try { datos = leerProcPanel(); } catch (err) { return alert(err.message); }
-    if (!datos.ficha.titulo) return alert('El nombre de referencia es obligatorio.');
+    try { datos = leerProcPanel(); } catch (err) { return UI.aviso(err.message); }
+    if (!datos.ficha.titulo) return UI.aviso('El nombre de referencia es obligatorio.');
     if (!nuevo) return guardarProc(p, datos.proc, datos.ficha);
     const cliente_id = document.getElementById('p-cliente').value;
-    if (!cliente_id) return alert('Elige a qué cliente se le ofrece.');
+    if (!cliente_id) return UI.aviso('Elige a qué cliente se le ofrece.');
     try {
       const ficha = await API.post('/fichas', datos.ficha);
       const proc = await API.post('/procesos', { ...datos.proc, cliente_id, ficha_id: ficha.id });
       await cargarPipeline();
       abiertoProc = proc.id;
       render();
-    } catch (err) { alert(err.message); }
+    } catch (err) { UI.aviso(err.message); }
   });
   document.getElementById('ppTarea')?.addEventListener('click', async () => {
     try {
@@ -926,7 +929,7 @@ function renderProcPanel() {
       vista = 'tablero';
       abiertoProc = null;
       abrirTarea(t.id);
-    } catch (err) { alert(err.message); }
+    } catch (err) { UI.aviso(err.message); }
   });
 }
 

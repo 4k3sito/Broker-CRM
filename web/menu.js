@@ -81,10 +81,11 @@
         ava.className = 'tb-ava';
         ava.title = u.email ?? '';
         ava.textContent = ini;
-        // En el teléfono "Salir" se esconde (hermes.css, ≤560 px) y el avatar es
-        // la única salida: tocarlo ofrece cerrar la sesión.
+        // En el teléfono "Salir" se esconde (hermes.css, ≤560 px): tocar el avatar abre
+        // la hoja del menú, que trae «Cerrar sesión». Sin confirmar: entrar otra vez
+        // deshace salir, y el login devuelve a la misma página (`next=`).
         ava.addEventListener('click', () => {
-          if (confirm('¿Cerrar sesión?')) document.getElementById('logout-btn')?.click();
+          if (getComputedStyle(btn).display !== 'none') hoja.showModal();
         });
         box.prepend(ava);
       }
