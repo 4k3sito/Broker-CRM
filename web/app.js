@@ -12,6 +12,7 @@
 // la pestaña sigue siendo `inmobiliaria`: así se llamó en pantalla hasta el 2026-10-06.
 const TAB = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
 const INMO = TAB === 'inmobiliaria';
+document.getElementById('pageTitle').textContent = INMO ? 'Catálogo' : 'Bolsa Inmobiliaria';
 // Cómo se llama la vista con que abre el mapa (config.js).
 const CENTRO_NOMBRE = window.OL_CONFIG?.centroNombre ?? 'Monterrey';
 try { sessionStorage.setItem('ol-tab', TAB); } catch { /* sin persistencia */ }

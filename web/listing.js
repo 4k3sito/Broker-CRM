@@ -384,21 +384,32 @@ function vecinos() {
 const irA = id => { if (id) location.href = `listing.html?id=${encodeURIComponent(id)}`; };
 
 // ── Render ───────────────────────────────────────────────────────────────────
-function mosaicoHtml(l, nav) {
+function mosaicoHtml(l) {
   const f = l.fotos;
+  // Sin nombre accesible un lector anunciaba «botón» a secas: la foto es la imagen
+  // decorativa (alt="") y el botón dice qué abre.
+  const nombre = i => `aria-label="Ver foto ${i + 1} de ${f.length}: ${esc(l.titulo ?? 'la propiedad')}"`;
   const celda = (i, cls) => f[i]
-    ? `<button class="fx-ph ${cls}" data-i="${i}"><img src="${esc(f[i])}" alt="" loading="${i ? 'lazy' : 'eager'}"></button>`
+    ? `<button class="fx-ph ${cls}" data-i="${i}" ${nombre(i)}><img src="${esc(f[i])}" alt="" loading="${i ? 'lazy' : 'eager'}"></button>`
     : `<span class="fx-ph ${cls} vacio"></span>`;
   return `<div class="fx-mosaic${f.length <= 1 ? ' uno' : ''}">
     ${celda(0, 'grande')}
     ${f.length > 1 ? [1, 2, 3].map(i => celda(i, '')).join('') +
-      (f[4] ? `<button class="fx-ph" data-i="4"><img src="${esc(f[4])}" alt="" loading="lazy">${f.length > 5 ? `<span class="fx-mas">Ver las ${f.length} fotos</span>` : ''}</button>` : '<span class="fx-ph vacio"></span>') : ''}
+      (f[4] ? `<button class="fx-ph" data-i="4" ${nombre(4)}><img src="${esc(f[4])}" alt="" loading="lazy">${f.length > 5 ? `<span class="fx-mas">Ver las ${f.length} fotos</span>` : ''}</button>` : '<span class="fx-ph vacio"></span>') : ''}
     <a class="fx-over fx-back" href="${esc(VOLVER.href)}">&#8592; ${VOLVER.texto}</a>
-    ${nav ? `<span class="fx-over fx-nav">
-      <button id="navPrev" ${nav.prev ? '' : 'disabled'} title="Anterior (K)">&#8592;</button>
-      <span>${nav.i + 1} / ${nav.n}</span>
-      <button id="navNext" ${nav.next ? '' : 'disabled'} title="Siguiente (J)">&#8594;</button></span>` : ''}
   </div>`;
+}
+
+// Anterior / siguiente en la página del tablero. Iba encima de la foto con forma de
+// carrusel («1 / 70») y se leía como el contador de fotos: ahora va fuera, dice de qué
+// cuenta y anuncia sus atajos.
+function pasosHtml(nav) {
+  if (!nav) return '';
+  return `<nav class="fx-pasos" aria-label="Propiedades de la búsqueda">
+    <button class="fx-paso" id="navPrev" ${nav.prev ? '' : 'disabled'}>&#8592; Anterior <kbd>K</kbd></button>
+    <span class="fx-pasos-n">Propiedad ${nav.i + 1} de ${nav.n}<span class="fx-pasos-de"> en la página del tablero</span></span>
+    <button class="fx-paso" id="navNext" ${nav.next ? '' : 'disabled'}>Siguiente <kbd>J</kbd> &#8594;</button>
+  </nav>`;
 }
 
 function render() {
@@ -429,7 +440,8 @@ function render() {
   const respDe = cid => { const c = clientes.find(x => String(x.id) === String(cid)); return c ? (c.responsable_nombre || c.responsable || null) : null; };
 
   document.getElementById('detail').innerHTML = `
-    ${mosaicoHtml(l, nav)}
+    ${mosaicoHtml(l)}
+    ${pasosHtml(nav)}
     <section class="fx-band">
       <div class="fx-band-t">
         <h1>${esc(l.titulo ?? 'Sin título')}</h1>
@@ -441,18 +453,28 @@ function render() {
         <span>${total != null ? sufijo : (l.porM2 && l.precio != null ? 'por m²' : '')}${pm && total != null ? ` · $${mx(Math.round(pm))}/m²` : ''}</span>
         ${altPriceHtml(l)}
       </div>
-      <select class="fx-status s-${l.status}" id="detailStatus" aria-label="Estado">
-        ${Anuncio.ESTADOS.map(s => `<option${s === l.status ? ' selected' : ''}>${s}</option>`).join('')}
-      </select>
-      <button class="fx-star${l.starred ? ' on' : ''}" id="detailStar" aria-pressed="${l.starred}" title="Destacar">${l.starred ? '&#9733;' : '&#9734;'}</button>
-      ${l.whatsapp ? `<a class="fx-btn solid" href="https://wa.me/${l.whatsapp.replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
-      ${l.url ? `<a class="fx-btn" href="${hrefSeguro(l.url)}" target="_blank" rel="noopener">Anuncio ${ICON_EXTERNAL}</a>` : ''}
-      ${esPropia(l) ? (ficha ? '<button class="fx-btn" id="btnQuitar" title="Borra la propiedad con todo lo que cuelga de ella">Eliminar</button>' : '') : (ficha
-        ? '<span class="fx-tag" title="Tiene ficha: aparece en la pestaña Catálogo">En Catálogo</span>'
-          + '<button class="fx-btn" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar</button>'
-        : '<button class="fx-btn" id="btnInmo" title="Guardarla en la bolsa propia, sin asignarla a nadie">+ Catálogo</button>')}
-      <button class="fx-btn" id="btnPdf" title="Imprime ${esc(nombrePdf(vSel))}.pdf">Ficha PDF</button>
-      <button class="fx-btn" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
+      ${!esPropia(l) && ficha ? '<span class="fx-tag" title="Tiene ficha: aparece en la pestaña Catálogo">En Catálogo</span>' : ''}
+      <!-- Ocho acciones con el mismo peso competían entre sí: quedan a la vista el
+           estado, destacar y WhatsApp; lo demás va en «Más». En el teléfono esta fila
+           es una barra fija abajo (hermes.css). -->
+      <div class="fx-acciones">
+        <select class="fx-status s-${l.status}" id="detailStatus" aria-label="Estado">
+          ${Anuncio.ESTADOS.map(s => `<option${s === l.status ? ' selected' : ''}>${s}</option>`).join('')}
+        </select>
+        <button class="fx-star${l.starred ? ' on' : ''}" id="detailStar" aria-pressed="${l.starred}" title="Destacar" aria-label="Destacar">${l.starred ? '&#9733;' : '&#9734;'}</button>
+        ${l.whatsapp ? `<a class="fx-btn solid" href="https://wa.me/${l.whatsapp.replace(/\D/g, '')}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+        <details class="fx-mas-menu" id="fxMas">
+          <summary class="fx-btn">&#8943; Más</summary>
+          <div class="fx-mas-lista">
+            ${l.url ? `<a class="fx-mas-item" href="${hrefSeguro(l.url)}" target="_blank" rel="noopener">Ver el anuncio ${ICON_EXTERNAL}</a>` : ''}
+            <button class="fx-mas-item" id="btnPdf" title="Imprime ${esc(nombrePdf(vSel))}.pdf">Ficha PDF</button>
+            <button class="fx-mas-item" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
+            ${esPropia(l) ? (ficha ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra la propiedad con todo lo que cuelga de ella">Eliminar propiedad</button>' : '') : (ficha
+              ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar del Catálogo</button>'
+              : '<button class="fx-mas-item" id="btnInmo" title="Guardarla en la bolsa propia, sin asignarla a nadie">+ Guardar en Catálogo</button>')}
+          </div>
+        </details>
+      </div>
     </section>
 
     <div class="fx-cols${PRESENTA_A ? ' pres' : ''}">
@@ -610,6 +632,10 @@ function enlazar() {
   });
   document.querySelectorAll('.base-in').forEach(el => el.onchange = e => saveBase(e.target.dataset.f, e.target.value));
   $('mkt-pdf').onclick = e => descargarAnalisis(e.currentTarget);
+  // «Más» se cierra al elegir algo, salvo el análisis, que dice «Generando…» en su botón.
+  $('fxMas').onclick = e => {
+    if (e.target.closest('.fx-mas-item') && !e.target.closest('#mkt-pdf')) $('fxMas').open = false;
+  };
   $('navPrev') && ($('navPrev').onclick = () => irA(vecinos()?.prev));
   $('navNext') && ($('navNext').onclick = () => irA(vecinos()?.next));
   $('procAdd') && ($('procAdd').onchange = e => addProceso(e.target.value));
@@ -846,7 +872,14 @@ document.getElementById('lbClose').onclick = cerrarVisor;
 document.getElementById('lbPrev').onclick = () => abrirVisor(visor - 1);
 document.getElementById('lbNext').onclick = () => abrirVisor(visor + 1);
 document.getElementById('lightbox').onclick = e => { if (e.target.id === 'lightbox') cerrarVisor(); };
+// «Más» se cierra al tocar fuera o con Escape, como cualquier menú.
+document.addEventListener('click', e => {
+  const m = document.getElementById('fxMas');
+  if (m?.open && !m.contains(e.target)) m.open = false;
+});
 document.addEventListener('keydown', e => {
+  const m = document.getElementById('fxMas');
+  if (e.key === 'Escape' && m?.open) { m.open = false; m.querySelector('summary').focus(); return; }
   if (e.target.closest('input, textarea, select')) return;
   if (visor >= 0) {
     if (e.key === 'Escape') cerrarVisor();

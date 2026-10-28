@@ -2002,10 +2002,23 @@ tr.igual.ocultar { display:none; }
 }
 .fx-back { left:20px; padding:6px 11px; }
 .fx-back:hover { color:var(--blue); background:var(--paper); text-decoration:underline; }
-.fx-nav { right:20px; gap:0; }
-.fx-nav span { padding:0 10px; font-family:var(--font-mono); font-size:11px; }
-.fx-nav button { width:32px; height:30px; border:none; background:transparent; color:inherit; font-size:14px; cursor:pointer; }
-.fx-nav button:disabled { opacity:.3; cursor:default; }
+/* Anterior / siguiente de la página del tablero: una franja propia bajo la foto. */
+.fx-pasos {
+  display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 24px;
+  background:var(--bg); border-bottom:1px solid var(--border);
+}
+.fx-paso {
+  display:inline-flex; align-items:center; gap:7px; min-height:32px; padding:0 8px;
+  border:none; background:transparent; color:var(--ink); cursor:pointer;
+  font-family:var(--font-ui); font-size:13px; font-weight:600;
+}
+.fx-paso:hover:not(:disabled) { text-decoration:underline; }
+.fx-paso:disabled { color:var(--faint); cursor:default; }
+.fx-paso kbd {
+  padding:1px 5px; border:1px solid var(--border-2); font-family:var(--font-mono);
+  font-size:10px; font-weight:700; color:var(--muted);
+}
+.fx-pasos-n { font-family:var(--font-mono); font-size:11px; color:var(--muted); text-align:center; }
 
 .fx-band {
   display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 24px;
@@ -2031,6 +2044,25 @@ tr.igual.ocultar { display:none; }
 .fx-btn:hover { border-color:var(--accent); color:var(--accent); }
 .fx-btn.solid { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 .fx-btn.solid:hover { color:var(--on-accent); opacity:.9; }
+/* Estado, destacar, WhatsApp y «Más». El menú es un <details>: abre sin JS y con
+   teclado; listing.js sólo lo cierra al tocar fuera o con Escape. */
+.fx-acciones { display:flex; align-items:center; gap:8px; }
+.fx-mas-menu { position:relative; }
+.fx-mas-menu > summary { list-style:none; }
+.fx-mas-menu > summary::-webkit-details-marker { display:none; }
+.fx-mas-menu[open] > summary { border-color:var(--accent); }
+.fx-mas-lista {
+  position:absolute; right:0; top:calc(100% + 4px); z-index:30; min-width:230px;
+  display:flex; flex-direction:column; padding:4px; background:var(--surface); border:1px solid var(--border-2);
+}
+.fx-mas-item {
+  display:flex; align-items:center; gap:8px; min-height:40px; padding:0 12px; border:none;
+  background:transparent; color:var(--ink); text-align:left; text-decoration:none; cursor:pointer;
+  font-family:var(--font-ui); font-size:13.5px; font-weight:600;
+}
+.fx-mas-item:hover { background:var(--accent-soft); color:var(--ink); }
+.fx-mas-item:disabled { color:var(--faint); cursor:progress; }
+.fx-mas-item.peligro { color:var(--s-rechazado); }
 
 .fx-cols {
   display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);
@@ -2129,6 +2161,20 @@ tr.igual.ocultar { display:none; }
   .fx-cols, .fx-cols.pres { grid-template-columns:1fr; padding:12px 12px 90px; }
   .fx-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .fx-btn, .fx-status, .fx-star { height:44px; }
+  /* Barra fija abajo: antes las acciones se partían en dos filas y «Ficha PDF /
+     Análisis» colgaban detrás. `.fx-cols` ya deja 90 px abajo para ella. */
+  .fx-acciones {
+    position:fixed; left:0; right:0; bottom:0; z-index:40;
+    padding:8px 12px calc(8px + env(safe-area-inset-bottom));
+    background:var(--surface); border-top:1px solid var(--border-2);
+  }
+  .fx-acciones .fx-status { flex:1; min-width:0; }
+  .fx-mas-lista { top:auto; bottom:calc(100% + 6px); }
+  .fx-pasos { padding:4px 8px; }
+  .fx-pasos-n { font-size:10px; }
+  .fx-pasos-de { display:none; }
+  .fx-paso { white-space:nowrap; }
+  .fx-paso kbd { display:none; }
 }
 
 /* ── Ficha técnica PDF · formato Pro Realtors ─────────────────────────────── */
@@ -2828,3 +2874,9 @@ textarea.base-in { resize:vertical; }
 .card-status::after { content:'▾'; margin-left:-16px; pointer-events:none; font-size:10px; color:var(--muted); }
 .card .status-select { padding-right:20px; }
 .card .status-select.s-Nuevo { background:transparent; border-color:var(--border-2); color:var(--muted); }
+
+/* Texto sólo para lectores de pantalla (los <h1> de index, clientes y tareas). */
+.sr-only {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
