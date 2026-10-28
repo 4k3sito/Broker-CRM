@@ -35,7 +35,7 @@ Siempre como custom properties en `:root`. Nunca escribir un hex en un component
 | `--on-accent` | `#EFEDE6` | Texto **sobre** el acento. No es `--paper`: en oscuro el acento pasa a ser crema |
 
 **Estados de seguimiento** (semánticos, no decorativos): Nuevo `#2B3FC4` · Revisado
-`#6B3FB5` · Contactado `#A85F14` · Rentado `#1F6F4A` · Descartado `#83808C`. Cada uno
+`#6B3FB5` · Contactado `#8F500E` · Rentado `#1F6F4A` · Descartado `#6B6875`. Cada uno
 con su `--r-*` al 10% para fondos.
 **Etapas del proceso comercial (el pipeline):** Prospecto `#83808C` · Por presentar
 `#6B3FB5` · Presentado `#2B3FC4` · Aprobado `#1F6F4A` · Negociación `#A85F14` · Cerrado
@@ -106,11 +106,15 @@ Hanken Grotesk + Space Mono). Es lo único externo que la CSP permite.
 - Wordmark: `Office<i>Lab</i>`, subtítulo `CRM Inmobiliario · México`.
 - **Piso de 10px para el texto funcional.** Todo lo que se lee o se toca —etiquetas,
   fechas, precios, códigos, navegación, encabezados de tabla— está en 10px o más.
-  Sólo siete reglas quedan por debajo, y son deliberadas: el subtítulo del wordmark
-  (`.brand-sub`, `.brand-lockup small`, `.mn-brand small`) y `.mn-soon` a 8.5–9px, que
-  son marca y no información; `.login-sep span` a 9.5px; `.print-facts span` a 9px, que
-  sólo existe al imprimir; y `.field-error::before` a 9px, que es el glifo `!` dentro de
-  una caja de 14px y no texto.
+  Sólo cinco reglas quedan por debajo, y son deliberadas: el subtítulo del wordmark
+  (`.brand-sub`, `.brand-lockup small`) a 9px, que es marca y no información;
+  `.login-sep span` a 9.5px; `.print-facts span` a 9px, que sólo existe al imprimir; y
+  `.field-error::before` a 9px, que es el glifo `!` dentro de una caja de 14px y no
+  texto. Hasta el 2026-10-28 este párrafo decía siete y el CSS tenía 25: el portal de
+  origen de la tarjeta iba a 9px, el $/m² a 9.5px y los encabezados de la ficha a
+  9.5px. Se subieron todos a 10px. Para revisarlo:
+  `grep -nE "font-size: ?([0-9]|9\.[0-9])px" web/hermes.css`.
+- **`prefers-reduced-motion` apaga las transiciones** (el bloque al final de `hermes.css`).
 
 ## 4 bis. La referencia es el proyecto de Claude Design
 
@@ -299,6 +303,15 @@ da **4.41:1 y reprueba AA**, que es donde caen `.statebar-label`, `.tk-bar-hint`
 `.tk-mini-k span` en el tablero de tareas. Un token de texto hay que medirlo contra
 **todos** los fondos sobre los que se usa, no sólo contra el de la página: `.51` pasa en
 los dos (4.53:1 sobre `--surface`, 4.71:1 sobre `--bg`).
+
+**Y la del 2026-10-28:** la corrección se escribió aquí pero `hermes.css` se quedó en
+`.50` (4.40:1 sobre `--surface`, medido en producción). Ahora es **`.55`**: 5.02:1
+sobre `--surface` y 5.28:1 sobre `--bg`, con margen para no volver a quedar en la raya.
+El mismo día subieron los colores de texto que no llegaban sobre su fondo efectivo:
+Contactado y prioridad media `#A85F14` → `#8F500E` (4.28 → 5.55 sobre su tinte),
+Descartado e «Inactivo» `#83808C` → `#6B6875` (3.87 → 5.44), la ☆ de destacar
+`rgba(32,19,51,.38)` → `.6` (2.34 → 4.39; es un control y pide ≥3:1) y los tonos de
+avatar 2, 5 y 6, que con las iniciales crema daban 4.16, 3.75 y 3.30.
 Un detector que lea sólo el HTML estático ve tres de esos 48 casos: el resto lo pinta
 el JS. Al cambiar un token de texto, la cuenta se hace sobre el token, no sobre lo que
 alcance a ver un escáner.
