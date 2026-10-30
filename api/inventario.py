@@ -532,13 +532,60 @@ def _baja(historial: list[dict], ahora: datetime) -> dict | None:
             "antes": None if hoy["price_is_per_m2"] else de}
 
 
+def _hermanos(conn, llaves: tuple[list, list]) -> dict[tuple, list[dict]]:
+    """Por anuncio, los otros anuncios vigentes del mismo inmueble. Un anuncio que sólo
+    está ahí por una foto en común no cuenta: comparado contra columnas reales acierta 85%
+    (puede ser otra unidad del edificio), contra 99.7% de los unidos por `eb_id`."""
+    por: dict[tuple, list[dict]] = {}
+    for h in conn.execute(
+            """SELECT k.source AS de_fuente, k.listing_id AS de_id, m.source, m.listing_id,
+                      m.plot_area_m2 AS terreno, m.built_area_m2 AS construccion,
+                      m.features, m.description, m.listed_at
+               FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
+               JOIN propiedad_anuncio pa USING (source, listing_id)
+               JOIN propiedad_anuncio o ON o.propiedad = pa.propiedad AND o.anuncio <> pa.anuncio
+               JOIN listings m ON m.source = o.source AND m.listing_id = o.listing_id
+               WHERE m.activo IS NOT FALSE AND o.motivo IS DISTINCT FROM 'foto'""", llaves).fetchall():
+        por.setdefault((h["de_fuente"], h["de_id"]), []).append(h)
+    return por
+
+
+def _historiales(conn, llaves: tuple[list, list]) -> dict[tuple, list[dict]]:
+    """`precio_historial` de cada anuncio, de viejo a nuevo."""
+    por: dict[tuple, list[dict]] = {}
+    for h in conn.execute(
+            """SELECT p.source, p.listing_id, p.visto_at, p.price, p.currency,
+                      p.price_is_per_m2, p.operation
+               FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
+               JOIN precio_historial p USING (source, listing_id)
+               ORDER BY p.source, p.listing_id, p.visto_at, p.id""", llaves).fetchall():
+        por.setdefault((h["source"], h["listing_id"]), []).append(h)
+    return por
+
+
+def _baja_de_hermano(fila: dict, hermanos: list[dict], historiales: dict, ahora: datetime) -> dict | None:
+    """La rebaja más reciente en otro anuncio del mismo inmueble y la misma oferta: un
+    portal que bajó el precio dice algo aunque la tarjeta la dé el anuncio de otro."""
+    bajas = []
+    for h in hermanos:
+        hist = historiales.get((h["source"], h["listing_id"]), [])
+        if hist and hist[-1]["operation"] == fila["transaction_type"] and hist[-1]["currency"] == fila["currency"]:
+            if b := _baja(hist, ahora):
+                bajas.append({**b, "fuente": h["source"]})
+    return max(bajas, key=lambda b: b["fecha"], default=None)
+
+
 def _detallar(conn, rows: list[dict]) -> None:
     """A cada fila del tablero, lo que no sale de la consulta de la página: sus atributos
-    (`atributos.py`) y su movimiento en el mercado. Aparte a propósito: el CSV comparte
-    esa consulta y no los usa, y son 70 filas contra 20,000. Una ficha propia no pasa por
-    aquí: su descripción son notas internas y no tiene historial."""
+    (`atributos.py`), su movimiento en el mercado y lo que sus hermanos —los otros anuncios
+    del mismo inmueble— saben y ella no. Aparte a propósito: el CSV comparte esa consulta y
+    no los usa, y son 70 filas contra 20,000. Una ficha propia no pasa por aquí: su
+    descripción son notas internas y no tiene historial.
+
+    `terreno_m2` y `construccion_m2` se quedan como vienen: lo inferido va en `m2_inferido`,
+    porque de esas columnas salen las fichas y el PDF que recibe un cliente."""
     for r in rows:
-        r.update(atributos=[], desde=None, reciente=False, baja=None)
+        r.update(atributos=[], m2_inferido={}, desde=None, reciente=False, baja=None)
     claves = [(r["source"], r["external_id"]) for r in rows if r["source"] != "pipeline"]
     if not claves:
         return
@@ -547,21 +594,29 @@ def _detallar(conn, rows: list[dict]) -> None:
         """SELECT l.source, l.listing_id, l.tipo, l.features, l.description, l.listed_at
            FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
            JOIN listings l USING (source, listing_id)""", llaves).fetchall()
-    historial: dict[tuple, list[dict]] = {}
-    for h in conn.execute(
-            """SELECT p.source, p.listing_id, p.visto_at, p.price, p.currency,
-                      p.price_is_per_m2, p.operation
-               FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
-               JOIN precio_historial p USING (source, listing_id)
-               ORDER BY p.source, p.listing_id, p.visto_at, p.id""", llaves).fetchall():
-        historial.setdefault((h["source"], h["listing_id"]), []).append(h)
+    hermanos = _hermanos(conn, llaves)
+    todos = claves + [(h["source"], h["listing_id"]) for hs in hermanos.values() for h in hs]
+    historiales = _historiales(conn, ([c[0] for c in todos], [c[1] for c in todos]))
     ahora = datetime.now(timezone.utc)
     por_clave = {(t["source"], t["listing_id"]): t for t in textos}
     for r in rows:
         clave = (r["source"], r["external_id"])
-        if t := por_clave.get(clave):
-            r["atributos"] = atributos.de(t["tipo"], t["features"], t["description"])
-            r.update(_movimiento(historial.get(clave, []), t["listed_at"], ahora))
+        t = por_clave.get(clave)
+        if not t:
+            continue
+        hs = hermanos.get(clave, [])
+        r["atributos"] = atributos.heredar(t["tipo"], atributos.de(t["tipo"], t["features"], t["description"]),
+                                           [atributos.de(t["tipo"], h["features"], h["description"]) for h in hs])
+        r["m2_inferido"] = atributos.completar_m2(t["tipo"], r["terreno_m2"], r["construccion_m2"],
+                                                  r["property_size_m2"], hs, t["description"])
+        # La fecha más vieja de todo el inmueble: uno que lleva años no es «reciente» porque
+        # hoy apareció en otro portal.
+        fechas = [t["listed_at"]]
+        for h in hs:
+            hist = historiales.get((h["source"], h["listing_id"]))
+            fechas += [h["listed_at"], hist[0]["visto_at"] if hist else None]
+        r.update(_movimiento(historiales.get(clave, []), min(filter(None, fechas), default=None), ahora))
+        r["baja"] = r["baja"] or _baja_de_hermano(r, hs, historiales, ahora)
 
 
 def _resumir_propiedades(conn, rows: list[dict]) -> None:

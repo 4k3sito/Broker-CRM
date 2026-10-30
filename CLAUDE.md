@@ -132,7 +132,10 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   tipo (`POR_TIPO`). `bedrooms` y `bathrooms` están vacíos: no los uses. `inventario._detallar`
   los pone en las filas de la página junto con `desde`, `reciente` y `baja`, que salen de
   `precio_historial` porque **`listed_at` no es la fecha de publicación**: Navent guarda ahí
-  la de modificación. Ninguno de los dos llega al CSV ni a `/api/v1`.
+  la de modificación. Ninguno de los dos llega al CSV ni a `/api/v1`. Lo que un anuncio no
+  trae se completa con sus hermanos (`propiedad_anuncio`) y su descripción, **siempre aparte
+  en `m2_inferido`**: `terreno_m2` y `construccion_m2` alimentan fichas y PDF, y un dato
+  inferido no puede acabar en un documento para un cliente.
   **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
   tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.
   **`duplicados.py` son las propiedades** (2026-10-11): qué anuncios son el mismo

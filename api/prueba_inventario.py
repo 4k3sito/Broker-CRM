@@ -436,6 +436,29 @@ def la_tarjeta_trae_sus_atributos(conn):
     assert "atributos" not in inventario.uno(conn, Llave(), B1)
 
 
+def lo_que_falta_viene_de_sus_hermanos(conn):
+    conn.execute("UPDATE listings SET area_m2 = 800, plot_area_m2 = 800, built_area_m2 = NULL, "
+                 "description = NULL, features = NULL WHERE source = 'lamudi' AND listing_id = 'L1'")
+    conn.execute("UPDATE listings SET area_m2 = 800, plot_area_m2 = 800, built_area_m2 = 500, "
+                 "features = ARRAY['Estacionamientos: 4'] WHERE source = 'lamudi' AND listing_id = 'V1'")
+    # U1 sólo comparte una foto: su número, que contradiría al de V1, no debe contar.
+    conn.execute("UPDATE listings SET built_area_m2 = 999 WHERE source = 'mercadolibre' AND listing_id = 'U1'")
+    conn.execute("INSERT INTO propiedad_anuncio (anuncio, propiedad, motivo) "
+                 "VALUES (%s, %s, 'prueba'), (%s, %s, 'prueba'), (%s, %s, 'foto')", (L1, L1, V1, L1, U1, L1))
+    conn.execute("UPDATE listings SET price = 90000 WHERE source = 'lamudi' AND listing_id = 'V1'")
+    conn.execute("UPDATE listings SET price = 81000 WHERE source = 'lamudi' AND listing_id = 'V1'")
+    r = inventario.uno(conn, Asesor(ANA), L1)
+    assert r["m2_inferido"] == {"construccion": {"valor": 500.0, "origen": "hermano"}}
+    assert {"clave": "cajones", "valor": 4, "heredado": True} in r["atributos"]
+    assert r["baja"]["pct"] == 10 and r["baja"]["fuente"] == "lamudi"
+    # La columna no se toca: de ella salen las fichas y el PDF.
+    assert r["construccion_m2"] is None
+    # Lo que un anuncio hereda se ve igual en la tarjeta que en la ficha.
+    fila = next(x for x in inventario.buscar(conn, Asesor(ANA), {"fusion": False, "tipo": ["local"]})["items"] if x["id"] == L1)
+    assert fila["m2_inferido"] == r["m2_inferido"]
+    assert "m2_inferido" not in inventario.uno(conn, Llave(), L1)
+
+
 PRUEBAS = [el_csv_es_todas_las_paginas, el_tablero_sin_filtros, lo_dado_de_baja_se_esconde, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
            la_operacion_incluye_la_oferta_alterna, el_tipo_es_el_normalizado, el_precio_es_el_total,
            con_operacion_el_precio_es_el_de_esa_operacion, el_precio_por_metro,
@@ -443,7 +466,8 @@ PRUEBAS = [el_csv_es_todas_las_paginas, el_tablero_sin_filtros, lo_dado_de_baja_
            la_bolsa_y_el_catalogo, cliente_y_etapa_en_el_mismo_proceso, las_paginas, los_contadores,
            uno_por_su_id, una_ficha_propia_se_lee_como_anuncio, el_punto_de_relleno_se_calla,
            con_llave_solo_el_inventario, una_baja_es_el_ultimo_cambio_comparable, una_rebaja_real_llega_a_la_tarjeta,
-           reciente_es_que_las_dos_fechas_lo_digan, la_tarjeta_trae_sus_atributos]
+           reciente_es_que_las_dos_fechas_lo_digan, la_tarjeta_trae_sus_atributos,
+           lo_que_falta_viene_de_sus_hermanos]
 
 
 def main() -> int:

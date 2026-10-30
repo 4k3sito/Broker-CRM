@@ -12,6 +12,15 @@ compara por altura y andenes; un terreno, por su frente. Lo que no se sabe no sa
 ante la duda se calla: un dato inventado en la tarjeta es peor que una tarjeta corta.
 Un `valor` True quiere decir que el anuncio lo menciona sin decir cuántos.
 
+Lo que un anuncio no dice puede decirlo otro del mismo inmueble, o su propia descripción:
+
+    heredar(tipo, propios, de_hermanos)                     atributos con lo de sus hermanos
+    completar_m2(terreno, construccion, area, hermanos, descripcion)
+                                                            terreno y construcción inferidos
+
+Lo inferido nunca reemplaza a una columna: viaja aparte y se pinta marcado. Las fichas, el
+PDF, los filtros y el $/m² leen sólo lo que publicó el portal.
+
 Puro: no toca la base ni la red. Se prueba en api/prueba_atributos.py.
 """
 from __future__ import annotations
@@ -63,6 +72,28 @@ _F_BANOS = re.compile(r"^(?:banos?: *(\d{1,2})|(\d{1,2}) banos?)$")
 _F_MEDIOS = re.compile(r"^(?:medios? banos?: *(\d{1,2})|(\d{1,2}) medios? banos?)$")
 _F_FRENTE = re.compile(r"^m2? de frente: *(\d{1,3}(?:[.,]\d{1,2})?)$")      # Inmuebles24 lo llama así
 _F_ELEVADOR = re.compile(r"^elevador(?:es)?(?:: *[1-9]\d*)?$")
+
+
+# Superficies en el texto. Número antes de la palabra ("1,440 m2 de construccion") o
+# después ("terreno: 1,750 m2"). La segunda forma exige m² explícitos y mira lo que sigue:
+# en "1440 m2 de construccion 80 m2 de oficinas" el 80 son las oficinas, y en "terreno
+# 9.6 mts de altura" lo que viene es otra medida.
+_N_M2 = r"(?<![\d.,])(\d{1,3}(?:,\s?\d{3})+(?:\.\s?\d{1,2})?|\d{2,7}(?:\.\d{1,2})?)"
+_CUADRADOS = r"(?:m2|mt2|mts2|mtrs2|m\s+cuadrados|mts\s+cuadrados|metros\s+cuadrados)\b"
+_LINEALES = rf"(?:{_CUADRADOS}|m|mt|mts|mtrs|metros?)\b"
+_NO_ES_ESE = (r"(?!\s*(?:de\s+)?(?:oficinas?|patio|almacen|bodega|estacion\w*|maniobras?|area|altura|alto)\b)"
+              r"(?!\s*(?:de\s+construccion|de\s+terreno|construid))")
+_TERRENO = (re.compile(rf"{_N_M2}\s*{_LINEALES}\s*(?:de\s+)?terreno\b"),
+            re.compile(rf"\bterreno\s*(?:total\s*)?(?:de|:|=)?\s*:?\s*{_N_M2}\s*{_CUADRADOS}{_NO_ES_ESE}"))
+_CONSTRUCCION = (re.compile(rf"{_N_M2}\s*{_LINEALES}\s*(?:de\s+construccion|construid[oa]s?)\b"),
+                 re.compile(rf"\b(?:construccion|construid[oa]s?)\s*(?:total\s*)?(?:de|:|=)?\s*:?\s*{_N_M2}\s*{_CUADRADOS}{_NO_ES_ESE}"))
+M2_MINIMO = 15
+# Dos anuncios del mismo inmueble pueden redondear distinto; más que esto ya no es lo mismo.
+TOLERANCIA_HERMANOS = 1.05
+# Un dato inferido muy lejos de la superficie que sí se conoce es otra cosa. Más estricto
+# con el texto: comparado contra las columnas, sus errores son justo los desproporcionados.
+FACTOR_HERMANO = 10
+FACTOR_TEXTO = 3
 
 
 def _plano(s: str) -> str:
@@ -140,3 +171,91 @@ def de(tipo: str | None, features: list[str] | None, descripcion: str | None) ->
         if (valor := extraer[clave]()) is not None:
             salida.append({"clave": clave, "valor": valor})
     return salida
+
+
+def heredar(tipo: str | None, propios: list[dict], de_hermanos: list[list[dict]]) -> list[dict]:
+    """Los atributos de un anuncio, completados con los de sus hermanos. Sólo llena lo que
+    falta o lo que sólo decía `True`, y sólo si los hermanos que traen número coinciden."""
+    mios = {a["clave"]: a["valor"] for a in propios}
+    salida = []
+    for clave in POR_TIPO.get(tipo or "", _DEFECTO):
+        suyos = [a["valor"] for lista in de_hermanos for a in lista if a["clave"] == clave]
+        numeros = {v for v in suyos if v is not True}
+        mio = mios.get(clave)
+        if mio is not None and mio is not True:
+            salida.append({"clave": clave, "valor": mio})
+        elif len(numeros) == 1:
+            salida.append({"clave": clave, "valor": numeros.pop(), "heredado": True})
+        elif mio is True:
+            salida.append({"clave": clave, "valor": True})
+        elif suyos and not numeros:
+            salida.append({"clave": clave, "valor": True, "heredado": True})
+    return salida
+
+
+def _m2(texto: str) -> float:
+    return float(texto.replace(",", "").replace(" ", ""))
+
+
+def _del_texto(patrones, texto: str) -> float | None:
+    for p in patrones:
+        for m in p.finditer(texto):
+            if (v := _m2(m[1])) >= M2_MINIMO:
+                return v
+    return None
+
+
+def m2_del_texto(descripcion: str | None) -> tuple[float | None, float | None]:
+    """(terreno, construcción) que dice la descripción, o None en lo que no diga."""
+    texto = _plano(descripcion or "")
+    return _del_texto(_TERRENO, texto), _del_texto(_CONSTRUCCION, texto)
+
+
+def _acuerdo(valores: list[float]) -> float | None:
+    """El valor en el que coinciden los hermanos, o None si no coinciden."""
+    vs = sorted(v for v in valores if v)
+    if not vs or vs[-1] / vs[0] > TOLERANCIA_HERMANOS:
+        return None
+    return vs[len(vs) // 2]
+
+
+def _igual(a: float, b: float) -> bool:
+    """El mismo número, con o sin decimales: 1444 y 1444.3 no son dos superficies."""
+    return bool(a and b) and max(a, b) / min(a, b) <= TOLERANCIA_HERMANOS
+
+
+def completar_m2(tipo: str | None, terreno, construccion, area, hermanos: list[dict],
+                 descripcion: str | None) -> dict:
+    """Terreno y construcción que el anuncio no trae, de dónde salen y nada más:
+    {"terreno": {"valor": 1500.0, "origen": "hermano"}}. `origen` es "hermano" o "texto".
+
+    Un anuncio con el mismo número en los dos campos no sabe cuál es cuál (Navent copia uno
+    en el otro), así que sus números se pueden corregir y no sirven para corregir a nadie:
+    tomarlos de un hermano le pasaría el mismo defecto a quien sí lo tenía bien.
+
+    A un terreno sólo se le completa el terreno: lo que su texto llame construcción es del
+    fraccionamiento o del vecino, y sus números repetidos no son una duda sobre su tamaño."""
+    t, c = float(terreno or 0), float(construccion or 0)
+    repetido = bool(t and t == c)
+    fiables = [h for h in hermanos if not (h["terreno"] and h["terreno"] == h["construccion"])]
+    h_t = _acuerdo([float(h["terreno"] or 0) for h in fiables])
+    h_c = _acuerdo([float(h["construccion"] or 0) for h in fiables])
+    x_t, x_c = m2_del_texto(descripcion)
+    # Si ya se sabe cuánto mide algo, eso acota; si no, cualquier número pasa.
+    conocido = float(area or 0) or t or c
+
+    def elegir(actual, de_hermano, de_texto):
+        if actual and (not repetido or tipo == "terreno"):
+            return None
+        for valor, origen, factor in ((de_hermano, "hermano", FACTOR_HERMANO), (de_texto, "texto", FACTOR_TEXTO)):
+            if not valor or _igual(valor, actual):
+                continue
+            if conocido and not conocido / factor <= valor <= conocido * factor:
+                continue
+            return {"valor": valor, "origen": origen}
+        return None
+
+    salida = {"terreno": elegir(t, h_t, x_t)}
+    if tipo != "terreno":
+        salida["construccion"] = elegir(c, h_c, x_c)
+    return {k: v for k, v in salida.items() if v}

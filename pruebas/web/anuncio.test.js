@@ -190,6 +190,27 @@ test('terreno y construcción salen los dos aunque traigan el mismo número', ()
   assert.deepEqual(plano(sup(null, null, null)), []);
 });
 
+test('lo inferido se marca y no toca lo publicado', () => {
+  const a = Anuncio.de(fila({ terreno_m2: 800, property_size_m2: 800,
+    m2_inferido: { construccion: { valor: 500, origen: 'hermano' } } }));
+  assert.deepEqual(plano(Anuncio.superficiesDe(a).map(s => [s.clave, s.texto, s.detalle])),
+    [['Terreno', '800 m²', 'Terreno'],
+     ['Construcción', '≈ 500 m²', 'Construcción, de otro anuncio del mismo inmueble']]);
+  assert.equal(a.construccion, null, 'de aquí sale la ficha: lo inferido no puede llegar');
+  const b = Anuncio.de(fila({ terreno_m2: 800, construccion_m2: 800,
+    m2_inferido: { terreno: { valor: 1000, origen: 'texto' } } }));
+  assert.deepEqual(plano(Anuncio.superficiesDe(b).map(s => s.texto)), ['≈ 1,000 m²', '800 m²']);
+  assert.equal(Anuncio.superficiesDe(b)[0].detalle, 'Terreno, leído de la descripción');
+  assert.deepEqual(plano(Anuncio.superficiesDe(Anuncio.de(fila({ property_size_m2: 300 }))).map(s => [s.clave, s.texto])),
+    [['Superficie', '300 m²']]);
+});
+
+test('un atributo heredado se marca', () => {
+  const a = Anuncio.de(fila({ atributos: [{ clave: 'cajones', valor: 4, heredado: true }, { clave: 'banos', valor: 2 }] }));
+  assert.deepEqual(plano(Anuncio.datos(a).map(d => [d.texto, d.detalle])),
+    [['≈ 4', 'Cajones, de otro anuncio del mismo inmueble'], ['2', 'Baños']]);
+});
+
 test('los atributos salen en texto y en el orden de la API', () => {
   const a = Anuncio.de(fila({ atributos: [{ clave: 'altura', valor: 9.5 }, { clave: 'andenes', valor: true },
     { clave: 'cajones', valor: 1200 }, { clave: 'desconocido', valor: 1 }] }));
@@ -201,7 +222,8 @@ test('los atributos salen en texto y en el orden de la API', () => {
 test('una rebaja gana a reciente; sin ninguna de las dos no hay insignia', () => {
   const baja = { pct: 8, antes: 100000, fecha: '2026-10-20T00:00:00+00:00' };
   assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja, reciente: true }))).texto, 'Bajó 8%');
-  assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja }))).detalle, 'Antes $100,000');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja }))).detalle, 'antes $100,000');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja: { ...baja, fuente: 'lamudi' } }))).detalle, 'En Lamudi: antes $100,000');
   assert.equal(Anuncio.insignia(Anuncio.de(fila({ reciente: true }))).texto, 'Reciente');
   assert.equal(Anuncio.insignia(Anuncio.de(fila())), null);
 });
