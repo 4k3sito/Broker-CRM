@@ -433,6 +433,7 @@ def la_tarjeta_trae_sus_atributos(conn):
     # El CSV y la llave no cargan con esto.
     assert "atributos" not in inventario.exportar(conn, Asesor(ANA), {"tipo": ["bodega"]})[0]
     assert "atributos" not in inventario.buscar(conn, Llave(), {"tipo": ["bodega"]})["items"][0]
+    assert "atributos" not in inventario.uno(conn, Llave(), B1)
 
 
 PRUEBAS = [el_csv_es_todas_las_paginas, el_tablero_sin_filtros, lo_dado_de_baja_se_esconde, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
