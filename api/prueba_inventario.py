@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import sys
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import psycopg
 from psycopg.rows import dict_row
@@ -370,13 +370,80 @@ def con_llave_solo_el_inventario(conn):
     assert inventario.uno(conn, Llave(), X1)["activo"] is False
 
 
+def _h(dias, precio, ahora, moneda="MXN", m2=False, op="rent"):
+    return {"visto_at": ahora - timedelta(days=dias), "price": precio, "currency": moneda,
+            "price_is_per_m2": m2, "operation": op}
+
+
+def una_baja_es_el_ultimo_cambio_comparable(conn):
+    ahora = datetime.now(timezone.utc)
+    mov = lambda *h: inventario._movimiento(list(h), None, ahora)
+    assert mov(_h(20, 100000, ahora), _h(3, 92000, ahora))["baja"]["pct"] == 8
+    assert mov(_h(20, 100000, ahora), _h(3, 92000, ahora))["baja"]["antes"] == 100000
+    # Con el precio por m² no hay un «antes» que enseñar como total.
+    assert mov(_h(20, 300, ahora, m2=True), _h(3, 270, ahora, m2=True))["baja"]["antes"] is None
+    # Bajó y volvió a subir: lo que cuenta es el último cambio.
+    assert mov(_h(20, 100, ahora), _h(9, 90, ahora), _h(3, 100, ahora))["baja"] is None
+    # Filas de vigencia (mismo precio) y filas sin precio no son cambios.
+    assert mov(_h(20, 100, ahora), _h(9, 90, ahora), _h(5, None, ahora), _h(3, 90, ahora))["baja"]["pct"] == 10
+    assert mov(_h(90, 100, ahora), _h(31, 90, ahora))["baja"] is None                  # ya es vieja
+    assert mov(_h(9, 100000, ahora), _h(3, 40000, ahora))["baja"] is None              # captura corregida
+    assert mov(_h(9, 100, ahora), _h(3, 90, ahora, moneda="USD"))["baja"] is None      # otra moneda
+    assert mov(_h(9, 100, ahora, op="sale"), _h(3, 90, ahora))["baja"] is None         # otra operación
+    assert mov(_h(9, 300, ahora), _h(3, 270, ahora, m2=True))["baja"] is None          # otra unidad
+    assert mov(_h(9, 1000, ahora), _h(3, 998, ahora))["baja"] is None                  # ruido de 0.2%
+    assert mov(_h(9, 1000, ahora), _h(3, 980, ahora))["baja"] is None                  # 2% tampoco dice nada
+
+
+def una_rebaja_real_llega_a_la_tarjeta(conn):
+    # Por la base y no con datos a mano: `numeric` llega como Decimal, y el trigger es el
+    # que escribe la historia.
+    conn.execute("UPDATE listings SET price = 90000 WHERE source = 'vivanuncios' AND listing_id = 'B1'")
+    conn.execute("UPDATE listings SET price = 81000 WHERE source = 'vivanuncios' AND listing_id = 'B1'")
+    b1 = next(r for r in inventario.buscar(conn, Asesor(ANA), {"tipo": ["bodega"]})["items"] if r["id"] == B1)
+    assert b1["baja"]["pct"] == 10 and b1["baja"]["antes"] == 90000
+    assert inventario.uno(conn, Asesor(ANA), B1)["baja"]["pct"] == 10
+
+
+def reciente_es_que_las_dos_fechas_lo_digan(conn):
+    ahora = datetime.now(timezone.utc)
+    mov = lambda dias, publicado=None: inventario._movimiento(
+        [_h(dias, 100, ahora)], ahora - timedelta(days=publicado) if publicado is not None else None, ahora)
+    assert mov(3)["reciente"] is True
+    assert mov(3, 2)["reciente"] is True
+    assert mov(9)["reciente"] is False
+    assert mov(40, 1)["reciente"] is False      # Pincali: republicado, lo tenemos de hace mes
+    assert mov(3, 90)["reciente"] is False      # recién lo encontramos, pero lleva meses
+    assert mov(3, 90)["desde"] == (ahora - timedelta(days=90)).isoformat()
+    assert inventario._movimiento([], None, ahora) == {"desde": None, "reciente": False, "baja": None}
+
+
+def la_tarjeta_trae_sus_atributos(conn):
+    conn.execute("UPDATE listings SET description = '2 andenes y altura libre de 9 metros', "
+                 "features = ARRAY['Estacionamientos: 4'] WHERE source = 'vivanuncios' AND listing_id = 'B1'")
+    filas = inventario.buscar(conn, Asesor(ANA), {"tipo": ["bodega"]})["items"]
+    b1 = next(r for r in filas if r["id"] == B1)
+    assert b1["atributos"] == [{"clave": "altura", "valor": 9.0}, {"clave": "andenes", "valor": 2},
+                               {"clave": "cajones", "valor": 4}]
+    assert b1["desde"] and b1["baja"] is None
+    assert inventario.uno(conn, Asesor(ANA), B1)["atributos"] == b1["atributos"]
+    # La descripción de una ficha propia son notas internas: de ahí no se saca nada.
+    propia = inventario.uno(conn, Asesor(ANA), PROPIA)
+    assert propia["atributos"] == [] and propia["desde"] is None
+    # El CSV y la llave no cargan con esto.
+    assert "atributos" not in inventario.exportar(conn, Asesor(ANA), {"tipo": ["bodega"]})[0]
+    assert "atributos" not in inventario.buscar(conn, Llave(), {"tipo": ["bodega"]})["items"][0]
+    assert "atributos" not in inventario.uno(conn, Llave(), B1)
+
+
 PRUEBAS = [el_csv_es_todas_las_paginas, el_tablero_sin_filtros, lo_dado_de_baja_se_esconde, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
            la_operacion_incluye_la_oferta_alterna, el_tipo_es_el_normalizado, el_precio_es_el_total,
            con_operacion_el_precio_es_el_de_esa_operacion, el_precio_por_metro,
            la_superficie_que_se_pide, cerca_de_un_punto, el_seguimiento_es_de_cada_asesor,
            la_bolsa_y_el_catalogo, cliente_y_etapa_en_el_mismo_proceso, las_paginas, los_contadores,
            uno_por_su_id, una_ficha_propia_se_lee_como_anuncio, el_punto_de_relleno_se_calla,
-           con_llave_solo_el_inventario]
+           con_llave_solo_el_inventario, una_baja_es_el_ultimo_cambio_comparable, una_rebaja_real_llega_a_la_tarjeta,
+           reciente_es_que_las_dos_fechas_lo_digan, la_tarjeta_trae_sus_atributos]
 
 
 def main() -> int:

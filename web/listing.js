@@ -427,9 +427,13 @@ function render() {
   const ofs = Anuncio.ofertas(l, opDelTablero());
   document.title = (l.titulo ?? 'Propiedad') + ' · OfficeLab';
 
+  const ins = Anuncio.insignia(l), mercado = Anuncio.tiempoEnMercado(l);
   const facts = [
-    ...superficies(l.terreno, l.construccion, l.size).map(([k, v]) => [k, m2Txt(v)]),
+    ...superficies(l.terreno, l.construccion, l.size).map(([k, v]) => [k, m2Txt(v), k]),
+    ...Anuncio.datos(l).map(d => [d.etiqueta, d.texto, d.clave]),
     pm ? ['Precio / m²', `$${mx(Math.round(pm))}`] : null,
+    ins ? [ins.texto, ins.detalle] : null,
+    mercado ? ['En el mercado', mercado] : null,
     l.tipo ? ['Tipo', cap(l.tipo)] : null,
     Anuncio.operacion(l) ? ['Operación', Anuncio.operacion(l)] : null,
     l.zona ? ['Municipio', l.zona] : null,
@@ -488,7 +492,7 @@ function render() {
     <div class="fx-cols${PRESENTA_A ? ' pres' : ''}">
       <section class="fx-card">
         <h2>Ficha</h2>
-        <dl class="fx-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+        <dl class="fx-facts">${facts.map(([k, v, ic]) => `<div><dt>${ic ? Iconos.de(ic, 12) : ''}${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
         ${l.descripcion ? `<p class="fx-desc">${esc(l.descripcion)}</p>` : ''}
         ${l.features.length ? `<ul class="fx-feat">${l.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
         <div class="fx-vers">

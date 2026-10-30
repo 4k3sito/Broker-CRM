@@ -127,6 +127,12 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   en la API, `resolver_mapa`). Lanza `NoExiste` (404) y `DatoInvalido` (422). Los
   `_insert` / `_patch` / `_delete` genéricos de `main.py` siguen sirviendo a clientes,
   procesos, documentos y tareas.
+  **`atributos.py` son los datos sin columna** (2026-10-30): cajones, baños, altura,
+  andenes y frente, sacados de `features` y de la descripción, sólo los que aplican a cada
+  tipo (`POR_TIPO`). `bedrooms` y `bathrooms` están vacíos: no los uses. `inventario._detallar`
+  los pone en las filas de la página junto con `desde`, `reciente` y `baja`, que salen de
+  `precio_historial` porque **`listed_at` no es la fecha de publicación**: Navent guarda ahí
+  la de modificación. Ninguno de los dos llega al CSV ni a `/api/v1`.
   **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
   tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.
   **`duplicados.py` son las propiedades** (2026-10-11): qué anuncios son el mismo

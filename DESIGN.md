@@ -124,6 +124,25 @@ Hanken Grotesk + Space Mono). Es lo único externo que la CSP permite.
   menos, Safari en iPhone hace zoom al enfocarlos. La casilla de selección de la
   tarjeta se ve siempre y ella y la ☆ tocan en 44×44 con un `::after` transparente.
 
+## 4 bis-0. Iconos e insignias de la tarjeta (2026-10-30)
+
+Los iconos viven en `web/iconos.js` (`Iconos.de(nombre, px)`): trazo de 2 px, puntas
+cuadradas, `currentColor` y `aria-hidden`. El dato va en el `title` o en la etiqueta de
+al lado: un icono solo no explica nada. No se usan emojis ni librerías de iconos.
+
+Terreno y construcción van en su propio renglón (`.card-m2`) con la **etiqueta escrita**:
+el `title` no existe en el teléfono. Salen los dos aunque traigan el mismo número.
+
+La fila `.card-hechos` depende del **tipo** de inmueble y sale de `POR_TIPO` en
+`api/atributos.py`; no se pintan recámaras porque el inventario es comercial y la columna
+está vacía. **Lo que no se sabe no sale**: ni guiones ni ceros. `Sí` quiere decir que el
+anuncio lo menciona sin decir cuántos.
+
+La insignia `.badge-mercado` invierte el par de la fuente (crema sobre tinta) en vez de
+traer un color: los colores de estado son para el estado del asesor. Hay una por tarjeta y
+gana `Bajó N%`. Se llama **Reciente** y no «Nuevo» porque `Nuevo` es un estado de
+seguimiento que trae casi todo el inventario.
+
 ## 4 bis. La referencia es el proyecto de Claude Design
 
 Los siete `.dc.html` del proyecto **"Hermes Agent aesthetic"** son el layout

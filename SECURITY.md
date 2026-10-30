@@ -267,6 +267,16 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Endpoints (2026-10-30) — atributos y movimiento en `/api/listings` (copia de trabajo)
+
+`GET /api/listings` y `GET /api/listings/{id}` agregan a cada fila `atributos`, `desde`,
+`reciente` y `baja`. Sin endpoints nuevos ni cambios de permisos: salen del mismo inventario
+que el asesor ya ve. Tres cosas que se cuidaron: la descripción de una ficha propia son
+notas internas y **no se analiza**; la llave (`/api/v1`) y el CSV no reciben estos campos;
+y el texto extraído de portales llega a `innerHTML` por `esc()`. Las expresiones de
+`atributos.py` usan cuantificadores acotados, sin retroceso explosivo sobre texto de
+terceros: 12 ms por página de 70 filas.
+
 ### Endpoints (2026-10-28) — CSV del inventario (copia de trabajo)
 
 - `GET /api/listings.csv`: los mismos filtros y el mismo orden que `/api/listings`, con
