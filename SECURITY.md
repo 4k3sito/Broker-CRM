@@ -273,8 +273,9 @@ El VPS no tiene `gh` y su llave SSH sólo empuja: abrir un PR o hacer merge pide
 hoy hay uno guardado en `/root/.config/officelab/github-token` (directorio 700, archivo 600,
 root), **fuera del repo**, para que lo usen las sesiones de agente del proyecto. Es
 fine-grained, sólo de `4k3sito/Broker-CRM`, con Contents y Pull requests en escritura y Actions
-en lectura, y caduca a los 90 días (2026-10-30 → hacia el 2027-01-28): al vencer hay que
-generar otro. Cualquier proceso como root puede leerlo, igual que `vps/.env`, y eso incluye al
+en lectura. Se pidió a 90 días, pero al verificarlo GitHub no devolvió fecha de caducidad
+(`github-authentication-token-expiration`): hay que confirmarla en la página del token. Al
+vencer hay que generar otro. Cualquier proceso como root puede leerlo, igual que `vps/.env`, y eso incluye al
 agente del VPS (H6). Con Contents en escritura puede empujar a `produccion`, que despliega; el
 flujo de `CLAUDE.md` lo prohíbe sin el «sí» de Deploy, pero el token por sí solo no lo impide.
 Se lee del archivo y nunca va en la línea de comandos, en un log ni en un commit. Revocar: en
