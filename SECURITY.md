@@ -267,6 +267,19 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Token de GitHub en el VPS (2026-10-30)
+
+El VPS no tiene `gh` y su llave SSH sólo empuja: abrir un PR o hacer merge pide un token. Desde
+hoy hay uno guardado en `/root/.config/officelab/github-token` (directorio 700, archivo 600,
+root), **fuera del repo**, para que lo usen las sesiones de agente del proyecto. Es
+fine-grained, sólo de `4k3sito/Broker-CRM`, con Contents y Pull requests en escritura y Actions
+en lectura, y caduca a los 90 días (2026-10-30 → hacia el 2027-01-28): al vencer hay que
+generar otro. Cualquier proceso como root puede leerlo, igual que `vps/.env`, y eso incluye al
+agente del VPS (H6). Con Contents en escritura puede empujar a `produccion`, que despliega; el
+flujo de `CLAUDE.md` lo prohíbe sin el «sí» de Deploy, pero el token por sí solo no lo impide.
+Se lee del archivo y nunca va en la línea de comandos, en un log ni en un commit. Revocar: en
+GitHub, Settings → Developer settings → Fine-grained tokens, y borrar el archivo.
+
 ### Endpoints (2026-10-30) — atributos y movimiento en `/api/listings` (copia de trabajo)
 
 `GET /api/listings` y `GET /api/listings/{id}` agregan a cada fila `atributos`,
