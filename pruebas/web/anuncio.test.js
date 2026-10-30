@@ -168,3 +168,39 @@ test('el mismo corredor en dos portales no presume anunciantes ni rango', () => 
   assert.equal(Anuncio.resumen(a), '2 anuncios');
   assert.equal(Anuncio.rango(a), null);
 });
+
+test('terreno y construcción salen los dos aunque traigan el mismo número', () => {
+  const sup = vm.runInContext('superficies', ctx);
+  assert.deepEqual(plano(sup(800, 800, 800)), [['Terreno', 800], ['Construcción', 800]]);
+  assert.deepEqual(plano(sup(800, 500, 800)), [['Terreno', 800], ['Construcción', 500]]);
+  assert.deepEqual(plano(sup(800, null, 800)), [['Terreno', 800]]);
+  assert.deepEqual(plano(sup(null, 500, 500)), [['Construcción', 500]]);
+  assert.deepEqual(plano(sup(null, null, 300)), [['Superficie', 300]]);
+  assert.deepEqual(plano(sup(null, null, null)), []);
+});
+
+test('los atributos salen en texto y en el orden de la API', () => {
+  const a = Anuncio.de(fila({ atributos: [{ clave: 'altura', valor: 9.5 }, { clave: 'andenes', valor: true },
+    { clave: 'cajones', valor: 1200 }, { clave: 'desconocido', valor: 1 }] }));
+  assert.deepEqual(plano(Anuncio.datos(a).map(d => [d.clave, d.etiqueta, d.texto])),
+    [['altura', 'Altura libre', '9.5 m'], ['andenes', 'Andenes', 'Sí'], ['cajones', 'Cajones', '1,200']]);
+  assert.deepEqual(plano(Anuncio.datos(Anuncio.de(fila()))), []);
+});
+
+test('una rebaja gana a reciente; sin ninguna de las dos no hay insignia', () => {
+  const baja = { pct: 8, antes: 100000, fecha: '2026-10-20T00:00:00+00:00' };
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja, reciente: true }))).texto, 'Bajó 8%');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja }))).detalle, 'Antes $100,000');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ reciente: true }))).texto, 'Reciente');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila())), null);
+});
+
+test('el tiempo en el mercado se dice en la unidad que cabe', () => {
+  const ahora = new Date('2026-10-30T12:00:00Z');
+  const hace = d => Anuncio.tiempoEnMercado(Anuncio.de(fila({ desde: new Date(ahora - d * 864e5).toISOString() })), ahora);
+  assert.equal(hace(0), '1 d');
+  assert.equal(hace(12), '12 d');
+  assert.equal(hace(150), '5 meses');
+  assert.equal(hace(800), '2 años');
+  assert.equal(Anuncio.tiempoEnMercado(Anuncio.de(fila()), ahora), null);
+});

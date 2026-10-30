@@ -177,6 +177,20 @@ function altPriceHtml(l) {
   return `<div class="price-alt">${s.etiqueta}: <strong>${s.precio}</strong>${s.nota ? ' ' + s.nota : ''}</div>`;
 }
 
+// Los datos de la tarjeta, en dos renglones. Las superficies llevan su etiqueta escrita:
+// el `title` no existe en el teléfono, y terreno y construcción hay que poder distinguirlos
+// de un vistazo. Abajo, lo que importa de ese tipo de inmueble (POR_TIPO en
+// api/atributos.py). Lo que no se sabe no sale.
+const CORTA_M2 = { Terreno: 'Terreno', Construcción: 'Constr.', Superficie: 'Sup.' };
+function hechosHtml(l) {
+  const m2 = superficies(l.terreno, l.construccion, l.size);
+  const datos = Anuncio.datos(l);
+  return (m2.length ? `<div class="card-hechos card-m2">${m2.map(([k, v]) =>
+      `<span title="${esc(k)}">${Iconos.de(k)}<small>${CORTA_M2[k]}</small>${esc(m2Txt(v))}</span>`).join('')}</div>` : '') +
+    (datos.length ? `<div class="card-hechos">${datos.map(d =>
+      `<span title="${esc(d.etiqueta)}">${Iconos.de(d.clave)}${esc(d.texto)}</span>`).join('')}</div>` : '');
+}
+
 // ── Tarjeta ──────────────────────────────────────────────────────────────────
 
 function renderCard(l) {
@@ -202,12 +216,13 @@ function renderCard(l) {
     : `<div class="card-price"><strong class="no-price">Sin precio</strong></div>`;
 
   const sel = seleccion.has(l.id);
+  const ins = Anuncio.insignia(l), mercado = Anuncio.tiempoEnMercado(l);
   return `<article class="card ${l.starred ? 'starred' : ''}${sel ? ' sel' : ''} status-${l.status.toLowerCase()}" data-id="${esc(l.id)}">
     <div class="card-img">
       ${imgHtml}
       <span class="badge badge-src">${esc(l.fuentes.length > 1 ? `${l.fuentes.length} PORTALES` : blabel)}</span>
       ${l.fotos?.length ? `<span class="badge badge-foto">FOTO 1/${l.fotos.length}</span>` : ''}
-      ${superficies(l.terreno, l.construccion, l.size).map(([k, v]) => `<span class="badge badge-size" title="${k}">${k === 'Superficie' ? '' : k === 'Terreno' ? 'Terreno ' : 'Constr. '}${m2Txt(v)}</span>`).join('')}
+      ${ins ? `<span class="badge badge-mercado" title="${esc(ins.detalle)}">${esc(ins.texto)}</span>` : ''}
       <button class="card-chk" title="Seleccionar" aria-pressed="${sel}">${sel ? '&#10003;' : ''}</button>
       <button class="btn-star" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">${l.starred ? '&#9733;' : '&#9734;'}</button>
     </div>
@@ -223,17 +238,21 @@ function renderCard(l) {
       </div>
       ${l.titulo ? `<div class="card-title" title="${esc(l.titulo)}">${esc(l.titulo)}</div>` : ''}
       ${Anuncio.ubicacion(l) ? `<div class="card-dir" title="${esc(Anuncio.ubicacion(l))}">${ICON_PIN}${esc(Anuncio.ubicacion(l))}</div>` : ''}
+      ${hechosHtml(l)}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
         ${l.transaccion ? `<span class="tag-txn">${esc(l.transaccion)}</span>` : ''}
         ${l.codigo ? `<span class="tag-cod">${esc(l.codigo)}</span>` : ''}
       </div>
       <div class="card-sep"></div>
-      <div class="card-status">
-        <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
-        <select class="status-select s-${l.status}" aria-label="Estado de seguimiento">
-          ${Anuncio.ESTADOS.map(st => `<option${st === l.status ? ' selected' : ''}>${st}</option>`).join('')}
-        </select>
+      <div class="card-pie">
+        <div class="card-status">
+          <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
+          <select class="status-select s-${l.status}" aria-label="Estado de seguimiento">
+            ${Anuncio.ESTADOS.map(st => `<option${st === l.status ? ' selected' : ''}>${st}</option>`).join('')}
+          </select>
+        </div>
+        ${mercado ? `<span class="card-mercado" title="En el mercado desde al menos el ${esc(Anuncio.fecha(l.desde))}">${esc(mercado)} en mercado</span>` : ''}
       </div>
     </div>
   </article>`;

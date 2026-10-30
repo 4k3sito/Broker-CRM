@@ -29,6 +29,9 @@ from __future__ import annotations
 
 import unicodedata
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+
+import atributos
 
 
 class FiltroInvalido(ValueError):
@@ -418,7 +421,8 @@ def buscar(conn, quien, filtros: dict, orden: str = "recientes", page: int = 1,
                          p).fetchone()["n"]
     if fusiona:
         _resumir_propiedades(conn, rows)
-        return {"items": rows, "total": total, "page": page, "per_page": per_page}
+    if isinstance(quien, Asesor):
+        _detallar(conn, rows)
     out = {"items": rows, "total": total, "page": page, "per_page": per_page}
     if isinstance(quien, Llave):
         out["pages"] = -(-total // per_page)
@@ -466,6 +470,83 @@ def _filas(conn, quien, filtros: dict, orden: str, limite: int, desde: int) -> l
     return conn.execute(
         f"SELECT {columnas} {base} ORDER BY {expr} {sentido}, {desempate} LIMIT %s OFFSET %s",
         [*p, limite, desde]).fetchall()
+
+
+# Cuánto dura cada insignia de la tarjeta, y qué cuenta como baja: menos de BAJA_MINIMA
+# (por ciento) es ruido, y lo que cae más de la mitad es una captura corregida.
+DIAS_RECIENTE = 7
+DIAS_BAJA = 30
+BAJA_MINIMA = 3
+BAJA_MAXIMA = 0.5
+
+
+def _movimiento(historial: list[dict], publicado: datetime | None, ahora: datetime) -> dict:
+    """Qué se sabe del anuncio en el mercado, a partir de `precio_historial` (viejo a nuevo).
+
+    `listed_at` solo no sirve: Navent guarda ahí la fecha de MODIFICACIÓN y Pincali trae
+    fechas recientes en anuncios que tenemos desde septiembre. Tampoco basta la primera
+    vez que lo vimos: un portal que se barre por primera vez haría «reciente» a todo. Por
+    eso `desde` es la más vieja de las dos y es «al menos desde»: la tabla nació el
+    2026-09-21, así que ningún anuncio sin `listed_at` lleva más que eso."""
+    fechas = [f for f in (publicado, historial[0]["visto_at"] if historial else None) if f]
+    desde = min(fechas) if fechas else None
+    return {"desde": desde.isoformat() if desde else None,
+            "reciente": bool(desde and ahora - desde <= timedelta(days=DIAS_RECIENTE)),
+            "baja": _baja(historial, ahora)}
+
+
+def _baja(historial: list[dict], ahora: datetime) -> dict | None:
+    """El último cambio de precio, si fue una rebaja de hace menos de `DIAS_BAJA`. Compara
+    sólo precios comparables: en otra moneda, otra operación o por m² no es una baja."""
+    precios = [f for f in historial if f["price"] is not None]
+    cambios = [(a, b) for a, b in zip(precios, precios[1:]) if a["price"] != b["price"]]
+    if not cambios:
+        return None
+    antes, hoy = cambios[-1]
+    if any(antes[k] != hoy[k] for k in ("currency", "price_is_per_m2", "operation")):
+        return None
+    if ahora - hoy["visto_at"] > timedelta(days=DIAS_BAJA):
+        return None
+    de, a = float(antes["price"]), float(hoy["price"])      # numeric llega como Decimal
+    if not de * (1 - BAJA_MAXIMA) <= a < de:
+        return None
+    pct = round(100 * (de - a) / de)
+    if pct < BAJA_MINIMA:
+        return None
+    return {"pct": pct, "fecha": hoy["visto_at"].isoformat(),
+            "antes": None if hoy["price_is_per_m2"] else de}
+
+
+def _detallar(conn, rows: list[dict]) -> None:
+    """A cada fila del tablero, lo que no sale de la consulta de la página: sus atributos
+    (`atributos.py`) y su movimiento en el mercado. Aparte a propósito: el CSV comparte
+    esa consulta y no los usa, y son 70 filas contra 20,000. Una ficha propia no pasa por
+    aquí: su descripción son notas internas y no tiene historial."""
+    for r in rows:
+        r.update(atributos=[], desde=None, reciente=False, baja=None)
+    claves = [(r["source"], r["external_id"]) for r in rows if r["source"] != "pipeline"]
+    if not claves:
+        return
+    llaves = ([c[0] for c in claves], [c[1] for c in claves])
+    textos = conn.execute(
+        """SELECT l.source, l.listing_id, l.tipo, l.features, l.description, l.listed_at
+           FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
+           JOIN listings l USING (source, listing_id)""", llaves).fetchall()
+    historial: dict[tuple, list[dict]] = {}
+    for h in conn.execute(
+            """SELECT p.source, p.listing_id, p.visto_at, p.price, p.currency,
+                      p.price_is_per_m2, p.operation
+               FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
+               JOIN precio_historial p USING (source, listing_id)
+               ORDER BY p.source, p.listing_id, p.visto_at, p.id""", llaves).fetchall():
+        historial.setdefault((h["source"], h["listing_id"]), []).append(h)
+    ahora = datetime.now(timezone.utc)
+    por_clave = {(t["source"], t["listing_id"]): t for t in textos}
+    for r in rows:
+        clave = (r["source"], r["external_id"])
+        if t := por_clave.get(clave):
+            r["atributos"] = atributos.de(t["tipo"], t["features"], t["description"])
+            r.update(_movimiento(historial.get(clave, []), t["listed_at"], ahora))
 
 
 def _resumir_propiedades(conn, rows: list[dict]) -> None:
@@ -542,10 +623,13 @@ def uno(conn, quien, id_: str) -> dict | None:
     # `pipeline:<uuid>` es una ficha del sheet: se lee de la misma vista que usa la
     # pestaña Inmobiliaria, así el detalle y la tarjeta dicen lo mismo.
     origen = f"({FICHA_COMO_LISTING}) l" if id_.startswith("pipeline:") else "listings l"
-    return conn.execute(
+    fila = conn.execute(
         f"""SELECT {SELECT_LISTING}, l.description, l.features
             FROM {origen}
             LEFT JOIN zona z ON z.id = l.zona_id
             LEFT JOIN user_listing ul ON ul.listing_id = %s AND ul.user_id = %s
             WHERE l.source || ':' || l.listing_id = %s""",
         (id_, quien.id, id_)).fetchone()
+    if fila:
+        _detallar(conn, [fila])
+    return fila

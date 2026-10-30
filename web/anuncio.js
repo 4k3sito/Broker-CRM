@@ -67,6 +67,8 @@ const Anuncio = (() => {
       // Una ficha propia no siempre dice si es renta o venta: sin operación, no "Renta".
       transaccion: OPERACION_DE_API[l.transaction_type] ?? (l.source === 'pipeline' ? null : 'Renta'),
       descripcion: l.description ?? null, features: l.features ?? [],
+      // Lo que la API sacó de esas amenidades y del texto, y su movimiento en el mercado.
+      atributos: l.atributos ?? [], desde: l.desde ?? null, reciente: l.reciente ?? false, baja: l.baja ?? null,
       // Coordenadas para el mapa. Se aceptan los nombres más comunes; si la API no las
       // manda, el inmueble simplemente no lleva pin.
       lat: num(l.lat ?? l.latitude ?? l.geo?.lat ?? l.location?.lat),
@@ -133,6 +135,36 @@ const Anuncio = (() => {
     return `${a.anuncios} anuncios` + (a.anunciantes > 1 ? ` · ${a.anunciantes} anunciantes` : '');
   }
 
+  // ── Atributos y mercado ────────────────────────────────────────────────────
+
+  const ATRIBUTOS = { cajones: 'Cajones', banos: 'Baños', altura: 'Altura libre', andenes: 'Andenes',
+                      frente: 'Frente', elevador: 'Elevador' };
+  const EN_METROS = new Set(['altura', 'frente']);
+
+  // Los atributos, ya en texto y en el orden de la API (que depende del tipo). `true` es
+  // que el anuncio lo menciona sin decir cuántos.
+  const datos = a => a.atributos.filter(x => ATRIBUTOS[x.clave]).map(({ clave, valor }) => ({
+    clave, etiqueta: ATRIBUTOS[clave],
+    texto: valor === true ? 'Sí' : EN_METROS.has(clave) ? `${mx(valor)} m` : mx(valor),
+  }));
+
+  // La insignia de la foto, o null. Una sola: una rebaja dice más que una fecha.
+  // «Reciente» y no «Nuevo»: Nuevo es un estado del asesor y casi todo el inventario lo trae.
+  function insignia(a) {
+    if (a.baja) return { texto: `Bajó ${a.baja.pct}%`,
+      detalle: a.baja.antes ? `Antes $${mx(Math.round(a.baja.antes))}` : `Bajó el ${fecha(a.baja.fecha)}` };
+    return a.reciente ? { texto: 'Reciente', detalle: 'Publicado en los últimos 7 días' } : null;
+  }
+
+  // Cuánto lleva anunciado, o null: "12 d", "5 meses", "2 años".
+  function tiempoEnMercado(a, ahora = new Date()) {
+    if (!a.desde) return null;
+    const d = Math.max(1, Math.floor((ahora - new Date(a.desde)) / 864e5));
+    if (d < 60) return `${d} d`;
+    return d < 730 ? `${Math.round(d / 30.44)} meses` : `${Math.floor(d / 365.25)} años`;
+  }
+  const fecha = iso => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+
   // ── Etiquetas y ubicación ──────────────────────────────────────────────────
 
   // La moneda del precio, como se escribe: los portales mandan "MN" por pesos.
@@ -144,5 +176,5 @@ const Anuncio = (() => {
   // Dónde está, en una línea: la dirección, y a falta de ella el municipio.
   const ubicacion = a => a.direccion ?? a.zona ?? null;
 
-  return { ESTADOS, de, total, porMetro, precioVisible, segundoPrecio, rango, resumen, moneda, estadoApi, fuente, ubicacion };
+  return { ESTADOS, de, total, porMetro, precioVisible, segundoPrecio, rango, resumen, datos, insignia, tiempoEnMercado, fecha, moneda, estadoApi, fuente, ubicacion };
 })();

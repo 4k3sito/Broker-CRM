@@ -34,12 +34,14 @@ const dineroCorto = n => n >= 1e6 ? `$${(n / 1e6).toFixed(n >= 1e8 ? 1 : 2).repl
 const pesoTxt = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 
 // Superficie de una propiedad, distinguiendo terreno y construcción cuando se sabe.
-// Devuelve pares [etiqueta, m²]: los dos si el portal (o la ficha) los trae distintos;
-// uno etiquetado si sólo se sabe cuál es; y "Superficie" a secas cuando el anuncio da
-// un solo número sin decir de qué —o da el mismo para los dos, que es lo mismo—.
+// Devuelve pares [etiqueta, m²]: los dos si el portal (o la ficha) trae los dos, aunque
+// sean el mismo número (así lo pidió el equipo: hay que poder distinguirlos, y juntarlos
+// le quitaba la etiqueta a más de la mitad de los locales y oficinas); uno etiquetado si
+// sólo se sabe cuál es; y "Superficie" a secas cuando el anuncio da un solo número sin
+// decir de qué.
 function superficies(terreno, construccion, area) {
   const t = Number(terreno) || null, c = Number(construccion) || null, a = Number(area) || null;
-  if (t && c && t !== c) return [['Terreno', t], ['Construcción', c]];
+  if (t && c) return [['Terreno', t], ['Construcción', c]];
   if (t && !c) return [['Terreno', t]];
   if (c && !t) return [['Construcción', c]];
   return (a ?? t) ? [['Superficie', a ?? t]] : [];
