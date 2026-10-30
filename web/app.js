@@ -168,13 +168,18 @@ function fmtPrice(l) {
   return v.unitario != null ? { n: mx(Math.round(v.monto)), nota: `$${mx(v.unitario)}/m²` } : { n: mx(v.monto) };
 }
 
-// El segundo precio va como línea aparte para que el asesor vea las dos opciones sin
-// abrir el anuncio.
-function altPriceHtml(l) {
-  const s = Anuncio.segundoPrecio(l);
-  if (!s) return '';
-  if (!s.precio) return `<div class="price-alt">${s.etiqueta}</div>`;
-  return `<div class="price-alt">${s.etiqueta}: <strong>${s.precio}</strong>${s.nota ? ' ' + s.nota : ''}</div>`;
+// Un inmueble en renta Y en venta lleva los dos precios con el mismo peso, cada uno con
+// su operación, como en EasyBroker. La que pide el filtro de operación va arriba.
+function preciosDualHtml(l, ofs, rg) {
+  const mon = Anuncio.moneda(l);
+  return `<div class="card-precios">${ofs.map(o => {
+    const op = `<span class="price-op">en ${esc((o.op ?? '').toLowerCase())}</span>`;
+    const unidad = `${mon}${o.parcial ? ' / m²' : ''}${o.op === 'Renta' ? ' / mes' : ''}`;
+    if (o.principal && rg)
+      return `<div class="card-price dos rango"><strong>${dineroCorto(rg.min)}</strong><span class="card-a">a</span><strong>${dineroCorto(rg.max)}</strong><span class="currency">${unidad}</span>${op}</div>`;
+    if (o.monto == null) return `<div class="card-price dos"><strong class="no-price">Precio por confirmar</strong>${op}</div>`;
+    return `<div class="card-price dos"><strong>$${mx(Math.round(o.monto))}</strong><span class="currency">${unidad}</span>${op}</div>`;
+  }).join('')}</div>`;
 }
 
 // ── Tarjeta ──────────────────────────────────────────────────────────────────
@@ -184,7 +189,10 @@ function renderCard(l) {
   const p = fmtPrice(l);
   const foto = l.fotos?.[0] ?? null;
   // Si el precio ya es por m², repetirlo aquí sería decir dos veces lo mismo.
-  const pm = l.porM2 ? null : Anuncio.porMetro(l);
+  const ofs = Anuncio.ofertas(l, F.operacion), dual = ofs.length > 1;
+  // Con dos precios, el $/m² es el de la oferta que va arriba.
+  const pm = dual ? (ofs[0].unitario ?? (ofs[0].monto && l.size ? ofs[0].monto / l.size : null))
+    : l.porM2 ? null : Anuncio.porMetro(l);
   const ppm = pm ? `$${mx(Math.round(pm))} / m²` : '';
   const sufijo = l.transaccion === 'Renta' ? `${Anuncio.moneda(l)} / mes` : Anuncio.moneda(l);
 
@@ -194,7 +202,9 @@ function renderCard(l) {
 
   // Varios anuncios del mismo inmueble: la tarjeta enseña entre qué precios se ofrece.
   const rg = Anuncio.rango(l), dup = Anuncio.resumen(l);
-  const priceHtml = rg
+  const priceHtml = dual
+    ? preciosDualHtml(l, ofs, rg)
+    : rg
     ? `<div class="card-price rango"><strong>${dineroCorto(rg.min)}</strong><span class="card-a">a</span><strong>${dineroCorto(rg.max)}</strong><span class="currency">${sufijo}</span></div>`
     : p
     ? `<div class="card-price"><strong>$${p.n}</strong><span class="currency">${sufijo}</span></div>` +
@@ -216,7 +226,6 @@ function renderCard(l) {
         <div style="min-width:0">
           ${priceHtml}
           ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
-          ${altPriceHtml(l)}
           ${dup ? `<div class="card-dup" title="Anuncios del mismo inmueble, fusionados en esta tarjeta">${dup}</div>` : ''}
         </div>
         <a class="card-ver" href="listing.html?id=${encodeURIComponent(l.id)}">Ver ${ICON_EXTERNAL}</a>
@@ -225,7 +234,7 @@ function renderCard(l) {
       ${Anuncio.ubicacion(l) ? `<div class="card-dir" title="${esc(Anuncio.ubicacion(l))}">${ICON_PIN}${esc(Anuncio.ubicacion(l))}</div>` : ''}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
-        ${l.transaccion ? `<span class="tag-txn">${esc(l.transaccion)}</span>` : ''}
+        ${Anuncio.operacion(l) ? `<span class="tag-txn">${esc(Anuncio.operacion(l))}</span>` : ''}
         ${l.codigo ? `<span class="tag-cod">${esc(l.codigo)}</span>` : ''}
       </div>
       <div class="card-sep"></div>
@@ -1066,6 +1075,7 @@ document.querySelector('.seg').addEventListener('click', e => {
 ponerVista((() => { try { return localStorage.getItem(VISTA_KEY); } catch { return null; } })() ?? (CHICO ? 'grid' : 'split'));
 
 Mapa.init(document.getElementById('map'), {
+  operacion: () => F.operacion,
   onPin: id => {
     const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
     if (!card) return;
