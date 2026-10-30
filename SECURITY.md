@@ -581,6 +581,11 @@ ufw: active (entrada denegada salvo 22/80/443)   fail2ban: active, jaula sshd
   24.04 el servicio es `ssh.service`; el de fábrica busca `sshd.service` y no ve ni una
   línea) y `mode = aggressive` (con las contraseñas apagadas los bots sólo dejan cierres
   `[preauth]`, que el modo normal no cuenta). Probado: un intento sin llave suma 1.
+- **El deploy de GitHub choca con ese modo.** `ssh-keyscan` deja cierres `[preauth]`, y
+  `mode = aggressive` baneó al runner antes de su `ssh` (2026-10-30, exit 255 a los 2 min).
+  `deploy.yml` ya no escanea: trae fija la llave pública ed25519 del VPS, así que **si se
+  reinstala el servidor o cambia su host key, hay que actualizarla ahí** o el deploy se
+  negará a conectar.
 - Respaldo del estado anterior en `/root/h1-backup-2026-10-20-1032/`.
 
 **Si alguien queda fuera:** la consola web del proveedor no pasa por SSH. Para dar
