@@ -59,7 +59,9 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          # Llave pública del VPS, fija: ssh-keyscan abre conexiones sin autenticar y
+          # fail2ban baneaba al runner antes del deploy (2026-10-30).
+          printf '%s %s\n' "$DEPLOY_HOST" 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/bT9OjnJxtiigGGtuQpniP37CAatVOhhrxqPBuIGfU' >> ~/.ssh/known_hosts
 
       - name: Deploy por rsync
         if: vars.DEPLOY_MODE == 'rsync'
