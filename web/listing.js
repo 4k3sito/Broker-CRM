@@ -429,7 +429,7 @@ function render() {
 
   const ins = Anuncio.insignia(l), mercado = Anuncio.tiempoEnMercado(l);
   const facts = [
-    ...superficies(l.terreno, l.construccion, l.size).map(([k, v]) => [k, m2Txt(v), k]),
+    ...Anuncio.superficiesDe(l).map(s => [s.clave, s.texto, s.clave]),
     ...Anuncio.datos(l).map(d => [d.etiqueta, d.texto, d.clave]),
     pm ? ['Precio / m²', `$${mx(Math.round(pm))}`] : null,
     ins ? [ins.texto, ins.detalle] : null,

@@ -69,6 +69,9 @@ const Anuncio = (() => {
       descripcion: l.description ?? null, features: l.features ?? [],
       // Lo que la API sacó de esas amenidades y del texto, y su movimiento en el mercado.
       atributos: l.atributos ?? [], desde: l.desde ?? null, reciente: l.reciente ?? false, baja: l.baja ?? null,
+      // Terreno y construcción que no publicó este anuncio. Aparte y no en `terreno` /
+      // `construccion`: de esos dos salen las fichas y el PDF que recibe un cliente.
+      m2Inferido: l.m2_inferido ?? {},
       // Coordenadas para el mapa. Se aceptan los nombres más comunes; si la API no las
       // manda, el inmueble simplemente no lleva pin.
       lat: num(l.lat ?? l.latitude ?? l.geo?.lat ?? l.location?.lat),
@@ -152,18 +155,34 @@ const Anuncio = (() => {
                       frente: 'Frente', elevador: 'Elevador' };
   const EN_METROS = new Set(['altura', 'frente']);
 
+  const DE_HERMANO = 'de otro anuncio del mismo inmueble';
+  const ORIGEN_M2 = { hermano: DE_HERMANO, texto: 'leído de la descripción' };
+
   // Los atributos, ya en texto y en el orden de la API (que depende del tipo). `true` es
-  // que el anuncio lo menciona sin decir cuántos.
-  const datos = a => a.atributos.filter(x => ATRIBUTOS[x.clave]).map(({ clave, valor }) => ({
-    clave, etiqueta: ATRIBUTOS[clave],
-    texto: valor === true ? 'Sí' : EN_METROS.has(clave) ? `${mx(valor)} m` : mx(valor),
-  }));
+  // que el anuncio lo menciona sin decir cuántos. `≈` es lo que no publicó este anuncio.
+  const datos = a => a.atributos.filter(x => ATRIBUTOS[x.clave]).map(({ clave, valor, heredado }) => {
+    const texto = valor === true ? 'Sí' : EN_METROS.has(clave) ? `${mx(valor)} m` : mx(valor);
+    return { clave, etiqueta: ATRIBUTOS[clave], texto: heredado ? `≈ ${texto}` : texto,
+             detalle: heredado ? `${ATRIBUTOS[clave]}, ${DE_HERMANO}` : ATRIBUTOS[clave] };
+  });
+
+  // Terreno y construcción para pintar: lo publicado y, donde falta, lo inferido.
+  function superficiesDe(a) {
+    const { terreno: t, construccion: c } = a.m2Inferido;
+    const origen = { Terreno: t, Construcción: c };
+    return superficies(t?.valor ?? a.terreno, c?.valor ?? a.construccion, a.size).map(([clave, m2]) => {
+      const inf = origen[clave];
+      return { clave, m2, texto: `${inf ? '≈ ' : ''}${m2Txt(m2)}`,
+               detalle: inf ? `${clave}, ${ORIGEN_M2[inf.origen]}` : clave };
+    });
+  }
 
   // La insignia de la foto, o null. Una sola: una rebaja dice más que una fecha.
   // «Reciente» y no «Nuevo»: Nuevo es un estado del asesor y casi todo el inventario lo trae.
   function insignia(a) {
     if (a.baja) return { texto: `Bajó ${a.baja.pct}%`,
-      detalle: a.baja.antes ? `Antes $${mx(Math.round(a.baja.antes))}` : `Bajó el ${fecha(a.baja.fecha)}` };
+      detalle: (a.baja.fuente ? `En ${fuente(a.baja.fuente)}: ` : '') +
+        (a.baja.antes ? `antes $${mx(Math.round(a.baja.antes))}` : `bajó el ${fecha(a.baja.fecha)}`) };
     return a.reciente ? { texto: 'Reciente', detalle: 'Publicado en los últimos 7 días' } : null;
   }
 
@@ -187,5 +206,5 @@ const Anuncio = (() => {
   // Dónde está, en una línea: la dirección, y a falta de ella el municipio.
   const ubicacion = a => a.direccion ?? a.zona ?? null;
 
-  return { ESTADOS, de, total, porMetro, precioVisible, ofertas, operacion, rango, resumen, datos, insignia, tiempoEnMercado, fecha, moneda, estadoApi, fuente, ubicacion };
+  return { ESTADOS, de, total, porMetro, precioVisible, ofertas, operacion, rango, resumen, datos, superficiesDe, insignia, tiempoEnMercado, fecha, moneda, estadoApi, fuente, ubicacion };
 })();

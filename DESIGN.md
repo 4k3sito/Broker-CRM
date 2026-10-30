@@ -133,6 +133,10 @@ al lado: un icono solo no explica nada. No se usan emojis ni librerías de icono
 Terreno y construcción van en su propio renglón (`.card-m2`) con la **etiqueta escrita**:
 el `title` no existe en el teléfono. Salen los dos aunque traigan el mismo número.
 
+`≈` delante de un dato quiere decir que **no lo publicó este anuncio**: lo dio otro anuncio
+del mismo inmueble o se leyó de su descripción, y el `title` dice cuál. Se pinta en tarjeta
+y ficha, nunca en documentos.
+
 La fila `.card-hechos` depende del **tipo** de inmueble y sale de `POR_TIPO` en
 `api/atributos.py`; no se pintan recámaras porque el inventario es comercial y la columna
 está vacía. **Lo que no se sabe no sale**: ni guiones ni ceros. `Sí` quiere decir que el

@@ -188,12 +188,12 @@ function preciosDualHtml(l, ofs, rg) {
 // api/atributos.py). Lo que no se sabe no sale.
 const CORTA_M2 = { Terreno: 'Terreno', Construcción: 'Constr.', Superficie: 'Sup.' };
 function hechosHtml(l) {
-  const m2 = superficies(l.terreno, l.construccion, l.size);
+  const m2 = Anuncio.superficiesDe(l);
   const datos = Anuncio.datos(l);
-  return (m2.length ? `<div class="card-hechos card-m2">${m2.map(([k, v]) =>
-      `<span title="${esc(k)}">${Iconos.de(k)}<small>${CORTA_M2[k]}</small>${esc(m2Txt(v))}</span>`).join('')}</div>` : '') +
+  return (m2.length ? `<div class="card-hechos card-m2">${m2.map(s =>
+      `<span title="${esc(s.detalle)}">${Iconos.de(s.clave)}<small>${CORTA_M2[s.clave]}</small>${esc(s.texto)}</span>`).join('')}</div>` : '') +
     (datos.length ? `<div class="card-hechos">${datos.map(d =>
-      `<span title="${esc(d.etiqueta)}">${Iconos.de(d.clave)}${esc(d.texto)}</span>`).join('')}</div>` : '');
+      `<span title="${esc(d.detalle)}">${Iconos.de(d.clave)}${esc(d.texto)}</span>`).join('')}</div>` : '');
 }
 
 // ── Tarjeta ──────────────────────────────────────────────────────────────────
