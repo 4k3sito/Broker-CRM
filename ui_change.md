@@ -213,7 +213,7 @@ body.map-closed .split-map { display:none; }
   estado de seguimiento baja a la última línea.
   - Foto: `aspect-ratio: 3/2` en vez de `--photo-h: 212px`; carrusel sólo si
     `l.fotos.length > 1`.
-  - `altPriceHtml(l.alt)` sube al mismo nivel visual que el precio principal. Si
+  - ✓ (2026-10-30, `Anuncio.ofertas`) `altPriceHtml(l.alt)` sube al mismo nivel visual que el precio principal. Si
     `F.operacion` coincide con `l.alt.op`, ese precio va primero.
   - Sacar el `<div style="min-width:0">` de `.card-top` a una regla.
 - **Paginación**: ‹ número › + “Página 1 de N”, botones de 40 × 40. `PAGE_SIZE` se queda

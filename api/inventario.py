@@ -78,6 +78,19 @@ SELECT_LISTING = """
   l.geo_origen
 """
 _TOTAL = "(CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 ELSE l.price END)"
+_TOTAL_ALT = ("(CASE WHEN l.precio_alt_por_m2 AND l.area_m2 > 0 "
+              "THEN l.precio_alt * l.area_m2 ELSE l.precio_alt END)")
+
+
+def _total_de(op: str | None) -> str:
+    """El total por el que se ordena. Con operación elegida es el de ESA operación, igual
+    que en el filtro de precio: un local en venta por 11 MDP que también se renta en 50
+    mil, pidiendo renta, va entre las rentas de 50 mil y no hasta arriba. `op` sólo puede
+    ser `rent` o `sale` (lo valida la ruta), y por eso va escrito en la sentencia."""
+    if op not in ("rent", "sale"):
+        return _TOTAL
+    return f"(CASE WHEN l.operation = '{op}' THEN {_TOTAL} ELSE {_TOTAL_ALT} END)"
+
 # Expresión y sentido por separado: al fusionar anuncios la expresión se calcula por
 # anuncio y el orden se aplica después, ya con una fila por propiedad.
 ORDENES = {
@@ -263,9 +276,7 @@ def _filtros(a: dict) -> tuple[list[str], list]:
                  "THEN l.price * l.area_m2 ELSE l.price END")
         if not op:
             return f"({total})", []
-        alt = ("CASE WHEN l.precio_alt_por_m2 AND l.area_m2 > 0 "
-               "THEN l.precio_alt * l.area_m2 ELSE l.precio_alt END")
-        return f"(CASE WHEN l.operation = %s THEN {total} ELSE {alt} END)", [op]
+        return f"(CASE WHEN l.operation = %s THEN {total} ELSE {_TOTAL_ALT} END)", [op]
 
     if a.get("precio_min") is not None:
         sql, pp = precio_efectivo()
@@ -444,6 +455,10 @@ def _filas(conn, quien, filtros: dict, orden: str, limite: int, desde: int) -> l
         raise FiltroInvalido(f"orden debe ser uno de: {', '.join(ORDENES)}")
     base, p = _consulta(quien, filtros)
     expr, sentido = ORDENES[orden]
+    cara = _CARA.get(orden, _CARA_DEFECTO)
+    if orden.startswith("precio_"):
+        total = _total_de(filtros.get("operacion"))
+        expr, cara = total, cara.replace(_TOTAL, total)
     if _fusiona(quien, filtros):
         # En dos pasos. Primero se elige, con filas angostas, qué anuncio da la cara por
         # cada propiedad y cuáles caen en la página; sólo de ésos se traen las columnas
@@ -454,7 +469,7 @@ def _filas(conn, quien, filtros: dict, orden: str, limite: int, desde: int) -> l
                     SELECT DISTINCT ON ({PROPIEDAD}) l.source, l.listing_id,
                            {PROPIEDAD} AS propiedad, {expr} AS _orden
                     {base}
-                    ORDER BY {PROPIEDAD}, {_CARA.get(orden, _CARA_DEFECTO)}, l.source, l.listing_id
+                    ORDER BY {PROPIEDAD}, {cara}, l.source, l.listing_id
                   ) c ORDER BY _orden {sentido}, listing_id LIMIT %s OFFSET %s)
                 SELECT {SELECT_LISTING}, pag.propiedad
                 FROM pag

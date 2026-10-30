@@ -12,6 +12,9 @@ const TABLERO = (() => {
     return sessionStorage.getItem('ol-tab') === 'inmobiliaria' ? 'index.html?tab=inmobiliaria' : 'index.html';
   } catch { return 'index.html'; }
 })();
+// La operación que filtraba el tablero de donde se vino: con ella, un inmueble en renta
+// y venta enseña primero el precio que se estaba buscando.
+const opDelTablero = () => new URLSearchParams(TABLERO.split('?')[1] ?? '').get('operacion');
 // Si se llegó desde la tabla de un cliente ("Abrir ficha completa"), se vuelve ahí, a
 // la misma fila, y no al tablero.
 const VOLVER = (() => {
@@ -47,13 +50,17 @@ const MAX_ARCHIVO = Fotos.MAX_ARCHIVO;      // el mismo tope que pone la API
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 
 const precioTotal = Anuncio.total, ppm = Anuncio.porMetro;
-// El segundo precio de un inmueble que está en renta Y en venta, en línea aparte.
-function altPriceHtml(l) {
-  const s = Anuncio.segundoPrecio(l);
-  if (!s) return '';
-  // Se sabe que se ofrece en las dos, pero el precio aún no se ha rescatado.
-  if (!s.precio) return `<span class="price-alt">${s.etiqueta}</span>`;
-  return `<span class="price-alt">${s.etiqueta}: <strong>${s.precio}</strong>${s.nota ? ' ' + s.nota : ''}</span>`;
+// Un inmueble en renta Y en venta: los dos precios con el mismo peso, cada uno con su
+// operación. Llegando del tablero con un filtro de operación, ésa va primero.
+function preciosDualHtml(l, ofs) {
+  const mon = Anuncio.moneda(l);
+  return ofs.map(o => {
+    const op = (o.op ?? '').toUpperCase();
+    if (o.monto == null) return `<div class="fx-oferta"><b class="no-price">Por confirmar</b><span>EN ${op}</span></div>`;
+    const pm = o.unitario ?? (l.size && !o.parcial ? o.monto / l.size : null);
+    const unidad = `${mon}${o.parcial ? '/m²' : ''}${o.op === 'Renta' ? '/mes' : ''}`;
+    return `<div class="fx-oferta"><b>$${mx(Math.round(o.monto))}</b><span>${unidad}${pm && !o.parcial ? ` · $${mx(Math.round(pm))}/m²` : ''} · EN ${op}</span></div>`;
+  }).join('');
 }
 const mapsLink = l => l.mapsUrl ?? (l.lat != null ? `https://maps.google.com/?q=${l.lat},${l.lng}` : null);
 // Una propiedad dada de alta a mano (o venida del sheet): no hay anuncio detrás, la
@@ -417,6 +424,7 @@ function render() {
   const total = precioTotal(l), pm = ppm(l);
   const fuente = Anuncio.fuente(l.fuente);
   const sufijo = l.transaccion === 'Renta' ? `${Anuncio.moneda(l)}/mes` : Anuncio.moneda(l);
+  const ofs = Anuncio.ofertas(l, opDelTablero());
   document.title = (l.titulo ?? 'Propiedad') + ' · OfficeLab';
 
   const ins = Anuncio.insignia(l), mercado = Anuncio.tiempoEnMercado(l);
@@ -427,7 +435,7 @@ function render() {
     ins ? [ins.texto, ins.detalle] : null,
     mercado ? ['En el mercado', mercado] : null,
     l.tipo ? ['Tipo', cap(l.tipo)] : null,
-    l.transaccion ? ['Operación', l.transaccion] : null,
+    Anuncio.operacion(l) ? ['Operación', Anuncio.operacion(l)] : null,
     l.zona ? ['Municipio', l.zona] : null,
     l.codigo ? ['Código', l.codigo] : null,
   ].filter(Boolean);
@@ -449,13 +457,13 @@ function render() {
     <section class="fx-band">
       <div class="fx-band-t">
         <h1>${esc(l.titulo ?? 'Sin título')}</h1>
-        <p>${[l.direccion, l.tipo && cap(l.tipo), l.transaccion, l.codigo, fuente].filter(Boolean).map(esc).join(' · ')}
+        <p>${[l.direccion, l.tipo && cap(l.tipo), Anuncio.operacion(l), l.codigo, fuente].filter(Boolean).map(esc).join(' · ')}
           ${mapsLink(l) ? ` · <a href="${hrefSeguro(mapsLink(l))}" target="_blank" rel="noopener">ver en mapa</a>` : ''}</p>
       </div>
       <div class="fx-band-p">
+        ${ofs.length > 1 ? preciosDualHtml(l, ofs) : `
         <b>${total != null ? '$' + mx(Math.round(total)) : (l.porM2 && l.precio != null ? '$' + mx(l.precio) : 'Sin precio')}</b>
-        <span>${total != null ? sufijo : (l.porM2 && l.precio != null ? 'por m²' : '')}${pm && total != null ? ` · $${mx(Math.round(pm))}/m²` : ''}</span>
-        ${altPriceHtml(l)}
+        <span>${total != null ? sufijo : (l.porM2 && l.precio != null ? 'por m²' : '')}${pm && total != null ? ` · $${mx(Math.round(pm))}/m²` : ''}</span>`}
       </div>
       ${!esPropia(l) && ficha ? '<span class="fx-tag" title="Tiene ficha: aparece en la pestaña Catálogo">En Catálogo</span>' : ''}
       <!-- Ocho acciones con el mismo peso competían entre sí: quedan a la vista el
@@ -914,6 +922,15 @@ function folioSugerido() {
   return `PR-${p(d.getDate())}${p(d.getMonth() + 1)}${String(d.getFullYear()).slice(2)}-1`;
 }
 
+// El segundo precio de un inmueble en renta Y venta, bajo el primero. Si la ficha o la
+// versión fijó su propio precio, ése manda y el del portal no se agrega.
+function segundaPdf(l, f) {
+  const o = f.precio == null ? Anuncio.ofertas(l)[1] : null;
+  if (!o?.op || o.monto == null || o.parcial) return '';
+  const mon = Anuncio.moneda(l) === 'MXN' ? '' : ' ' + Anuncio.moneda(l);
+  return `<div class="pr-precio"><b>$${mx(Math.round(o.monto))}${mon}</b><span>EN ${o.op.toUpperCase()}</span></div>`;
+}
+
 function imprimirFicha(versionId) {
   const v = versiones.find(x => String(x.id) === versionId) ?? null;
   // Lo que la versión trae pisa a la ficha, fotos y precio por m² incluidos.
@@ -942,6 +959,7 @@ function imprimirFicha(versionId) {
       </header>
       <div class="pr-rule"></div>
       <div class="pr-precio"><b>${precio != null ? '$' + mx(Math.round(precio)) + (Anuncio.moneda(l) === 'MXN' ? '' : ' ' + Anuncio.moneda(l)) : 'Precio a consultar'}</b><span>${{ Venta: 'EN VENTA', Renta: 'EN RENTA' }[l.transaccion] ?? ''}</span></div>
+      ${segundaPdf(l, f)}
       ${l.direccion ? `<div class="pr-colonia">${esc(l.direccion)}.</div>` : ''}
       <h1 class="pr-titulo">${esc((f.titulo ?? tituloPdf(l)).toUpperCase())}</h1>
       ${fotos[0] ? `<img class="pr-foto" src="${esc(fotos[0])}" alt="">` : ''}
