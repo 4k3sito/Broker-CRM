@@ -294,16 +294,38 @@ CREATE OR REPLACE FUNCTION limpiar_precios() RETURNS bigint AS $$
   SELECT count(*) FROM m;
 $$ LANGUAGE sql;
 
+-- Los topes de precio importan: un total grande sobre una superficie enorme también da
+-- un cociente mínimo, y multiplicarlo por los m² inventa rentas de billones. Medido el
+-- 2026-10-30 contra anuncios del mismo eb_id sin bandera: sólo 3 de 26 inferencias se
+-- confirmaban y 14 eran un total; las buenas no pasaban de $7,500, y las falsas en renta
+-- empezaban en $4,500.
+CREATE OR REPLACE FUNCTION parece_precio_m2(precio numeric, area numeric, op text)
+RETURNS boolean AS $$
+  SELECT coalesce(precio >= 0.5 AND area > 0
+    AND ((op = 'sale' AND precio <= 50000 AND area > 100 AND precio / area < 20)
+      OR (op = 'rent' AND precio <=  3000 AND area >  50 AND precio / area < 1)), false);
+$$ LANGUAGE sql IMMUTABLE;
+
+-- Una inferencia se deshace si dejó de cumplirse: corregir la superficie o estos topes
+-- no debe dejar atrás la bandera que multiplicaba el precio. Y Pincali escribe "por m²"
+-- junto a totales ($694,395 "por m²" en un terreno de 10,683 m²): sobre esos mismos topes,
+-- la bandera del portal tampoco se cree. Medido: otro portal publica ese mismo número como
+-- total en 100 de 173 pares. Los topes aquí son más altos que los de inferir.
 CREATE OR REPLACE FUNCTION inferir_precio_m2() RETURNS bigint AS $$
-  WITH m AS (
+  WITH deshacer AS (
+    UPDATE listings SET price_is_per_m2 = false, precio_m2_inferido = false
+    WHERE precio_m2_inferido AND NOT parece_precio_m2(price, area_m2, operation)
+    RETURNING 1
+  ), bandera AS (
+    UPDATE listings SET price_is_per_m2 = false
+    WHERE price_is_per_m2 AND NOT precio_m2_inferido
+      AND ((operation = 'rent' AND price > 3000) OR (operation = 'sale' AND price > 100000))
+    RETURNING 1
+  ), m AS (
     UPDATE listings SET price_is_per_m2 = true, precio_m2_inferido = true
-    WHERE price_is_per_m2 IS NOT TRUE
-      AND price > 0 AND area_m2 > 0
-      AND price BETWEEN 0.5 AND 200000
-      AND ((operation = 'sale' AND area_m2 > 100 AND price / area_m2 < 20)
-        OR (operation = 'rent' AND area_m2 >  50 AND price / area_m2 < 1))
+    WHERE price_is_per_m2 IS NOT TRUE AND parece_precio_m2(price, area_m2, operation)
     RETURNING 1)
-  SELECT count(*) FROM m;
+  SELECT (SELECT count(*) FROM m) + (SELECT count(*) FROM deshacer) + (SELECT count(*) FROM bandera);
 $$ LANGUAGE sql;
 
 -- Un inmueble ofrecido en renta Y venta a la vez. La llave (source, listing_id) lo
@@ -977,6 +999,85 @@ CREATE OR REPLACE FUNCTION copiar_detalle_gemelos() RETURNS bigint AS $$
     RETURNING 1)
   SELECT count(*) FROM u;
 $$ LANGUAGE sql;
+
+-- En un local, una bodega o una oficina el $/m² se habla sobre lo construido: el terreno
+-- puede ser el parque industrial entero (1,192,919 m² para una bodega de 1,008). Medido
+-- el 2026-10-30 entre portales: lo construido coincide con la superficie de otro portal
+-- en 3,605 de 3,647 casos, el terreno en 297. Menos de 5 m² no es una construcción.
+CREATE OR REPLACE FUNCTION superficie_comercial() RETURNS bigint AS $$
+  WITH u AS (
+    UPDATE listings SET area_m2 = built_area_m2
+    WHERE tipo IN ('local', 'bodega', 'oficina') AND built_area_m2 >= 5
+      AND area_m2 IS DISTINCT FROM built_area_m2
+    RETURNING 1)
+  SELECT count(*) FROM u;
+$$ LANGUAGE sql;
+
+-- Muchos anuncios de un portal en el mismo punto exacto, con direcciones distintas: es el
+-- centro de la colonia, no la propiedad (548 terrenos de Conkal en una coordenada, con la
+-- calle "00 00"). Un edificio repite su dirección, por eso se exigen las dos cosas. La
+-- comparación entre portales no sirve para validarlo, porque los anuncios de un mismo
+-- EasyBroker comparten la coordenada; de ahí un umbral conservador. Sale del gazetteer.
+CREATE OR REPLACE FUNCTION marcar_pilas() RETURNS bigint AS $$
+  WITH p AS (
+    SELECT source, geom FROM listings
+    WHERE geom IS NOT NULL AND activo IS NOT FALSE AND geo_origen IN ('portal', 'portal_aprox')
+    GROUP BY 1, 2 HAVING count(*) >= 50 AND count(DISTINCT location) >= 10
+  ), u AS (
+    UPDATE listings l SET geo_origen = 'portal_aprox'
+    FROM p WHERE l.source = p.source AND l.geom = p.geom AND l.geo_origen = 'portal'
+    RETURNING 1)
+  SELECT count(*) FROM u;
+$$ LANGUAGE sql;
+
+-- Lo que un anuncio no trae lo puede traer otro del mismo eb_id: Pincali no publica
+-- teléfono ni agencia y sin detalle no tiene descripción. Sólo llena huecos. Superficie
+-- y precio NO se heredan: esas columnas alimentan fichas y el PDF al cliente, y entre
+-- portales difieren más (lo inferido va aparte, en `m2_inferido`, al leer).
+CREATE OR REPLACE FUNCTION heredar_de_hermanos() RETURNS bigint AS $$
+  WITH v AS MATERIALIZED (
+    SELECT eb_id, agent_phone, agency_name, description, images, geom, geo_origen, observed_at
+    FROM listings WHERE eb_id IS NOT NULL AND activo IS NOT FALSE
+  ), h AS (
+    SELECT eb_id,
+      (array_agg(agent_phone ORDER BY observed_at DESC) FILTER (WHERE agent_phone <> ''))[1] AS tel,
+      (array_agg(agency_name ORDER BY observed_at DESC) FILTER (WHERE agency_name <> ''))[1] AS agencia,
+      (array_agg(description ORDER BY length(description) DESC)
+         FILTER (WHERE length(description) >= 100))[1] AS descripcion,
+      (array_agg(geom ORDER BY observed_at DESC) FILTER (WHERE geo_origen = 'portal'))[1] AS punto,
+      max(coalesce(cardinality(images), 0)) AS fotos
+    FROM v GROUP BY 1 HAVING count(*) > 1
+  ), g AS (
+    SELECT DISTINCT ON (eb_id) eb_id, images FROM v
+    WHERE cardinality(images) > 0 ORDER BY eb_id, cardinality(images) DESC
+  ), u AS (
+    UPDATE listings l SET
+      agent_phone = coalesce(nullif(l.agent_phone, ''), h.tel),
+      agency_name = coalesce(nullif(l.agency_name, ''), h.agencia),
+      description = CASE WHEN length(coalesce(l.description, '')) < 100
+                         THEN coalesce(h.descripcion, l.description) ELSE l.description END,
+      images = CASE WHEN l.detalle_at IS NULL AND coalesce(cardinality(l.images), 0) < h.fotos
+                    THEN g.images ELSE l.images END,
+      -- El mismo punto no enseña nada, y una pila bajada por marcar_pilas volvería a
+      -- subir desde un hermano de otro portal en cada carga.
+      geom = CASE WHEN l.geo_origen IS DISTINCT FROM 'portal' AND l.geom IS DISTINCT FROM h.punto
+                  THEN coalesce(h.punto, l.geom) ELSE l.geom END,
+      geo_origen = CASE WHEN h.punto IS NOT NULL AND l.geom IS DISTINCT FROM h.punto
+                        THEN 'portal' ELSE l.geo_origen END
+    FROM h LEFT JOIN g USING (eb_id)
+    WHERE l.eb_id = h.eb_id AND l.activo IS NOT FALSE
+      AND ((coalesce(l.agent_phone, '') = '' AND h.tel IS NOT NULL)
+        OR (coalesce(l.agency_name, '') = '' AND h.agencia IS NOT NULL)
+        OR (length(coalesce(l.description, '')) < 100 AND h.descripcion IS NOT NULL)
+        OR (l.detalle_at IS NULL AND coalesce(cardinality(l.images), 0) < h.fotos)
+        OR (l.geo_origen IS DISTINCT FROM 'portal' AND h.punto IS NOT NULL AND l.geom IS DISTINCT FROM h.punto))
+    RETURNING 1)
+  SELECT count(*) FROM u;
+$$ LANGUAGE sql;
+
+-- Mercado Libre publica "Mantenimiento: 0 MXN" cuando el anunciante no lo llenó.
+UPDATE listings SET features = array_remove(features, 'Mantenimiento: 0 MXN')
+WHERE source = 'mercadolibre' AND 'Mantenimiento: 0 MXN' = ANY(features);
 -- <<< scrapers v2
 
 -- >>> duplicados

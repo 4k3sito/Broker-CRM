@@ -166,8 +166,14 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   (`bajas_por_ausencia` en `v2/db.py`). Sólo actúa si el barrido terminó completo y no
   salió corto: **un bloqueo sigue sin ser una baja**. Ya no hay pasada de `liveness` los
   sábados; `liveness.py` queda como herramienta manual.
+  **Lo que falta en un anuncio se hereda del mismo `eb_id`** (`heredar_de_hermanos()`,
+  2026-10-30): teléfono, agencia, descripción, fotos y coordenada, sólo en huecos. Superficie
+  y precio no se heredan: alimentan fichas y el PDF al cliente. Inmuebles24 además se da de
+  baja por su gemelo de Vivanuncios entre sus barridos mensuales (`BAJAS_GEMELOS`).
   `qa.py <fuente>` cierra cada corrida: números primero (sin modelo) y `hermes` para el
-  criterio; si algo salió mal deja una tarjeta en el tablero de tareas. **Hermes se llama
+  criterio; si algo salió mal deja una tarjeta en el tablero de tareas. Guarda el llenado
+  de cada campo en `data/v2/<fuente>.metricas.jsonl` y marca REVISAR si uno cae más de 5
+  puntos contra la corrida anterior. **Hermes se llama
   siempre con `-t memory`** — sin eso trae shell de root (H6 en SECURITY.md).
 
 **Nunca commitear** `scrapers/data/`, `scrapers/.fixtures/`, `scrapers/.env` ni `vps/.env`.
@@ -305,10 +311,11 @@ Columnas que suelen confundir:
 | Columna | Qué significa |
 |---|---|
 | `price` + `price_is_per_m2` | si la bandera está puesta, `price` es **$/m²**, no el total |
-| `precio_m2_inferido` | la bandera la dedujo `inferir_precio_m2()`, no vino del portal |
+| `area_m2` | la superficie del $/m². **En local, bodega y oficina es lo construido** cuando el portal lo da (`superficie_comercial()`, 2026-10-30): el terreno puede ser el parque industrial entero. En un terreno, el terreno |
+| `precio_m2_inferido` | la bandera la dedujo `inferir_precio_m2()`, no vino del portal. La regla vive en `parece_precio_m2()`, con topes de precio, y se deshace sola si deja de cumplirse |
 | `operacion_alt` / `precio_alt` / `precio_alt_por_m2` | segunda oferta: el inmueble se ofrece en renta **y** venta |
 | `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms). Lo llena `asignar_zonas()`, que **filtra por `tipo='municipio'`**: `zona` guarda dos niveles y sin ese filtro un anuncio recibiría a veces el id de su colonia |
-| `geo_origen` | de dónde salió la coordenada: `portal` (real), **`portal_aprox`** (la fuente publicó el punto y avisa de que es el centroide de la colonia — hoy sólo Pincali, `data-exact-location="false"`), `colonia` (centroide de nuestro gazetteer), `relleno` (el punto por defecto de ML, que no es una ubicación). El gazetteer se arma **sólo** con `portal` |
+| `geo_origen` | de dónde salió la coordenada: `portal` (real), **`portal_aprox`** (la fuente publicó el punto y avisa de que es el centroide de la colonia, o `marcar_pilas()` lo dedujo: 50 o más anuncios de un portal en el mismo punto con 10 o más direcciones distintas), `colonia` (centroide de nuestro gazetteer), `relleno` (el punto por defecto de ML, que no es una ubicación). El gazetteer se arma **sólo** con `portal` |
 | `colonia_id` | colonia materializada, de los polígonos de INEGI que carga `vps/colonias.py`. Lo llena `asignar_colonias()`. **NULL es normal**: la cobertura de INEGI es desigual — 80.6% en Monterrey, 54.2% nacional |
 | `activo` / `revisado_at` | vigencia del anuncio. Desde el 2026-10-10 la decide el barrido: `activo = false` cuando ninguno lo devuelve en 8 días. **El tablero no ofrece lo dado de baja** (2026-10-11, `inventario.py`), salvo lo que el propio asesor sigue y lo que está en Catálogo. **Cuándo se vio por última vez en resultados es `observed_at`**, no `revisado_at` (las filas nuevas nacen con `revisado_at` NULL) |
 | `intento_at` / `intentos_fallidos` | cuándo se **intentó** y cuántas veces falló. Un bloqueo mueve estas dos y no toca `activo`; el backoff las usa para que lo que se bloquea no acapare la cola |

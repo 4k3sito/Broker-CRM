@@ -169,6 +169,11 @@ block is still not a takedown. Mercado Libre's unreachable price points (more th
 one page at a single price) are written to the state file as `hidden`, and
 listings at those prices are never retired for being absent. Inmuebles24 is only
 judged on its monthly full sweep. `liveness.py` stays in the repo as a manual tool.
+After the load, `db.py` (`POST`) runs what makes the rows comparable: the
+built area becomes the surface of commercial listings, `inferir_precio_m2` redoes the
+$/m² flag on that surface, `marcar_pilas` demotes pins shared by 50+ listings with 10+
+addresses, and `heredar_de_hermanos` fills gaps from the same `eb_id`. `qa.py` then
+compares the fill rate of every field with the previous run.
 A sweep and the
 detail of the same portal never overlap (`.portal-<name>.lock`): two visitors from
 one IP is what makes a direct portal rate-limit, climb to the proxy and start

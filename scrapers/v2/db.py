@@ -93,9 +93,19 @@ def collapse(rows: list[dict]) -> list[dict]:
     return list(by_id.values())
 
 
+# The portals spell six states their own way, which split the gazetteer's keys and the
+# `estado` of /api/v1. Compared lower-case; the rest pass through.
+ESTADOS = {"distrito federal": "Ciudad de México", "cdmx": "Ciudad de México",
+           "coahuila de zaragoza": "Coahuila", "michoacán de ocampo": "Michoacán",
+           "veracruz llave": "Veracruz", "veracruz de ignacio de la llave": "Veracruz",
+           "edo. de méxico": "Estado de México", "estado de méxico": "Estado de México",
+           "méxico": "Estado de México"}
+
+
 def to_row(source: str, d: dict) -> tuple:
     title, location = texto(d.get("title")), texto(d.get("location"))
     city, province = texto(d.get("city")), texto(d.get("province"))
+    province = ESTADOS.get((province or "").lower(), province)
     images = [u for u in d.get("images") or [] if u]
     return (
         source, str(d["listingId"]), d["url"], title, d.get("imageUrl") or None,
@@ -156,11 +166,14 @@ UPDATE listings SET built_area_m2 = NULL
 WHERE source = %s AND tipo = 'terreno' AND built_area_m2 = plot_area_m2
 """
 
-# What propdb.py runs after a load; same order, same reasons (see its `load`).
-POST = (("limpiar_precios", "precios a null"), ("inferir_precio_m2", "precio por m2"),
-        ("geocodificar_colonias", "geo por colonia"), ("asignar_zonas", "zonas asignadas"),
-        ("sembrar_eb_id", "ids de easybroker"), ("copiar_detalle_gemelos", "detalle de gemelos"),
-        ("sincronizar_historial", "historial"))
+# What propdb.py runs after a load; same reasons (see its `load`). The order is new:
+# the surface comes before the $/m² inference that reads it, the pin piles before the
+# gazetteer they would pollute, and the zones last, for the pins the siblings gave.
+POST = (("limpiar_precios", "precios a null"), ("superficie_comercial", "superficie comercial"),
+        ("inferir_precio_m2", "precio por m2"), ("marcar_pilas", "pilas de coordenadas"),
+        ("geocodificar_colonias", "geo por colonia"), ("sembrar_eb_id", "ids de easybroker"),
+        ("copiar_detalle_gemelos", "detalle de gemelos"), ("heredar_de_hermanos", "de hermanos"),
+        ("asignar_zonas", "zonas asignadas"), ("sincronizar_historial", "historial"))
 
 
 # A nationwide sweep is the liveness check (decided 2026-10-10; it replaced the
@@ -176,6 +189,22 @@ WHERE source = %(source)s AND activo IS NOT FALSE
   AND coalesce(observed_at, '-infinity') < %(started)s::timestamptz - interval '{dias} days'
   AND NOT EXISTS (SELECT 1 FROM unnest(%(ops)s::text[], %(prices)s::numeric[]) h(op, p)
                   WHERE h.op = listings.operation AND h.p = listings.price)
+""".format(dias=AUSENCIA_DIAS)
+
+
+# Inmuebles24 pays for its full sweep, so it is only judged monthly, but Vivanuncios is
+# the same inventory and is swept free every week. A row no sweep has seen in 8 days
+# whose twin is also gone is retired now instead of waiting out the month. A live twin
+# or no twin says nothing: the row stays for the monthly sweep.
+BAJAS_GEMELOS = """
+UPDATE listings i SET activo = false, revisado_at = now()
+FROM (SELECT substring(image_url from '/([0-9]+)\\.jpg') AS foto,
+             max(observed_at) AS visto, bool_or(activo IS NOT FALSE) AS vivo
+      FROM listings WHERE source = 'vivanuncios' AND image_url IS NOT NULL GROUP BY 1) v
+WHERE i.source = 'inmuebles24' AND i.activo IS NOT FALSE
+  AND substring(i.image_url from '/([0-9]+)\\.jpg') = v.foto
+  AND coalesce(i.observed_at, '-infinity') < %(started)s::timestamptz - interval '{dias} days'
+  AND (NOT v.vivo OR v.visto < %(started)s::timestamptz - interval '{dias} days')
 """.format(dias=AUSENCIA_DIAS)
 
 
@@ -229,6 +258,9 @@ def load_sweep(conn: psycopg.Connection, source: str, path: Path, bajas: bool = 
             gone = bajas_por_ausencia(cur, source, state, len(rows))
             print(f"{'bajas por ausencia':22} " + (f"{gone:>7,}" if gone is not None else
                   "  ninguna: el barrido no terminó completo o salió corto"))
+            if source == "vivanuncios" and gone is not None:
+                cur.execute(BAJAS_GEMELOS, {"started": state["started"]})
+                print(f"{'bajas por gemelo':22} {cur.rowcount:>7,}")
         if source in NAVENT:
             print(f"{'construcción falsa':22} {cur.execute(CONSTRUCCION_FALSA, (source,)).rowcount:>7,}")
         for fn, label in POST:
@@ -428,6 +460,19 @@ def selfcheck() -> None:
     assert "COALESCE(EXCLUDED.agency_name, listings.agency_name)" in UPSERT, \
         "Pincali's results page has no agency: the weekly sweep erased what the detail stored"
     assert "tipo = 'terreno'" in CONSTRUCCION_FALSA, "a local of 100 m² on 100 m² is a real figure"
+    for raw, canon in (("Distrito Federal", "Ciudad de México"), ("Veracruz Llave", "Veracruz"),
+                       ("Edo. de México", "Estado de México"), ("Estado De México", "Estado de México"),
+                       ("Nuevo León", "Nuevo León")):
+        row = dict(zip(COLS, to_row("x", {"listingId": 1, "url": "u", "province": raw})))
+        assert row["province"] == canon, raw
+    names = [n for n, _ in POST]
+    assert names.index("superficie_comercial") < names.index("inferir_precio_m2"), \
+        "the $/m² inference reads the surface"
+    assert names.index("marcar_pilas") < names.index("geocodificar_colonias"), \
+        "a pile must leave the gazetteer before it is built"
+    assert names.index("sembrar_eb_id") < names.index("heredar_de_hermanos") < names.index("asignar_zonas")
+    assert names[-1] == "sincronizar_historial", "history records the net result of everything"
+    assert "{" not in BAJAS_GEMELOS and "v.visto <" in BAJAS_GEMELOS and "NOT v.vivo" in BAJAS_GEMELOS
 
     class _Cur:                     # bajas_por_ausencia against no database
         def __init__(self, recent): self.recent, self.ran, self.rowcount = recent, None, 7
