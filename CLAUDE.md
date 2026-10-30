@@ -492,8 +492,9 @@ Ver `docs/agents/domain.md`.
 - **Idioma**: el global (español en UI, docs y tareas; inglés en código y commits).
 - **Stack**: HTML/JS estático sin build (`web/`), FastAPI + psycopg (`api/`), PostGIS,
   scrapers Python v2 (curl_cffi, selectolax, patchright), Docker Compose + Caddy.
-- **Ramas (manda sobre la regla global de `main`)**: rama de tarea → PR a `desarrollo` →
-  `produccion`. Llegar a `produccion` = Etapa **Deploy**. `main` no se usa hasta ponerla al día.
+- **Ramas (manda sobre la regla global de `main`)**: los cambios van directo a `desarrollo`,
+  sin PR, y de ahí a `produccion`. Llegar a `produccion` = Etapa **Deploy**. `main` no se usa
+  hasta ponerla al día. **Aquí no se abren PRs** (decisión del 2026-10-30).
 
 | Acción | Comando |
 |---|---|
@@ -516,33 +517,32 @@ Ver `docs/agents/domain.md`.
 
 Dos aprobaciones por cambio, no seis:
 
-1. **Ship** — un solo "sí" cubre commit, push, PR, esperar CI y `--squash` merge a
-   `desarrollo`. Si el CI o el bot de revisión fallan, se para y se avisa; si pasan, no
-   se vuelve a preguntar. La rama y el PR se crean igual (disparan CI y revisión).
+1. **Ship** — un solo "sí" cubre commit y push a `desarrollo`. El CI corre con ese push:
+   si falla, se para y se avisa; si pasa, no se vuelve a preguntar.
 2. **Deploy** — un solo "sí" = `git push origin desarrollo:produccion`; despliega sin
    más clics. Cambios sólo de docs/Notion no se despliegan: esperan al próximo deploy real.
 
 Siguen pidiendo confirmación aparte, siempre: `--force`/reescribir historia, migraciones
 o `schema.sql`, borrar datos o archivos, y tocar accesos del VPS (SSH, firewall, llaves).
-El subagente `reviewer` local no corre antes de cada ship: el bot de revisión del PR lo
-cubre. Se usa sólo si el cambio es grande o toca auth/datos.
+No hay bot de revisión. El subagente `reviewer` local no corre antes de cada ship: se usa
+sólo si el cambio es grande o toca auth/datos.
 
 ### Uso de tokens
 
 - **Leer por partes.** `CLAUDE.md`, `PENDIENTES.md` y `SECURITY.md` pasan de 500 líneas:
   `grep -n` para ubicar y `sed -n 'a,bp'` para leer, nunca el archivo entero.
-- **Notion directo.** Mover una tarea (estado, notas, PR) se hace con las herramientas de
+- **Notion directo.** Mover una tarea (estado, notas, commit) se hace con las herramientas de
   Notion sin subagente; `pm` sólo para cargas en bloque o reportes (cada `pm` ≈150k tokens).
 - **Sin subagentes por defecto.** Ni `Explore` ni `general-purpose` para búsquedas que
   resuelve un `grep`. Para preguntas de arquitectura, `graphify-out/` primero.
 - **Salidas cortas.** `git … -q`, `| tail`, `--jq` en `gh api`; logs de CI sólo con
-  `grep` de los errores. `gh pr checks --watch` en vez de bucles de espera.
+  `grep` de los errores.
 - **No releer** un archivo recién editado ni repetir comandos ya verificados.
 - **Respuestas cortas** al usuario: resultado y siguiente paso, sin repetir el plan.
 
 ### Atribución
-- **Nunca** "🤖 Generated with Claude Code" en PRs, comentarios ni reviews, ni
-  `Co-Authored-By: Claude` en commits. Aplica también al bot de revisión de PRs.
+- **Nunca** "🤖 Generated with Claude Code" en comentarios, ni
+  `Co-Authored-By: Claude` en commits.
 
 ### Notion
 - **Base de tareas**: https://app.notion.com/p/35a7775c44ee467d99402b87361da28b
