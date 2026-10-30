@@ -60,12 +60,13 @@ from selectolax.lexbor import LexborHTMLParser
 
 from ..model import Listing, now
 from ..net import Blocked, Fetcher
-from ..portal import BadPage, Ctx, Portal
+from ..portal import DATA, BadPage, Ctx, Portal
 
 log = logging.getLogger("v2")
 BASE = "https://www.pincali.com"
 PER_PAGE, PAGE_CAP = 42, 100
 TOKEN_TTL = float(os.environ.get("PINCALI_TOKEN_TTL", 280))   # the WAF token dies at 300 s
+TOKEN_YOUNG = 30.0          # seconds: a page that fails on a token this new is not the token
 # 0 = the ordinary expired token: re-mint and retry. A challenge that survives a
 # fresh token is a rate penalty; minting harder only adds load, so wait in minutes.
 COOLDOWN = (0, 90, 300, 420)
@@ -120,6 +121,10 @@ class WafToken:
     def refresh(self) -> None:
         with self._lock:
             self._mint()
+
+    def age(self) -> float:
+        with self._lock:
+            return time.monotonic() - self._minted
 
     def _mint(self) -> None:
         from patchright.sync_api import sync_playwright
@@ -495,9 +500,27 @@ class Pincali(Portal):
 
     def detail(self, row: dict, f: Fetcher) -> Listing | None:
         html = self.get(f, row["url"], BASE + "/inmuebles")
-        listing = parse_detail(html, row)
+        try:
+            listing = parse_detail(html, row)
+        except BadPage:
+            # An ageing WAF token: the page answers 200, with no challenge in it and no
+            # listing either. A third of the fetches of 2026-10-30 went this way, in bursts
+            # that ended at each mint, and the same pages parsed fine later. On a token
+            # just minted it is something else, and minting again would not help.
+            self._keep_sample(html)
+            if self.token.age() < TOKEN_YOUNG:
+                raise
+            log.warning("pincali %s: empty page (%d bytes), minting a token", row["listingId"], len(html))
+            self.token.refresh()
+            html = self.get(f, row["url"], BASE + "/inmuebles")
+            listing = parse_detail(html, row)
         self._rest_of_gallery(f, html, listing)
         return listing
+
+    def _keep_sample(self, html: str) -> None:
+        """The last page that came back empty: nobody has seen one yet."""
+        DATA.mkdir(parents=True, exist_ok=True)
+        (DATA / f"{self.name}.badpage.html").write_text(html, encoding="utf-8")
 
     def _rest_of_gallery(self, f: Fetcher, html: str, listing: Listing) -> None:
         """Photos 11…N. Best effort: the page's ten are already a usable gallery,
@@ -557,6 +580,28 @@ class Pincali(Portal):
         assert len(d.description) > 80, "detail description gone"
         assert len(d.images) >= 5 and all("/EB-XF2021." in u for u in d.images), "gallery gone"
         assert d.builtAreaM2 or d.plotAreaM2, "construction/lot figures gone"
+        good = (fixtures / "pin_detail2.html").read_text(encoding="utf-8")
+
+        class _Token:
+            def __init__(self, age): self.years, self.mints = age, 0
+            def age(self): return self.years
+            def refresh(self): self.mints += 1
+
+        class _Pages(Pincali):
+            def __init__(self, age, pages):
+                self.token, self.pages = _Token(age), list(pages)
+            def get(self, *a, **k): return self.pages.pop(0)
+            def _keep_sample(self, html): pass
+            def _rest_of_gallery(self, *a): pass
+
+        stale = _Pages(200.0, ["<html></html>", good])
+        assert stale.detail(row, None).description and stale.token.mints == 1, "stale token: mint, retry"
+        young = _Pages(5.0, ["<html></html>", good])
+        try:
+            young.detail(row, None)
+            raise AssertionError("a page empty on a new token must fail, not mint")
+        except BadPage:
+            assert young.token.mints == 0 and len(young.pages) == 1
         more = parse_images('{"images":[{"url":"https://assets.easybroker.com/property_images/1/2/'
                             'EB-XF2021.jpg?height=300\\u0026s=ab\\u0026version=7\\u0026width=450"},'
                             '{"url":"https://assets.easybroker.com/property_images/1/3/EB-ZZ0000.jpg"}]}',

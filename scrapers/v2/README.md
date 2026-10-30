@@ -96,6 +96,15 @@ only re-queues a listing whose gallery size changed.
   page's view token the WAF challenges it). Half the listings have more than ten.
   The CDN serves the original of any photo unsigned, so only the path matters.
   This makes a Pincali detail ~4 requests and ~7 s instead of one.
+- **An ageing WAF token empties Pincali's pages.** Late in a token's life a detail
+  page answers 200 with no challenge and no listing: a third of the fetches of
+  2026-10-30, in bursts that ended at each mint. `detail` mints and retries once,
+  and leaves the last such page in `data/v2/pincali.badpage.html`.
+- **Pincali's results page has no agency;** only the detail does. `_KEEP_IF_NULL`
+  in `db.py` is what stops the weekly sweep from erasing it, as it did until
+  2026-10-30.
+- **Navent repeats the lot size as construction on a bare lot.** `db.py` clears it
+  after every load, because the detail page does not say the property type.
 - **Pincali's detail runs with one worker.** Four workers sharing the WAF token
   were challenged constantly: 60 token mints in 9 minutes and 1 gallery in 4 cut
   short, against 40 of 40 complete on a single token.

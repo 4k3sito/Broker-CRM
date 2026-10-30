@@ -45,7 +45,7 @@ COLS = ("source listing_id url title image_url operation price currency property
 
 # Which side wins when the row already exists. Anything not listed: the sweep.
 _KEEP_IF_NULL = {"geom", "geo_origen", "operacion_alt", "precio_alt", "plot_area_m2",
-                 "built_area_m2", "area_m2", "agent_phone", "eb_id", "posting_code",
+                 "built_area_m2", "area_m2", "agent_phone", "agency_name", "eb_id", "posting_code",
                  "images_total", "price_is_per_m2", "listed_at", "image_url"}
 # The detail fetch owns these once it has run: the sweep never shrinks them.
 _DETAIL_OWNS = {"images", "features"}
@@ -146,6 +146,16 @@ ON CONFLICT (source, listing_id) DO UPDATE SET {sets},
 """.format(cols=", ".join(COLS),
            sets=",\n  ".join(_set(c) for c in COLS if c not in ("source", "listing_id")))
 
+# Navent repeats the lot size as construction on a bare lot (39,742 rows, 2026-10-30).
+# Here and not in the adapter: the detail page does not say the property type, and
+# COALESCE would keep the false figure anyway. Runs after every load, like
+# limpiar_precios, because each load writes it back.
+NAVENT = ("inmuebles24", "vivanuncios")
+CONSTRUCCION_FALSA = """
+UPDATE listings SET built_area_m2 = NULL
+WHERE source = %s AND tipo = 'terreno' AND built_area_m2 = plot_area_m2
+"""
+
 # What propdb.py runs after a load; same order, same reasons (see its `load`).
 POST = (("limpiar_precios", "precios a null"), ("inferir_precio_m2", "precio por m2"),
         ("geocodificar_colonias", "geo por colonia"), ("asignar_zonas", "zonas asignadas"),
@@ -219,6 +229,8 @@ def load_sweep(conn: psycopg.Connection, source: str, path: Path, bajas: bool = 
             gone = bajas_por_ausencia(cur, source, state, len(rows))
             print(f"{'bajas por ausencia':22} " + (f"{gone:>7,}" if gone is not None else
                   "  ninguna: el barrido no terminó completo o salió corto"))
+        if source in NAVENT:
+            print(f"{'construcción falsa':22} {cur.execute(CONSTRUCCION_FALSA, (source,)).rowcount:>7,}")
         for fn, label in POST:
             if cur.execute("SELECT to_regproc(%s)", (fn,)).fetchone()[0]:
                 print(f"{label:22} {cur.execute(f'SELECT {fn}()').fetchone()[0]:>7,}")
@@ -315,6 +327,8 @@ def load_detail(conn: psycopg.Connection, source: str, path: Path) -> tuple[int,
         enriched = cur.rowcount
         cur.execute(APPLY_GONE, (source,))
         gone = cur.rowcount
+        if source in NAVENT:
+            cur.execute(CONSTRUCCION_FALSA, (source,))
         if source == "vivanuncios":
             twins = cur.execute("SELECT copiar_detalle_gemelos()").fetchone()[0]
             print(f"{'detalle de gemelos':22} {twins:>7,}")
@@ -411,6 +425,9 @@ def selfcheck() -> None:
                     {"listingId": "b", "operation": "rent", "price": 5}])
     assert len(two) == 2 and two[0]["altOperation"] == "rent" and two[0]["altPrice"] == 1
     assert "COALESCE(EXCLUDED.geom, listings.geom)" in UPSERT
+    assert "COALESCE(EXCLUDED.agency_name, listings.agency_name)" in UPSERT, \
+        "Pincali's results page has no agency: the weekly sweep erased what the detail stored"
+    assert "tipo = 'terreno'" in CONSTRUCCION_FALSA, "a local of 100 m² on 100 m² is a real figure"
 
     class _Cur:                     # bajas_por_ausencia against no database
         def __init__(self, recent): self.recent, self.ran, self.rowcount = recent, None, 7
