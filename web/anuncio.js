@@ -103,23 +103,34 @@ const Anuncio = (() => {
       : { monto: a.precio, parcial: true, unitario: a.precio };
   }
 
-  // La segunda oferta de un inmueble que está en renta Y en venta, ya en texto: null
-  // si no la hay. `precio` es null cuando se sabe que existe pero aún no su monto, y
-  // `nota` trae el $/m² publicado cuando lo que se enseña es el total calculado.
-  function segundoPrecio(a) {
+  // Lo que se pide por el inmueble, una entrada por operación: una si sólo se renta o
+  // sólo se vende, dos si se ofrece en renta Y en venta (el portal lo listó una vez y la
+  // segunda vive en `alt`). Cada una trae lo mismo que `precioVisible` más su operación
+  // (`op`: 'Renta' o 'Venta', o null en una ficha propia que no la dice); `monto` es null
+  // cuando se sabe que se ofrece así pero el precio aún no se ha rescatado.
+  // `primero` ('rent' o 'sale', el filtro del tablero) pone esa oferta arriba: quien busca
+  // renta ve primero la renta aunque el portal haya listado antes la venta.
+  function ofertas(a, primero) {
+    const v = precioVisible(a);
+    const lista = [{ op: a.transaccion, principal: true,
+      ...(v ?? { monto: null, parcial: false, unitario: null }) }];
     const alt = a.alt;
-    if (!alt?.op) return null;
-    const etiqueta = alt.op === 'rent' ? 'También en renta' : 'También en venta';
-    if (alt.monto == null) return { etiqueta, precio: null, nota: null };
-    const conTotal = alt.porM2 && alt.total;
-    const unidad = alt.porM2 && !conTotal ? '/m²' : '';
-    const sufijo = alt.op === 'rent' ? '/mes' : '';
-    return {
-      etiqueta,
-      precio: `$${mx(Math.round(conTotal ? alt.total : alt.monto))}${unidad}${sufijo}`,
-      nota: conTotal ? `($${mx(alt.monto)}/m²)` : null,
-    };
+    if (alt?.op) {
+      const conTotal = alt.porM2 && alt.total;
+      lista.push({
+        op: OPERACION_DE_API[alt.op] ?? null, principal: false,
+        monto: alt.monto == null ? null : (conTotal ? alt.total : alt.monto),
+        parcial: alt.monto != null && alt.porM2 && !conTotal,
+        unitario: alt.porM2 ? alt.monto : null,
+      });
+    }
+    const pref = OPERACION_DE_API[primero];
+    if (pref && lista.length > 1 && lista[1].op === pref) lista.reverse();
+    return lista;
   }
+
+  // La operación en una palabra: "Renta", "Venta" o "Renta y venta".
+  const operacion = a => a.alt?.op ? 'Renta y venta' : a.transaccion;
 
   // ── Propiedad: varios anuncios del mismo inmueble ──────────────────────────
 
@@ -144,5 +155,5 @@ const Anuncio = (() => {
   // Dónde está, en una línea: la dirección, y a falta de ella el municipio.
   const ubicacion = a => a.direccion ?? a.zona ?? null;
 
-  return { ESTADOS, de, total, porMetro, precioVisible, segundoPrecio, rango, resumen, moneda, estadoApi, fuente, ubicacion };
+  return { ESTADOS, de, total, porMetro, precioVisible, ofertas, operacion, rango, resumen, moneda, estadoApi, fuente, ubicacion };
 })();

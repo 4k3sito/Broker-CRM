@@ -82,7 +82,10 @@ const Mapa = (() => {
     for (const l of conGeo) {
       const el = document.createElement('div');
       el.className = 'map-pin';
-      el.textContent = l.precio != null ? corto(Math.round(l.precioTotal ?? l.precio)) : 's/p';
+      // El precio de la operación que se busca: un local en renta y venta, buscando
+      // renta, enseña su renta (`opts.operacion` es el filtro del tablero).
+      const o = Anuncio.ofertas(l, opts.operacion?.())[0];
+      el.textContent = o.monto != null ? corto(Math.round(o.monto)) : 's/p';
       el.title = l.titulo ?? '';
       el.addEventListener('mouseenter', () => opts.onPinHover?.(l.id));
       el.addEventListener('mouseleave', () => opts.onPinHover?.(null));

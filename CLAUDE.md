@@ -91,7 +91,7 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   **`anuncio.js` es el anuncio en el navegador, definido una vez** (2026-10-11): el objeto
   `Anuncio` convierte la fila de la API en lo que pintan el tablero, la ficha y comparar
   (`Anuncio.de`), y trae las reglas que dependen de él —`total`, `porMetro`,
-  `precioVisible`, `segundoPrecio`— y sus etiquetas (`ESTADOS`, `estadoApi`, `fuente`,
+  `precioVisible`, `ofertas`— y sus etiquetas (`ESTADOS`, `estadoApi`, `fuente`,
   `ubicacion`). `precio` es el número que publicó el portal, con `moneda` aparte. No toca
   la red ni el DOM; el marcado es de cada página. Una regla de precio o una fuente nueva
   se cambia ahí y en ningún otro lado.
@@ -438,7 +438,12 @@ las colapsa en una fila y guarda la segunda en las columnas `*_alt`.
 
 **Con la v2 el segundo precio llega en el barrido.** Pincali sirve los precios en un
 pedido aparte (`/properties/card_prices`) que trae las dos ofertas de cada tarjeta, y
-Navent las trae en la tarjeta; `v2/db.py collapse()` deja una fila por anuncio. El
+Navent las trae en la tarjeta; `v2/db.py collapse()` deja una fila por anuncio.
+**Cómo se enseña (2026-10-30).** `Anuncio.ofertas(a, primero)` da una entrada por
+operación; la tarjeta, la ficha, el pin del mapa y la ficha PDF pintan los dos precios
+con el mismo peso y su etiqueta (`EN RENTA` / `EN VENTA`), y con filtro de operación la
+de ese filtro va arriba. El filtro (`operacion`) encuentra el anuncio por cualquiera de
+sus dos ofertas, y el filtro y el **orden** por precio usan el de la operación elegida. El
 `pincali_dual.py` de antes (bajar el detalle de cada dual tras cada re-scrape) ya no
 hace falta: medido el 2026-10-08, 16.9% de las tarjetas de Pincali traen dos precios.
 

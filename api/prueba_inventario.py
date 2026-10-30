@@ -217,6 +217,9 @@ def con_operacion_el_precio_es_el_de_esa_operacion(conn):
     assert ids(conn, Asesor(ANA), precio_max=45000) == [L1, V1]
     assert ids(conn, Asesor(ANA), precio_max=45000, operacion="rent") == [L1, D1, V1]
     assert ids(conn, Asesor(ANA), precio_min=1000000, operacion="sale") == [T1, D1, R1]
+    # Y se ordena por ese mismo precio: entre las rentas va por sus 40 mil, no por sus 5 MDP.
+    assert ids(conn, Asesor(ANA), orden="precio_desc", operacion="rent") == [B1, D1, L1, V1]
+    assert ids(conn, Asesor(ANA), orden="precio_desc", operacion="rent", fusion=False) == [B1, D1, L1, V1]
 
 
 def el_precio_por_metro(conn):
