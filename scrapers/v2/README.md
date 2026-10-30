@@ -96,10 +96,11 @@ only re-queues a listing whose gallery size changed.
   page's view token the WAF challenges it). Half the listings have more than ten.
   The CDN serves the original of any photo unsigned, so only the path matters.
   This makes a Pincali detail ~4 requests and ~7 s instead of one.
-- **An ageing WAF token empties Pincali's pages.** Late in a token's life a detail
-  page answers 200 with no challenge and no listing: a third of the fetches of
-  2026-10-30, in bursts that ended at each mint. `detail` mints and retries once,
-  and leaves the last such page in `data/v2/pincali.badpage.html`.
+- **Pincali's WAF has a soft wall.** Every ~6 minutes a detail page answers 200 with the
+  site's shell and "Tu navegador no completó la verificación de seguridad", no listing.
+  It lasts 75-105 s whatever the token's age; minting mid-wall does not end it. Asking
+  through it cost half the fetches, at 66 KB each against 27. `detail` pauses 90 s and
+  retries the same listing, and leaves the last wall in `data/v2/pincali.badpage.html`.
 - **Pincali's results page has no agency;** only the detail does. `_KEEP_IF_NULL`
   in `db.py` is what stops the weekly sweep from erasing it, as it did until
   2026-10-30.
