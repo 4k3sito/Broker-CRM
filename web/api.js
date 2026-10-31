@@ -10,8 +10,9 @@ function alLogin() {
 }
 
 const API = {
-  async req(metodo, ruta, cuerpo) {
+  async req(metodo, ruta, cuerpo, opciones) {
     const r = await fetch(`/api${ruta}`, {
+      ...opciones,                  // { keepalive: true } para lo que sale al cerrar la página
       method: metodo,
       credentials: 'same-origin',   // la cookie de sesión viaja sola
       headers: cuerpo ? { 'Content-Type': 'application/json' } : undefined,
@@ -30,7 +31,7 @@ const API = {
     return data;
   },
   get:    (ruta)         => API.req('GET', ruta),
-  post:   (ruta, cuerpo) => API.req('POST', ruta, cuerpo),
+  post:   (ruta, cuerpo, opciones) => API.req('POST', ruta, cuerpo, opciones),
   put:    (ruta, cuerpo) => API.req('PUT', ruta, cuerpo),
   patch:  (ruta, cuerpo) => API.req('PATCH', ruta, cuerpo),
   del:    (ruta)         => API.req('DELETE', ruta),
