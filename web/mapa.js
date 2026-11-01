@@ -94,8 +94,13 @@ const Mapa = (() => {
     });
   }
 
+  // La cámara, para guardarla y volver a ponerla tal cual (regresar de la ficha).
+  // `ir` no trae `usuario`: no dispara la búsqueda de onMove.
+  const vista = () => map ? { centro: map.getCenter().toArray(), zoom: map.getZoom() } : null;
+  const ir = v => { if (map && v?.centro) map.jumpTo({ center: v.centro, zoom: v.zoom }); };
+
   return {
-    init, pintar, resaltar, area,
+    init, pintar, resaltar, area, vista, ir,
     seguir: v => { seguir = v; },
     resize: () => { map?.resize(); },
   };

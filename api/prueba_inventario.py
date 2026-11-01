@@ -204,6 +204,25 @@ def el_tipo_es_el_normalizado(conn):
     invalido(conn, tipo=["edificio"])
 
 
+def el_uso_del_terreno_sale_del_titulo(conn):
+    """Habitacional / comercial / industrial sólo acota terrenos, y sólo cree al título
+    o al tipo del portal; lo que no lo dice es `sin`."""
+    terrenos = dict(tipo=["terreno"])
+    assert ids(conn, Asesor(ANA), uso=["sin"], **terrenos) == [T1, R1, N1]
+    assert ids(conn, Asesor(ANA), uso=["industrial"], **terrenos) == []
+    # La bodega no es terreno: el uso no la toca.
+    assert ids(conn, Asesor(ANA), tipo=["bodega", "terreno"], uso=["industrial"]) == [B1]
+    conn.execute("UPDATE listings SET title = 'Terreno industrial o comercial carretera' WHERE listing_id = %s",
+                 (T1.split(":", 1)[1],))
+    for uso in ("industrial", "comercial"):
+        assert ids(conn, Asesor(ANA), uso=[uso], **terrenos) == [T1], uso
+    assert ids(conn, Asesor(ANA), uso=["habitacional"], **terrenos) == []
+    assert ids(conn, Asesor(ANA), uso=["sin"], **terrenos) == [R1, N1]
+    conn.execute("UPDATE listings SET title = 'Terreno carretera nacional' WHERE listing_id = %s",
+                 (T1.split(":", 1)[1],))
+    invalido(conn, uso=["agricola"])
+
+
 def el_precio_es_el_total(conn):
     """Un terreno a $700/m² con 10,000 m² cuesta 7 millones: no cabe en "hasta $30,000"."""
     assert ids(conn, Asesor(ANA), precio_max=30000) == [L1, V1]
@@ -353,7 +372,7 @@ def con_llave_solo_el_inventario(conn):
     assert inventario.uno(conn, Llave(), X1)["activo"] is False
 
 
-PRUEBAS = [el_tablero_sin_filtros, lo_dado_de_baja_se_esconde, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
+PRUEBAS = [el_tablero_sin_filtros, el_uso_del_terreno_sale_del_titulo, lo_dado_de_baja_se_esconde, la_busqueda_pide_cada_palabra, los_lugares_se_suman,
            la_operacion_incluye_la_oferta_alterna, el_tipo_es_el_normalizado, el_precio_es_el_total,
            con_operacion_el_precio_es_el_de_esa_operacion, el_precio_por_metro,
            la_superficie_que_se_pide, cerca_de_un_punto, el_seguimiento_es_de_cada_asesor,

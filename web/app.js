@@ -40,6 +40,7 @@ const F = {
   // porque el chip tiene que poder decir "Monterrey" sin volver a preguntarle a la API.
   lugares: [],     // [{ valor:'m40', nombre:'Monterrey', estado:'Nuevo León' }]
   tipos: [],       // ['local','bodega']
+  usos: [],        // uso de los terrenos: ['comercial','industrial'] o 'sin' (ver USOS_TERRENO en la API)
 };
 
 // Los cuatro tipos que ofrece el filtro. `oficina` se queda con cero anuncios por
@@ -112,6 +113,7 @@ console.assert(activos().length === 0, 'sin filtros no debe haber tokens');
 const paramsBase = () => ({
   q: searchStreet || F.q,
   lugar: F.lugares.map(l => l.valor), tipo: F.tipos,
+  uso: F.tipos.includes('terreno') ? F.usos : [],
   operacion: F.operacion, fuente: F.fuente,
   precio_min: F.precio_min, precio_max: F.precio_max,
   m2_min: F.m2_min, m2_max: F.m2_max, m2_de: (F.m2_min || F.m2_max) ? F.m2_de : '',
@@ -167,14 +169,33 @@ function fmtPrice(l) {
 
 // El segundo precio va como línea aparte para que el asesor vea las dos opciones sin
 // abrir el anuncio.
-function altPriceHtml(l) {
+// Como en EasyBroker: la operación va pegada a su precio («$2,650,000 MXN en venta»), y
+// un anuncio que también se ofrece en la otra trae su segundo renglón con su precio.
+const opTxt = op => op ? `<span class="card-opx">en ${esc(op.toLowerCase())}</span>` : '';
+function altLineaHtml(l) {
   const s = Anuncio.segundoPrecio(l);
   if (!s) return '';
-  if (!s.precio) return `<div class="price-alt">${s.etiqueta}</div>`;
-  return `<div class="price-alt">${s.etiqueta}: <strong>${s.precio}</strong>${s.nota ? ' ' + s.nota : ''}</div>`;
+  const op = l.alt.op === 'rent' ? 'Renta' : 'Venta';
+  // `precio` viene como "$9,000,000/mes" o "$150/m²": la unidad va aparte, chica, como en el precio principal.
+  const [, monto, unidad] = s.precio?.match(/^(.*?)((?:\/m²)?(?:\/mes)?)$/) ?? [];
+  const sufijo = [Anuncio.moneda(l), unidad?.replace(/\//g, ' / ').trim()].filter(Boolean).join(' ');
+  return s.precio ? `<div class="card-price alt"><strong>${esc(monto)}</strong><span class="currency">${esc(sufijo)}</span>${s.nota ? `<span class="currency">${esc(s.nota)}</span>` : ''}${opTxt(op)}</div>`
+                  : `<div class="card-price alt">${opTxt(op)}</div>`;
 }
+// Superficies con símbolo y sin palabra: recuadro de esquinas = terreno, cubo =
+// construcción, recuadro lleno = superficie sin decir de qué (el `title` lo dice).
+const ICON_M2 = {
+  Terreno: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></svg>',
+  Construcción: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>',
+  Superficie: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18"/></svg>',
+};
+const m2sHtml = l => {
+  const s = superficies(l.terreno, l.construccion, l.size);
+  return s.length ? `<div class="card-m2s">${s.map(([k, v]) => `<span title="${k}">${ICON_M2[k]}${m2Txt(v)}</span>`).join('')}</div>` : '';
+};
 
 // ── Tarjeta ──────────────────────────────────────────────────────────────────
+
 
 function renderCard(l) {
   const blabel = Anuncio.fuente(l.fuente).toUpperCase();
@@ -192,11 +213,11 @@ function renderCard(l) {
   // Varios anuncios del mismo inmueble: la tarjeta enseña entre qué precios se ofrece.
   const rg = Anuncio.rango(l), dup = Anuncio.resumen(l);
   const priceHtml = rg
-    ? `<div class="card-price rango"><strong>${dineroCorto(rg.min)}</strong><span class="card-a">a</span><strong>${dineroCorto(rg.max)}</strong><span class="currency">${sufijo}</span></div>`
+    ? `<div class="card-price rango"><strong>${dineroCorto(rg.min)}</strong><span class="card-a">a</span><strong>${dineroCorto(rg.max)}</strong><span class="currency">${sufijo}</span>${opTxt(l.transaccion)}</div>`
     : p
-    ? `<div class="card-price"><strong>$${p.n}</strong><span class="currency">${sufijo}</span></div>` +
+    ? `<div class="card-price"><strong>$${p.n}</strong><span class="currency">${sufijo}</span>${opTxt(l.transaccion)}</div>` +
       (p.nota ? `<span class="price-note">${p.nota}${p.parcial ? '' : ' × ' + mx(l.size) + ' m²'}</span>` : '')
-    : `<div class="card-price"><strong class="no-price">Sin precio</strong></div>`;
+    : `<div class="card-price"><strong class="no-price">Sin precio</strong>${opTxt(l.transaccion)}</div>`;
 
   const sel = seleccion.has(l.id);
   return `<article class="card ${l.starred ? 'starred' : ''}${sel ? ' sel' : ''} status-${l.status.toLowerCase()}" data-id="${esc(l.id)}">
@@ -204,7 +225,6 @@ function renderCard(l) {
       ${imgHtml}
       <span class="badge badge-src">${esc(l.fuentes.length > 1 ? `${l.fuentes.length} PORTALES` : blabel)}</span>
       ${l.fotos?.length ? `<span class="badge badge-foto">FOTO 1/${l.fotos.length}</span>` : ''}
-      ${superficies(l.terreno, l.construccion, l.size).map(([k, v]) => `<span class="badge badge-size" title="${k}">${k === 'Superficie' ? '' : k === 'Terreno' ? 'Terreno ' : 'Constr. '}${m2Txt(v)}</span>`).join('')}
       <button class="card-chk" title="Seleccionar" aria-pressed="${sel}">${sel ? '&#10003;' : ''}</button>
       <button class="btn-star" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">${l.starred ? '&#9733;' : '&#9734;'}</button>
     </div>
@@ -213,13 +233,14 @@ function renderCard(l) {
         <div style="min-width:0">
           ${priceHtml}
           ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
-          ${altPriceHtml(l)}
+          ${altLineaHtml(l)}
           ${dup ? `<div class="card-dup" title="Anuncios del mismo inmueble, fusionados en esta tarjeta">${dup}</div>` : ''}
         </div>
-        <a class="card-ver" href="listing.html?id=${encodeURIComponent(l.id)}">Ver ${ICON_EXTERNAL}</a>
+        <a class="card-ver" href="listing.html?id=${encodeURIComponent(l.id)}" target="_blank" rel="opener">Ver ${ICON_EXTERNAL}</a>
       </div>
       ${l.titulo ? `<div class="card-title">${esc(l.titulo)}</div>` : ''}
       ${Anuncio.ubicacion(l) ? `<div class="card-dir">${ICON_PIN}${esc(Anuncio.ubicacion(l))}</div>` : ''}
+      ${m2sHtml(l)}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
         ${l.transaccion ? `<span class="tag-txn">${esc(l.transaccion)}</span>` : ''}
@@ -430,11 +451,39 @@ async function _render() {
   // La ficha usa esto para anterior/siguiente sin volver al tablero.
   try { sessionStorage.setItem('ol-nav', JSON.stringify(listings.map(l => String(l.id)))); } catch { /* sin contexto */ }
   Mapa.pintar(listings);
+  guardarBusqueda();
+}
+
+// La búsqueda en curso, para que «Volver al tablero» desde una ficha la encuentre como
+// estaba: filtros, texto, estatus, página y cámara del mapa. En localStorage y no en
+// sessionStorage porque la ficha se abre en otra pestaña. Una por pestaña del tablero.
+const BUSQUEDA = `ol-busqueda-${TAB}`;
+function guardarBusqueda() {
+  try {
+    localStorage.setItem(BUSQUEDA, JSON.stringify({ F, searchStreet, filterStatus, filterStarred, page,
+      mapa: Mapa.vista(), seguir: mapFollow.checked }));
+  } catch { /* sin persistencia: se vuelve a la búsqueda de fábrica */ }
+}
+function recuperarBusqueda() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(BUSQUEDA) ?? 'null'); } catch { /* nada guardado */ }
+  if (!s?.F) return false;
+  Object.assign(F, s.F);
+  searchStreet = s.searchStreet ?? ''; filterStatus = s.filterStatus ?? 'Todos';
+  filterStarred = !!s.filterStarred; page = s.page ?? 1;
+  document.getElementById('searchInput').value = F.q ?? '';
+  if (searchStreet) {
+    document.getElementById('searchChipText').textContent = searchStreet;
+    document.getElementById('searchChip').hidden = false;
+  }
+  seguirMapa(!!s.seguir);
+  Mapa.ir(s.mapa);
+  return true;
 }
 
 function limpiarTodo() {
   Object.values(CAMPOS).forEach(c => c.clear());
-  F.lugares = []; F.tipos = []; F.operacion = ''; F.precio_min = ''; F.precio_max = '';
+  F.lugares = []; F.tipos = []; F.usos = []; F.operacion = ''; F.precio_min = ''; F.precio_max = '';
   F.pcliente = ''; F.etapas = []; F.asesor = '';
   fbCerrar();
   clearTimeout(busquedaEspera);
@@ -525,7 +574,9 @@ const fbResumen = {
     return [op, r].filter(Boolean).join(' · ') || 'Cualquiera';
   },
   tipo: () => !F.tipos.length ? 'Todos'
-    : F.tipos.length === 1 ? cap(F.tipos[0]) : `${F.tipos.length} tipos`,
+    : F.tipos.length === 1 ? cap(F.tipos[0]) + (F.tipos[0] === 'terreno' && F.usos.length
+      ? ' ' + F.usos.map(u => USOS[u].toLowerCase()).join(' o ') : '')
+    : `${F.tipos.length} tipos`,
   cliente: () => F.pcliente === 'sin' ? 'Sin cliente' : F.pcliente ? (clientesCache?.find(c => String(c.id) === F.pcliente)?.nombre ?? '1 cliente') : 'Todos',
   asesor: () => F.asesor ? (equipoCache?.find(u => String(u.id) === F.asesor)?.nombre ?? '1 asesor') : 'Todos',
   etapa: () => !F.etapas.length ? 'Todas'
@@ -563,7 +614,7 @@ function fbAbrir(k) {
   fbAbierto = k;
   // Copia, no referencia: `lugares` y `tipos` se editan dentro del popover y tienen
   // que poder tirarse enteros al cancelar.
-  fbDraft = { lugares: F.lugares.slice(), tipos: F.tipos.slice(),
+  fbDraft = { lugares: F.lugares.slice(), tipos: F.tipos.slice(), usos: F.usos.slice(),
               operacion: F.operacion, min: F.precio_min, max: F.precio_max, sug: [],
               pcliente: F.pcliente, etapas: F.etapas.slice(), asesor: F.asesor };
   const pop = document.getElementById('fbPop');
@@ -647,12 +698,22 @@ function fbCuerpoPrecio() {
       multiplicado por su superficie. Tocar la operaci&#243;n activa la quita.</p>`;
 }
 
+// Uso de un terreno: lo deduce la API del título o del tipo del portal, así que no
+// todos lo tienen («Sin clasificar»). Sólo se ofrece con Terreno marcado.
+const USOS = { habitacional: 'Habitacional', comercial: 'Comercial', industrial: 'Industrial', sin: 'Sin clasificar' };
 function fbCuerpoTipo() {
-  return '<div class="fb-cajas">' + TIPOS_COM.map(v => `
+  const cajas = '<div class="fb-cajas">' + TIPOS_COM.map(v => `
     <label class="fb-caja">
       <input type="checkbox" data-tipo="${esc(v)}"${fbDraft.tipos.includes(v) ? ' checked' : ''}>
       <span>${esc(cap(v))}</span>
     </label>`).join('') + '</div>';
+  if (!fbDraft.tipos.includes('terreno')) return cajas;
+  return cajas + `<p class="fb-sub">Uso del terreno</p><div class="fb-cajas">` + Object.entries(USOS).map(([v, t]) => `
+    <label class="fb-caja">
+      <input type="checkbox" data-uso="${v}"${fbDraft.usos.includes(v) ? ' checked' : ''}>
+      <span>${t}</span>
+    </label>`).join('') + `</div>
+    <p class="fb-nota">Sale del título del anuncio: el que no lo dice queda sin clasificar. Sin marcar ninguno, todos los terrenos.</p>`;
 }
 
 // Inmobiliaria: un cliente a la vez (la pregunta es "¿qué le hemos presentado a X?")
@@ -695,7 +756,7 @@ function fbLimpiarBorrador() {
   if (fbAbierto === 'asesor') fbDraft.asesor = '';
   if (fbAbierto === 'etapa') fbDraft.etapas = [];
   if (fbAbierto === 'ubicacion') { fbDraft.lugares = []; fbDraft.sug = []; }
-  if (fbAbierto === 'tipo') fbDraft.tipos = [];
+  if (fbAbierto === 'tipo') { fbDraft.tipos = []; fbDraft.usos = []; }
   if (fbAbierto === 'precio') { fbDraft.operacion = ''; fbDraft.min = ''; fbDraft.max = ''; }
   fbPintarPop();
 }
@@ -715,7 +776,7 @@ function fbAplicar() {
     if (F.asesor && F.pcliente === 'sin') F.pcliente = '';
   }
   if (fbAbierto === 'ubicacion') F.lugares = fbDraft.lugares.slice(0, MAX_LUGARES);
-  if (fbAbierto === 'tipo') F.tipos = fbDraft.tipos.slice();
+  if (fbAbierto === 'tipo') { F.tipos = fbDraft.tipos.slice(); F.usos = F.tipos.includes('terreno') ? fbDraft.usos.slice() : []; }
   if (fbAbierto === 'precio') {
     let min = fbNum(fbDraft.min), max = fbNum(fbDraft.max);
     // Un mínimo mayor que el máximo no devuelve nada nunca. Voltearlos es lo que
@@ -730,7 +791,7 @@ function fbQuitar(k) {
   // Con lugares elegidos la ✕ quita los lugares; sin ellos, lo que el chip dice es el
   // filtro de cercanía, y es eso lo que quita.
   if (k === 'ubicacion') { if (F.lugares.length) F.lugares = []; else { F.near = ''; F.nearTxt = ''; } }
-  if (k === 'tipo') F.tipos = [];
+  if (k === 'tipo') { F.tipos = []; F.usos = []; }
   if (k === 'cliente') F.pcliente = '';
   if (k === 'etapa') F.etapas = [];
   if (k === 'asesor') F.asesor = '';
@@ -806,10 +867,16 @@ document.getElementById('fbPop').addEventListener('change', e => {
     fbDraft.etapas = e.target.checked ? [...new Set([...fbDraft.etapas, v])] : fbDraft.etapas.filter(x => x !== v);
     return;
   }
+  const u = e.target.closest('input[type=checkbox][data-uso]');
+  if (u) {
+    fbDraft.usos = u.checked ? [...new Set([...fbDraft.usos, u.dataset.uso])] : fbDraft.usos.filter(x => x !== u.dataset.uso);
+    return;
+  }
   const c = e.target.closest('input[type=checkbox][data-tipo]');
   if (!c) return;
   const v = c.dataset.tipo;
   fbDraft.tipos = c.checked ? [...new Set([...fbDraft.tipos, v])] : fbDraft.tipos.filter(x => x !== v);
+  if (v === 'terreno') fbPintarPop();      // aparece o se va «Uso del terreno»
 });
 
 // Enter aplica, Esc descarta: el popover se maneja sin ratón.
@@ -883,9 +950,8 @@ document.getElementById('grid').addEventListener('click', e => {
   }
   if (e.target.closest('.card-chk')) return toggleSeleccion(id);
   if (e.target.closest('select, a, button')) return;
-  // Cmd/Ctrl+clic abre la ficha en otra pestaña, como un enlace normal.
-  const url = `listing.html?id=${encodeURIComponent(id)}`;
-  if (e.metaKey || e.ctrlKey) window.open(url, '_blank'); else location.href = url;
+  // La ficha abre en otra pestaña: la búsqueda se queda donde estaba en ésta.
+  window.open(`listing.html?id=${encodeURIComponent(id)}`, '_blank');
 });
 
 // Hover tarjeta → pin. mouseover burbujea; se ignoran los movimientos internos.
@@ -1202,10 +1268,10 @@ async function aplicarCliente(id) {
   F.lugares = (cr.lugares ?? []).slice(0, MAX_LUGARES);
   for (const k of ['m2_min', 'm2_max', 'ppm_min', 'ppm_max', 'precio_min', 'precio_max'])
     F[k] = cr[k] ?? '';
-  F.m2_de = '';
+  F.m2_de = ['terreno', 'construccion'].includes(cr.m2_de) ? cr.m2_de : '';
 }
 function quitarCriterios() {
-  F.cliente = null; F.tipos = []; F.operacion = ''; F.lugares = [];
+  F.cliente = null; F.tipos = []; F.usos = []; F.operacion = ''; F.lugares = [];
   for (const k of ['m2_min', 'm2_max', 'm2_de', 'ppm_min', 'ppm_max', 'precio_min', 'precio_max']) F[k] = '';
   history.replaceState(null, '', location.pathname);
 }
@@ -1248,9 +1314,11 @@ API.me().then(async () => {
     if (url.get('pcliente')) F.pcliente = url.get('pcliente');
     if (url.get('asesor')) F.asesor = url.get('asesor');
   }
-  // Se abre buscando en lo que el mapa enseña, si el mapa está a la vista. Con los
-  // criterios de un cliente no: sus lugares mandan, y el mapa encuadra lo que salga.
-  if (F.cliente) seguirMapa(false);
+  // Al volver de una ficha (?volver=1), la búsqueda que se dejó. Si no, se abre buscando
+  // en lo que el mapa enseña, si está a la vista. Con los criterios de un cliente no:
+  // sus lugares mandan, y el mapa encuadra lo que salga.
+  if (url.get('volver') && !url.get('cliente') && recuperarBusqueda()) history.replaceState(null, '', location.pathname + (INMO ? '?tab=inmobiliaria' : ''));
+  else if (F.cliente) seguirMapa(false);
   else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area()) buscarEnElMapa(Mapa.area(), CENTRO_NOMBRE);
   await render();
   if (!INMO) avisarFrescura();

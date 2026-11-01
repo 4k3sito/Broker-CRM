@@ -244,6 +244,7 @@ a:hover { color:var(--ink); }
 .fb-in:focus { border-color:var(--accent); }
 .fb-in:disabled { color:var(--faint); background:var(--bg); }
 .fb-nota { margin:0; font-size:11.5px; line-height:1.45; color:var(--faint); }
+.fb-sub { margin:12px 0 6px; font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700; }
 
 /* Ubicación */
 .fb-sels { display:flex; flex-wrap:wrap; gap:6px; }
@@ -584,7 +585,13 @@ a:hover { color:var(--ink); }
 
 .card-body { padding:var(--card-pad); display:flex; flex-direction:column; gap:11px; flex:1; }
 .card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-.card-price { display:flex; align-items:baseline; gap:5px; }
+.card-price { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 5px; }
+/* «en venta» / «en renta» pegado a su precio, y el segundo precio en su propio renglón. */
+.card-opx { font-family:var(--font-mono); font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--ink); }
+.card-price.alt strong { font-size:14px; }
+/* Las superficies, con símbolo: terreno, construcción o sin decir. */
+.card-m2s { display:flex; flex-wrap:wrap; gap:2px 12px; font-family:var(--font-mono); font-size:11px; color:var(--muted); }
+.card-m2s span { display:inline-flex; align-items:center; gap:4px; }
 .card-price strong {
   font-family:var(--font-display); font-size:27px; font-weight:500; line-height:1;
   color:var(--ink); font-feature-settings:'tnum';
@@ -2229,6 +2236,7 @@ tr.igual.ocultar { display:none; }
 .crit-chips { display:flex; flex-wrap:wrap; gap:6px 12px; }
 .crit-chips label { display:inline-flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; }
 .crit-rango { display:flex; align-items:center; gap:6px; }
+.crit-m2de { margin-bottom:8px; }
 .crit-in { width:100%; height:32px; padding:0 9px; border:1px solid var(--border-2); background:var(--surface);
   font-family:var(--font-ui); font-size:13px; color:var(--ink); outline:none; }
 .crit-rango .crit-in { width:100px; }
@@ -2294,6 +2302,11 @@ button.cl-proponer { padding:0; border:none; background:transparent; font-family
 .cl-colspop label small { margin-left:auto; padding-left:10px; font-size:11px; color:var(--muted); }
 
 /* El panel que se despliega bajo la fila: la propiedad completa, editable, y sus tareas. */
+.cl-motivo { min-width:var(--cl-min); display:flex; align-items:center; gap:8px; padding:8px 16px 10px 46px; border-bottom:1px solid var(--border); background:var(--bg); }
+.cl-motivo label { flex:1; display:flex; align-items:center; gap:8px; min-width:0; font-size:12.5px; color:var(--muted); }
+.cl-motivo label b { color:var(--ink); }
+.cl-motivo label span { color:var(--faint); }
+.cl-motivo-in { flex:1; min-width:0; height:30px; padding:0 9px; border:1px solid var(--border-2); background:var(--surface); color:var(--ink); font-family:var(--font-ui); font-size:13px; }
 .cl-exp { min-width:var(--cl-min); padding:14px 16px 16px 46px; border-bottom:1px solid var(--border); background:var(--bg); display:flex; flex-direction:column; gap:12px; cursor:default; }
 .cl-exp-main { display:flex; gap:14px; align-items:flex-start; }
 .cl-exp-foto { width:200px; height:140px; object-fit:cover; flex-shrink:0; border:1px solid var(--border); }
@@ -2431,6 +2444,8 @@ button.cl-chip.oculta { background:transparent; border:1px dashed var(--border-2
   .cl-tr > .cl-c[data-c=estatus] { display:block; grid-column:3; overflow:visible; }
   .cl-tr > .cl-x { grid-column:4; grid-row:1; }
   .cl-exp { min-width:0; padding:12px; }
+  .cl-motivo { min-width:0; padding:10px 12px; flex-wrap:wrap; }
+  .cl-motivo label { flex-basis:100%; flex-wrap:wrap; }
   .cl-exp-main { flex-direction:column; }
   .cl-exp-foto { width:100%; height:160px; }
   .cl-exp-main > .cl-th-ver, .cl-exp-fotos > .cl-th-ver { width:100%; }

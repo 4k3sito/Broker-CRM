@@ -100,7 +100,33 @@ function setProcesoStatus(procId, status) {
     if (p) p.status = status;
   }
   API.patch(`/procesos/${procId}`, { status }).catch(err => console.warn(err.message));
+  // Debajo de la fila, una línea opcional con el porqué (por qué se descartó, qué falta
+  // para cerrar…). En presentación no: el cliente está viendo la pantalla.
+  motivoDe = presentando ? null : String(procId);
   render();
+  document.querySelector('#clDetail .cl-motivo-in')?.focus();
+}
+// El porqué de un cambio de etapa va a las notas de la propiedad con este cliente, en
+// un renglón con fecha y etapa, debajo de lo que ya había.
+let motivoDe = null;        // id del proceso que acaba de cambiar de etapa y espera su nota
+function motivoHtml(p) {
+  return `<div class="cl-motivo" data-proc="${esc(p.id)}">
+    <label><b>${esc(etapaLabel(p.status))}</b> · ¿Por qué? <span>(opcional)</span>
+      <input class="cl-motivo-in" maxlength="300" placeholder="Una línea: se agrega a las notas con este cliente"></label>
+    <button class="cl-btn" data-motivo="ok">Guardar</button>
+    <button class="cl-btn" data-motivo="no">Omitir</button>
+  </div>`;
+}
+function cerrarMotivo(c, guardar) {
+  const p = (c?.proceso ?? []).find(x => String(x.id) === motivoDe);
+  const texto = document.querySelector('#clDetail .cl-motivo-in')?.value.trim();
+  motivoDe = null;
+  if (guardar && p && texto) {
+    const hoy = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    p.notas = [p.notas, `${hoy} · ${etapaLabel(p.status)}: ${texto}`].filter(Boolean).join('\n');
+    API.patch(`/procesos/${p.id}`, { notas: p.notas }).catch(err => alert('No se pudo guardar la nota: ' + err.message));
+  }
+  renderDetalle();
 }
 async function removeProceso(procId) {
   if (!confirm('¿Quitar esta propuesta?')) return;
@@ -442,11 +468,17 @@ const TIPOS_CRIT = ['oficina', 'local', 'bodega', 'terreno'];
 const CRITERIOS = {
   tipos:     { label: 'Tipo' },
   operacion: { label: 'Operación' },
-  m2:        { label: 'Superficie', min: 'm2_min', max: 'm2_max', fmt: v => `${mx(v)} m²` },
+  m2:        { label: 'Superficie', min: 'm2_min', max: 'm2_max', fmt: v => `${mx(v)} m²` },   // + m2_de
   ppm:       { label: 'Precio por m²', min: 'ppm_min', max: 'ppm_max', fmt: v => `$${mx(v)}/m²` },
   precio:    { label: 'Precio total', min: 'precio_min', max: 'precio_max', fmt: v => `$${mx(v)}` },
   lugares:   { label: 'Ubicación' },
 };
+// De qué superficie es el rango (`m2_de`, el mismo parámetro del tablero): sin él, la
+// que publique el anuncio; con él, sólo el terreno o sólo lo construido.
+const M2_DE = { terreno: 'Terreno', construccion: 'Construcción' };
+// `operacion` es 'rent', 'sale' o 'ambas': el cliente busca las dos, y el tablero lo
+// toma como sin filtro de operación.
+const OPERACION_TXT = { rent: 'Renta', sale: 'Venta', ambas: 'Renta y venta' };
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 const rangoTxt = (min, max, fmt) =>
   min != null && max != null ? `${fmt(min)} – ${fmt(max)}` : max != null ? `hasta ${fmt(max)}` : `desde ${fmt(min)}`;
@@ -455,10 +487,11 @@ const rangoTxt = (min, max, fmt) =>
 function pildoras(cr) {
   const out = [];
   if (cr.tipos?.length) out.push({ k: 'tipos', txt: cr.tipos.map(cap).join(' · ') });
-  if (cr.operacion) out.push({ k: 'operacion', txt: cr.operacion === 'rent' ? 'Renta' : 'Venta' });
+  if (OPERACION_TXT[cr.operacion]) out.push({ k: 'operacion', txt: OPERACION_TXT[cr.operacion] });
   for (const k of ['m2', 'ppm', 'precio']) {
     const d = CRITERIOS[k];
-    if (cr[d.min] != null || cr[d.max] != null) out.push({ k, txt: rangoTxt(cr[d.min], cr[d.max], d.fmt) });
+    if (cr[d.min] != null || cr[d.max] != null)
+      out.push({ k, txt: rangoTxt(cr[d.min], cr[d.max], d.fmt), label: k === 'm2' ? M2_DE[cr.m2_de] : null });
   }
   (cr.lugares ?? []).forEach((l, i) => out.push({ k: 'lugares', i, txt: l.nombre }));
   return out;
@@ -468,7 +501,7 @@ function queBuscaHtml(c) {
   const ps = pildoras(c.criterios ?? {});
   return `<div class="cl-f wide cl-busca"><span>Qué busca</span>
     <div class="crit-row">
-      ${ps.map(p => `<span class="crit-pill"><b>${esc(CRITERIOS[p.k].label)}</b>${esc(p.txt)}` +
+      ${ps.map(p => `<span class="crit-pill"><b>${esc(p.label ?? CRITERIOS[p.k].label)}</b>${esc(p.txt)}` +
         `<button class="crit-x" data-k="${p.k}"${p.i != null ? ` data-i="${p.i}"` : ''} title="Quitar">&times;</button></span>`).join('')}
       <span class="crit-wrap">
         <button class="crit-add" id="critAdd">+ Criterio</button>
@@ -489,10 +522,11 @@ function critPopHtml(cr) {
   if (critAbierto === 'tipos') cuerpo = `<div class="crit-chips">${TIPOS_CRIT.map(t =>
     `<label><input type="checkbox" name="tipo" value="${t}"${(cr.tipos ?? []).includes(t) ? ' checked' : ''}>${cap(t)}</label>`).join('')}</div>`;
   else if (critAbierto === 'operacion') cuerpo = `<div class="crit-chips">${[['rent', 'Renta'], ['sale', 'Venta']].map(([v, l]) =>
-    `<label><input type="radio" name="op" value="${v}"${cr.operacion === v ? ' checked' : ''}>${l}</label>`).join('')}</div>`;
+    `<label><input type="checkbox" name="op" value="${v}"${[v, 'ambas'].includes(cr.operacion) ? ' checked' : ''}>${l}</label>`).join('')}</div>`;
   else if (critAbierto === 'lugares') cuerpo = `<input class="crit-in" id="critLugar" placeholder="Municipio o colonia…" autocomplete="off">
     <div class="crit-sugs" id="critSugs"></div>`;
-  else cuerpo = `<div class="crit-rango">
+  else cuerpo = (critAbierto === 'm2' ? `<div class="crit-chips crit-m2de">${[['', 'Cualquiera'], ['terreno', 'Terreno'], ['construccion', 'Construcción']].map(([v, l]) =>
+    `<label><input type="radio" name="m2de" value="${v}"${(cr.m2_de ?? '') === v ? ' checked' : ''}>${l}</label>`).join('')}</div>` : '') + `<div class="crit-rango">
     <input class="crit-in" type="number" min="0" id="critMin" placeholder="Mín" value="${cr[d.min] ?? ''}">
     <span>–</span>
     <input class="crit-in" type="number" min="0" id="critMax" placeholder="Máx" value="${cr[d.max] ?? ''}"></div>`;
@@ -522,19 +556,23 @@ function conectarCriterios(c, box) {
   box.querySelectorAll('.crit-x').forEach(b => b.addEventListener('click', () => {
     const n = cr(), k = b.dataset.k;
     if (k === 'lugares') n.lugares = (n.lugares ?? []).filter((_, i) => i !== Number(b.dataset.i));
-    else if (CRITERIOS[k].min) { delete n[CRITERIOS[k].min]; delete n[CRITERIOS[k].max]; }
+    else if (CRITERIOS[k].min) { delete n[CRITERIOS[k].min]; delete n[CRITERIOS[k].max]; if (k === 'm2') delete n.m2_de; }
     else delete n[k];
     guardarCriterios(c, n);
   }));
   box.querySelector('#critOk')?.addEventListener('click', () => {
     const n = cr(), k = critAbierto, pop = box.querySelector('.crit-pop');
     if (k === 'tipos') n.tipos = [...pop.querySelectorAll('input[name=tipo]:checked')].map(i => i.value);
-    else if (k === 'operacion') n.operacion = pop.querySelector('input[name=op]:checked')?.value ?? '';
+    else if (k === 'operacion') {
+      const ops = [...pop.querySelectorAll('input[name=op]:checked')].map(i => i.value);
+      n.operacion = ops.length === 2 ? 'ambas' : ops[0] ?? '';
+    }
     else {
       const v = sel => { const x = pop.querySelector(sel).value; return x === '' ? null : Number(x); };
       let [min, max] = [v('#critMin'), v('#critMax')];
       if (min != null && max != null && min > max) [min, max] = [max, min];
       n[CRITERIOS[k].min] = min; n[CRITERIOS[k].max] = max;
+      if (k === 'm2') n.m2_de = min == null && max == null ? '' : pop.querySelector('input[name=m2de]:checked')?.value ?? '';
     }
     guardarCriterios(c, n);
   });
@@ -701,6 +739,7 @@ const filtrando = () => propEtapas.size > 0 || propTrae !== 'all';
 // que se ve; picar una de las otras filtra entre las otras, como siempre.
 const OCULTAS = new Set(['cerrado', 'finalizado', 'rechazado']);
 function seVe(p) {
+  if (String(p.id) === motivoDe) return true;     // espera su nota antes de esconderse
   if (propTrae !== 'all' && traeKey(p) !== propTrae) return false;
   if (OCULTAS.has(p.status)) return propEtapas.has(p.status);
   const activas = [...propEtapas].filter(k => !OCULTAS.has(k));
@@ -917,7 +956,7 @@ function propiedadesHtml(c) {
     <div class="cl-table" style="${rejilla(colsFila)}">
       ${ps.length ? `<div class="cl-tr cl-th"><span></span><span>N°</span><span></span><span>Inmueble</span>
         ${colsFila.map(col => `<span>${col.label}</span>`).join('')}${colsFila.some(col => col.k === 'tareas') ? '' : '<span></span>'}<span></span></div>` : ''}
-      ${visibles.map(p => filaHtml(c, p) + (abierto === String(p.id) ? panelHtml(c, p) : '')).join('')}
+      ${visibles.map(p => filaHtml(c, p) + (motivoDe === String(p.id) ? motivoHtml(p) : '') + (abierto === String(p.id) ? panelHtml(c, p) : '')).join('')}
       ${ps.length && !visibles.length ? `<p class="cl-empty">${filtrando() ? 'Ninguna propiedad pasa el filtro.'
         : 'Todas están cerradas, finalizadas o descartadas: pica su etapa arriba para verlas.'}</p>` : ''}
       <form class="cl-addrow" id="addProp">
@@ -952,7 +991,7 @@ function renderDetalle() {
   }
   // Al cambiar de cliente: sin fila desplegada, sin filtros de tabla, y sus tareas.
   if (tareasDe !== String(c.id)) {
-    abierto = null; propEtapas.clear(); propTrae = 'all'; colsAbierto = false; catAbierto = false; ctoSel = 0;
+    abierto = null; propEtapas.clear(); propTrae = 'all'; colsAbierto = false; catAbierto = false; ctoSel = 0; motivoDe = null;
     // Con un asesor en la lista, el cliente abre enseñando lo que trae esa persona.
     if (filterAsesor !== 'all' && (c.proceso ?? []).some(p => traeKey(p) === filterAsesor)) propTrae = filterAsesor;
     cargarTareas(String(c.id));
@@ -1040,6 +1079,8 @@ const procDe = el => { const id = el.closest('[data-proc]')?.dataset.proc; retur
 detalle.addEventListener('click', e => {
   const t = e.target;
   if (t.closest('.cl-x')) return removeProceso(t.closest('.cl-x').dataset.proc);
+  if (t.closest('[data-motivo]')) return cerrarMotivo(cSel(), t.closest('[data-motivo]').dataset.motivo === 'ok');
+  if (t.closest('.cl-motivo')) return;
   const ver = t.closest('.cl-th-ver');
   if (ver) return abrirVisor(procDe(ver)?.ficha?.fotos ?? [], Number(ver.dataset.i ?? 0));
   if (t.closest('#colsBtn')) { colsAbierto = !colsAbierto; return renderDetalle(); }
@@ -1088,6 +1129,7 @@ detalle.addEventListener('input', e => {
 });
 detalle.addEventListener('keydown', e => {
   if (e.key === 'Escape' && e.target.id === 'catQ') { catAbierto = false; renderDetalle(); }
+  if (e.target.matches('.cl-motivo-in') && (e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); cerrarMotivo(cSel(), e.key === 'Enter'); }
 });
 document.addEventListener('click', e => {
   if (colsAbierto && !e.target.closest('.cl-colswrap')) { colsAbierto = false; renderDetalle(); }

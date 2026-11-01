@@ -126,6 +126,19 @@ TIPOS_VALIDOS = TIPOS_COM + ("rancho", "hotel", "desarrollo")
 # Tope de lugares que el filtro de ubicación acepta a la vez, igual en API y cliente.
 MAX_LUGARES = 20
 
+# El uso de un terreno (2026-10-22): habitacional, comercial o industrial. Sólo se cree
+# lo que dicen el título o el tipo del portal («Terreno industrial», «Lote comercial»):
+# la descripción habla también del entorno («cerca de zona comercial») y se equivocaba.
+# En Nuevo León eso clasifica 1 de cada 4 terrenos; el resto es `sin`. Un terreno que
+# dice dos usos sale en los dos. Se calcula al filtrar —sólo sobre terrenos— para no
+# reescribir `listings` con una columna nueva.
+USOS_TERRENO = {
+    "habitacional": "habitaci|residenci|casa|fracciona|vivienda|departament|multifamil|unifamil",
+    "comercial": "comerci|local|plaza|oficina",
+    "industrial": "industri|bodeg|nave",
+}
+_TEXTO_USO = "lower(coalesce(l.title, '') || ' ' || coalesce(l.property_type, ''))"
+
 
 # ── Bolsa Inmobiliaria / Inmobiliaria ────────────────────────────────────────
 # El tablero tiene dos pestañas con la misma rejilla: `ficha=sin` (Bolsa: anuncios que
@@ -243,6 +256,17 @@ def _filtros(a: dict) -> tuple[list[str], list]:
         # que usan las cinco fuentes.
         w.append("l.tipo = ANY(%s)")
         p.append(tipos)
+    if a.get("uso"):
+        usos = list(a["uso"]) if isinstance(a["uso"], (list, tuple)) else [a["uso"]]
+        malos = [x for x in usos if x not in USOS_TERRENO and x != "sin"]
+        if malos:
+            raise FiltroInvalido(f"uso desconocido: {', '.join(malos)}")
+        # Sólo acota a los terrenos: con «local + terreno comercial» los locales siguen.
+        conds = []
+        for u in usos:
+            conds.append(f"{_TEXTO_USO} {'!~' if u == 'sin' else '~'} %s")
+            p.append("|".join(USOS_TERRENO.values()) if u == "sin" else USOS_TERRENO[u])
+        w.append(f"(l.tipo IS DISTINCT FROM 'terreno' OR {' OR '.join(conds)})")
     if a.get("fuente"):
         w.append("l.source = ANY(%s)")
         p.append(a["fuente"])

@@ -10,8 +10,22 @@ const TABLERO = (() => { try { return sessionStorage.getItem('ol-tab') === 'inmo
 const VOLVER = (() => {
   const u = new URLSearchParams(location.search), c = u.get('cliente');
   return c ? { href: `clientes.html${API.qs({ proc: u.get('proc') })}#${encodeURIComponent(c)}`, texto: 'Volver al cliente' }
-           : { href: TABLERO, texto: 'Volver al tablero' };
+           : { href: TABLERO + (TABLERO.includes('?') ? '&' : '?') + 'volver=1', texto: 'Volver al tablero', tablero: true };
 })();
+// La ficha se abre en otra pestaña desde el tablero. Volver es cerrarla y regresar a la
+// pestaña del tablero, que sigue como se dejó. Si el navegador no deja cerrarla (se
+// navegó dentro de ella) o el tablero ya no está, el enlace abre el tablero con la
+// última búsqueda guardada (?volver=1, ver recuperarBusqueda en app.js).
+document.addEventListener('click', e => {
+  if (!VOLVER.tablero || !e.target.closest('.fx-back') || e.metaKey || e.ctrlKey) return;
+  let tablero = null;
+  try { tablero = window.opener && !window.opener.closed && /\/(index\.html)?$/.test(window.opener.location.pathname) ? window.opener : null; } catch { /* otro origen */ }
+  if (!tablero) return;
+  e.preventDefault();
+  tablero.focus();
+  window.close();
+  setTimeout(() => { location.href = VOLVER.href; }, 150);   // si no se cerró
+});
 // Modo presentación (clientes.js): si la ficha se abrió desde un cliente que se está
 // presentando, aquí tampoco se ve nada de otros clientes ni lo interno. Es el id del
 // cliente, o null. Vive en la pestaña, igual que allá.
@@ -176,7 +190,8 @@ async function removeDocumento(id) {
 // El formulario "Datos de la ficha" escribe en la versión que esté cargada; sin
 // versión, en la ficha misma (la General).
 async function saveFicha(field, value) {
-  const val = ['precio', 'tamano_m2', 'construccion_m2', 'precio_m2'].includes(field) ? (value === '' ? null : Number(value)) : value;
+  const val = ['precio', 'tamano_m2', 'construccion_m2', 'precio_m2'].includes(field) ? (value === '' ? null : Number(value))
+    : field === 'operacion' && value === '' ? null : value;
   const v = versiones.find(x => String(x.id) === versionSel);
   if (v) {
     if ((v.datos[field] ?? null) === val) return;
@@ -479,8 +494,14 @@ function render() {
           ${vSel ? `<div class="fx-row">
             <label>Precio por m²<input type="number" class="ficha-in" data-f="precio_m2" value="${d.precio_m2 ?? ''}" placeholder="${d.precio && d.tamano_m2 ? Math.round(d.precio / d.tamano_m2) : 'Precio ÷ m²'}"></label>
           </div>
+          <div class="fx-row">
+            <label>Operación de esta ficha<select class="ficha-in" data-f="operacion">
+              ${[['', `La de la propiedad${l.transaccion ? ` (${l.transaccion})` : ''}`], ['sale', 'Venta'], ['rent', 'Renta']].map(([v, t]) =>
+                `<option value="${v}"${(d.operacion ?? '') === v ? ' selected' : ''}>${t}</option>`).join('')}
+            </select></label>
+          </div>
           ${fotosEdHtml(fotosEnEdicion())}
-          <p class="fx-hint">El precio por m² y las fotos son sólo de esta ficha: no cambian las demás.</p>` : ''}
+          <p class="fx-hint">El precio por m², la operación y las fotos son sólo de esta ficha: no cambian las demás.</p>` : ''}
           ${propia ? `${vSel ? '<p class="fx-hint">Lo de abajo es de la propiedad: es igual en todas sus fichas.</p>' : ''}
           <div class="fx-row">
             <label>Tipo<input class="base-in" data-f="tipo" value="${esc(ficha.tipo ?? '')}" placeholder="Local, terreno…"></label>
@@ -601,6 +622,7 @@ function enlazar() {
   $('procAdd') && ($('procAdd').onchange = e => addProceso(e.target.value));
   document.querySelectorAll('.fx-ph[data-i]').forEach(b => b.onclick = () => abrirVisor(+b.dataset.i));
   document.querySelectorAll('.ficha-in').forEach(el => el.onblur = e => saveFicha(e.target.dataset.f, e.target.value));
+  document.querySelectorAll('select.ficha-in').forEach(el => el.onchange = e => saveFicha(e.target.dataset.f, e.target.value));
   // Contacto del inmueble. Editar un campo guarda sin repintar (repintar le quitaría
   // el foco al campo siguiente); agregar y quitar sí repintan.
   document.querySelectorAll('.cto-add').forEach(b => b.onclick = () =>
@@ -889,7 +911,7 @@ function imprimirFicha(versionId) {
         <img class="pr-logo" src="img/prorealtors-logo.png" alt="Pro Realtors">
       </header>
       <div class="pr-rule"></div>
-      <div class="pr-precio"><b>${precio != null ? '$' + mx(Math.round(precio)) + (Anuncio.moneda(l) === 'MXN' ? '' : ' ' + Anuncio.moneda(l)) : 'Precio a consultar'}</b><span>${{ Venta: 'EN VENTA', Renta: 'EN RENTA' }[l.transaccion] ?? ''}</span></div>
+      <div class="pr-precio"><b>${precio != null ? '$' + mx(Math.round(precio)) + (Anuncio.moneda(l) === 'MXN' ? '' : ' ' + Anuncio.moneda(l)) : 'Precio a consultar'}</b><span>${{ sale: 'EN VENTA', rent: 'EN RENTA' }[v?.datos.operacion] ?? { Venta: 'EN VENTA', Renta: 'EN RENTA' }[l.transaccion] ?? ''}</span></div>
       ${l.direccion ? `<div class="pr-colonia">${esc(l.direccion)}.</div>` : ''}
       <h1 class="pr-titulo">${esc((f.titulo ?? tituloPdf(l)).toUpperCase())}</h1>
       ${fotos[0] ? `<img class="pr-foto" src="${esc(fotos[0])}" alt="">` : ''}

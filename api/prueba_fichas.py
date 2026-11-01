@@ -162,6 +162,10 @@ def una_version_guarda_solo_lo_que_imprime(conn):
     w = fichas.editar_version(conn, v["id"], {"datos": {"titulo": "Otro", "precio": 5}})
     assert w["datos"] == {"titulo": "Otro", "precio": 5} and w["nombre"] == "Alsea"
     assert guardada(conn, f["id"])["titulo"] == "Bodega propia"
+    # La operación también puede ser sólo suya; vacía vuelve a ser la de la propiedad.
+    assert fichas.editar_version(conn, v["id"], {"datos": {"operacion": "rent"}})["datos"] == {"operacion": "rent"}
+    assert fichas.editar_version(conn, v["id"], {"datos": {"operacion": ""}})["datos"] == {"operacion": None}
+    assert guardada(conn, f["id"])["operacion"] is None
 
 
 def lo_que_una_version_no_acepta(conn):
@@ -173,6 +177,7 @@ def lo_que_una_version_no_acepta(conn):
     v = fichas.crear_version(conn, ANA, f["id"], {"nombre": "A"})
     falla(DatoInvalido, "El nombre de la ficha es obligatorio", lambda: fichas.editar_version(conn, v["id"], {"nombre": ""}))
     falla(DatoInvalido, "nada que actualizar", lambda: fichas.editar_version(conn, v["id"], {"ficha_id": NADIE}))
+    falla(DatoInvalido, "operacion debe ser", lambda: fichas.editar_version(conn, v["id"], {"datos": {"operacion": "permuta"}}))
     for malo in (NADIE, "no-es-un-id"):
         falla(NoExiste, "No existe", lambda: fichas.editar_version(conn, malo, {"nombre": "B"}))
         falla(NoExiste, "No existe", lambda: fichas.borrar_version(conn, malo))

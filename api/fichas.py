@@ -53,7 +53,10 @@ COLS = ("source_listing_id", "titulo", "precio", "moneda", "tamano_m2", "constru
 EDITABLES = COLS[1:]
 NUMEROS = ("precio", "tamano_m2", "construccion_m2", "precio_m2", "lat", "lng")
 # Lo que guarda una ficha PDF con nombre (ficha_version.datos): sólo lo que imprime.
-VERSION_DATOS = ("titulo", "precio", "tamano_m2", "construccion_m2", "folio", "notas", "precio_m2", "fotos")
+# `operacion` (2026-10-22): una ficha PDF puede ofrecer la propiedad en renta aunque la
+# propiedad diga venta, o al revés, sin cambiar la propiedad ni las otras fichas.
+VERSION_DATOS = ("titulo", "precio", "tamano_m2", "construccion_m2", "folio", "notas", "precio_m2", "fotos",
+                 "operacion")
 
 MAX_FOTOS = 40
 RUTA_ARCHIVO = "/api/archivos/"
@@ -106,6 +109,10 @@ def datos_version(d) -> dict:
     # Las fotos de una versión acaban en un `src`, igual que las de la ficha.
     if d.get("fotos") is not None:
         d["fotos"] = fotos_validas(d["fotos"])
+    if "operacion" in d:
+        d["operacion"] = d["operacion"] or None          # "" = la de la propiedad
+        if d["operacion"] not in (None, "rent", "sale"):
+            raise DatoInvalido("operacion debe ser rent o sale")
     return d
 
 

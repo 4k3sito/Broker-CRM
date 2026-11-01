@@ -497,6 +497,7 @@ def list_listings(
     lugar: list[str] | None = Query(None),
     operacion: str | None = Query(None, pattern="^(rent|sale)$"),
     tipo: list[str] | None = Query(None),
+    uso: list[str] | None = Query(None, description="uso de un terreno: habitacional, comercial, industrial o sin"),
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None,
     precio_max: float | None = None,
@@ -531,6 +532,7 @@ def facets(
     q: str | None = None, zona: str | None = None,
     lugar: list[str] | None = Query(None),
     operacion: str | None = None, tipo: list[str] | None = Query(None),
+    uso: list[str] | None = Query(None),
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None, precio_max: float | None = None,
     m2_min: float | None = None, m2_max: float | None = None,
@@ -1064,7 +1066,8 @@ ETAPA_NOMBRE = {"prospecto": "Prospecto", "por_presentar": "Por presentar", "pre
                 "rechazado": "Descartado"}
 ESTATUS_NOMBRE = {"activo": "Activo", "contactando": "Contactando", "por_contactar": "Por contactar",
                   "inactivo": "Inactivo"}
-OPERACION_NOMBRE = {"rent": "Renta", "sale": "Venta"}
+OPERACION_NOMBRE = {"rent": "Renta", "sale": "Venta", "ambas": "Renta y venta"}
+M2_DE_NOMBRE = {"terreno": "Terreno", "construccion": "Construcción"}
 
 
 def que_busca(cr: dict | None) -> str:
@@ -1075,7 +1078,8 @@ def que_busca(cr: dict | None) -> str:
         partes.append("Tipo: " + ", ".join(str(t).capitalize() for t in cr["tipos"]))
     if cr.get("operacion"):
         partes.append("Operación: " + OPERACION_NOMBRE.get(cr["operacion"], str(cr["operacion"])))
-    for nombre, lo, hi, unidad in (("Superficie", "m2_min", "m2_max", " m²"), ("Precio por m²", "ppm_min", "ppm_max", ""),
+    for nombre, lo, hi, unidad in ((M2_DE_NOMBRE.get(cr.get("m2_de"), "Superficie"), "m2_min", "m2_max", " m²"),
+                                   ("Precio por m²", "ppm_min", "ppm_max", ""),
                                    ("Precio total", "precio_min", "precio_max", "")):
         a, b = cr.get(lo), cr.get(hi)
         if a is None and b is None:
@@ -2059,6 +2063,8 @@ def selfcheck() -> None:
     assert que_busca({"tipos": ["local", "bodega"], "operacion": "rent", "m2_min": 200, "m2_max": 500,
                       "precio_max": 80000, "lugares": [{"nombre": "San Pedro"}]}) == \
         "Tipo: Local, Bodega · Operación: Renta · Superficie: 200 m² – 500 m² · Precio total: hasta $80,000 · Ubicación: San Pedro"
+    assert que_busca({"operacion": "ambas", "m2_min": 300, "m2_de": "construccion"}) == \
+        "Operación: Renta y venta · Construcción: desde 300 m²"
     assert que_busca(None) == "" and _contacto_txt({"rol": "dueno", "nombre": "Ana", "telefono": "81"}) == "Dueño: Ana, 81"
     _hojas = cliente_a_hojas(
         {"nombre": "ALSEA", "contactos": [{"nombre": "Luis", "telefono": "8112345678"}], "criterios": {}},
