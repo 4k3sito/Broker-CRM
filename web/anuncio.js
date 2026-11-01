@@ -67,6 +67,11 @@ const Anuncio = (() => {
       // Una ficha propia no siempre dice si es renta o venta: sin operación, no "Renta".
       transaccion: OPERACION_DE_API[l.transaction_type] ?? (l.source === 'pipeline' ? null : 'Renta'),
       descripcion: l.description ?? null, features: l.features ?? [],
+      // Lo que la API sacó de esas amenidades y del texto, y su movimiento en el mercado.
+      atributos: l.atributos ?? [], desde: l.desde ?? null, reciente: l.reciente ?? false, baja: l.baja ?? null,
+      // Terreno y construcción que no publicó este anuncio. Aparte y no en `terreno` /
+      // `construccion`: de esos dos salen las fichas y el PDF que recibe un cliente.
+      m2Inferido: l.m2_inferido ?? {},
       // Coordenadas para el mapa. Se aceptan los nombres más comunes; si la API no las
       // manda, el inmueble simplemente no lleva pin.
       lat: num(l.lat ?? l.latitude ?? l.geo?.lat ?? l.location?.lat),
@@ -103,23 +108,34 @@ const Anuncio = (() => {
       : { monto: a.precio, parcial: true, unitario: a.precio };
   }
 
-  // La segunda oferta de un inmueble que está en renta Y en venta, ya en texto: null
-  // si no la hay. `precio` es null cuando se sabe que existe pero aún no su monto, y
-  // `nota` trae el $/m² publicado cuando lo que se enseña es el total calculado.
-  function segundoPrecio(a) {
+  // Lo que se pide por el inmueble, una entrada por operación: una si sólo se renta o
+  // sólo se vende, dos si se ofrece en renta Y en venta (el portal lo listó una vez y la
+  // segunda vive en `alt`). Cada una trae lo mismo que `precioVisible` más su operación
+  // (`op`: 'Renta' o 'Venta', o null en una ficha propia que no la dice); `monto` es null
+  // cuando se sabe que se ofrece así pero el precio aún no se ha rescatado.
+  // `primero` ('rent' o 'sale', el filtro del tablero) pone esa oferta arriba: quien busca
+  // renta ve primero la renta aunque el portal haya listado antes la venta.
+  function ofertas(a, primero) {
+    const v = precioVisible(a);
+    const lista = [{ op: a.transaccion, principal: true,
+      ...(v ?? { monto: null, parcial: false, unitario: null }) }];
     const alt = a.alt;
-    if (!alt?.op) return null;
-    const etiqueta = alt.op === 'rent' ? 'También en renta' : 'También en venta';
-    if (alt.monto == null) return { etiqueta, precio: null, nota: null };
-    const conTotal = alt.porM2 && alt.total;
-    const unidad = alt.porM2 && !conTotal ? '/m²' : '';
-    const sufijo = alt.op === 'rent' ? '/mes' : '';
-    return {
-      etiqueta,
-      precio: `$${mx(Math.round(conTotal ? alt.total : alt.monto))}${unidad}${sufijo}`,
-      nota: conTotal ? `($${mx(alt.monto)}/m²)` : null,
-    };
+    if (alt?.op) {
+      const conTotal = alt.porM2 && alt.total;
+      lista.push({
+        op: OPERACION_DE_API[alt.op] ?? null, principal: false,
+        monto: alt.monto == null ? null : (conTotal ? alt.total : alt.monto),
+        parcial: alt.monto != null && alt.porM2 && !conTotal,
+        unitario: alt.porM2 ? alt.monto : null,
+      });
+    }
+    const pref = OPERACION_DE_API[primero];
+    if (pref && lista.length > 1 && lista[1].op === pref) lista.reverse();
+    return lista;
   }
+
+  // La operación en una palabra: "Renta", "Venta" o "Renta y venta".
+  const operacion = a => a.alt?.op ? 'Renta y venta' : a.transaccion;
 
   // ── Propiedad: varios anuncios del mismo inmueble ──────────────────────────
 
@@ -133,6 +149,52 @@ const Anuncio = (() => {
     return `${a.anuncios} anuncios` + (a.anunciantes > 1 ? ` · ${a.anunciantes} anunciantes` : '');
   }
 
+  // ── Atributos y mercado ────────────────────────────────────────────────────
+
+  const ATRIBUTOS = { cajones: 'Cajones', banos: 'Baños', altura: 'Altura libre', andenes: 'Andenes',
+                      frente: 'Frente', elevador: 'Elevador' };
+  const EN_METROS = new Set(['altura', 'frente']);
+
+  const DE_HERMANO = 'de otro anuncio del mismo inmueble';
+  const ORIGEN_M2 = { hermano: DE_HERMANO, texto: 'leído de la descripción' };
+
+  // Los atributos, ya en texto y en el orden de la API (que depende del tipo). `true` es
+  // que el anuncio lo menciona sin decir cuántos. `≈` es lo que no publicó este anuncio.
+  const datos = a => a.atributos.filter(x => ATRIBUTOS[x.clave]).map(({ clave, valor, heredado }) => {
+    const texto = valor === true ? 'Sí' : EN_METROS.has(clave) ? `${mx(valor)} m` : mx(valor);
+    return { clave, etiqueta: ATRIBUTOS[clave], texto: heredado ? `≈ ${texto}` : texto,
+             detalle: heredado ? `${ATRIBUTOS[clave]}, ${DE_HERMANO}` : ATRIBUTOS[clave] };
+  });
+
+  // Terreno y construcción para pintar: lo publicado y, donde falta, lo inferido.
+  function superficiesDe(a) {
+    const { terreno: t, construccion: c } = a.m2Inferido;
+    const origen = { Terreno: t, Construcción: c };
+    return superficies(t?.valor ?? a.terreno, c?.valor ?? a.construccion, a.size).map(([clave, m2]) => {
+      const inf = origen[clave];
+      return { clave, m2, texto: `${inf ? '≈ ' : ''}${m2Txt(m2)}`,
+               detalle: inf ? `${clave}, ${ORIGEN_M2[inf.origen]}` : clave };
+    });
+  }
+
+  // La insignia de la foto, o null. Una sola: una rebaja dice más que una fecha.
+  // «Reciente» y no «Nuevo»: Nuevo es un estado del asesor y casi todo el inventario lo trae.
+  function insignia(a) {
+    if (a.baja) return { texto: `Bajó ${a.baja.pct}%`,
+      detalle: (a.baja.fuente ? `En ${fuente(a.baja.fuente)}: ` : '') +
+        (a.baja.antes ? `antes $${mx(Math.round(a.baja.antes))}` : `bajó el ${fecha(a.baja.fecha)}`) };
+    return a.reciente ? { texto: 'Reciente', detalle: 'Publicado en los últimos 7 días' } : null;
+  }
+
+  // Cuánto lleva anunciado, o null: "12 d", "5 meses", "2 años".
+  function tiempoEnMercado(a, ahora = new Date()) {
+    if (!a.desde) return null;
+    const d = Math.max(1, Math.floor((ahora - new Date(a.desde)) / 864e5));
+    if (d < 60) return `${d} d`;
+    return d < 730 ? `${Math.round(d / 30.44)} meses` : `${Math.floor(d / 365.25)} años`;
+  }
+  const fecha = iso => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+
   // ── Etiquetas y ubicación ──────────────────────────────────────────────────
 
   // La moneda del precio, como se escribe: los portales mandan "MN" por pesos.
@@ -144,5 +206,5 @@ const Anuncio = (() => {
   // Dónde está, en una línea: la dirección, y a falta de ella el municipio.
   const ubicacion = a => a.direccion ?? a.zona ?? null;
 
-  return { ESTADOS, de, total, porMetro, precioVisible, segundoPrecio, rango, resumen, moneda, estadoApi, fuente, ubicacion };
+  return { ESTADOS, de, total, porMetro, precioVisible, ofertas, operacion, rango, resumen, datos, superficiesDe, insignia, tiempoEnMercado, fecha, moneda, estadoApi, fuente, ubicacion };
 })();

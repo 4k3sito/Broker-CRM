@@ -267,6 +267,57 @@ y fechas de carga por fuente—: ni una URL, ni un precio, ni una fila individua
 expone nada que el tablero no muestre ya, y no toca `user_listing`, así que el
 seguimiento de un asesor no se filtra a otro.
 
+### Token de GitHub en el VPS (2026-10-30)
+
+El VPS no tiene `gh` y su llave SSH sólo empuja: abrir un PR o hacer merge pide un token. Desde
+hoy hay uno guardado en `/root/.config/officelab/github-token` (directorio 700, archivo 600,
+root), **fuera del repo**, para que lo usen las sesiones de agente del proyecto. Es
+fine-grained, sólo de `4k3sito/Broker-CRM`, con Contents y Pull requests en escritura y Actions
+en lectura. Se pidió a 90 días, pero al verificarlo GitHub no devolvió fecha de caducidad
+(`github-authentication-token-expiration`): hay que confirmarla en la página del token. Al
+vencer hay que generar otro. Cualquier proceso como root puede leerlo, igual que `vps/.env`, y eso incluye al
+agente del VPS (H6). Con Contents en escritura puede empujar a `produccion`, que despliega; el
+flujo de `CLAUDE.md` lo prohíbe sin el «sí» de Deploy, pero el token por sí solo no lo impide.
+Se lee del archivo y nunca va en la línea de comandos, en un log ni en un commit. Revocar: en
+GitHub, Settings → Developer settings → Fine-grained tokens, y borrar el archivo.
+
+### Endpoints (2026-10-30) — atributos y movimiento en `/api/listings` (copia de trabajo)
+
+`GET /api/listings` y `GET /api/listings/{id}` agregan a cada fila `atributos`,
+`m2_inferido`, `desde`, `reciente` y `baja`. Sin endpoints nuevos ni cambios de permisos: salen del mismo inventario
+que el asesor ya ve. Tres cosas que se cuidaron: la descripción de una ficha propia son
+notas internas y **no se analiza**; la llave (`/api/v1`) y el CSV no reciben estos campos;
+y el texto extraído de portales llega a `innerHTML` por `esc()`. Las expresiones de
+`atributos.py` usan cuantificadores acotados, sin retroceso explosivo sobre texto de
+terceros: 12 ms por página de 70 filas.
+
+### Endpoints (2026-10-28) — CSV del inventario (copia de trabajo)
+
+- `GET /api/listings.csv`: los mismos filtros y el mismo orden que `/api/listings`, con
+  sesión (`Depends(current_user)`); **no** acepta llave y no entra por `/api/v1` —el
+  selfcheck lo fija—. Hasta hoy el botón «CSV» del tablero armaba el archivo **en el
+  navegador con la página visible** (70 renglones de 13,362, sin decirlo); ahora lo arma
+  el servidor, hasta `CSV_TOPE` (20,000 filas). Lo que cambia de verdad: **una sola
+  petición puede sacar miles de filas del inventario**, más fácil de reenviar que una
+  pantalla, igual que el Excel del cliente. Sin registro de quién exporta (H5). No abre
+  nada que esa cuenta no viera ya: el inventario es el mismo del tablero.
+  Las celdas se citan siempre y un texto que empiece con `=`/`+`/`-`/`@` sale con un
+  apóstrofo delante: los títulos vienen de portales, o sea de terceros (misma regla que
+  `api/excel.py`).
+  **Mismo día, PR #14:** la ruta ya no pagina por dentro; pide `inventario.exportar()`, una
+  sola consulta con `LIMIT CSV_TOPE`. Mismos filtros, misma cuenta (`Asesor`), mismo tope:
+  no cambia qué sale, sólo cuánto tarda.
+
+### Frontend (2026-10-28) — `web/ui.js`
+
+- `UI.confirmar()` y `UI.aviso()` sustituyen a `confirm()`/`alert()`. Pintan todo con
+  `textContent` (títulos de clientes y anuncios incluidos), así que no abren un camino
+  nuevo a `innerHTML`. Sin `<script>` inline: la CSP no cambia.
+- `next=` en el login: `web/api.js` manda al login con la ruta actual y `web/login.js`
+  la valida antes de volver (ruta absoluta del sitio, sin `//`, mismo origen, nunca
+  `login.html`). Sin esa validación sería un redirect abierto; con ella, lo único que
+  cambia es que caducar la sesión deja de costar la página abierta.
+
 ### Endpoints (2026-10-12) — Excel de un cliente y filtro por asesor (copia de trabajo)
 
 - `GET /api/clientes/{id}/excel`: con sesión, como todo el CRM (§5). Devuelve en un archivo
@@ -530,6 +581,11 @@ ufw: active (entrada denegada salvo 22/80/443)   fail2ban: active, jaula sshd
   24.04 el servicio es `ssh.service`; el de fábrica busca `sshd.service` y no ve ni una
   línea) y `mode = aggressive` (con las contraseñas apagadas los bots sólo dejan cierres
   `[preauth]`, que el modo normal no cuenta). Probado: un intento sin llave suma 1.
+- **El deploy de GitHub choca con ese modo.** `ssh-keyscan` deja cierres `[preauth]`, y
+  `mode = aggressive` baneó al runner antes de su `ssh` (2026-10-30, exit 255 a los 2 min).
+  `deploy.yml` ya no escanea: trae fija la llave pública ed25519 del VPS, así que **si se
+  reinstala el servidor o cambia su host key, hay que actualizarla ahí** o el deploy se
+  negará a conectar.
 - Respaldo del estado anterior en `/root/h1-backup-2026-10-20-1032/`.
 
 **Si alguien queda fuera:** la consola web del proveedor no pasa por SSH. Para dar

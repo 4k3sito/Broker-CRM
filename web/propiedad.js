@@ -42,9 +42,9 @@ const Propiedad = (() => {
   }
 
   const de = id => API.get(`/duplicados${API.qs({ id })}`);
-  const fusionar = ids => API.post('/duplicados/fusionar', { ids });
+  const fusionar = (ids, opciones) => API.post('/duplicados/fusionar', { ids }, opciones);
   const separar = id => API.post('/duplicados/separar', { id });
-  const descartar = (a, b) => API.post('/duplicados/descartar', { a, b });
+  const descartar = (a, b, opciones) => API.post('/duplicados/descartar', { a, b }, opciones);
 
   return { motivo, senal, fila, de, fusionar, separar, descartar };
 })();

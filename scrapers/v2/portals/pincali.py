@@ -60,12 +60,14 @@ from selectolax.lexbor import LexborHTMLParser
 
 from ..model import Listing, now
 from ..net import Blocked, Fetcher
-from ..portal import BadPage, Ctx, Portal
+from ..portal import DATA, BadPage, Ctx, Portal
 
 log = logging.getLogger("v2")
 BASE = "https://www.pincali.com"
 PER_PAGE, PAGE_CAP = 42, 100
 TOKEN_TTL = float(os.environ.get("PINCALI_TOKEN_TTL", 280))   # the WAF token dies at 300 s
+IDENTITY_LISTINGS = 28      # detail pages before the WAF's wall (see Pincali.detail)
+WALL_TRIES = 3
 # 0 = the ordinary expired token: re-mint and retry. A challenge that survives a
 # fresh token is a rate penalty; minting harder only adds load, so wait in minutes.
 COOLDOWN = (0, 90, 300, 420)
@@ -494,10 +496,36 @@ class Pincali(Portal):
         raise BadPage(f"{shard}: 500 price windows without running out")
 
     def detail(self, row: dict, f: Fetcher) -> Listing | None:
-        html = self.get(f, row["url"], BASE + "/inmuebles")
-        listing = parse_detail(html, row)
+        # The WAF allows one exit IP about 31 detail pages (30-37 in 9 of 9 walls, 2026-11-01).
+        # After that it answers 200 with the page's shell and "Tu navegador no completó la
+        # verificación de seguridad", no listing in it, 66 KB against 27 for a good page. It
+        # is not the token and it is not time: waiting 90 s and minting failed for 32 minutes
+        # on end. A new identity with the same token lifts it at once, so change before it
+        # falls, and change again if it falls anyway.
+        seen = f.notes.get("listings", 0)
+        if seen >= IDENTITY_LISTINGS:
+            f.rotate()
+            seen = 0
+        f.notes["listings"] = seen + 1
+        for attempt in range(1, WALL_TRIES + 1):
+            html = self.get(f, row["url"], BASE + "/inmuebles")
+            try:
+                listing = parse_detail(html, row)
+                break
+            except BadPage:
+                self._keep_sample(html)
+                if attempt == WALL_TRIES:
+                    raise
+                log.warning("pincali %s: security wall (%d bytes), new identity", row["listingId"], len(html))
+                f.rotate()
+                f.notes["listings"] = 1
         self._rest_of_gallery(f, html, listing)
         return listing
+
+    def _keep_sample(self, html: str) -> None:
+        """The last page that came back empty: nobody has seen one yet."""
+        DATA.mkdir(parents=True, exist_ok=True)
+        (DATA / f"{self.name}.badpage.html").write_text(html, encoding="utf-8")
 
     def _rest_of_gallery(self, f: Fetcher, html: str, listing: Listing) -> None:
         """Photos 11…N. Best effort: the page's ten are already a usable gallery,
@@ -557,6 +585,36 @@ class Pincali(Portal):
         assert len(d.description) > 80, "detail description gone"
         assert len(d.images) >= 5 and all("/EB-XF2021." in u for u in d.images), "gallery gone"
         assert d.builtAreaM2 or d.plotAreaM2, "construction/lot figures gone"
+        good = (fixtures / "pin_detail2.html").read_text(encoding="utf-8")
+
+        class _Visitor:
+            def __init__(self): self.notes, self.rotations = {}, 0
+            def rotate(self): self.notes, self.rotations = {}, self.rotations + 1
+
+        class _Pages(Pincali):
+            def __init__(self, pages):
+                self.pages = list(pages)
+            def get(self, *a, **k): return self.pages.pop(0)
+            def _keep_sample(self, html): pass
+            def _rest_of_gallery(self, *a): pass
+
+        v = _Visitor()
+        assert _Pages(["<html></html>", good]).detail(row, v).description and v.rotations == 1, \
+            "a wall: new identity, same listing"
+        assert v.notes["listings"] == 1
+        v = _Visitor()
+        solid = _Pages(["<html></html>"] * 3 + [good])
+        try:
+            solid.detail(row, v)
+            raise AssertionError("a wall that never lifts must fail the listing, not loop")
+        except BadPage:
+            assert len(solid.pages) == 1 and v.rotations == 2
+        v, pages = _Visitor(), _Pages([good] * (IDENTITY_LISTINGS + 1))
+        for _ in range(IDENTITY_LISTINGS):
+            pages.detail(row, v)
+        assert v.rotations == 0
+        pages.detail(row, v)
+        assert v.rotations == 1 and v.notes["listings"] == 1, "change identity before the wall falls"
         more = parse_images('{"images":[{"url":"https://assets.easybroker.com/property_images/1/2/'
                             'EB-XF2021.jpg?height=300\\u0026s=ab\\u0026version=7\\u0026width=450"},'
                             '{"url":"https://assets.easybroker.com/property_images/1/3/EB-ZZ0000.jpg"}]}',

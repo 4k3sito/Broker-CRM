@@ -62,6 +62,18 @@ const Mapa = (() => {
     return { lat: c.lat, lng: c.lng, radio: Math.max(500, Math.min(12000, radio)) };
   }
 
+  // La cámara, para guardarla en la URL y volver a ella al recargar. null si no se ha
+  // movido de la de fábrica: esa no hace falta escribirla. `ir` no dispara la
+  // búsqueda: el `moveend` que provoca no trae `originalEvent` ni `usuario`.
+  function vista() {
+    if (!map) return null;
+    const c = map.getCenter(), [lng0, lat0] = cfg.centro ?? [-100.36, 25.66];
+    const z = map.getZoom();
+    if (Math.abs(c.lat - lat0) < 1e-5 && Math.abs(c.lng - lng0) < 1e-5 && Math.abs(z - (cfg.zoom ?? 11)) < 0.01) return null;
+    return { lat: c.lat, lng: c.lng, zoom: z };
+  }
+  function ir({ lat, lng, zoom }) { map?.jumpTo({ center: [lng, lat], zoom }); }
+
   function pintar(lista) {
     if (!map) return;
     pins.forEach(p => p.marker.remove());
@@ -70,7 +82,10 @@ const Mapa = (() => {
     for (const l of conGeo) {
       const el = document.createElement('div');
       el.className = 'map-pin';
-      el.textContent = l.precio != null ? corto(Math.round(l.precioTotal ?? l.precio)) : 's/p';
+      // El precio de la operación que se busca: un local en renta y venta, buscando
+      // renta, enseña su renta (`opts.operacion` es el filtro del tablero).
+      const o = Anuncio.ofertas(l, opts.operacion?.())[0];
+      el.textContent = o.monto != null ? corto(Math.round(o.monto)) : 's/p';
       el.title = l.titulo ?? '';
       el.addEventListener('mouseenter', () => opts.onPinHover?.(l.id));
       el.addEventListener('mouseleave', () => opts.onPinHover?.(null));
@@ -93,11 +108,6 @@ const Mapa = (() => {
       p.el.style.zIndex = k === id ? '10' : '';
     });
   }
-
-  // La cámara, para guardarla y volver a ponerla tal cual (regresar de la ficha).
-  // `ir` no trae `usuario`: no dispara la búsqueda de onMove.
-  const vista = () => map ? { centro: map.getCenter().toArray(), zoom: map.getZoom() } : null;
-  const ir = v => { if (map && v?.centro) map.jumpTo({ center: v.centro, zoom: v.zoom }); };
 
   return {
     init, pintar, resaltar, area, vista, ir,

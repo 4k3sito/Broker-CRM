@@ -81,7 +81,7 @@ const Fotos = (() => {
   // del tope se avisa y se salta; si una subida falla, no se intentan las que faltan.
   // `con` existe para las pruebas: cómo se avisa y cómo se reduce.
   async function subir(files, destino, con = {}) {
-    const avisar = con.avisar ?? (m => alert(m)), achicar = con.reducir ?? reducir;
+    const avisar = con.avisar ?? (m => (typeof UI !== 'undefined' ? UI.aviso(m) : alert(m))), achicar = con.reducir ?? reducir;
     files = aceptadas(files);
     if (!files.length) return avisar('Sólo se pueden subir imágenes JPG, PNG, WEBP o GIF.');
     destino.alEmpezar?.(files.length);
@@ -101,7 +101,7 @@ const Fotos = (() => {
 
   function agregarLiga(destino, crudo) {
     const nuevas = ligas(crudo);
-    if (!nuevas.length) { if ((crudo ?? '').trim()) alert('La liga de una foto empieza con https://'); return; }
+    if (!nuevas.length) { if ((crudo ?? '').trim()) (typeof UI !== 'undefined' ? UI.aviso : alert)('La liga de una foto empieza con https://'); return; }
     destino.guardar([...destino.fotos(), ...nuevas]);
   }
 
@@ -140,12 +140,19 @@ const Fotos = (() => {
     };
     const liga = input => { const x = donde(input), v = input.value; input.value = ''; if (x) agregarLiga(x.d, v); };
 
-    raiz.addEventListener('click', e => {
+    raiz.addEventListener('click', async e => {
       const t = e.target, x = donde(t);
       if (!x) return;
       if (t.closest('.foto-sube')) return x.c.querySelector('[data-foto-file]').click();
       const del = t.closest('.foto-del'), top = t.closest('.foto-top');
-      if (del) { if (confirm('¿Quitar esta foto?')) x.d.guardar(sin(x.d.fotos(), +del.dataset.i)); return; }
+      if (del) {
+        // ui.js no está en las pruebas de node: ahí sigue el confirm() del navegador.
+        const si = typeof UI !== 'undefined'
+          ? await UI.confirmar({ titulo: '¿Quitar esta foto?', verbo: 'Quitar', peligro: true })
+          : confirm('¿Quitar esta foto?');
+        if (si) x.d.guardar(sin(x.d.fotos(), +del.dataset.i));
+        return;
+      }
       if (top) x.d.guardar(dePortada(x.d.fotos(), +top.dataset.i));
     });
     raiz.addEventListener('change', e => {

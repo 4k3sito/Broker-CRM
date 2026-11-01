@@ -91,7 +91,7 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   **`anuncio.js` es el anuncio en el navegador, definido una vez** (2026-10-11): el objeto
   `Anuncio` convierte la fila de la API en lo que pintan el tablero, la ficha y comparar
   (`Anuncio.de`), y trae las reglas que dependen de él —`total`, `porMetro`,
-  `precioVisible`, `segundoPrecio`— y sus etiquetas (`ESTADOS`, `estadoApi`, `fuente`,
+  `precioVisible`, `ofertas`— y sus etiquetas (`ESTADOS`, `estadoApi`, `fuente`,
   `ubicacion`). `precio` es el número que publicó el portal, con `moneda` aparte. No toca
   la red ni el DOM; el marcado es de cada página. Una regla de precio o una fuente nueva
   se cambia ahí y en ningún otro lado.
@@ -127,6 +127,15 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   en la API, `resolver_mapa`). Lanza `NoExiste` (404) y `DatoInvalido` (422). Los
   `_insert` / `_patch` / `_delete` genéricos de `main.py` siguen sirviendo a clientes,
   procesos, documentos y tareas.
+  **`atributos.py` son los datos sin columna** (2026-10-30): cajones, baños, altura,
+  andenes y frente, sacados de `features` y de la descripción, sólo los que aplican a cada
+  tipo (`POR_TIPO`). `bedrooms` y `bathrooms` están vacíos: no los uses. `inventario._detallar`
+  los pone en las filas de la página junto con `desde`, `reciente` y `baja`, que salen de
+  `precio_historial` porque **`listed_at` no es la fecha de publicación**: Navent guarda ahí
+  la de modificación. Ninguno de los dos llega al CSV ni a `/api/v1`. Lo que un anuncio no
+  trae se completa con sus hermanos (`propiedad_anuncio`) y su descripción, **siempre aparte
+  en `m2_inferido`**: `terreno_m2` y `construccion_m2` alimentan fichas y PDF, y un dato
+  inferido no puede acabar en un documento para un cliente.
   **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
   tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.
   **`duplicados.py` son las propiedades** (2026-10-11): qué anuncios son el mismo
@@ -157,8 +166,14 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   (`bajas_por_ausencia` en `v2/db.py`). Sólo actúa si el barrido terminó completo y no
   salió corto: **un bloqueo sigue sin ser una baja**. Ya no hay pasada de `liveness` los
   sábados; `liveness.py` queda como herramienta manual.
+  **Lo que falta en un anuncio se hereda del mismo `eb_id`** (`heredar_de_hermanos()`,
+  2026-10-30): teléfono, agencia, descripción, fotos y coordenada, sólo en huecos. Superficie
+  y precio no se heredan: alimentan fichas y el PDF al cliente. Inmuebles24 además se da de
+  baja por su gemelo de Vivanuncios entre sus barridos mensuales (`BAJAS_GEMELOS`).
   `qa.py <fuente>` cierra cada corrida: números primero (sin modelo) y `hermes` para el
-  criterio; si algo salió mal deja una tarjeta en el tablero de tareas. **Hermes se llama
+  criterio; si algo salió mal deja una tarjeta en el tablero de tareas. Guarda el llenado
+  de cada campo en `data/v2/<fuente>.metricas.jsonl` y marca REVISAR si uno cae más de 5
+  puntos contra la corrida anterior. **Hermes se llama
   siempre con `-t memory`** — sin eso trae shell de root (H6 en SECURITY.md).
 
 **Nunca commitear** `scrapers/data/`, `scrapers/.fixtures/`, `scrapers/.env` ni `vps/.env`.
@@ -296,10 +311,11 @@ Columnas que suelen confundir:
 | Columna | Qué significa |
 |---|---|
 | `price` + `price_is_per_m2` | si la bandera está puesta, `price` es **$/m²**, no el total |
-| `precio_m2_inferido` | la bandera la dedujo `inferir_precio_m2()`, no vino del portal |
+| `area_m2` | la superficie del $/m². **En local, bodega y oficina es lo construido** cuando el portal lo da (`superficie_comercial()`, 2026-10-30): el terreno puede ser el parque industrial entero. En un terreno, el terreno |
+| `precio_m2_inferido` | la bandera la dedujo `inferir_precio_m2()`, no vino del portal. La regla vive en `parece_precio_m2()`, con topes de precio, y se deshace sola si deja de cumplirse |
 | `operacion_alt` / `precio_alt` / `precio_alt_por_m2` | segunda oferta: el inmueble se ofrece en renta **y** venta |
 | `zona_id` | municipio materializado (el join en vivo cuesta ~430 ms). Lo llena `asignar_zonas()`, que **filtra por `tipo='municipio'`**: `zona` guarda dos niveles y sin ese filtro un anuncio recibiría a veces el id de su colonia |
-| `geo_origen` | de dónde salió la coordenada: `portal` (real), **`portal_aprox`** (la fuente publicó el punto y avisa de que es el centroide de la colonia — hoy sólo Pincali, `data-exact-location="false"`), `colonia` (centroide de nuestro gazetteer), `relleno` (el punto por defecto de ML, que no es una ubicación). El gazetteer se arma **sólo** con `portal` |
+| `geo_origen` | de dónde salió la coordenada: `portal` (real), **`portal_aprox`** (la fuente publicó el punto y avisa de que es el centroide de la colonia, o `marcar_pilas()` lo dedujo: 50 o más anuncios de un portal en el mismo punto con 10 o más direcciones distintas), `colonia` (centroide de nuestro gazetteer), `relleno` (el punto por defecto de ML, que no es una ubicación). El gazetteer se arma **sólo** con `portal` |
 | `colonia_id` | colonia materializada, de los polígonos de INEGI que carga `vps/colonias.py`. Lo llena `asignar_colonias()`. **NULL es normal**: la cobertura de INEGI es desigual — 80.6% en Monterrey, 54.2% nacional |
 | `activo` / `revisado_at` | vigencia del anuncio. Desde el 2026-10-10 la decide el barrido: `activo = false` cuando ninguno lo devuelve en 8 días. **El tablero no ofrece lo dado de baja** (2026-10-11, `inventario.py`), salvo lo que el propio asesor sigue y lo que está en Catálogo. **Cuándo se vio por última vez en resultados es `observed_at`**, no `revisado_at` (las filas nuevas nacen con `revisado_at` NULL) |
 | `intento_at` / `intentos_fallidos` | cuándo se **intentó** y cuántas veces falló. Un bloqueo mueve estas dos y no toca `activo`; el backoff las usa para que lo que se bloquea no acapare la cola |
@@ -438,7 +454,12 @@ las colapsa en una fila y guarda la segunda en las columnas `*_alt`.
 
 **Con la v2 el segundo precio llega en el barrido.** Pincali sirve los precios en un
 pedido aparte (`/properties/card_prices`) que trae las dos ofertas de cada tarjeta, y
-Navent las trae en la tarjeta; `v2/db.py collapse()` deja una fila por anuncio. El
+Navent las trae en la tarjeta; `v2/db.py collapse()` deja una fila por anuncio.
+**Cómo se enseña (2026-10-30).** `Anuncio.ofertas(a, primero)` da una entrada por
+operación; la tarjeta, la ficha, el pin del mapa y la ficha PDF pintan los dos precios
+con el mismo peso y su etiqueta (`EN RENTA` / `EN VENTA`), y con filtro de operación la
+de ese filtro va arriba. El filtro (`operacion`) encuentra el anuncio por cualquiera de
+sus dos ofertas, y el filtro y el **orden** por precio usan el de la operación elegida. El
 `pincali_dual.py` de antes (bajar el detalle de cada dual tras cada re-scrape) ya no
 hace falta: medido el 2026-10-08, 16.9% de las tarjetas de Pincali traen dos precios.
 
@@ -478,8 +499,9 @@ Ver `docs/agents/domain.md`.
 - **Idioma**: el global (español en UI, docs y tareas; inglés en código y commits).
 - **Stack**: HTML/JS estático sin build (`web/`), FastAPI + psycopg (`api/`), PostGIS,
   scrapers Python v2 (curl_cffi, selectolax, patchright), Docker Compose + Caddy.
-- **Ramas (manda sobre la regla global de `main`)**: rama de tarea → PR a `desarrollo` →
-  `produccion`. Llegar a `produccion` = Etapa **Deploy**. `main` no se usa hasta ponerla al día.
+- **Ramas (manda sobre la regla global de `main`)**: los cambios van directo a `desarrollo`,
+  sin PR, y de ahí a `produccion`. Llegar a `produccion` = Etapa **Deploy**. `main` no se usa
+  hasta ponerla al día. **Aquí no se abren PRs** (decisión del 2026-10-30).
 
 | Acción | Comando |
 |---|---|
@@ -502,33 +524,32 @@ Ver `docs/agents/domain.md`.
 
 Dos aprobaciones por cambio, no seis:
 
-1. **Ship** — un solo "sí" cubre commit, push, PR, esperar CI y `--squash` merge a
-   `desarrollo`. Si el CI o el bot de revisión fallan, se para y se avisa; si pasan, no
-   se vuelve a preguntar. La rama y el PR se crean igual (disparan CI y revisión).
+1. **Ship** — un solo "sí" cubre commit y push a `desarrollo`. El CI corre con ese push:
+   si falla, se para y se avisa; si pasa, no se vuelve a preguntar.
 2. **Deploy** — un solo "sí" = `git push origin desarrollo:produccion`; despliega sin
    más clics. Cambios sólo de docs/Notion no se despliegan: esperan al próximo deploy real.
 
 Siguen pidiendo confirmación aparte, siempre: `--force`/reescribir historia, migraciones
 o `schema.sql`, borrar datos o archivos, y tocar accesos del VPS (SSH, firewall, llaves).
-El subagente `reviewer` local no corre antes de cada ship: el bot de revisión del PR lo
-cubre. Se usa sólo si el cambio es grande o toca auth/datos.
+No hay bot de revisión. El subagente `reviewer` local no corre antes de cada ship: se usa
+sólo si el cambio es grande o toca auth/datos.
 
 ### Uso de tokens
 
 - **Leer por partes.** `CLAUDE.md`, `PENDIENTES.md` y `SECURITY.md` pasan de 500 líneas:
   `grep -n` para ubicar y `sed -n 'a,bp'` para leer, nunca el archivo entero.
-- **Notion directo.** Mover una tarea (estado, notas, PR) se hace con las herramientas de
+- **Notion directo.** Mover una tarea (estado, notas, commit) se hace con las herramientas de
   Notion sin subagente; `pm` sólo para cargas en bloque o reportes (cada `pm` ≈150k tokens).
 - **Sin subagentes por defecto.** Ni `Explore` ni `general-purpose` para búsquedas que
   resuelve un `grep`. Para preguntas de arquitectura, `graphify-out/` primero.
 - **Salidas cortas.** `git … -q`, `| tail`, `--jq` en `gh api`; logs de CI sólo con
-  `grep` de los errores. `gh pr checks --watch` en vez de bucles de espera.
+  `grep` de los errores.
 - **No releer** un archivo recién editado ni repetir comandos ya verificados.
 - **Respuestas cortas** al usuario: resultado y siguiente paso, sin repetir el plan.
 
 ### Atribución
-- **Nunca** "🤖 Generated with Claude Code" en PRs, comentarios ni reviews, ni
-  `Co-Authored-By: Claude` en commits. Aplica también al bot de revisión de PRs.
+- **Nunca** "🤖 Generated with Claude Code" en comentarios, ni
+  `Co-Authored-By: Claude` en commits.
 
 ### Notion
 - **Base de tareas**: https://app.notion.com/p/35a7775c44ee467d99402b87361da28b

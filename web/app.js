@@ -12,6 +12,7 @@
 // la pestaña sigue siendo `inmobiliaria`: así se llamó en pantalla hasta el 2026-10-06.
 const TAB = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
 const INMO = TAB === 'inmobiliaria';
+document.getElementById('pageTitle').textContent = INMO ? 'Catálogo' : 'Bolsa Inmobiliaria';
 // Cómo se llama la vista con que abre el mapa (config.js).
 const CENTRO_NOMBRE = window.OL_CONFIG?.centroNombre ?? 'Monterrey';
 try { sessionStorage.setItem('ol-tab', TAB); } catch { /* sin persistencia */ }
@@ -104,7 +105,9 @@ const activos = () => Object.keys(CAMPOS).filter(k =>
   k === 'radio'  ? !!F.near :
   k === 'm2'     ? !!(F.m2_min || F.m2_max) :
   k === 'ppm'    ? !!(F.ppm_min || F.ppm_max) :
-  k === 'orden'  ? F.orden !== 'recientes' : !!F[k]);
+  // El orden tiene su propio selector en la fila de estado: no es un filtro y no va
+  // como token (seguía en la paleta, que es otro camino al mismo selector).
+  k === 'orden'  ? false : !!F[k]);
 
 console.assert(activos().length === 0, 'sin filtros no debe haber tokens');
 
@@ -167,32 +170,36 @@ function fmtPrice(l) {
   return v.unitario != null ? { n: mx(Math.round(v.monto)), nota: `$${mx(v.unitario)}/m²` } : { n: mx(v.monto) };
 }
 
-// El segundo precio va como línea aparte para que el asesor vea las dos opciones sin
-// abrir el anuncio.
-// Como en EasyBroker: la operación va pegada a su precio («$2,650,000 MXN en venta»), y
-// un anuncio que también se ofrece en la otra trae su segundo renglón con su precio.
-const opTxt = op => op ? `<span class="card-opx">en ${esc(op.toLowerCase())}</span>` : '';
-function altLineaHtml(l) {
-  const s = Anuncio.segundoPrecio(l);
-  if (!s) return '';
-  const op = l.alt.op === 'rent' ? 'Renta' : 'Venta';
-  // `precio` viene como "$9,000,000/mes" o "$150/m²": la unidad va aparte, chica, como en el precio principal.
-  const [, monto, unidad] = s.precio?.match(/^(.*?)((?:\/m²)?(?:\/mes)?)$/) ?? [];
-  const sufijo = [Anuncio.moneda(l), unidad?.replace(/\//g, ' / ').trim()].filter(Boolean).join(' ');
-  return s.precio ? `<div class="card-price alt"><strong>${esc(monto)}</strong><span class="currency">${esc(sufijo)}</span>${s.nota ? `<span class="currency">${esc(s.nota)}</span>` : ''}${opTxt(op)}</div>`
-                  : `<div class="card-price alt">${opTxt(op)}</div>`;
+// La operación pegada a su precio («$2,650,000 MXN en venta»), con la misma marca que
+// los dos precios de un inmueble en renta y venta.
+const opTxt = op => op ? `<span class="price-op">en ${esc(op.toLowerCase())}</span>` : '';
+// Un inmueble en renta Y en venta lleva los dos precios con el mismo peso, cada uno con
+// su operación, como en EasyBroker. La que pide el filtro de operación va arriba.
+function preciosDualHtml(l, ofs, rg) {
+  const mon = Anuncio.moneda(l);
+  return `<div class="card-precios">${ofs.map(o => {
+    const op = `<span class="price-op">en ${esc((o.op ?? '').toLowerCase())}</span>`;
+    const unidad = `${mon}${o.parcial ? ' / m²' : ''}${o.op === 'Renta' ? ' / mes' : ''}`;
+    if (o.principal && rg)
+      return `<div class="card-price dos rango"><strong>${dineroCorto(rg.min)}</strong><span class="card-a">a</span><strong>${dineroCorto(rg.max)}</strong><span class="currency">${unidad}</span>${op}</div>`;
+    if (o.monto == null) return `<div class="card-price dos"><strong class="no-price">Precio por confirmar</strong>${op}</div>`;
+    return `<div class="card-price dos"><strong>$${mx(Math.round(o.monto))}</strong><span class="currency">${unidad}</span>${op}</div>`;
+  }).join('')}</div>`;
 }
-// Superficies con símbolo y sin palabra: recuadro de esquinas = terreno, cubo =
-// construcción, recuadro lleno = superficie sin decir de qué (el `title` lo dice).
-const ICON_M2 = {
-  Terreno: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></svg>',
-  Construcción: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>',
-  Superficie: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18"/></svg>',
-};
-const m2sHtml = l => {
-  const s = superficies(l.terreno, l.construccion, l.size);
-  return s.length ? `<div class="card-m2s">${s.map(([k, v]) => `<span title="${k}">${ICON_M2[k]}${m2Txt(v)}</span>`).join('')}</div>` : '';
-};
+
+// Los datos de la tarjeta, en dos renglones. Las superficies llevan su etiqueta escrita:
+// el `title` no existe en el teléfono, y terreno y construcción hay que poder distinguirlos
+// de un vistazo. Abajo, lo que importa de ese tipo de inmueble (POR_TIPO en
+// api/atributos.py). Lo que no se sabe no sale.
+const CORTA_M2 = { Terreno: 'Terreno', Construcción: 'Constr.', Superficie: 'Sup.' };
+function hechosHtml(l) {
+  const m2 = Anuncio.superficiesDe(l);
+  const datos = Anuncio.datos(l);
+  return (m2.length ? `<div class="card-hechos card-m2">${m2.map(s =>
+      `<span title="${esc(s.detalle)}">${Iconos.de(s.clave)}<small>${CORTA_M2[s.clave]}</small>${esc(s.texto)}</span>`).join('')}</div>` : '') +
+    (datos.length ? `<div class="card-hechos">${datos.map(d =>
+      `<span title="${esc(d.detalle)}">${Iconos.de(d.clave)}${esc(d.texto)}</span>`).join('')}</div>` : '');
+}
 
 // ── Tarjeta ──────────────────────────────────────────────────────────────────
 
@@ -202,7 +209,10 @@ function renderCard(l) {
   const p = fmtPrice(l);
   const foto = l.fotos?.[0] ?? null;
   // Si el precio ya es por m², repetirlo aquí sería decir dos veces lo mismo.
-  const pm = l.porM2 ? null : Anuncio.porMetro(l);
+  const ofs = Anuncio.ofertas(l, F.operacion), dual = ofs.length > 1;
+  // Con dos precios, el $/m² es el de la oferta que va arriba.
+  const pm = dual ? (ofs[0].unitario ?? (ofs[0].monto && l.size ? ofs[0].monto / l.size : null))
+    : l.porM2 ? null : Anuncio.porMetro(l);
   const ppm = pm ? `$${mx(Math.round(pm))} / m²` : '';
   const sufijo = l.transaccion === 'Renta' ? `${Anuncio.moneda(l)} / mes` : Anuncio.moneda(l);
 
@@ -212,7 +222,9 @@ function renderCard(l) {
 
   // Varios anuncios del mismo inmueble: la tarjeta enseña entre qué precios se ofrece.
   const rg = Anuncio.rango(l), dup = Anuncio.resumen(l);
-  const priceHtml = rg
+  const priceHtml = dual
+    ? preciosDualHtml(l, ofs, rg)
+    : rg
     ? `<div class="card-price rango"><strong>${dineroCorto(rg.min)}</strong><span class="card-a">a</span><strong>${dineroCorto(rg.max)}</strong><span class="currency">${sufijo}</span>${opTxt(l.transaccion)}</div>`
     : p
     ? `<div class="card-price"><strong>$${p.n}</strong><span class="currency">${sufijo}</span>${opTxt(l.transaccion)}</div>` +
@@ -220,11 +232,13 @@ function renderCard(l) {
     : `<div class="card-price"><strong class="no-price">Sin precio</strong>${opTxt(l.transaccion)}</div>`;
 
   const sel = seleccion.has(l.id);
+  const ins = Anuncio.insignia(l), mercado = Anuncio.tiempoEnMercado(l);
   return `<article class="card ${l.starred ? 'starred' : ''}${sel ? ' sel' : ''} status-${l.status.toLowerCase()}" data-id="${esc(l.id)}">
     <div class="card-img">
       ${imgHtml}
       <span class="badge badge-src">${esc(l.fuentes.length > 1 ? `${l.fuentes.length} PORTALES` : blabel)}</span>
       ${l.fotos?.length ? `<span class="badge badge-foto">FOTO 1/${l.fotos.length}</span>` : ''}
+      ${ins ? `<span class="badge badge-mercado" title="${esc(ins.detalle)}">${esc(ins.texto)}</span>` : ''}
       <button class="card-chk" title="Seleccionar" aria-pressed="${sel}">${sel ? '&#10003;' : ''}</button>
       <button class="btn-star" title="${l.starred ? 'Quitar destacado' : 'Destacar'}">${l.starred ? '&#9733;' : '&#9734;'}</button>
     </div>
@@ -233,25 +247,27 @@ function renderCard(l) {
         <div style="min-width:0">
           ${priceHtml}
           ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
-          ${altLineaHtml(l)}
           ${dup ? `<div class="card-dup" title="Anuncios del mismo inmueble, fusionados en esta tarjeta">${dup}</div>` : ''}
         </div>
         <a class="card-ver" href="listing.html?id=${encodeURIComponent(l.id)}" target="_blank" rel="opener">Ver ${ICON_EXTERNAL}</a>
       </div>
-      ${l.titulo ? `<div class="card-title">${esc(l.titulo)}</div>` : ''}
-      ${Anuncio.ubicacion(l) ? `<div class="card-dir">${ICON_PIN}${esc(Anuncio.ubicacion(l))}</div>` : ''}
-      ${m2sHtml(l)}
+      ${l.titulo ? `<div class="card-title" title="${esc(l.titulo)}">${esc(l.titulo)}</div>` : ''}
+      ${Anuncio.ubicacion(l) ? `<div class="card-dir" title="${esc(Anuncio.ubicacion(l))}">${ICON_PIN}${esc(Anuncio.ubicacion(l))}</div>` : ''}
+      ${hechosHtml(l)}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
-        ${l.transaccion ? `<span class="tag-txn">${esc(l.transaccion)}</span>` : ''}
+        ${Anuncio.operacion(l) ? `<span class="tag-txn">${esc(Anuncio.operacion(l))}</span>` : ''}
         ${l.codigo ? `<span class="tag-cod">${esc(l.codigo)}</span>` : ''}
       </div>
       <div class="card-sep"></div>
-      <div class="card-status">
-        <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
-        <select class="status-select s-${l.status}" aria-label="Estado de seguimiento">
-          ${Anuncio.ESTADOS.map(st => `<option${st === l.status ? ' selected' : ''}>${st}</option>`).join('')}
-        </select>
+      <div class="card-pie">
+        <div class="card-status">
+          <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
+          <select class="status-select s-${l.status}" aria-label="Estado de seguimiento">
+            ${Anuncio.ESTADOS.map(st => `<option${st === l.status ? ' selected' : ''}>${st}</option>`).join('')}
+          </select>
+        </div>
+        ${mercado ? `<span class="card-mercado" title="En el mercado desde al menos el ${esc(Anuncio.fecha(l.desde))}">${esc(mercado)} en mercado</span>` : ''}
       </div>
     </div>
   </article>`;
@@ -409,6 +425,7 @@ function render() {
   // intermedias sobraban (teclear "monterrey" encadenaba nueve cargas completas).
   if (renderEnEspera) return renderEnCurso;
   renderEnEspera = true;
+  cargando(true);
   renderEnCurso = (renderEnCurso ?? Promise.resolve()).then(() => {
     renderEnEspera = false;
     return _render();
@@ -416,19 +433,36 @@ function render() {
     console.error(err);
     document.getElementById('grid').innerHTML =
       `<div class="empty"><h2>No se pudo cargar el inventario</h2><p>${esc(err.message)}</p></div>`;
-  });
+  }).finally(() => { if (!renderEnEspera) cargando(false); });
   return renderEnCurso;
 }
+
+// Filtrar no daba señal: la rejilla conservaba las tarjetas viejas hasta que llegaba la
+// respuesta. Se atenúa y la fila de estado dice «Actualizando…»; sólo si tarda más de
+// 150 ms, para que una respuesta rápida no parpadee.
+let cargandoReloj = 0;
+function cargando(si) {
+  clearTimeout(cargandoReloj);
+  const aplicar = v => {
+    document.getElementById('grid').classList.toggle('cargando', v);
+    document.getElementById('grid').setAttribute('aria-busy', v);
+    document.getElementById('cargandoTxt').hidden = !v;
+  };
+  if (si) cargandoReloj = setTimeout(() => aplicar(true), 150); else aplicar(false);
+}
+const ordenSel = document.getElementById('ordenSel');
+ordenSel.innerHTML = Object.entries(ORDENES).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+ordenSel.addEventListener('change', () => { F.orden = ordenSel.value; page = 1; render(); });
 
 async function _render() {
   await cargarPagina();
 
-  document.getElementById('countNum').textContent = mx(totalFiltrado);
-  document.getElementById('countTotal').textContent = mx(facetas.total);
+  document.getElementById('ordenSel').value = F.orden;
   renderTokens();
   renderFB();
   renderStatusPills();
   renderTray();
+  sincronizarURL();
 
   const grid = document.getElementById('grid');
   if (!listings.length) {
@@ -451,34 +485,84 @@ async function _render() {
   // La ficha usa esto para anterior/siguiente sin volver al tablero.
   try { sessionStorage.setItem('ol-nav', JSON.stringify(listings.map(l => String(l.id)))); } catch { /* sin contexto */ }
   Mapa.pintar(listings);
-  guardarBusqueda();
 }
 
-// La búsqueda en curso, para que «Volver al tablero» desde una ficha la encuentre como
-// estaba: filtros, texto, estatus, página y cámara del mapa. En localStorage y no en
-// sessionStorage porque la ficha se abre en otra pestaña. Una por pestaña del tablero.
-const BUSQUEDA = `ol-busqueda-${TAB}`;
-function guardarBusqueda() {
-  try {
-    localStorage.setItem(BUSQUEDA, JSON.stringify({ F, searchStreet, filterStatus, filterStarred, page,
-      mapa: Mapa.vista(), seguir: mapFollow.checked }));
-  } catch { /* sin persistencia: se vuelve a la búsqueda de fábrica */ }
+// ── La URL ───────────────────────────────────────────────────────────────────
+
+// Cada render deja los filtros en la URL (filtros-url.js), para que recargar no los
+// pierda y la búsqueda se pueda mandar por liga. replaceState y no pushState: teclear
+// una búsqueda no debe llenar el historial de "atrás".
+// Cuando el mapa va siguiendo, la cercanía es lo que el mapa enseña: se guarda la
+// cámara y no el punto, y al volver el mapa sigue siguiendo desde ahí.
+const MAPA_TXT = 'el centro del mapa';
+const nearEsMapa = () => !!F.near && [MAPA_TXT, CENTRO_NOMBRE].includes(F.nearTxt);
+
+function sincronizarURL() {
+  const sigue = !INMO && mapFollow.checked && inm.classList.contains('split') && nearEsMapa();
+  const qs = FiltrosURL.escribir({
+    tab: TAB, cliente: F.cliente?.id ?? '',
+    q: searchStreet ? '' : F.q, calle: searchStreet,
+    operacion: F.operacion, fuente: F.fuente,
+    precio_min: F.precio_min, precio_max: F.precio_max,
+    m2_min: F.m2_min, m2_max: F.m2_max, m2_de: F.m2_de, ppm_min: F.ppm_min, ppm_max: F.ppm_max,
+    near: sigue ? '' : F.near, near_txt: F.nearTxt, radio: F.radio, mapa: sigue ? Mapa.vista() : null,
+    orden: F.orden, lugares: F.lugares, tipos: F.tipos, usos: F.usos,
+    pcliente: INMO ? F.pcliente : '', asesor: INMO ? F.asesor : '', etapas: INMO ? F.etapas : [],
+    estado: filterStatus, destacados: filterStarred, pagina: page,
+  });
+  const url = location.pathname + (qs ? `?${qs}` : '') + location.hash;
+  if (url !== location.pathname + location.search + location.hash) history.replaceState(null, '', url);
+  // "Volver al tablero" de la ficha regresa a esta misma búsqueda, no a la de fábrica.
+  try { sessionStorage.setItem('ol-tablero', 'index.html' + (qs ? `?${qs}` : '')); } catch { /* sin persistencia */ }
 }
-function recuperarBusqueda() {
+
+// Volver de la ficha al mismo punto de la lista. El scroll vive en `.inm-list` y no en
+// la ventana, y la rejilla se pinta cuando llega la API: el navegador no sabe
+// restaurarlo solo y siempre regresaba arriba. Se guarda al salir, atado a la URL de
+// la búsqueda, y se aplica después del primer render si la búsqueda es la misma.
+const SCROLL_KEY = 'ol-scroll';
+addEventListener('pagehide', () => {
+  try {
+    sessionStorage.setItem(SCROLL_KEY, JSON.stringify({
+      busqueda: location.search, lista: document.getElementById('inmList').scrollTop, ventana: scrollY,
+    }));
+  } catch { /* sin persistencia */ }
+});
+function restaurarScroll() {
   let s = null;
-  try { s = JSON.parse(localStorage.getItem(BUSQUEDA) ?? 'null'); } catch { /* nada guardado */ }
-  if (!s?.F) return false;
-  Object.assign(F, s.F);
-  searchStreet = s.searchStreet ?? ''; filterStatus = s.filterStatus ?? 'Todos';
-  filterStarred = !!s.filterStarred; page = s.page ?? 1;
-  document.getElementById('searchInput').value = F.q ?? '';
-  if (searchStreet) {
+  try { s = JSON.parse(sessionStorage.getItem(SCROLL_KEY) ?? 'null'); } catch { /* sin contexto */ }
+  if (!s || s.busqueda !== location.search) return;
+  document.getElementById('inmList').scrollTop = s.lista;
+  scrollTo(0, s.ventana);
+}
+
+// Lo que trae la URL al abrir. Lo que no viene o no es válido se queda de fábrica.
+function aplicarURL() {
+  const u = FiltrosURL.leer(location.search, {
+    tipos: TIPOS_COM, ordenes: Object.keys(ORDENES), estados: ['Todos', ...Anuncio.ESTADOS], maxLugares: MAX_LUGARES, usos: Object.keys(USOS),
+  });
+  for (const k of ['q', 'operacion', 'fuente', 'precio_min', 'precio_max', 'm2_min', 'm2_max', 'm2_de', 'ppm_min', 'ppm_max', 'orden'])
+    if (u[k] != null) F[k] = u[k];
+  if (u.lugares) F.lugares = u.lugares;
+  if (u.tipos) F.tipos = u.tipos;
+  if (u.usos) F.usos = u.usos;
+  if (INMO) {
+    if (u.pcliente) F.pcliente = u.pcliente;
+    if (u.asesor) F.asesor = u.asesor;
+    if (u.etapas) F.etapas = u.etapas;
+  }
+  if (u.calle) {
+    searchStreet = u.calle;
     document.getElementById('searchChipText').textContent = searchStreet;
     document.getElementById('searchChip').hidden = false;
-  }
-  seguirMapa(!!s.seguir);
-  Mapa.ir(s.mapa);
-  return true;
+  } else if (u.q) searchInput.value = u.q;
+  if (u.estado) filterStatus = u.estado;
+  if (u.destacados) filterStarred = true;
+  if (u.pagina) page = u.pagina;
+  if (u.mapa) Mapa.ir(u.mapa);
+  // Un punto puesto a mano manda sobre el mapa: si siguiera, lo pisaría al abrir.
+  if (u.near) { F.near = u.near; F.nearTxt = u.near_txt ?? ''; if (u.radio) F.radio = u.radio; seguirMapa(false); }
+  return u;
 }
 
 function limpiarTodo() {
@@ -517,17 +601,16 @@ async function renderSuggestions(q) {
 // ── Export ───────────────────────────────────────────────────────────────────
 
 function exportCSV() {
-  // ponytail: exporta la página visible. Si hace falta el filtro completo, se
-  // agrega ?formato=csv a /api/listings y lo arma el servidor.
-  const header = ['ID', 'Fuente', 'Precio', 'Moneda', 'Título', 'Dirección', 'Estado', 'Destacado', 'Notas', 'URL', 'Teléfono'];
-  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const filas = listings.map(l => [l.id, l.fuente, l.precio ?? '', l.precio != null ? l.moneda : '',
-    l.titulo ?? '', Anuncio.ubicacion(l) ?? '', l.status, l.starred ? 'Sí' : 'No', l.notes, l.url ?? '', l.whatsapp ?? '']);
-  const csv = '﻿' + [header, ...filas].map(r => r.map(q).join(',')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-  a.download = `officelab_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
+  // Lo arma el servidor con los filtros puestos. Hasta hoy salían las 70 de la página
+  // visible —el botón decía «CSV» y no lo aclaraba— y el asesor lo mandaba al cliente
+  // creyendo que iba el inventario filtrado. `API.descargar` ya sabe de 401 y de
+  // errores con motivo, así que un fallo se dice en la página y no en un JSON.
+  const qs = API.qs({ ...paramsBase(), orden: F.orden,
+    estado: filterStatus !== 'Todos' ? Anuncio.estadoApi(filterStatus) : '' });
+  toast(`Preparando el CSV de ${mx(totalFiltrado)} inmuebles\u2026`);
+  API.descargar(`/listings.csv${qs}`)
+     .then(n => toast(`CSV listo: ${mx(n ?? totalFiltrado)} inmuebles`))
+     .catch(err => toast('No se pudo exportar: ' + err.message));
 }
 
 // ── Barra fija: Ubicación, Precio y Tipo ─────────────────────────────────────
@@ -1013,21 +1096,29 @@ document.addEventListener('keydown', e => {
 // ── Vista: rejilla sola o rejilla + mapa ─────────────────────────────────────
 
 const inm = document.getElementById('inm');
+// En el teléfono el mapa se dibujaba primero y empujaba la primera tarjeta a y=587 de
+// 780, y a 1280 dejaba tarjetas de 219 px: hasta 1366 se abre en rejilla y el mapa
+// queda detrás de «+ mapa». La preferencia se guarda aparte por tamaño, para que la
+// de un monitor grande no decida la de la laptop.
+const CHICO = matchMedia('(max-width: 1366px)').matches;
+const VISTA_KEY = matchMedia('(max-width: 900px)').matches ? 'ol-vista-movil' : CHICO ? 'ol-vista-media' : 'ol-vista';
 function ponerVista(v) {
   inm.classList.toggle('split', v === 'split');
   inm.classList.toggle('grid-only', v !== 'split');
   document.querySelectorAll('.seg [data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === v));
-  try { localStorage.setItem('ol-vista', v); } catch { /* sin persistencia */ }
+  try { localStorage.setItem(VISTA_KEY, v); } catch { /* sin persistencia */ }
   requestAnimationFrame(() => Mapa.resize());
 }
 document.querySelector('.seg').addEventListener('click', e => {
   const b = e.target.closest('[data-vista]');
   if (b) ponerVista(b.dataset.vista);
 });
-// El mapa ya no depende de una llave (mapa.js): la vista por defecto es rejilla + mapa.
-ponerVista((() => { try { return localStorage.getItem('ol-vista'); } catch { return null; } })() ?? 'split');
+// El mapa ya no depende de una llave (mapa.js): en un monitor grande la vista por
+// defecto es rejilla + mapa; hasta 1366 px, rejilla.
+ponerVista((() => { try { return localStorage.getItem(VISTA_KEY); } catch { return null; } })() ?? (CHICO ? 'grid' : 'split'));
 
 Mapa.init(document.getElementById('map'), {
+  operacion: () => F.operacion,
   onPin: id => {
     const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
     if (!card) return;
@@ -1039,9 +1130,16 @@ Mapa.init(document.getElementById('map'), {
   onPinHover: id => document.querySelectorAll('.card').forEach(c => c.classList.toggle('on', c.dataset.id === id)),
   onMove: a => { buscarEnElMapa(a); page = 1; render(); },
 });
+// El área de fábrica: el centro de `config.js` y un radio fijo en metros. Existe para que
+// la Bolsa de partida no dependa del tamaño de la ventana.
+function areaInicial() {
+  const cfg = window.OL_CONFIG ?? {};
+  const [lng, lat] = cfg.centro ?? [-100.36, 25.66];
+  return { lat, lng, radio: cfg.radioInicial ?? 10000 };
+}
 // Lo que el mapa enseña se vuelve el filtro de cercanía. `de` es cómo se le dice a ese
 // punto: al abrir es la vista de fábrica y tiene nombre; después de moverlo, ya no.
-function buscarEnElMapa({ lat, lng, radio }, de = 'el centro del mapa') {
+function buscarEnElMapa({ lat, lng, radio }, de = MAPA_TXT) {
   F.near = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   F.nearTxt = de;
   F.radio = radio;
@@ -1103,11 +1201,21 @@ function renderTray() {
 let toastTimer = null;
 function toast(msg, deshacer) {
   const t = document.getElementById('toast');
-  t.innerHTML = `<span>${esc(msg)}</span>` + (deshacer ? '<button id="toastUndo">Deshacer</button>' : '');
+  t.innerHTML = `<span>${esc(msg)}</span>` +
+    (deshacer ? '<button id="toastUndo">Deshacer</button>' : '') +
+    '<button id="toastCerrar" aria-label="Cerrar aviso">&times;</button>';
   t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 10000);
-  if (deshacer) document.getElementById('toastUndo').onclick = () => { t.hidden = true; deshacer(); };
+  const cerrar = () => { clearTimeout(toastTimer); t.hidden = true; };
+  const programar = () => { clearTimeout(toastTimer); toastTimer = setTimeout(cerrar, 10000); };
+  programar();
+  // Con el puntero o el foco encima no corre el reloj: era la otra forma de perder el
+  // aviso — diez segundos y adiós, sin manera de volver a leerlo.
+  t.onmouseenter = () => clearTimeout(toastTimer);
+  t.onmouseleave = programar;
+  t.onfocusin = () => clearTimeout(toastTimer);
+  t.onfocusout = programar;
+  document.getElementById('toastCerrar').onclick = cerrar;
+  if (deshacer) document.getElementById('toastUndo').onclick = () => { cerrar(); deshacer(); };
 }
 
 document.getElementById('trayItems').addEventListener('click', e => {
@@ -1144,9 +1252,11 @@ document.getElementById('trayFusionar').hidden = INMO;
 document.getElementById('trayFusionar').addEventListener('click', async () => {
   const lista = [...seleccion.values()];
   const anuncios = lista.reduce((t, l) => t + l.anuncios, 0);
-  if (!confirm(`¿Estas ${lista.length} tarjetas son el mismo inmueble?\n\n`
-    + `Quedarán en una sola tarjeta con sus ${anuncios} anuncios, para todo el equipo. `
-    + 'Si alguno no era, se separa desde la ficha.')) return;
+  if (!(await UI.confirmar({
+    titulo: `¿Estas ${lista.length} tarjetas son el mismo inmueble?`,
+    texto: `Quedarán en una sola tarjeta con sus ${anuncios} anuncios, para todo el equipo. `
+      + 'Si alguno no era, se separa desde la ficha.',
+    verbo: 'Fusionar' }))) return;
   try {
     await API.post('/duplicados/fusionar', { ids: lista.map(l => l.id) });
     toast(`${lista.length} tarjetas fusionadas en una`);
@@ -1218,10 +1328,12 @@ document.getElementById('trayQuitar').addEventListener('click', async () => {
   const lista = [...seleccion.values()];
   const propias = lista.filter(l => l.id.startsWith('pipeline:')).length;
   const cuantas = lista.length === 1 ? 'esta propiedad' : `estas ${lista.length} propiedades`;
-  if (!confirm(`¿Eliminar ${cuantas} del Catálogo?\n\n`
-    + 'Se borra su ficha con sus documentos, fotos subidas, fichas PDF y lo presentado a clientes. No se puede deshacer.\n\n'
-    + (propias < lista.length ? 'Los anuncios de portal vuelven a la Bolsa. ' : '')
-    + (propias ? `${propias === 1 ? 'La que se dio' : `Las ${propias} que se dieron`} de alta a mano se ${propias === 1 ? 'pierde' : 'pierden'} por completo.` : ''))) return;
+  if (!(await UI.confirmar({
+    titulo: `¿Eliminar ${cuantas} del Catálogo?`,
+    texto: 'Se borra su ficha con sus documentos, fotos subidas, fichas PDF y lo presentado a clientes. No se puede deshacer.\n\n'
+      + (propias < lista.length ? 'Los anuncios de portal vuelven a la Bolsa. ' : '')
+      + (propias ? `${propias === 1 ? 'La que se dio' : `Las ${propias} que se dieron`} de alta a mano se ${propias === 1 ? 'pierde' : 'pierden'} por completo.` : ''),
+    verbo: 'Eliminar', peligro: true }))) return;
   const res = await Promise.allSettled(lista.map(l => API.quitarDeInmobiliaria(l.id)));
   const ok = res.filter(r => r.status === 'fulfilled').length;
   toast(ok === lista.length
@@ -1309,18 +1421,21 @@ API.me().then(async () => {
   if (url.get('cliente')) await aplicarCliente(url.get('cliente'));
   // Inmobiliaria: los clientes hacen falta para el filtro y su resumen. Desde la ficha
   // de un cliente se llega con ?pcliente=<id> ("lo que ya le presentamos").
-  if (INMO) {
-    await Promise.all([cargarClientes(), cargarEquipo()]);
-    if (url.get('pcliente')) F.pcliente = url.get('pcliente');
-    if (url.get('asesor')) F.asesor = url.get('asesor');
+  if (INMO) await Promise.all([cargarClientes(), cargarEquipo()]);
+  // Después del cliente: si la URL trae filtros, son los que el asesor ajustó encima.
+  const u = aplicarURL();
+  // Se abre buscando en el área de partida de `config.js`, esté o no el mapa a la vista:
+  // hasta 1366 px el tablero abre en rejilla, y sin esto una laptop vería el inventario
+  // nacional y un monitor grande el de Monterrey. Con los criterios de un cliente no: sus
+  // lugares mandan, y el mapa encuadra lo que salga. Si la URL traía cámara y el mapa se
+  // ve, se respeta esa —es una búsqueda que alguien compartió, no la de fábrica—.
+  if (F.cliente) seguirMapa(false);
+  else if (mapFollow.checked) {
+    const area = u.mapa && inm.classList.contains('split') ? Mapa.area() : areaInicial();
+    if (area) buscarEnElMapa(area, u.mapa ? MAPA_TXT : CENTRO_NOMBRE);
   }
-  // Al volver de una ficha (?volver=1), la búsqueda que se dejó. Si no, se abre buscando
-  // en lo que el mapa enseña, si está a la vista. Con los criterios de un cliente no:
-  // sus lugares mandan, y el mapa encuadra lo que salga.
-  if (url.get('volver') && !url.get('cliente') && recuperarBusqueda()) history.replaceState(null, '', location.pathname + (INMO ? '?tab=inmobiliaria' : ''));
-  else if (F.cliente) seguirMapa(false);
-  else if (mapFollow.checked && inm.classList.contains('split') && Mapa.area()) buscarEnElMapa(Mapa.area(), CENTRO_NOMBRE);
   await render();
+  restaurarScroll();
   if (!INMO) avisarFrescura();
 }).catch(err => {
   // El 401 lo maneja api.js redirigiendo al login; aquí sólo quedan fallos reales.

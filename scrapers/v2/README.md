@@ -96,6 +96,17 @@ only re-queues a listing whose gallery size changed.
   page's view token the WAF challenges it). Half the listings have more than ten.
   The CDN serves the original of any photo unsigned, so only the path matters.
   This makes a Pincali detail ~4 requests and ~7 s instead of one.
+- **Pincali's WAF allows one exit IP about 31 detail pages.** Then a page answers 200 with
+  the site's shell and "Tu navegador no completó la verificación de seguridad", no listing,
+  66 KB against 27. It is neither the token nor time: 90 s pauses and fresh tokens failed for
+  32 minutes on end, and a new identity with the same token lifted it in 9 of 9 walls.
+  `detail` rotates every 28 listings and on any wall, and leaves the last wall in
+  `data/v2/pincali.badpage.html`.
+- **Pincali's results page has no agency;** only the detail does. `_KEEP_IF_NULL`
+  in `db.py` is what stops the weekly sweep from erasing it, as it did until
+  2026-10-30.
+- **Navent repeats the lot size as construction on a bare lot.** `db.py` clears it
+  after every load, because the detail page does not say the property type.
 - **Pincali's detail runs with one worker.** Four workers sharing the WAF token
   were challenged constantly: 60 token mints in 9 minutes and 1 gallery in 4 cut
   short, against 40 of 40 complete on a single token.
@@ -160,6 +171,11 @@ block is still not a takedown. Mercado Libre's unreachable price points (more th
 one page at a single price) are written to the state file as `hidden`, and
 listings at those prices are never retired for being absent. Inmuebles24 is only
 judged on its monthly full sweep. `liveness.py` stays in the repo as a manual tool.
+After the load, `db.py` (`POST`) runs what makes the rows comparable: the
+built area becomes the surface of commercial listings, `inferir_precio_m2` redoes the
+$/m² flag on that surface, `marcar_pilas` demotes pins shared by 50+ listings with 10+
+addresses, and `heredar_de_hermanos` fills gaps from the same `eb_id`. `qa.py` then
+compares the fill rate of every field with the previous run.
 A sweep and the
 detail of the same portal never overlap (`.portal-<name>.lock`): two visitors from
 one IP is what makes a direct portal rate-limit, climb to the proxy and start

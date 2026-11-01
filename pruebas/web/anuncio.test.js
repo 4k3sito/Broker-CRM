@@ -68,36 +68,47 @@ test('un anuncio sin precio no enseña ninguno', () => {
   assert.equal(Anuncio.precioVisible(Anuncio.de(fila({ price_numeric: null }))), null);
 });
 
-// ── Segundo precio ───────────────────────────────────────────────────────────
-// Un inmueble puede ofrecerse en renta Y venta.
+// ── Renta y venta ────────────────────────────────────────────────────────────
+// Un inmueble puede ofrecerse en renta Y venta: el portal lo lista una vez y la segunda
+// oferta viene en `operacion_alt` / `precio_alt`.
 
-test('un anuncio con una sola oferta no tiene segundo precio', () => {
-  assert.equal(Anuncio.segundoPrecio(Anuncio.de(fila())), null);
+// Sólo lo que la tarjeta necesita de cada oferta, para comparar sin `principal`.
+const ofs = (a, primero) => plano(Anuncio.ofertas(a, primero)).map(({ op, monto, parcial, unitario }) => ({ op, monto, parcial, unitario }));
+
+test('un anuncio con una sola oferta tiene un solo precio', () => {
+  assert.deepEqual(ofs(Anuncio.de(fila())), [{ op: 'Renta', monto: 25000, parcial: false, unitario: null }]);
+  assert.equal(Anuncio.operacion(Anuncio.de(fila())), 'Renta');
 });
 
-test('el segundo precio de una renta que también se vende', () => {
-  const a = Anuncio.de(fila({ operacion_alt: 'sale', precio_alt: 4200000 }));
-  assert.deepEqual(plano(Anuncio.segundoPrecio(a)), { etiqueta: 'También en venta', precio: '$4,200,000', nota: null });
+test('una venta que también se renta trae los dos precios, cada uno con su operación', () => {
+  const a = Anuncio.de(fila({ transaction_type: 'sale', price_numeric: 11000000, operacion_alt: 'rent', precio_alt: 50000 }));
+  assert.deepEqual(ofs(a), [
+    { op: 'Venta', monto: 11000000, parcial: false, unitario: null },
+    { op: 'Renta', monto: 50000, parcial: false, unitario: null },
+  ]);
+  assert.equal(Anuncio.operacion(a), 'Renta y venta');
 });
 
-test('el segundo precio de una venta que también se renta va por mes', () => {
-  const a = Anuncio.de(fila({ transaction_type: 'sale', operacion_alt: 'rent', precio_alt: 18500.4 }));
-  assert.deepEqual(plano(Anuncio.segundoPrecio(a)), { etiqueta: 'También en renta', precio: '$18,500/mes', nota: null });
+test('buscando renta, la renta va primero aunque el portal listara antes la venta', () => {
+  const a = Anuncio.de(fila({ transaction_type: 'sale', price_numeric: 11000000, operacion_alt: 'rent', precio_alt: 50000 }));
+  assert.deepEqual(ofs(a, 'rent').map(o => o.op), ['Renta', 'Venta']);
+  assert.deepEqual(ofs(a, 'sale').map(o => o.op), ['Venta', 'Renta']);
+  assert.equal(plano(Anuncio.ofertas(a, 'rent'))[1].principal, true);
 });
 
-test('un segundo precio por m² enseña el total y anota el unitario', () => {
+test('un segundo precio por m² enseña el total y guarda el unitario', () => {
   const a = Anuncio.de(fila({ operacion_alt: 'sale', precio_alt: 700, precio_alt_por_m2: true, precio_alt_total: 7500000 }));
-  assert.deepEqual(plano(Anuncio.segundoPrecio(a)), { etiqueta: 'También en venta', precio: '$7,500,000', nota: '($700/m²)' });
+  assert.deepEqual(ofs(a)[1], { op: 'Venta', monto: 7500000, parcial: false, unitario: 700 });
 });
 
 test('un segundo precio por m² sin total se enseña como unitario', () => {
   const a = Anuncio.de(fila({ operacion_alt: 'rent', precio_alt: 120, precio_alt_por_m2: true }));
-  assert.deepEqual(plano(Anuncio.segundoPrecio(a)), { etiqueta: 'También en renta', precio: '$120/m²/mes', nota: null });
+  assert.deepEqual(ofs(a)[1], { op: 'Renta', monto: 120, parcial: true, unitario: 120 });
 });
 
 test('se sabe que hay segunda oferta aunque su precio aún no se conozca', () => {
   const a = Anuncio.de(fila({ operacion_alt: 'sale' }));
-  assert.deepEqual(plano(Anuncio.segundoPrecio(a)), { etiqueta: 'También en venta', precio: null, nota: null });
+  assert.deepEqual(ofs(a)[1], { op: 'Venta', monto: null, parcial: false, unitario: null });
 });
 
 // ── Etiquetas ────────────────────────────────────────────────────────────────
@@ -167,4 +178,62 @@ test('el mismo corredor en dos portales no presume anunciantes ni rango', () => 
   const a = Anuncio.de(fila({ anuncios: 2, anunciantes: 1, precio_min: null, precio_max: null }));
   assert.equal(Anuncio.resumen(a), '2 anuncios');
   assert.equal(Anuncio.rango(a), null);
+});
+
+test('terreno y construcción salen los dos aunque traigan el mismo número', () => {
+  const sup = vm.runInContext('superficies', ctx);
+  assert.deepEqual(plano(sup(800, 800, 800)), [['Terreno', 800], ['Construcción', 800]]);
+  assert.deepEqual(plano(sup(800, 500, 800)), [['Terreno', 800], ['Construcción', 500]]);
+  assert.deepEqual(plano(sup(800, null, 800)), [['Terreno', 800]]);
+  assert.deepEqual(plano(sup(null, 500, 500)), [['Construcción', 500]]);
+  assert.deepEqual(plano(sup(null, null, 300)), [['Superficie', 300]]);
+  assert.deepEqual(plano(sup(null, null, null)), []);
+});
+
+test('lo inferido se marca y no toca lo publicado', () => {
+  const a = Anuncio.de(fila({ terreno_m2: 800, property_size_m2: 800,
+    m2_inferido: { construccion: { valor: 500, origen: 'hermano' } } }));
+  assert.deepEqual(plano(Anuncio.superficiesDe(a).map(s => [s.clave, s.texto, s.detalle])),
+    [['Terreno', '800 m²', 'Terreno'],
+     ['Construcción', '≈ 500 m²', 'Construcción, de otro anuncio del mismo inmueble']]);
+  assert.equal(a.construccion, null, 'de aquí sale la ficha: lo inferido no puede llegar');
+  const b = Anuncio.de(fila({ terreno_m2: 800, construccion_m2: 800,
+    m2_inferido: { terreno: { valor: 1000, origen: 'texto' } } }));
+  assert.deepEqual(plano(Anuncio.superficiesDe(b).map(s => s.texto)), ['≈ 1,000 m²', '800 m²']);
+  assert.equal(Anuncio.superficiesDe(b)[0].detalle, 'Terreno, leído de la descripción');
+  assert.deepEqual(plano(Anuncio.superficiesDe(Anuncio.de(fila({ property_size_m2: 300 }))).map(s => [s.clave, s.texto])),
+    [['Superficie', '300 m²']]);
+});
+
+test('un atributo heredado se marca', () => {
+  const a = Anuncio.de(fila({ atributos: [{ clave: 'cajones', valor: 4, heredado: true }, { clave: 'banos', valor: 2 }] }));
+  assert.deepEqual(plano(Anuncio.datos(a).map(d => [d.texto, d.detalle])),
+    [['≈ 4', 'Cajones, de otro anuncio del mismo inmueble'], ['2', 'Baños']]);
+});
+
+test('los atributos salen en texto y en el orden de la API', () => {
+  const a = Anuncio.de(fila({ atributos: [{ clave: 'altura', valor: 9.5 }, { clave: 'andenes', valor: true },
+    { clave: 'cajones', valor: 1200 }, { clave: 'desconocido', valor: 1 }] }));
+  assert.deepEqual(plano(Anuncio.datos(a).map(d => [d.clave, d.etiqueta, d.texto])),
+    [['altura', 'Altura libre', '9.5 m'], ['andenes', 'Andenes', 'Sí'], ['cajones', 'Cajones', '1,200']]);
+  assert.deepEqual(plano(Anuncio.datos(Anuncio.de(fila()))), []);
+});
+
+test('una rebaja gana a reciente; sin ninguna de las dos no hay insignia', () => {
+  const baja = { pct: 8, antes: 100000, fecha: '2026-10-20T00:00:00+00:00' };
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja, reciente: true }))).texto, 'Bajó 8%');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja }))).detalle, 'antes $100,000');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ baja: { ...baja, fuente: 'lamudi' } }))).detalle, 'En Lamudi: antes $100,000');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila({ reciente: true }))).texto, 'Reciente');
+  assert.equal(Anuncio.insignia(Anuncio.de(fila())), null);
+});
+
+test('el tiempo en el mercado se dice en la unidad que cabe', () => {
+  const ahora = new Date('2026-10-30T12:00:00Z');
+  const hace = d => Anuncio.tiempoEnMercado(Anuncio.de(fila({ desde: new Date(ahora - d * 864e5).toISOString() })), ahora);
+  assert.equal(hace(0), '1 d');
+  assert.equal(hace(12), '12 d');
+  assert.equal(hace(150), '5 meses');
+  assert.equal(hace(800), '2 años');
+  assert.equal(Anuncio.tiempoEnMercado(Anuncio.de(fila()), ahora), null);
 });

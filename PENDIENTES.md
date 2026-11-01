@@ -4,11 +4,52 @@
 > Lo abierto de este archivo se pasó allá; esto queda como registro de lo desplegado y lo
 > medido. Lo nuevo que haya que hacer va a Notion, no aquí.
 
-Estado al **2026-10-13**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-10-28**. Es una foto, no la verdad: verifica antes de actuar.
 
 ## Corriendo ahora
 
 - *(nada)*
+
+## No perder trabajo y CSV real — **en producción desde el 2026-10-28** (`8768c0e`, PR #13)
+
+Primera tanda de la auditoría de usabilidad (`docs/auditoria-ux-2026-10-28.md`):
+
+- `next=` en el login: una sesión caducada devuelve a la página que estaba abierta.
+- `GET /api/listings.csv`: el CSV lo arma el servidor con los filtros de la pantalla
+  (antes eran los 70 renglones de la página visible), con tope de 20,000 filas.
+- Buscador de clientes dentro de la lista, visible a ≤900 px.
+- El aviso (`toast`) lleva `role="status"`, se cierra, y su reloj se detiene al pasar el ratón.
+- `.cl-addrow` sin `min-width`: «Agregar» ya no se sale a 1280.
+- Área inicial del tablero fija en `config.js` (`radioInicial: 10000`): el inventario
+  de partida ya no depende del tamaño del monitor.
+
+**Quedó lento el CSV:** pedía `inventario.buscar` de 200 en 200, hasta 100 consultas a la
+vista fusionada, y tardaba uno o dos minutos. Lo arregla `inventario.exportar()` (una sola
+consulta) en la tanda siguiente (PR #14, sin desplegar al escribir esto).
+
+## Usabilidad: teléfono, medidas, contraste, tablero y ficha — **en `desarrollo` vía PR #14, sin desplegar** (2026-10-28)
+
+Segunda tanda de la auditoría, un commit por bloque. Se verificó con un navegador a
+390, 820, 1280, 1440 y 1920, claro y oscuro, contra una API y un PostGIS locales con
+240 anuncios sembrados (no contra producción: la nube no alcanza el VPS).
+
+- CSV en una consulta (`inventario.exportar`, prueba `el_csv_es_todas_las_paginas`).
+- Teléfono: botón «Menú» con hoja inferior (decisión de Ake), tablero en rejilla con el
+  mapa detrás de «+ mapa», tarjeta horizontal ≤700 px, vista **Lista** de tareas (el
+  kanban del teléfono medía 7,374 px; la Lista, 1,786).
+- Había una `}` sobrante en `hermes.css` que anulaba `.topbar { height:52px }` del
+  rediseño v0.5: la barra medía 66 px. Corregido; en escritorio la barra baja 14 px.
+- Escritorio: contenido de las barras a 1,560 px, chips y buscador en un renglón, mapa
+  ≤640 px, hasta 1366 px abre sin mapa (con el área inicial de `config.js` aplicada igual).
+- Contraste AA (`--faint` oscuro `.55`, Contactado/media `#8F500E`, Descartado
+  `#6B6875`, ☆ `.6`, tonos de avatar) y piso de 10 px; `prefers-reduced-motion`.
+- Tablero: selector «Ordenar», estado de carga, etiqueta de estado compacta (decisión de
+  Ake), `web/ui.js` con el diálogo de confirmación y el aviso que sustituyen a
+  `confirm()`/`alert()`.
+- Ficha: Anterior/Siguiente fuera de la foto, acciones secundarias en «⋯ Más», barra fija
+  en el teléfono, nombre accesible en las fotos, `h1` en index/clientes/tareas.
+
+Reversa: revertir el merge del PR; ningún cambio toca `schema.sql`.
 
 ## Velocidad del tablero y del filtro de ubicación — **en producción desde el 2026-10-14**
 

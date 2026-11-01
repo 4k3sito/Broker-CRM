@@ -35,9 +35,10 @@ const pesoTxt = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.m
 
 // Superficie de una propiedad, distinguiendo terreno y construcción cuando se sabe.
 // Devuelve pares [etiqueta, m²]: los dos si el portal (o la ficha) trae los dos, aunque
-// sean el mismo número (2026-10-22: así lo pidió el equipo; antes, iguales salían como
-// uno solo); uno etiquetado si sólo se sabe cuál es; y "Superficie" a secas cuando el
-// anuncio da un solo número sin decir de qué.
+// sean el mismo número (así lo pidió el equipo: hay que poder distinguirlos, y juntarlos
+// le quitaba la etiqueta a más de la mitad de los locales y oficinas); uno etiquetado si
+// sólo se sabe cuál es; y "Superficie" a secas cuando el anuncio da un solo número sin
+// decir de qué.
 function superficies(terreno, construccion, area) {
   const t = Number(terreno) || null, c = Number(construccion) || null, a = Number(area) || null;
   if (t && c) return [['Terreno', t], ['Construcción', c]];

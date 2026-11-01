@@ -42,13 +42,20 @@
     para todo el equipo: &#171;Son el mismo&#187; los deja en una sola tarjeta del tablero; &#171;No son el
     mismo&#187; quita el par de esta lista y no se vuelve a sugerir.</p>
   <div class="pg-filters" id="dpFiltros" role="group" aria-label="Filtros"></div>
-  <div id="dpLista" aria-live="polite"><p class="pg-empty">Cargando&#8230;</p></div>
+  <div id="dpLista"><p class="pg-empty">Cargando&#8230;</p></div>
   <div class="pagination" id="dpPaginas"></div>
 </main>
+
+<div class="toast dp-aviso" id="dpAviso" role="status" hidden>
+  <i class="dp-cuenta" id="dpCuenta"></i>
+  <span id="dpAvisoTxt"></span>
+  <button type="button" id="dpDeshacer">Deshacer</button>
+</div>
 
 <script src="api.js"></script>
 <script src="texto.js"></script>
 <script src="menu.js"></script>
+<script src="ui.js"></script>
 <script src="anuncio.js"></script>
 <script src="propiedad.js"></script>
 <script src="duplicados.js"></script>

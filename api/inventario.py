@@ -1,9 +1,10 @@
 """El inventario: buscar, contar y leer anuncios.
 
 Todo lo que el tablero y `/api/v1` saben preguntarle a `listings` vive aquí, detrás de
-tres operaciones:
+cuatro operaciones:
 
     buscar(conn, quien, filtros, orden, page, per_page)   una página y su total
+    exportar(conn, quien, filtros, orden, tope)           todas de una vez, para el CSV
     contar(conn, quien, filtros)                          a cuántos llegarías por estado y fuente
     uno(conn, quien, id)                                  un anuncio, o None
 
@@ -28,6 +29,9 @@ from __future__ import annotations
 
 import unicodedata
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+
+import atributos
 
 
 class FiltroInvalido(ValueError):
@@ -74,6 +78,19 @@ SELECT_LISTING = """
   l.geo_origen
 """
 _TOTAL = "(CASE WHEN l.price_is_per_m2 AND l.area_m2 > 0 THEN l.price * l.area_m2 ELSE l.price END)"
+_TOTAL_ALT = ("(CASE WHEN l.precio_alt_por_m2 AND l.area_m2 > 0 "
+              "THEN l.precio_alt * l.area_m2 ELSE l.precio_alt END)")
+
+
+def _total_de(op: str | None) -> str:
+    """El total por el que se ordena. Con operación elegida es el de ESA operación, igual
+    que en el filtro de precio: un local en venta por 11 MDP que también se renta en 50
+    mil, pidiendo renta, va entre las rentas de 50 mil y no hasta arriba. `op` sólo puede
+    ser `rent` o `sale` (lo valida la ruta), y por eso va escrito en la sentencia."""
+    if op not in ("rent", "sale"):
+        return _TOTAL
+    return f"(CASE WHEN l.operation = '{op}' THEN {_TOTAL} ELSE {_TOTAL_ALT} END)"
+
 # Expresión y sentido por separado: al fusionar anuncios la expresión se calcula por
 # anuncio y el orden se aplica después, ya con una fila por propiedad.
 ORDENES = {
@@ -283,9 +300,7 @@ def _filtros(a: dict) -> tuple[list[str], list]:
                  "THEN l.price * l.area_m2 ELSE l.price END")
         if not op:
             return f"({total})", []
-        alt = ("CASE WHEN l.precio_alt_por_m2 AND l.area_m2 > 0 "
-               "THEN l.precio_alt * l.area_m2 ELSE l.precio_alt END")
-        return f"(CASE WHEN l.operation = %s THEN {total} ELSE {alt} END)", [op]
+        return f"(CASE WHEN l.operation = %s THEN {total} ELSE {_TOTAL_ALT} END)", [op]
 
     if a.get("precio_min") is not None:
         sql, pp = precio_efectivo()
@@ -434,24 +449,51 @@ def buscar(conn, quien, filtros: dict, orden: str = "recientes", page: int = 1,
     Para un asesor cada fila es una PROPIEDAD: de los anuncios fusionados que pasan los
     filtros sale uno, y con él `anuncios`, `anunciantes`, `fuentes` y el rango de precio
     (`precio_min`/`precio_max`) de todos los vigentes de la propiedad."""
+    base, p = _consulta(quien, filtros)
+    fusiona = _fusiona(quien, filtros)
+    rows = _filas(conn, quien, filtros, orden, per_page, (page - 1) * per_page)
+    total = conn.execute(f"SELECT {_propiedades() if fusiona else 'count(*)'} AS n {base}",
+                         p).fetchone()["n"]
+    if fusiona:
+        _resumir_propiedades(conn, rows)
+    if isinstance(quien, Asesor):
+        _detallar(conn, rows)
+    out = {"items": rows, "total": total, "page": page, "per_page": per_page}
+    if isinstance(quien, Llave):
+        out["pages"] = -(-total // per_page)
+    return out
+
+
+def exportar(conn, quien, filtros: dict, orden: str = "recientes", tope: int = 20_000) -> list[dict]:
+    """Lo mismo que `buscar` vería página tras página, hasta `tope` filas, en UNA consulta.
+
+    Es el CSV del tablero. Antes salía de pedir `buscar` de 200 en 200: hasta 100 vueltas
+    a la vista fusionada, cada una con su conteo y su OFFSET creciente, y el archivo
+    tardaba uno o dos minutos. Sin conteo ni resumen de propiedades: el CSV no los lleva."""
+    return _filas(conn, quien, filtros, orden, tope, 0)
+
+
+def _filas(conn, quien, filtros: dict, orden: str, limite: int, desde: int) -> list[dict]:
+    """Las filas de `buscar` y `exportar`: el mismo orden y la misma cara de cada propiedad."""
     if orden not in ORDENES:
         raise FiltroInvalido(f"orden debe ser uno de: {', '.join(ORDENES)}")
     base, p = _consulta(quien, filtros)
-    con_llave = isinstance(quien, Llave)
     expr, sentido = ORDENES[orden]
-    limite = [per_page, (page - 1) * per_page]
+    cara = _CARA.get(orden, _CARA_DEFECTO)
+    if orden.startswith("precio_"):
+        total = _total_de(filtros.get("operacion"))
+        expr, cara = total, cara.replace(_TOTAL, total)
     if _fusiona(quien, filtros):
-        total = conn.execute(f"SELECT {_propiedades()} AS n {base}", p).fetchone()["n"]
         # En dos pasos. Primero se elige, con filas angostas, qué anuncio da la cara por
         # cada propiedad y cuáles caen en la página; sólo de ésos se traen las columnas
         # completas. Ordenar 570 mil filas con sus galerías de fotos costaba 17 s.
-        rows = conn.execute(
+        return conn.execute(
             f"""WITH pag AS (
                   SELECT * FROM (
                     SELECT DISTINCT ON ({PROPIEDAD}) l.source, l.listing_id,
                            {PROPIEDAD} AS propiedad, {expr} AS _orden
                     {base}
-                    ORDER BY {PROPIEDAD}, {_CARA.get(orden, _CARA_DEFECTO)}, l.source, l.listing_id
+                    ORDER BY {PROPIEDAD}, {cara}, l.source, l.listing_id
                   ) c ORDER BY _orden {sentido}, listing_id LIMIT %s OFFSET %s)
                 SELECT {SELECT_LISTING}, pag.propiedad
                 FROM pag
@@ -460,19 +502,145 @@ def buscar(conn, quien, filtros: dict, orden: str = "recientes", page: int = 1,
                 LEFT JOIN user_listing ul ON ul.listing_id = l.source || ':' || l.listing_id
                                          AND ul.user_id = %s
                 ORDER BY pag._orden {sentido}, l.listing_id""",
-            [*p, *limite, quien.id]).fetchall()
-        _resumir_propiedades(conn, rows)
-        return {"items": rows, "total": total, "page": page, "per_page": per_page}
+            [*p, limite, desde, quien.id]).fetchall()
+    con_llave = isinstance(quien, Llave)
     columnas = SELECT_ANUNCIO if con_llave else SELECT_LISTING
     desempate = "l.source, l.listing_id" if con_llave else "l.listing_id"
-    total = conn.execute(f"SELECT count(*) AS n {base}", p).fetchone()["n"]
-    rows = conn.execute(
+    return conn.execute(
         f"SELECT {columnas} {base} ORDER BY {expr} {sentido}, {desempate} LIMIT %s OFFSET %s",
-        [*p, *limite]).fetchall()
-    out = {"items": rows, "total": total, "page": page, "per_page": per_page}
-    if con_llave:
-        out["pages"] = -(-total // per_page)
-    return out
+        [*p, limite, desde]).fetchall()
+
+
+# Cuánto dura cada insignia de la tarjeta, y qué cuenta como baja: menos de BAJA_MINIMA
+# (por ciento) es ruido, y lo que cae más de la mitad es una captura corregida.
+DIAS_RECIENTE = 7
+DIAS_BAJA = 30
+BAJA_MINIMA = 3
+BAJA_MAXIMA = 0.5
+
+
+def _movimiento(historial: list[dict], publicado: datetime | None, ahora: datetime) -> dict:
+    """Qué se sabe del anuncio en el mercado, a partir de `precio_historial` (viejo a nuevo).
+
+    `listed_at` solo no sirve: Navent guarda ahí la fecha de MODIFICACIÓN y Pincali trae
+    fechas recientes en anuncios que tenemos desde septiembre. Tampoco basta la primera
+    vez que lo vimos: un portal que se barre por primera vez haría «reciente» a todo. Por
+    eso `desde` es la más vieja de las dos y es «al menos desde»: la tabla nació el
+    2026-09-21, así que ningún anuncio sin `listed_at` lleva más que eso."""
+    fechas = [f for f in (publicado, historial[0]["visto_at"] if historial else None) if f]
+    desde = min(fechas) if fechas else None
+    return {"desde": desde.isoformat() if desde else None,
+            "reciente": bool(desde and ahora - desde <= timedelta(days=DIAS_RECIENTE)),
+            "baja": _baja(historial, ahora)}
+
+
+def _baja(historial: list[dict], ahora: datetime) -> dict | None:
+    """El último cambio de precio, si fue una rebaja de hace menos de `DIAS_BAJA`. Compara
+    sólo precios comparables: en otra moneda, otra operación o por m² no es una baja."""
+    precios = [f for f in historial if f["price"] is not None]
+    cambios = [(a, b) for a, b in zip(precios, precios[1:]) if a["price"] != b["price"]]
+    if not cambios:
+        return None
+    antes, hoy = cambios[-1]
+    if any(antes[k] != hoy[k] for k in ("currency", "price_is_per_m2", "operation")):
+        return None
+    if ahora - hoy["visto_at"] > timedelta(days=DIAS_BAJA):
+        return None
+    de, a = float(antes["price"]), float(hoy["price"])      # numeric llega como Decimal
+    if not de * (1 - BAJA_MAXIMA) <= a < de:
+        return None
+    pct = round(100 * (de - a) / de)
+    if pct < BAJA_MINIMA:
+        return None
+    return {"pct": pct, "fecha": hoy["visto_at"].isoformat(),
+            "antes": None if hoy["price_is_per_m2"] else de}
+
+
+def _hermanos(conn, llaves: tuple[list, list]) -> dict[tuple, list[dict]]:
+    """Por anuncio, los otros anuncios vigentes del mismo inmueble. Un anuncio que sólo
+    está ahí por una foto en común no cuenta: comparado contra columnas reales acierta 85%
+    (puede ser otra unidad del edificio), contra 99.7% de los unidos por `eb_id`."""
+    por: dict[tuple, list[dict]] = {}
+    for h in conn.execute(
+            """SELECT k.source AS de_fuente, k.listing_id AS de_id, m.source, m.listing_id,
+                      m.plot_area_m2 AS terreno, m.built_area_m2 AS construccion,
+                      m.features, m.description, m.listed_at
+               FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
+               JOIN propiedad_anuncio pa USING (source, listing_id)
+               JOIN propiedad_anuncio o ON o.propiedad = pa.propiedad AND o.anuncio <> pa.anuncio
+               JOIN listings m ON m.source = o.source AND m.listing_id = o.listing_id
+               WHERE m.activo IS NOT FALSE AND o.motivo IS DISTINCT FROM 'foto'""", llaves).fetchall():
+        por.setdefault((h["de_fuente"], h["de_id"]), []).append(h)
+    return por
+
+
+def _historiales(conn, llaves: tuple[list, list]) -> dict[tuple, list[dict]]:
+    """`precio_historial` de cada anuncio, de viejo a nuevo."""
+    por: dict[tuple, list[dict]] = {}
+    for h in conn.execute(
+            """SELECT p.source, p.listing_id, p.visto_at, p.price, p.currency,
+                      p.price_is_per_m2, p.operation
+               FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
+               JOIN precio_historial p USING (source, listing_id)
+               ORDER BY p.source, p.listing_id, p.visto_at, p.id""", llaves).fetchall():
+        por.setdefault((h["source"], h["listing_id"]), []).append(h)
+    return por
+
+
+def _baja_de_hermano(fila: dict, hermanos: list[dict], historiales: dict, ahora: datetime) -> dict | None:
+    """La rebaja más reciente en otro anuncio del mismo inmueble y la misma oferta: un
+    portal que bajó el precio dice algo aunque la tarjeta la dé el anuncio de otro."""
+    bajas = []
+    for h in hermanos:
+        hist = historiales.get((h["source"], h["listing_id"]), [])
+        if hist and hist[-1]["operation"] == fila["transaction_type"] and hist[-1]["currency"] == fila["currency"]:
+            if b := _baja(hist, ahora):
+                bajas.append({**b, "fuente": h["source"]})
+    return max(bajas, key=lambda b: b["fecha"], default=None)
+
+
+def _detallar(conn, rows: list[dict]) -> None:
+    """A cada fila del tablero, lo que no sale de la consulta de la página: sus atributos
+    (`atributos.py`), su movimiento en el mercado y lo que sus hermanos —los otros anuncios
+    del mismo inmueble— saben y ella no. Aparte a propósito: el CSV comparte esa consulta y
+    no los usa, y son 70 filas contra 20,000. Una ficha propia no pasa por aquí: su
+    descripción son notas internas y no tiene historial.
+
+    `terreno_m2` y `construccion_m2` se quedan como vienen: lo inferido va en `m2_inferido`,
+    porque de esas columnas salen las fichas y el PDF que recibe un cliente."""
+    for r in rows:
+        r.update(atributos=[], m2_inferido={}, desde=None, reciente=False, baja=None)
+    claves = [(r["source"], r["external_id"]) for r in rows if r["source"] != "pipeline"]
+    if not claves:
+        return
+    llaves = ([c[0] for c in claves], [c[1] for c in claves])
+    textos = conn.execute(
+        """SELECT l.source, l.listing_id, l.tipo, l.features, l.description, l.listed_at
+           FROM unnest(%s::text[], %s::text[]) AS k(source, listing_id)
+           JOIN listings l USING (source, listing_id)""", llaves).fetchall()
+    hermanos = _hermanos(conn, llaves)
+    todos = claves + [(h["source"], h["listing_id"]) for hs in hermanos.values() for h in hs]
+    historiales = _historiales(conn, ([c[0] for c in todos], [c[1] for c in todos]))
+    ahora = datetime.now(timezone.utc)
+    por_clave = {(t["source"], t["listing_id"]): t for t in textos}
+    for r in rows:
+        clave = (r["source"], r["external_id"])
+        t = por_clave.get(clave)
+        if not t:
+            continue
+        hs = hermanos.get(clave, [])
+        r["atributos"] = atributos.heredar(t["tipo"], atributos.de(t["tipo"], t["features"], t["description"]),
+                                           [atributos.de(t["tipo"], h["features"], h["description"]) for h in hs])
+        r["m2_inferido"] = atributos.completar_m2(t["tipo"], r["terreno_m2"], r["construccion_m2"],
+                                                  r["property_size_m2"], hs, t["description"])
+        # La fecha más vieja de todo el inmueble: uno que lleva años no es «reciente» porque
+        # hoy apareció en otro portal.
+        fechas = [t["listed_at"]]
+        for h in hs:
+            hist = historiales.get((h["source"], h["listing_id"]))
+            fechas += [h["listed_at"], hist[0]["visto_at"] if hist else None]
+        r.update(_movimiento(historiales.get(clave, []), min(filter(None, fechas), default=None), ahora))
+        r["baja"] = r["baja"] or _baja_de_hermano(r, hs, historiales, ahora)
 
 
 def _resumir_propiedades(conn, rows: list[dict]) -> None:
@@ -549,10 +717,13 @@ def uno(conn, quien, id_: str) -> dict | None:
     # `pipeline:<uuid>` es una ficha del sheet: se lee de la misma vista que usa la
     # pestaña Inmobiliaria, así el detalle y la tarjeta dicen lo mismo.
     origen = f"({FICHA_COMO_LISTING}) l" if id_.startswith("pipeline:") else "listings l"
-    return conn.execute(
+    fila = conn.execute(
         f"""SELECT {SELECT_LISTING}, l.description, l.features
             FROM {origen}
             LEFT JOIN zona z ON z.id = l.zona_id
             LEFT JOIN user_listing ul ON ul.listing_id = %s AND ul.user_id = %s
             WHERE l.source || ':' || l.listing_id = %s""",
         (id_, quien.id, id_)).fetchone()
+    if fila:
+        _detallar(conn, [fila])
+    return fila

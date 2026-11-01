@@ -74,7 +74,8 @@ def finish(l: Listing) -> Listing:
     l.images = list(dict.fromkeys(u for u in l.images if u))   # ordered, unique
     if l.images and not l.imageUrl:
         l.imageUrl = l.images[0]
-    l.amenities = list(dict.fromkeys(a.strip() for a in l.amenities if a and a.strip()))
+    l.amenities = list(dict.fromkeys(a.strip() for a in l.amenities
+                                     if a and a.strip() and a.strip() != "Mantenimiento: 0 MXN"))
     if l.areaM2 is None:
         l.areaM2 = l.plotAreaM2 or l.builtAreaM2
     if not l.observedAt:
@@ -97,7 +98,7 @@ def selfcheck() -> None:
     assert eb_id("WEB-AB1234") == "" and eb_id("EB-ABC1234") == "" and eb_id("EB-AB12345") == ""
     assert eb_id("NN-GTI047", "sin referencia") == ""
     l = Listing("1", "u", postingCode="EB-QW6165", images=["a", "", "a", "b"],
-                amenities=[" Alberca ", "Alberca", ""], plotAreaM2=90.0)
+                amenities=[" Alberca ", "Alberca", "", "Mantenimiento: 0 MXN"], plotAreaM2=90.0)
     d = serialize(l)
     assert d["ebId"] == "EB-QW6165" and d["images"] == ["a", "b"] and d["imageUrl"] == "a"
     assert d["amenities"] == ["Alberca"] and d["areaM2"] == 90.0 and d["observedAt"]
