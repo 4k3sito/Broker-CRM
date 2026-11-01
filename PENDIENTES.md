@@ -4,11 +4,26 @@
 > Lo abierto de este archivo se pasó allá; esto queda como registro de lo desplegado y lo
 > medido. Lo nuevo que haya que hacer va a Notion, no aquí.
 
-Estado al **2026-10-28**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-11-01**. Es una foto, no la verdad: verifica antes de actuar.
 
 ## Corriendo ahora
 
 - *(nada)*
+
+## Calidad de datos de scrapers — **en producción desde el 2026-10-31**
+
+- `9532fef`: el barrido ya no borra la agencia de Pincali; se limpia la construcción falsa de
+  los terrenos de Navent tras cada carga.
+- `9b26ec2`: `superficie_comercial`, topes en `inferir_precio_m2`, `marcar_pilas`,
+  `heredar_de_hermanos`, `BAJAS_GEMELOS`, estados unificados y QA por campo. Ensayo sobre
+  datos reales: 28,780 superficies, 1,732 banderas, 11,066 pines y 39,343 filas. El recálculo
+  corre en cada carga; la primera, Inmuebles24 el 2026-11-02.
+- `f8ab112`: Pincali cambia de IP cada 28 fichas. El WAF deja ~31 por IP (9 de 9 muros). En
+  vivo: 139 anuncios sin errores, 589 por hora y 28 KB por anuncio.
+- El SQL se aplicó a mano con `/srv/backups/aplicar-calidad-2026-10-31.sql`, no con el
+  `schema.sql` entero. Respaldo: `/srv/backups/officelab-pre-calidad-2026-10-31.sql.gz`.
+
+Reversa: `officelab-api:pre-2026-10-31`; las funciones se quitan de `POST` en `v2/db.py`.
 
 ## No perder trabajo y CSV real — **en producción desde el 2026-10-28** (`8768c0e`, PR #13)
 

@@ -108,6 +108,8 @@ OP_LABEL = {"venta": "sale", "renta": "rent"}
 class WafToken:
     """One `aws-waf-token` for the process, re-minted by a real browser when stale."""
 
+    tries, pause = 3, 5.0
+
     def __init__(self) -> None:
         self._value, self._minted, self.mints = "", 0.0, 0
         self._lock = threading.Lock()
@@ -124,6 +126,23 @@ class WafToken:
             self._mint()
 
     def _mint(self) -> None:
+        """A browser error is not a FetchError, so it would go straight through the sweep's
+        and the detail's handlers and end the run: one ERR_CERT_VERIFIER_CHANGED cost a
+        whole batch on 2026-10-31. Try again, and past that it is a block like any other,
+        which costs one shard or one listing."""
+        from patchright.sync_api import Error as BrowserError
+
+        for attempt in range(1, self.tries + 1):
+            try:
+                return self._launch()
+            except BrowserError as exc:
+                log.warning("pincali: browser failed minting a token (%d/%d): %s",
+                            attempt, self.tries, str(exc).splitlines()[0][:120])
+                if attempt == self.tries:
+                    raise Blocked(f"browser could not mint a token: {str(exc).splitlines()[0][:120]}") from exc
+                time.sleep(self.pause * attempt)
+
+    def _launch(self) -> None:
         from patchright.sync_api import sync_playwright
 
         started = time.monotonic()
@@ -615,6 +634,28 @@ class Pincali(Portal):
         assert v.rotations == 0
         pages.detail(row, v)
         assert v.rotations == 1 and v.notes["listings"] == 1, "change identity before the wall falls"
+        from patchright.sync_api import Error as BrowserError
+
+        class _Flaky(WafToken):
+            pause = 0.0
+            def __init__(self, fails):
+                super().__init__()
+                self.fails, self.launches = fails, 0
+            def _launch(self):
+                self.launches += 1
+                if self.launches <= self.fails:
+                    raise BrowserError("Page.goto: net::ERR_CERT_VERIFIER_CHANGED")
+                self._value, self._minted = "token", time.monotonic()
+
+        once = _Flaky(1)
+        once.refresh()
+        assert once.value == "token" and once.launches == 2, "one browser error: try again"
+        dead = _Flaky(9)
+        try:
+            dead.refresh()
+            raise AssertionError("a browser that keeps failing must surface as a block")
+        except Blocked:
+            assert dead.launches == WafToken.tries
         more = parse_images('{"images":[{"url":"https://assets.easybroker.com/property_images/1/2/'
                             'EB-XF2021.jpg?height=300\\u0026s=ab\\u0026version=7\\u0026width=450"},'
                             '{"url":"https://assets.easybroker.com/property_images/1/3/EB-ZZ0000.jpg"}]}',
