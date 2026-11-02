@@ -514,7 +514,9 @@ Ver `docs/agents/domain.md`.
 ### Deploy
 - **Modo**: `docker` (variable `DEPLOY_MODE` en GitHub). `deploy.yml` se dispara con push a
   `produccion` y hace `git pull --ff-only` + `docker compose up -d --build` en
-  `/srv/officelab/vps`. Sin aprobación en GitHub: la aprobación es el "sí" al deploy.
+  `/srv/officelab/vps`. El environment `production` pide aprobar cada run en GitHub
+  (Required reviewers: `4k3sito`): el "sí" autoriza el push y esa revisión lo libera.
+  Hay que pasar la liga del run para aprobarlo.
 - **Destino**: VPS `31.220.56.100`, `/srv/officelab` (rama `produccion`).
 - **Rollback**: la imagen etiquetada `officelab-api:pre-<fecha>` (ver PENDIENTES.md) o
   `git checkout <sha>` en `/srv/officelab` + `docker compose up -d --build api`.
@@ -526,8 +528,10 @@ Dos aprobaciones por cambio, no seis:
 
 1. **Ship** — un solo "sí" cubre commit y push a `desarrollo`. El CI corre con ese push:
    si falla, se para y se avisa; si pasa, no se vuelve a preguntar.
-2. **Deploy** — un solo "sí" = `git push origin desarrollo:produccion`; despliega sin
-   más clics. Cambios sólo de docs/Notion no se despliegan: esperan al próximo deploy real.
+2. **Deploy** — un solo "sí" = `git push origin desarrollo:produccion`, más aprobar el run
+   en GitHub (Review deployments). `produccion` está protegida: sin force push ni borrado,
+   también para admins, y sin pedir PR. Cambios sólo de docs/Notion no se despliegan:
+   esperan al próximo deploy real.
 
 Siguen pidiendo confirmación aparte, siempre: `--force`/reescribir historia, migraciones
 o `schema.sql`, borrar datos o archivos, y tocar accesos del VPS (SSH, firewall, llaves).

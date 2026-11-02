@@ -276,8 +276,10 @@ fine-grained, sólo de `4k3sito/Broker-CRM`, con Contents y Pull requests en esc
 en lectura. Se pidió a 90 días, pero al verificarlo GitHub no devolvió fecha de caducidad
 (`github-authentication-token-expiration`): hay que confirmarla en la página del token. Al
 vencer hay que generar otro. Cualquier proceso como root puede leerlo, igual que `vps/.env`, y eso incluye al
-agente del VPS (H6). Con Contents en escritura puede empujar a `produccion`, que despliega; el
-flujo de `CLAUDE.md` lo prohíbe sin el «sí» de Deploy, pero el token por sí solo no lo impide.
+agente del VPS (H6). Con Contents en escritura puede empujar a `produccion`, pero el Deploy
+no corre hasta que `4k3sito` lo apruebe en el environment `production`; el push sí llega a la
+rama. Desde el 2026-11-02 `produccion` no admite force push ni borrado, tampoco a admins, y
+Dependabot avisa de vulnerabilidades (sólo alertas: sus arreglos automáticos abren PRs).
 Se lee del archivo y nunca va en la línea de comandos, en un log ni en un commit. Revocar: en
 GitHub, Settings → Developer settings → Fine-grained tokens, y borrar el archivo.
 
