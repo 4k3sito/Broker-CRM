@@ -4,11 +4,27 @@
 > Lo abierto de este archivo se pasó allá; esto queda como registro de lo desplegado y lo
 > medido. Lo nuevo que haya que hacer va a Notion, no aquí.
 
-Estado al **2026-11-01**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-11-02**. Es una foto, no la verdad: verifica antes de actuar.
 
 ## Corriendo ahora
 
 - *(nada)*
+
+## Filtros de Características y precios atípicos — **en producción desde el 2026-11-02** (`a5bcbe6`)
+
+- `anuncio_atributo` + chip Características por tipo. Primera carga: 257,413 filas, 1 min 31 s.
+- `anuncio_outlier` + `marcar_outliers()`: rentas de más de $10 M con más de $5,000/m² o título
+  de venta, ocultas de tablero, `/api/v1` y comparables hasta validarlas en
+  `duplicados.html?vista=outliers`. Tras la carga de Inmuebles24 quedan 179 por revisar (27 en
+  Nuevo León).
+- El mismo deploy lleva `bc2b3be` (Chrome al renovar el token), criterios y clientes «Finalizado».
+- El SQL se aplicó con `/srv/backups/aplicar-filtros-outliers-2026-11-02.sql`, no con el
+  `schema.sql` entero. Respaldo: el diario `officelab-2026-11-02.sql.gz`.
+- Primera carga con las correcciones de calidad: Inmuebles24, 87,664 filas y 46,398 bajas.
+- La vista nacional sin filtros pasó de ~3.7 a entre 5 y 8 s con la regla; Monterrey no cambia.
+
+Reversa: `officelab-api:pre-2026-11-02` y `git checkout f8ab112` en `/srv/officelab`. Las tablas
+pueden quedarse.
 
 ## Calidad de datos de scrapers — **en producción desde el 2026-10-31**
 
