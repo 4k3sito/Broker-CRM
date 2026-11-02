@@ -337,6 +337,10 @@ Todo con sesión; nada nuevo es público ni entra por `/api/v1`. Las decisiones 
 equipo**, igual que el CRM (§5): cualquier cuenta fusiona, separa o descarta, y lo que
 decide lo ven todos en el tablero.
 
+`GET /api/outliers` y `POST /api/outliers/decidir` (2026-11-02) siguen la misma regla: con
+sesión, nunca con llave, y la decisión es del equipo. `decidir` sólo escribe en
+`anuncio_outlier`, que guarda quién decidió. Lo marcado tampoco sale por `/api/v1`.
+
 | Endpoint | Qué hace | Lo que se cuidó |
 |---|---|---|
 | `GET /api/duplicados?id=` | Los anuncios de la propiedad de un anuncio y sus parecidos | Sólo lectura de `listings`. |

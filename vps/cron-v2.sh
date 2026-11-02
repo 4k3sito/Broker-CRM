@@ -145,6 +145,8 @@ if [ $rc = 0 ]; then
     $PY -m v2.duplicados huellas --min "$HUELLAS_MIN" --donde "l.province ILIKE 'nuevo le%'" \
         || echo "duplicados: fallaron las huellas"
     $PY -m v2.duplicados agrupar || echo "duplicados: no se pudo agrupar"
+    # Después del detalle: de ahí salen las amenidades y la descripción que dan los filtros.
+    $PY -m v2.db atributos "$f" || echo "atributos: no se pudieron recalcular"
 fi
 echo "=== $(date -Is) fin v2 $f modo=$modo scrape rc=$rs load rc=$rc"
 find logs -name '*.log' -mtime +30 -delete

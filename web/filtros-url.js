@@ -16,6 +16,8 @@ const FiltrosURL = (() => {
   // Texto libre y números, uno a uno. Los números se validan al leer.
   const TEXTO = ['q', 'calle', 'fuente', 'pcliente', 'asesor', 'near_txt'];
   const NUMEROS = ['precio_min', 'precio_max', 'm2_min', 'm2_max', 'ppm_min', 'ppm_max'];
+  // Características: un mínimo por dato, más `elevador`. Dependen del tipo elegido.
+  const CARAC = ['cajones_min', 'banos_min', 'altura_min', 'andenes_min', 'frente_min', 'elevador'];
   // Separador del lugar: "m40|Monterrey|Nuevo León". Los nombres de municipio no lo usan.
   const SEP = '|';
 
@@ -28,6 +30,7 @@ const FiltrosURL = (() => {
     for (const k of TEXTO) if (k !== 'near_txt') pon(k, e[k]);
     pon('operacion', e.operacion);
     for (const k of NUMEROS) pon(k, e[k]);
+    for (const k of CARAC) pon(k, e.carac?.[k]);
     if (e.m2_min || e.m2_max) pon('m2_de', e.m2_de);
     for (const l of e.lugares ?? []) p.append('lugar', [l.valor, l.nombre ?? '', l.estado ?? ''].join(SEP));
     for (const t of e.tipos ?? []) p.append('tipo', t);
@@ -52,6 +55,9 @@ const FiltrosURL = (() => {
     const r = {};
     for (const k of TEXTO) { const v = p.get(k)?.trim(); if (v) r[k] = v; }
     for (const k of NUMEROS) { const v = p.get(k)?.trim(); if (v && NUM.test(v)) r[k] = v; }
+    const carac = {};
+    for (const k of CARAC) { const v = p.get(k)?.trim(); if (v && NUM.test(v)) carac[k] = v; }
+    if (Object.keys(carac).length) r.carac = carac;
     const op = p.get('operacion');
     if (op === 'rent' || op === 'sale') r.operacion = op;
     const m2de = p.get('m2_de');

@@ -3,15 +3,29 @@
 // decide; la decisión es del equipo. Lo que ya se fusionó solo no pasa por aquí: se ve
 // en el tablero como una tarjeta y se corrige desde la ficha.
 //
+// La misma cola revisa los precios atípicos (`?vista=outliers`): rentas que no cuadran,
+// ocultas del tablero hasta que alguien diga que son reales (api/outliers.py).
+//
 // La página es una cola: cada par decidido sale de la lista, el siguiente sube a su
 // lugar y durante unos segundos se puede deshacer.
 
 const TIPOS = [['', 'Todos'], ['oficina', 'Oficinas'], ['local', 'Locales'], ['bodega', 'Bodegas'], ['terreno', 'Terrenos']];
 const SENALES = [['', 'Cualquier señal'], ['foto', 'Misma foto'], ['ubicacion', 'Misma ubicación']];
+const MOTIVOS = [['', 'Cualquier motivo'], ['precio_imposible', 'Precio imposible'], ['titulo_venta', 'El título dice venta']];
+const MOTIVO_TXT = { precio_imposible: 'Precio imposible para una renta', titulo_venta: 'El título dice venta y el portal, renta' };
+const VISTAS = {
+  pares: { pestana: 'Duplicados', titulo: 'Posibles duplicados', kpi: 'pares por revisar',
+           nota: 'Anuncios que se parecen pero no lo bastante para fusionarlos solos. Lo que decidas vale para todo el equipo: «Son el mismo» los deja en una sola tarjeta del tablero; «No son el mismo» quita el par de esta lista y no se vuelve a sugerir.' },
+  outliers: { pestana: 'Precios atípicos', titulo: 'Precios atípicos', kpi: 'anuncios por revisar',
+              nota: 'Rentas de más de $10 millones al mes que no cuadran. Están ocultas del tablero hasta que alguien las valide, y lo que decidas vale para todo el equipo: «Es real» las regresa al tablero; «Dato erróneo» las deja ocultas. Si el portal cambia el precio, vuelven a esta lista.' },
+};
+const AVISOS = { igual: 'Fusionados en una tarjeta', distinto: 'Marcados como distintos',
+                 real: 'Regresa al tablero', erroneo: 'Se queda oculto' };
 const POR_PAGINA = 20;
 const ESTADOS = [['Nuevo León', 'Nuevo León'], ['', 'Todo el país']];
 // Se abre en Nuevo León, que es donde trabaja el equipo.
-const F = { estado: 'Nuevo León', tipo: '', senal: '', page: 1 };
+const F = { vista: new URLSearchParams(location.search).get('vista') === 'outliers' ? 'outliers' : 'pares',
+            estado: 'Nuevo León', tipo: '', senal: '', motivo: '', page: 1 };
 // Cuánto tiempo se puede deshacer una decisión antes de que se mande.
 const ESPERA = 6000;
 // Tras decidir, los botones del par siguiente quedan bajo el cursor: lo que llegue antes
@@ -29,7 +43,13 @@ let ultimaDecision = -PAUSA;
 function pintarFiltros() {
   const pildoras = (lista, campo) => lista.map(([v, t]) =>
     `<button class="pill-line${F[campo] === v ? ' active' : ''}" data-campo="${campo}" data-valor="${v}" aria-pressed="${F[campo] === v}">${t}</button>`).join('');
-  document.getElementById('dpFiltros').innerHTML = [pildoras(ESTADOS, 'estado'), pildoras(TIPOS, 'tipo'), pildoras(SENALES, 'senal')].join('<span class="dp-sep"></span>');
+  const ultimo = F.vista === 'outliers' ? pildoras(MOTIVOS, 'motivo') : pildoras(SENALES, 'senal');
+  document.getElementById('dpFiltros').innerHTML = [pildoras(ESTADOS, 'estado'), pildoras(TIPOS, 'tipo'), ultimo].join('<span class="dp-sep"></span>');
+  const v = VISTAS[F.vista];
+  document.getElementById('dpVistas').innerHTML = pildoras(Object.entries(VISTAS).map(([k, x]) => [k, x.pestana]), 'vista');
+  document.getElementById('dpTitulo').textContent = v.titulo;
+  document.getElementById('dpKpi').textContent = v.kpi;
+  document.getElementById('dpNota').textContent = v.nota;
 }
 
 function pintarPaginas() {
@@ -74,14 +94,31 @@ const parHtml = s => `<article class="dp-par" data-a="${esc(s.a.id)}" data-b="${
     </div>
   </article>`;
 
-const pedir = () => API.get(`/duplicados/sugerencias${API.qs({ estado: F.estado, tipo: F.tipo, senal: F.senal, page: F.page, per_page: POR_PAGINA })}`);
+// Un outlier es un renglón y no un par: `b` vacío, para que la cola no distinga.
+const outlierHtml = s => `<article class="dp-par dp-uno" data-a="${esc(s.a.id)}" data-b="">
+    <div class="dp-par-head"><span class="dp-senal">${esc(MOTIVO_TXT[s.a.motivo] ?? s.a.motivo)}</span></div>
+    <div class="dp-lados">${Propiedad.fila(s.a)}</div>
+    <div class="dp-par-acc">
+      <button class="fx-btn solid" data-decide="real">Es real</button>
+      <button class="fx-btn" data-decide="erroneo">Dato erróneo</button>
+    </div>
+  </article>`;
+const itemHtml = s => F.vista === 'outliers' ? outlierHtml(s) : parHtml(s);
+
+async function pedir() {
+  const comun = { estado: F.estado, tipo: F.tipo, page: F.page, per_page: POR_PAGINA };
+  if (F.vista === 'pares') return API.get(`/duplicados/sugerencias${API.qs({ ...comun, senal: F.senal })}`);
+  const r = await API.get(`/outliers${API.qs({ ...comun, motivo: F.motivo })}`);
+  return { ...r, items: r.items.map(a => ({ a, b: { id: '' } })) };
+}
 
 // Lo que el servidor todavía no sabe: la decisión en espera y las que van en camino.
 const decididos = new Set();
 const nuevos = items => items.filter(s => !decididos.has(llave(s.a.id, s.b.id)));
 
 function vacio() {
-  lista.innerHTML = `<p class="pg-empty">${decididos.size ? 'Todo revisado. No quedan pares con estos filtros.' : 'No hay pares por revisar con estos filtros.'}</p>`;
+  const que = F.vista === 'outliers' ? 'anuncios' : 'pares';
+  lista.innerHTML = `<p class="pg-empty">${decididos.size ? `Todo revisado. No quedan ${que} con estos filtros.` : `No hay ${que} por revisar con estos filtros.`}</p>`;
 }
 
 async function cargar() {
@@ -94,7 +131,7 @@ async function cargar() {
   } catch (err) {
     if (turno !== vuelta) return;
     lista.classList.remove('cargando');
-    lista.innerHTML = `<p class="pg-empty">No se pudieron cargar las sugerencias.<br>${esc(err.message)}</p>`;
+    lista.innerHTML = `<p class="pg-empty">No se pudo cargar la lista.<br>${esc(err.message)}</p>`;
     return;
   }
   if (turno !== vuelta) return;
@@ -104,7 +141,7 @@ async function cargar() {
   pintarPaginas();
   const pares = nuevos(r.items);
   if (!pares.length) return vacio();
-  lista.innerHTML = pares.map(parHtml).join('');
+  lista.innerHTML = pares.map(itemHtml).join('');
   lista.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms(160) });
 }
 
@@ -125,7 +162,7 @@ async function rellenar() {
     const pares = nuevos(r.items).filter(s => !hay.has(llave(s.a.id, s.b.id)));
     if (pares.length) {
       lista.querySelector('.pg-empty')?.remove();
-      lista.insertAdjacentHTML('beforeend', pares.map(parHtml).join(''));
+      lista.insertAdjacentHTML('beforeend', pares.map(itemHtml).join(''));
       [...lista.children].slice(-pares.length).forEach(par => par.animate(
         [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
         { duration: ms(240), easing: 'cubic-bezier(.2,0,0,1)' }));
@@ -150,7 +187,7 @@ function retirar(par, tipo) {
   const opciones = { duration: ms(340), easing: 'cubic-bezier(.4,0,.2,1)', fill: 'both' };
   par.inert = true;
   par.classList.add('saliendo');
-  const paso = tipo === 'igual' ? 28 : -28;
+  const paso = tipo === 'igual' || tipo === 'real' ? 28 : -28;
   const lados = [...par.querySelectorAll('.dp-fila')].map((fila, i) => fila.animate(
     [{ transform: 'none' }, { transform: `translateX(${i ? -paso : paso}px)`, offset: .45 }, { transform: `translateX(${i ? -paso : paso}px)` }], opciones));
   const hueco = par.animate([{ ...lleno, opacity: 1 }, { ...lleno, opacity: 0, offset: .45 }, { ...nada, opacity: 0 }], opciones);
@@ -198,8 +235,9 @@ function ocultarAviso() {
   aviso.hidden = true;
 }
 
-const enviar = ({ tipo, a, b }, opciones) => tipo === 'igual'
-  ? Propiedad.fusionar([a, b], opciones) : Propiedad.descartar(a, b, opciones);
+const enviar = ({ tipo, a, b }, opciones) => tipo === 'igual' ? Propiedad.fusionar([a, b], opciones)
+  : tipo === 'distinto' ? Propiedad.descartar(a, b, opciones)
+  : API.post('/outliers/decidir', { id: a, decision: tipo }, opciones);
 
 function confirmar() {
   const p = pendiente;
@@ -225,13 +263,20 @@ function deshacer() {
   devolver(p);
 }
 
-document.getElementById('dpFiltros').addEventListener('click', e => {
+function cambiarFiltro(e) {
   const b = e.target.closest('[data-campo]');
   if (!b) return;
   F[b.dataset.campo] = b.dataset.valor;
   F.page = 1;
   pintarFiltros();
   cargar();
+}
+
+document.getElementById('dpFiltros').addEventListener('click', cambiarFiltro);
+document.getElementById('dpVistas').addEventListener('click', e => {
+  if (!e.target.closest('[data-campo]')) return;
+  cambiarFiltro(e);
+  history.replaceState(null, '', F.vista === 'outliers' ? '?vista=outliers' : location.pathname);
 });
 
 document.getElementById('dpPaginas').addEventListener('click', e => {
@@ -255,7 +300,7 @@ lista.addEventListener('click', e => {
   retirar(par, tipo);
   (antes ?? par.previousElementSibling)?.querySelector('[data-decide]')?.focus({ preventScroll: true });
   ponerTotal(Math.max(0, total - 1));
-  mostrarAviso(tipo === 'igual' ? 'Fusionados en una tarjeta' : 'Marcados como distintos');
+  mostrarAviso(AVISOS[tipo]);
   rellenar();
 });
 

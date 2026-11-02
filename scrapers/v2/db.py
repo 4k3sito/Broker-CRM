@@ -22,6 +22,7 @@ this was tested before ever touching the real inventory.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -173,7 +174,8 @@ POST = (("limpiar_precios", "precios a null"), ("superficie_comercial", "superfi
         ("inferir_precio_m2", "precio por m2"), ("marcar_pilas", "pilas de coordenadas"),
         ("geocodificar_colonias", "geo por colonia"), ("sembrar_eb_id", "ids de easybroker"),
         ("copiar_detalle_gemelos", "detalle de gemelos"), ("heredar_de_hermanos", "de hermanos"),
-        ("asignar_zonas", "zonas asignadas"), ("sincronizar_historial", "historial"))
+        ("asignar_zonas", "zonas asignadas"), ("marcar_outliers", "outliers por revisar"),
+        ("sincronizar_historial", "historial"))
 
 
 # A nationwide sweep is the liveness check (decided 2026-10-10; it replaced the
@@ -267,6 +269,54 @@ def load_sweep(conn: psycopg.Connection, source: str, path: Path, bajas: bool = 
             if cur.execute("SELECT to_regproc(%s)", (fn,)).fetchone()[0]:
                 print(f"{label:22} {cur.execute(f'SELECT {fn}()').fetchone()[0]:>7,}")
         cur.execute("SET session_replication_role = origin")
+    conn.commit()
+    return n
+
+
+# --------------------------------------------------------------------------- #
+# what the board's filters ask: parking, bathrooms, height, docks, frontage, elevator
+# --------------------------------------------------------------------------- #
+ATRIBUTOS = ("cajones", "banos", "altura", "andenes", "frente", "elevador")
+
+
+def _extractor():
+    """api/atributos.py is pure and the API owns it; there is no package to import it from."""
+    ruta = Path(__file__).resolve().parents[2] / "api" / "atributos.py"
+    spec = importlib.util.spec_from_file_location("atributos", ruta)
+    modulo = importlib.util.module_from_spec(spec)
+    sys.modules["atributos"] = modulo
+    spec.loader.exec_module(modulo)
+    return modulo
+
+
+def fila_atributos(de, tipo: str, features: list[str] | None, descripcion: str | None) -> tuple | None:
+    """The columns of `anuncio_atributo`, or None when the listing says nothing. A listing
+    that mentions a thing without counting it (`valor` True) stores 1: it does have one."""
+    valores = {a["clave"]: a["valor"] for a in de(tipo, features, descripcion)}
+    if not valores:
+        return None
+    return tuple(valores.get(k) if k == "elevador" else
+                 (1 if valores.get(k) is True else valores.get(k)) for k in ATRIBUTOS)
+
+
+def cargar_atributos(conn: psycopg.Connection, source: str | None = None) -> int:
+    """Rebuilds `anuncio_atributo` for one portal (all of them with None) in one transaction,
+    so a search during the run sees the old rows and not a hole."""
+    de = _extractor().de
+    fuentes = [source] if source else [r[0] for r in conn.execute("SELECT DISTINCT source FROM listings")]
+    n = 0
+    with conn.cursor() as cur:
+        for s in fuentes:
+            filas = conn.execute(
+                """SELECT listing_id, tipo, features, description FROM listings
+                   WHERE source = %s AND activo IS NOT FALSE
+                     AND tipo IN ('local', 'bodega', 'oficina', 'terreno')""", (s,)).fetchall()
+            cur.execute("DELETE FROM anuncio_atributo WHERE source = %s", (s,))
+            with cur.copy(f"COPY anuncio_atributo (source, listing_id, {', '.join(ATRIBUTOS)}) FROM STDIN") as cp:
+                for lid, tipo, features, descripcion in filas:
+                    if (fila := fila_atributos(de, tipo, features, descripcion)):
+                        cp.write_row((s, lid, *fila))
+                        n += 1
     conn.commit()
     return n
 
@@ -440,6 +490,14 @@ def report(conn: psycopg.Connection) -> None:
 
 def selfcheck() -> None:
     assert "{" not in UPSERT, "unformatted placeholder left in UPSERT"
+    de = _extractor().de
+    assert fila_atributos(de, "bodega", ["estacionamientos: 4"], "2 andenes y altura libre de 10 metros") \
+        == (4, None, 10.0, 2, None, None)
+    assert fila_atributos(de, "bodega", None, "con anden de carga")[3] == 1, "a mention counts as one"
+    assert fila_atributos(de, "oficina", ["elevador"], "")[5] is True
+    assert fila_atributos(de, "terreno", None, "bonito") is None
+    assert [n for n, _ in POST].index("marcar_outliers") > [n for n, _ in POST].index("heredar_de_hermanos"), \
+        "outliers are judged on corrected prices"
     d = {"listingId": 7, "url": "u", "title": "Caf&eacute;", "city": "Le&oacute;n",
          "coordinates": {"lat": 25.6, "lng": -100.3}, "coordsExact": False,
          "images": ["a", "", "b"], "amenities": ["80 m&sup2;"], "imagesTotal": 9,
@@ -514,6 +572,8 @@ def main() -> int:
     de.add_argument("source")
     qu = sub.add_parser("queue", help="how many listings still wait for their detail page")
     qu.add_argument("source")
+    at = sub.add_parser("atributos", help="rebuild what the board's filters ask (all portals without a source)")
+    at.add_argument("source", nargs="?")
     a = ap.parse_args()
     if a.cmd == "selfcheck":
         selfcheck()
@@ -531,6 +591,8 @@ def main() -> int:
             tag = a.source if a.mode == "full" else f"{a.source}.{a.mode}"
             # Only a full sweep says anything about what it did not return.
             load_sweep(conn, a.source, DATA / f"{tag}.jsonl", bajas=a.mode == "full")
+        elif a.cmd == "atributos":
+            print(f"{'atributos':22} {cargar_atributos(conn, a.source):>7,}")
         elif a.cmd == "detail":
             path = DATA / f"{a.source}.detail.jsonl"
             load_detail(conn, a.source, path)

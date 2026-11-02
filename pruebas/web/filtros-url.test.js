@@ -25,6 +25,12 @@ test('el uso de los terrenos viaja en la URL y se valida', () => {
   assert.deepEqual(plano(FiltrosURL.leer('uso=agricola&uso=industrial', VAL)), { usos: ['industrial'] });
 });
 
+test('las características viajan en la URL y se validan', () => {
+  const e = { ...vacio, tipos: ['bodega'], carac: { altura_min: 8, andenes_min: 2 } };
+  assert.deepEqual(plano(FiltrosURL.leer(FiltrosURL.escribir(e), VAL)), { tipos: ['bodega'], carac: { altura_min: '8', andenes_min: '2' } });
+  assert.deepEqual(plano(FiltrosURL.leer('cajones_min=mucho&elevador=1', VAL)), { carac: { elevador: '1' } });
+});
+
 test('un tablero sin filtros deja la URL limpia', () => {
   assert.equal(FiltrosURL.escribir(vacio), '');
 });

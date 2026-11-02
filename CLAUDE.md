@@ -331,6 +331,13 @@ el mismo **inmueble**. Sólo trae los anuncios que comparten propiedad: sin fila
 es su propia propiedad. La rehace entera `scrapers/v2/duplicados.py agrupar` después de cada
 carga (lo llama `vps/cron-v2.sh`), y `api/duplicados.py` la retoca cuando un asesor decide.
 
+**Outliers** (2026-11-02): `marcar_outliers()` llena `anuncio_outlier` tras cada carga con las
+rentas de más de $10 M al mes que además pasan de $5,000/m² o cuyo título dice venta. Lo
+marcado no sale en el tablero, `/api/v1` ni los comparables hasta que alguien decida «Es real»
+en `duplicados.html?vista=outliers` (`api/outliers.py`). La decisión vale para ese total.
+**Filtros de Características**: `anuncio_atributo`, que rehace `python -m v2.db atributos
+<fuente>` al final de cada corrida con lo que saca `api/atributos.py`.
+
 - **Se fusiona solo** por: mismo `eb_id` · gemelo Navent · mismo anunciante con mismo tipo,
   operación, m² y precio · mismo texto con mismos m² y precio · **una foto en común** con
   mismos m² (±1%) y precio a ±25%. La foto se compara por huella perceptual (`foto_huella`,

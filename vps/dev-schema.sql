@@ -29,7 +29,8 @@ DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['usuario','sesion','reset_token','user_listing','cliente',
-                           'ficha','proceso','ficha_documento','tarea','tarea_comentario'] LOOP
+                           'ficha','proceso','ficha_documento','tarea','tarea_comentario',
+                           'anuncio_outlier'] LOOP
     EXECUTE format('CREATE TABLE dev.%I (LIKE public.%I INCLUDING ALL)', t, t);
   END LOOP;
 END $$;

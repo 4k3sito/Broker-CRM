@@ -42,6 +42,7 @@ const F = {
   lugares: [],     // [{ valor:'m40', nombre:'Monterrey', estado:'Nuevo León' }]
   tipos: [],       // ['local','bodega']
   usos: [],        // uso de los terrenos: ['comercial','industrial'] o 'sin' (ver USOS_TERRENO en la API)
+  carac: {},       // características: { altura_min: 8, elevador: 1 } (ver CARACS)
 };
 
 // Los cuatro tipos que ofrece el filtro. `oficina` se queda con cero anuncios por
@@ -117,6 +118,7 @@ const paramsBase = () => ({
   q: searchStreet || F.q,
   lugar: F.lugares.map(l => l.valor), tipo: F.tipos,
   uso: F.tipos.includes('terreno') ? F.usos : [],
+  ...caracPuesta(),
   operacion: F.operacion, fuente: F.fuente,
   precio_min: F.precio_min, precio_max: F.precio_max,
   m2_min: F.m2_min, m2_max: F.m2_max, m2_de: (F.m2_min || F.m2_max) ? F.m2_de : '',
@@ -506,7 +508,7 @@ function sincronizarURL() {
     precio_min: F.precio_min, precio_max: F.precio_max,
     m2_min: F.m2_min, m2_max: F.m2_max, m2_de: F.m2_de, ppm_min: F.ppm_min, ppm_max: F.ppm_max,
     near: sigue ? '' : F.near, near_txt: F.nearTxt, radio: F.radio, mapa: sigue ? Mapa.vista() : null,
-    orden: F.orden, lugares: F.lugares, tipos: F.tipos, usos: F.usos,
+    orden: F.orden, lugares: F.lugares, tipos: F.tipos, usos: F.usos, carac: caracPuesta(),
     pcliente: INMO ? F.pcliente : '', asesor: INMO ? F.asesor : '', etapas: INMO ? F.etapas : [],
     estado: filterStatus, destacados: filterStarred, pagina: page,
   });
@@ -546,6 +548,7 @@ function aplicarURL() {
   if (u.lugares) F.lugares = u.lugares;
   if (u.tipos) F.tipos = u.tipos;
   if (u.usos) F.usos = u.usos;
+  if (u.carac) F.carac = u.carac;
   if (INMO) {
     if (u.pcliente) F.pcliente = u.pcliente;
     if (u.asesor) F.asesor = u.asesor;
@@ -567,7 +570,7 @@ function aplicarURL() {
 
 function limpiarTodo() {
   Object.values(CAMPOS).forEach(c => c.clear());
-  F.lugares = []; F.tipos = []; F.usos = []; F.operacion = ''; F.precio_min = ''; F.precio_max = '';
+  F.lugares = []; F.tipos = []; F.usos = []; F.carac = {}; F.operacion = ''; F.precio_min = ''; F.precio_max = '';
   F.pcliente = ''; F.etapas = []; F.asesor = '';
   fbCerrar();
   clearTimeout(busquedaEspera);
@@ -622,9 +625,9 @@ function exportCSV() {
 // popover descartan el borrador; la ✕ del chip sí limpia de inmediato, porque quitar
 // un filtro no necesita confirmarse.
 
-const FB_CLAVES = ['ubicacion', 'precio', 'tipo', ...(INMO ? ['cliente', 'asesor', 'etapa'] : [])];
+const FB_CLAVES = ['ubicacion', 'precio', 'tipo', 'carac', ...(INMO ? ['cliente', 'asesor', 'etapa'] : [])];
 if (INMO) document.querySelectorAll('.fb-chip[data-f="cliente"], .fb-chip[data-f="asesor"], .fb-chip[data-f="etapa"]').forEach(c => { c.hidden = false; });
-const FB_TITULO = { ubicacion: 'Ubicación', precio: 'Precio', tipo: 'Tipo de inmueble',
+const FB_TITULO = { ubicacion: 'Ubicación', precio: 'Precio', tipo: 'Tipo de inmueble', carac: 'Características',
                     cliente: 'Presentada a', asesor: 'La presentó', etapa: 'Etapa del proceso' };
 const cap = s => String(s ?? '').charAt(0).toUpperCase() + String(s ?? '').slice(1);
 
@@ -660,6 +663,11 @@ const fbResumen = {
     : F.tipos.length === 1 ? cap(F.tipos[0]) + (F.tipos[0] === 'terreno' && F.usos.length
       ? ' ' + F.usos.map(u => USOS[u].toLowerCase()).join(' o ') : '')
     : `${F.tipos.length} tipos`,
+  carac: () => {
+    const f = caracDe().filter(([k]) => F.carac[k]).map(([k, nombre, ops]) =>
+      `${nombre} ${ops.find(([v]) => String(v) === String(F.carac[k]))?.[1] ?? F.carac[k]}`);
+    return !f.length ? 'Todas' : f.length === 1 ? f[0] : `${f[0]} +${f.length - 1}`;
+  },
   cliente: () => F.pcliente === 'sin' ? 'Sin cliente' : F.pcliente ? (clientesCache?.find(c => String(c.id) === F.pcliente)?.nombre ?? '1 cliente') : 'Todos',
   asesor: () => F.asesor ? (equipoCache?.find(u => String(u.id) === F.asesor)?.nombre ?? '1 asesor') : 'Todos',
   etapa: () => !F.etapas.length ? 'Todas'
@@ -670,6 +678,7 @@ const fbPuesto = {
   ubicacion: () => F.lugares.length > 0 || !!F.near,
   precio: () => !!(F.operacion || F.precio_min || F.precio_max),
   tipo: () => F.tipos.length > 0,
+  carac: () => Object.keys(caracPuesta()).length > 0,
   cliente: () => !!F.pcliente,
   asesor: () => !!F.asesor,
   etapa: () => F.etapas.length > 0,
@@ -682,6 +691,7 @@ function renderFB() {
     chip.classList.toggle('on', fbPuesto[k]());
     chip.querySelector('.fb-x').hidden = !fbPuesto[k]();
   }
+  document.querySelector('.fb-chip[data-f="carac"]').hidden = !caracDe().length;
 }
 
 function fbCerrar() {
@@ -697,7 +707,7 @@ function fbAbrir(k) {
   fbAbierto = k;
   // Copia, no referencia: `lugares` y `tipos` se editan dentro del popover y tienen
   // que poder tirarse enteros al cancelar.
-  fbDraft = { lugares: F.lugares.slice(), tipos: F.tipos.slice(), usos: F.usos.slice(),
+  fbDraft = { lugares: F.lugares.slice(), tipos: F.tipos.slice(), usos: F.usos.slice(), carac: { ...F.carac },
               operacion: F.operacion, min: F.precio_min, max: F.precio_max, sug: [],
               pcliente: F.pcliente, etapas: F.etapas.slice(), asesor: F.asesor };
   const pop = document.getElementById('fbPop');
@@ -710,7 +720,7 @@ function fbAbrir(k) {
 }
 
 function fbPintarPop() {
-  const cuerpo = { ubicacion: fbCuerpoUbicacion, precio: fbCuerpoPrecio, tipo: fbCuerpoTipo,
+  const cuerpo = { ubicacion: fbCuerpoUbicacion, precio: fbCuerpoPrecio, tipo: fbCuerpoTipo, carac: fbCuerpoCarac,
                    cliente: fbCuerpoCliente, asesor: fbCuerpoAsesor, etapa: fbCuerpoEtapa }[fbAbierto]();
   document.getElementById('fbPop').innerHTML = `
     <div class="fb-head">
@@ -784,6 +794,30 @@ function fbCuerpoPrecio() {
 // Uso de un terreno: lo deduce la API del título o del tipo del portal, así que no
 // todos lo tienen («Sin clasificar»). Sólo se ofrece con Terreno marcado.
 const USOS = { habitacional: 'Habitacional', comercial: 'Comercial', industrial: 'Industrial', sin: 'Sin clasificar' };
+// Lo que importa de cada tipo, con los mismos datos que enseña su tarjeta (POR_TIPO en
+// api/atributos.py). Sale de `anuncio_atributo`: el portal o la descripción.
+const CAJONES = ['cajones_min', 'Cajones', [[2, '2+'], [5, '5+'], [10, '10+']]];
+const CARACS = {
+  bodega: [['altura_min', 'Altura', [[6, '6 m+'], [8, '8 m+'], [10, '10 m+'], [12, '12 m+']]],
+           ['andenes_min', 'Andenes', [[1, 'Con andén'], [2, '2+'], [4, '4+']]], CAJONES],
+  local: [CAJONES, ['banos_min', 'Baños', [[1, '1+'], [2, '2+'], [3, '3+']]],
+          ['frente_min', 'Frente', [[10, '10 m+'], [20, '20 m+']]]],
+  oficina: [CAJONES, ['banos_min', 'Baños', [[2, '2+'], [3, '3+']]], ['elevador', 'Elevador', [[1, 'Sí']]]],
+  terreno: [['frente_min', 'Frente', [[10, '10 m+'], [20, '20 m+'], [30, '30 m+']]]],
+};
+const caracDe = () => F.tipos.length === 1 ? CARACS[F.tipos[0]] ?? [] : [];
+// Sólo lo que aplica al tipo elegido: al cambiar de tipo, lo del anterior deja de contar.
+const caracPuesta = () => Object.fromEntries(caracDe().filter(([k]) => F.carac[k]).map(([k]) => [k, F.carac[k]]));
+
+function fbCuerpoCarac() {
+  return caracDe().map(([k, nombre, ops]) => `
+    <div class="fb-fila"><span class="fb-fila-k">${nombre}</span><div class="fb-fila-ops">` + ops.map(([v, t]) => {
+      const on = String(fbDraft.carac[k] ?? '') === String(v);
+      return `<button type="button" class="pill-line${on ? ' active' : ''}" data-carac="${k}" data-valor="${v}" aria-pressed="${on}">${t}</button>`;
+    }).join('') + `</div></div>`).join('') + `
+    <p class="fb-nota">Sale de lo que publica el portal y de la descripción. Un anuncio que no dice el dato queda fuera.</p>`;
+}
+
 function fbCuerpoTipo() {
   const cajas = '<div class="fb-cajas">' + TIPOS_COM.map(v => `
     <label class="fb-caja">
@@ -840,6 +874,7 @@ function fbLimpiarBorrador() {
   if (fbAbierto === 'etapa') fbDraft.etapas = [];
   if (fbAbierto === 'ubicacion') { fbDraft.lugares = []; fbDraft.sug = []; }
   if (fbAbierto === 'tipo') { fbDraft.tipos = []; fbDraft.usos = []; }
+  if (fbAbierto === 'carac') fbDraft.carac = {};
   if (fbAbierto === 'precio') { fbDraft.operacion = ''; fbDraft.min = ''; fbDraft.max = ''; }
   fbPintarPop();
 }
@@ -860,6 +895,7 @@ function fbAplicar() {
   }
   if (fbAbierto === 'ubicacion') F.lugares = fbDraft.lugares.slice(0, MAX_LUGARES);
   if (fbAbierto === 'tipo') { F.tipos = fbDraft.tipos.slice(); F.usos = F.tipos.includes('terreno') ? fbDraft.usos.slice() : []; }
+  if (fbAbierto === 'carac') F.carac = { ...fbDraft.carac };
   if (fbAbierto === 'precio') {
     let min = fbNum(fbDraft.min), max = fbNum(fbDraft.max);
     // Un mínimo mayor que el máximo no devuelve nada nunca. Voltearlos es lo que
@@ -874,7 +910,8 @@ function fbQuitar(k) {
   // Con lugares elegidos la ✕ quita los lugares; sin ellos, lo que el chip dice es el
   // filtro de cercanía, y es eso lo que quita.
   if (k === 'ubicacion') { if (F.lugares.length) F.lugares = []; else { F.near = ''; F.nearTxt = ''; } }
-  if (k === 'tipo') { F.tipos = []; F.usos = []; }
+  if (k === 'tipo') { F.tipos = []; F.usos = []; F.carac = {}; }
+  if (k === 'carac') F.carac = {};
   if (k === 'cliente') F.pcliente = '';
   if (k === 'etapa') F.etapas = [];
   if (k === 'asesor') F.asesor = '';
@@ -896,6 +933,13 @@ document.getElementById('fbPop').addEventListener('click', e => {
   if (acc === 'limpia') return fbLimpiarBorrador();
   if (acc === 'aplica') return fbAplicar();
 
+  const car = e.target.closest('[data-carac]');
+  if (car) {
+    // Tocar la opción activa la quita, como la operación.
+    const { carac: k, valor } = car.dataset;
+    if (fbDraft.carac[k] === valor) delete fbDraft.carac[k]; else fbDraft.carac[k] = valor;
+    return fbPintarPop();
+  }
   const add = e.target.closest('.fb-sug');
   if (add) {
     const s = fbDraft.sug.find(x => x.valor === add.dataset.add);
@@ -1383,7 +1427,7 @@ async function aplicarCliente(id) {
   F.m2_de = ['terreno', 'construccion'].includes(cr.m2_de) ? cr.m2_de : '';
 }
 function quitarCriterios() {
-  F.cliente = null; F.tipos = []; F.usos = []; F.operacion = ''; F.lugares = [];
+  F.cliente = null; F.tipos = []; F.usos = []; F.carac = {}; F.operacion = ''; F.lugares = [];
   for (const k of ['m2_min', 'm2_max', 'm2_de', 'ppm_min', 'ppm_max', 'precio_min', 'precio_max']) F[k] = '';
   history.replaceState(null, '', location.pathname);
 }

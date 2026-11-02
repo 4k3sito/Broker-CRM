@@ -156,6 +156,15 @@ USOS_TERRENO = {
 }
 _TEXTO_USO = "lower(coalesce(l.title, '') || ' ' || coalesce(l.property_type, ''))"
 
+# Características: un mínimo por columna de `anuncio_atributo`. Un anuncio que no dice el
+# dato queda fuera, igual que con `m2_min`: no se adivina.
+ATRIBUTOS_MIN = {"cajones_min": "cajones", "banos_min": "banos", "altura_min": "altura",
+                 "andenes_min": "andenes", "frente_min": "frente"}
+
+# Lo que marcó `marcar_outliers()` y nadie ha comprobado, o se comprobó que está mal.
+OUTLIER = ("EXISTS (SELECT 1 FROM anuncio_outlier o WHERE o.source = l.source "
+           "AND o.listing_id = l.listing_id AND o.decision IS DISTINCT FROM 'real')")
+
 
 # ── Bolsa Inmobiliaria / Inmobiliaria ────────────────────────────────────────
 # El tablero tiene dos pestañas con la misma rejilla: `ficha=sin` (Bolsa: anuncios que
@@ -284,6 +293,16 @@ def _filtros(a: dict) -> tuple[list[str], list]:
             conds.append(f"{_TEXTO_USO} {'!~' if u == 'sin' else '~'} %s")
             p.append("|".join(USOS_TERRENO.values()) if u == "sin" else USOS_TERRENO[u])
         w.append(f"(l.tipo IS DISTINCT FROM 'terreno' OR {' OR '.join(conds)})")
+    conds = []
+    for filtro, columna in ATRIBUTOS_MIN.items():
+        if a.get(filtro) is not None:
+            conds.append(f"aa.{columna} >= %s")
+            p.append(a[filtro])
+    if a.get("elevador"):
+        conds.append("aa.elevador")
+    if conds:
+        w.append("EXISTS (SELECT 1 FROM anuncio_atributo aa WHERE aa.source = l.source "
+                 f"AND aa.listing_id = l.listing_id AND {' AND '.join(conds)})")
     if a.get("fuente"):
         w.append("l.source = ANY(%s)")
         p.append(a["fuente"])
@@ -412,6 +431,7 @@ def _consulta(quien, filtros: dict) -> tuple[str, list]:
         w, p = _filtros({k: v for k, v in filtros.items() if k in V1_FILTROS})
         if not filtros.get("inactivos"):
             w.append("l.activo IS NOT FALSE")
+            w.append(f"NOT {OUTLIER}")
         if filtros.get("desde") is not None:
             w.append("l.observed_at >= %s")
             p.append(filtros["desde"])
@@ -422,9 +442,12 @@ def _consulta(quien, filtros: dict) -> tuple[str, list]:
     # estado es del asesor, no del portal: su "Rentado" no desaparece porque el portal
     # retiró el anuncio—. Y el Catálogo no esconde nada: ahí el equipo ya lo trabaja.
     # `uno()` tampoco filtra: una liga guardada lo sigue abriendo.
+    # Lo mismo vale para un outlier: se esconde hasta que el equipo lo valide, salvo lo
+    # que alguien ya trabaja. Se revisa en duplicados.html (outliers.py).
     if filtros.get("ficha") != "con":
-        w.append("(l.activo IS NOT FALSE OR ul.starred IS TRUE OR ul.status <> 'new' "
-                 "OR nullif(ul.notes, '') IS NOT NULL)")
+        sigue = "ul.starred IS TRUE OR ul.status <> 'new' OR nullif(ul.notes, '') IS NOT NULL"
+        w.append(f"(l.activo IS NOT FALSE OR {sigue})")
+        w.append(f"(NOT {OUTLIER} OR {sigue})")
     where = ("WHERE " + " AND ".join(w)) if w else ""
     # El LEFT JOIN de user_listing va parametrizado por usuario: el estado es privado.
     return (f"""FROM {_origen(filtros.get("ficha"))}

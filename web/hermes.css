@@ -287,6 +287,11 @@ a:hover { color:var(--ink); }
 
 /* Tipo */
 .fb-cajas { display:grid; grid-template-columns:1fr 1fr; gap:2px 12px; }
+.fb-fila { display:flex; align-items:center; gap:12px; padding:7px 0; }
+.fb-fila + .fb-fila { border-top:1px solid var(--border); }
+.fb-fila-k { flex:0 0 68px; font-size:13px; font-weight:600; }
+.fb-fila-ops { display:flex; flex-wrap:wrap; gap:6px; }
+.fb-fila + .fb-nota { margin-top:8px; }
 .fb-caja { display:flex; align-items:center; gap:9px; min-height:36px; font-size:13.5px; cursor:pointer; }
 .fb-caja input { width:17px; height:17px; accent-color:var(--accent); cursor:pointer; }
 
@@ -2816,6 +2821,7 @@ textarea.base-in { resize:vertical; }
   grid-template-columns:136px minmax(0,1fr); grid-template-rows:1fr auto; gap:6px 14px;
   align-items:start; padding:14px 16px; border-top:0;
 }
+.dp-uno .dp-lados { grid-template-columns:minmax(0,1fr); }
 .dp-par .dp-fila + .dp-fila { border-left:1px solid var(--border); }
 .dp-par .dp-foto { grid-row:1 / -1; width:136px; height:102px; }
 .dp-par .dp-precio b { font-size:22px; }

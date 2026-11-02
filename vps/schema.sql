@@ -1165,3 +1165,76 @@ CREATE TABLE IF NOT EXISTS foto_huella_hecho (
   PRIMARY KEY (source, listing_id)
 );
 -- <<< duplicados
+
+-- >>> filtros y outliers (2026-11-02)
+-- Lo que los filtros de Características preguntan: cajones, baños, altura, andenes, frente
+-- y elevador. Viene de `features` y de la descripción (api/atributos.py) y una expresión
+-- regular por fila no se puede evaluar al filtrar. Tabla aparte para no reescribir
+-- `listings` ni disparar su historial. La rehace `python -m v2.db atributos <fuente>`
+-- tras cada corrida. Un anuncio que menciona el dato sin decir cuántos guarda 1.
+CREATE TABLE IF NOT EXISTS anuncio_atributo (
+  source     text NOT NULL,
+  listing_id text NOT NULL,
+  cajones    integer,
+  banos      numeric,
+  altura     numeric,
+  andenes    integer,
+  frente     numeric,
+  elevador   boolean,
+  PRIMARY KEY (source, listing_id)
+);
+
+-- Rentas que no cuadran: ocultas del tablero hasta que alguien del equipo diga que son
+-- reales. `marcar_outliers()` la mantiene tras cada carga; `decision` es lo único que no
+-- se puede recalcular y vale para ESE total: si el precio cambia, se vuelve a preguntar.
+--   decision NULL     por revisar, oculto
+--            real     se comprobó, vuelve al tablero
+--            erroneo  el dato está mal, sigue oculto
+CREATE TABLE IF NOT EXISTS anuncio_outlier (
+  source       text NOT NULL,
+  listing_id   text NOT NULL,
+  motivo       text NOT NULL CHECK (motivo IN ('precio_imposible', 'titulo_venta')),
+  total        numeric NOT NULL,
+  marcado_at   timestamptz NOT NULL DEFAULT now(),
+  decision     text CHECK (decision IN ('real', 'erroneo')),
+  decidido_por uuid REFERENCES usuario (id) ON DELETE SET NULL,
+  decidido_at  timestamptz,
+  PRIMARY KEY (source, listing_id)
+);
+CREATE INDEX IF NOT EXISTS anuncio_outlier_cola_idx ON anuncio_outlier (total DESC) WHERE decision IS NULL;
+
+-- Medido el 2026-11-02: 811 rentas activas pasan de $10 M al mes. Unas 370 son un total
+-- leído como $/m² y las corrige inferir_precio_m2(); unas 110 son naves enormes con un
+-- $/m² normal ($128 × 225,492 m²), y por eso el total solo no basta: hace falta además
+-- más de $5,000/m² al mes (el percentil 90 de las comerciales es $688), o que el título
+-- diga venta sin decir renta. Corre al final, sobre los precios y superficies ya corregidos.
+CREATE OR REPLACE FUNCTION marcar_outliers() RETURNS bigint AS $$
+  WITH rentas AS (
+    SELECT source, listing_id, area_m2,
+           CASE WHEN price_is_per_m2 AND area_m2 > 0 THEN price * area_m2 ELSE price END AS total,
+           lower(coalesce(title, '')) AS titulo
+    FROM listings
+    WHERE operation = 'rent' AND activo IS NOT FALSE AND price > 0),
+  hoy AS (
+    SELECT source, listing_id, total,
+           CASE WHEN titulo ~ '\m(venta|vendo|vende)\M' AND titulo !~ '\m(renta|arrend\w*)\M'
+                THEN 'titulo_venta' ELSE 'precio_imposible' END AS motivo
+    FROM rentas
+    WHERE total > 10000000
+      AND (coalesce(total / nullif(area_m2, 0), 'infinity') > 5000
+           OR (titulo ~ '\m(venta|vendo|vende)\M' AND titulo !~ '\m(renta|arrend\w*)\M'))),
+  fuera AS (
+    DELETE FROM anuncio_outlier o
+    WHERE NOT EXISTS (SELECT 1 FROM hoy h WHERE h.source = o.source AND h.listing_id = o.listing_id)),
+  u AS (
+    INSERT INTO anuncio_outlier AS o (source, listing_id, motivo, total)
+    SELECT source, listing_id, motivo, total FROM hoy
+    ON CONFLICT (source, listing_id) DO UPDATE SET
+      motivo = EXCLUDED.motivo, total = EXCLUDED.total,
+      decision     = CASE WHEN o.total = EXCLUDED.total THEN o.decision END,
+      decidido_por = CASE WHEN o.total = EXCLUDED.total THEN o.decidido_por END,
+      decidido_at  = CASE WHEN o.total = EXCLUDED.total THEN o.decidido_at END
+    RETURNING decision)
+  SELECT count(*) FROM u WHERE decision IS NULL;
+$$ LANGUAGE sql;
+-- <<< filtros y outliers

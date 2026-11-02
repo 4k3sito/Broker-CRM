@@ -19,7 +19,9 @@ Lo que un anuncio no dice puede decirlo otro del mismo inmueble, o su propia des
                                                             terreno y construcción inferidos
 
 Lo inferido nunca reemplaza a una columna: viaja aparte y se pinta marcado. Las fichas, el
-PDF, los filtros y el $/m² leen sólo lo que publicó el portal.
+PDF y el $/m² leen sólo lo que publicó el portal. Los filtros de Características leen lo
+que `de` saca de cada anuncio (`anuncio_atributo`, lo llena `python -m v2.db atributos`),
+nunca lo heredado de sus hermanos.
 
 Puro: no toca la base ni la red. Se prueba en api/prueba_atributos.py.
 """

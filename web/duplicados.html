@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#201333">
-<title>Posibles duplicados &#183; OfficeLab</title>
+<title>Revisi&#243;n &#183; OfficeLab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -32,15 +32,14 @@
   <div class="pg-head">
     <div>
       <div class="pg-eyebrow">Bolsa Inmobiliaria</div>
-      <h1 class="pg-title">Posibles duplicados</h1>
+      <h1 class="pg-title" id="dpTitulo">Posibles duplicados</h1>
     </div>
     <div class="pg-kpis">
-      <div class="pg-kpi"><span class="pg-kpi-n" id="dpTotal">&#8212;</span><span class="pg-kpi-l">pares por revisar</span></div>
+      <div class="pg-kpi"><span class="pg-kpi-n" id="dpTotal">&#8212;</span><span class="pg-kpi-l" id="dpKpi">pares por revisar</span></div>
     </div>
   </div>
-  <p class="sc-h2-nota">Anuncios que se parecen pero no lo bastante para fusionarlos solos. Lo que decidas vale
-    para todo el equipo: &#171;Son el mismo&#187; los deja en una sola tarjeta del tablero; &#171;No son el
-    mismo&#187; quita el par de esta lista y no se vuelve a sugerir.</p>
+  <div class="pg-filters" id="dpVistas" role="group" aria-label="Qu&#233; revisar"></div>
+  <p class="sc-h2-nota" id="dpNota"></p>
   <div class="pg-filters" id="dpFiltros" role="group" aria-label="Filtros"></div>
   <div id="dpLista"><p class="pg-empty">Cargando&#8230;</p></div>
   <div class="pagination" id="dpPaginas"></div>

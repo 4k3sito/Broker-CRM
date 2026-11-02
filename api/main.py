@@ -43,11 +43,13 @@ from psycopg_pool import ConnectionPool
 # de documento.pdf()—, así que no encarece el arranque de la API.
 import documento
 import duplicados
+import outliers
 import entorno
 import excel
 import fichas
 import inventario
 from duplicados import DuplicadoInvalido
+from outliers import OutlierInvalido
 from fichas import DatoInvalido, MAX_FOTOS, NoExiste, RUTA_ARCHIVO
 from inventario import Asesor, FiltroInvalido, Llave, MAX_LUGARES, norm_txt
 from pydantic import BaseModel, Field
@@ -500,6 +502,12 @@ def list_listings(
     operacion: str | None = Query(None, pattern="^(rent|sale)$"),
     tipo: list[str] | None = Query(None),
     uso: list[str] | None = Query(None, description="uso de un terreno: habitacional, comercial, industrial o sin"),
+    cajones_min: float | None = Query(None, ge=0),
+    banos_min: float | None = Query(None, ge=0),
+    altura_min: float | None = Query(None, ge=0),
+    andenes_min: float | None = Query(None, ge=0),
+    frente_min: float | None = Query(None, ge=0),
+    elevador: bool = False,
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None,
     precio_max: float | None = None,
@@ -535,6 +543,12 @@ def facets(
     lugar: list[str] | None = Query(None),
     operacion: str | None = None, tipo: list[str] | None = Query(None),
     uso: list[str] | None = Query(None),
+    cajones_min: float | None = Query(None, ge=0),
+    banos_min: float | None = Query(None, ge=0),
+    altura_min: float | None = Query(None, ge=0),
+    andenes_min: float | None = Query(None, ge=0),
+    frente_min: float | None = Query(None, ge=0),
+    elevador: bool = False,
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None, precio_max: float | None = None,
     m2_min: float | None = None, m2_max: float | None = None,
@@ -596,6 +610,12 @@ def listings_csv(
     lugar: list[str] | None = Query(None),
     operacion: str | None = Query(None, pattern="^(rent|sale)$"),
     tipo: list[str] | None = Query(None),
+    cajones_min: float | None = Query(None, ge=0),
+    banos_min: float | None = Query(None, ge=0),
+    altura_min: float | None = Query(None, ge=0),
+    andenes_min: float | None = Query(None, ge=0),
+    frente_min: float | None = Query(None, ge=0),
+    elevador: bool = False,
     fuente: list[str] | None = Query(None),
     precio_min: float | None = None,
     precio_max: float | None = None,
@@ -697,6 +717,36 @@ def duplicados_separar(body: AnuncioIn, user: dict = Depends(current_user)) -> d
 def duplicados_descartar(body: ParIn, user: dict = Depends(current_user)) -> None:
     with POOL.connection() as conn:
         duplicados.descartar(conn, user["id"], body.a, body.b)
+
+
+# ── Outliers: rentas que no cuadran, ocultas hasta que el equipo las valide ──────────
+@app.exception_handler(OutlierInvalido)
+async def _outlier_invalido(_: Request, e: OutlierInvalido) -> JSONResponse:
+    return JSONResponse({"detail": str(e)}, status_code=422)
+
+
+class DecisionOutlierIn(BaseModel):
+    id: str = Field(pattern=ID_ANUNCIO)
+    decision: str = Field(pattern="^(real|erroneo)$")
+
+
+@app.get("/api/outliers")
+def outliers_cola(
+    user: dict = Depends(current_user),
+    tipo: str | None = Query(None, pattern="^(oficina|local|bodega|terreno)$"),
+    estado: str | None = Query(None, max_length=60),
+    motivo: str | None = Query(None, pattern="^(precio_imposible|titulo_venta)$"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=60),
+) -> dict:
+    with POOL.connection() as conn:
+        return outliers.cola(conn, {"tipo": tipo, "estado": estado, "motivo": motivo}, page, per_page)
+
+
+@app.post("/api/outliers/decidir", status_code=204)
+def outliers_decidir(body: DecisionOutlierIn, user: dict = Depends(current_user)) -> None:
+    with POOL.connection() as conn:
+        outliers.decidir(conn, user["id"], body.id, body.decision)
 
 
 @app.get("/api/ubicaciones")
@@ -1888,6 +1938,8 @@ CROSS JOIN (SELECT geom, area_m2, tipo, currency FROM listings
             WHERE source = %s AND listing_id = %s) s
 LEFT JOIN zona z ON z.id = c.zona_id
 WHERE c.activo
+  AND NOT EXISTS (SELECT 1 FROM anuncio_outlier o WHERE o.source = c.source AND o.listing_id = c.listing_id
+                  AND o.decision IS DISTINCT FROM 'real')
   AND c.tipo = s.tipo AND c.operation = %s
   AND COALESCE(NULLIF(c.currency, ''), 'MXN') = COALESCE(NULLIF(s.currency, ''), 'MXN')
   AND c.geom IS NOT NULL AND c.price > 0 AND c.area_m2 > 0
