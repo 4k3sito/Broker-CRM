@@ -136,6 +136,13 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   trae se completa con sus hermanos (`propiedad_anuncio`) y su descripción, **siempre aparte
   en `m2_inferido`**: `terreno_m2` y `construccion_m2` alimentan fichas y PDF, y un dato
   inferido no puede acabar en un documento para un cliente.
+  **`atributos_ia.py` y `modelo.py` son el pase con IA** (2026-11-04): lo que la regex no
+  lee —terreno contra construcción cuando el texto no lo deja claro, esquina, sobre avenida,
+  drive-thru— se le pregunta a DeepSeek (`deepseek-flash`, sin razonamiento ni herramientas)
+  y sólo se acepta lo que trae su frase copiada del texto (`validar`). `modelo.py` es el
+  cliente: sin llave no sale a la red y toda falla devuelve None. Lo corre `scrapers/v2/ia.py`
+  (`muestra` y `evaluar`); todavía no está en la corrida nocturna. A DeepSeek sólo va texto
+  público de anuncios, nunca del CRM (SECURITY.md).
   **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
   tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.
   **`duplicados.py` son las propiedades** (2026-10-11): qué anuncios son el mismo
@@ -229,6 +236,7 @@ cd scrapers && python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m v2.db report                 # colas de detalle y cruces de EasyBroker
 .venv/bin/python -m v2.duplicados selfcheck      # las reglas de fusión, sin red ni base
 .venv/bin/python -m v2.duplicados agrupar        # rehace propiedad_anuncio y las sugerencias
+.venv/bin/python -m v2.ia selfcheck              # el del pase con IA, sin red ni base
 
 # Cron (en el VPS)
 ssh officelab 'crontab -l'                       # el calendario de la semana
@@ -515,7 +523,7 @@ Ver `docs/agents/domain.md`.
 | Instalar | `pip install -r api/requirements.txt -r scrapers/requirements.txt` (en `scrapers/.venv`) |
 | Desarrollo | `npm run dev` |
 | Lint | TODO (no hay linter; `npm run verificar` es el informe del sistema de diseño) |
-| Tests | `npm run probar:web`, `npm run verificar:selfcheck`, `npm run probar:api`, `python api/main.py selfcheck`, y en `scrapers/`: `-m v2 selfcheck`, `-m v2.db selfcheck`, `-m v2.duplicados selfcheck`, `qa.py --selfcheck`, `liveness.py --selfcheck` |
+| Tests | `npm run probar:web`, `npm run verificar:selfcheck`, `npm run probar:api`, `python api/main.py selfcheck`, y en `scrapers/`: `-m v2 selfcheck`, `-m v2.db selfcheck`, `-m v2.duplicados selfcheck`, `-m v2.ia selfcheck`, `qa.py --selfcheck`, `liveness.py --selfcheck` |
 | Build | no aplica |
 
 ### Deploy

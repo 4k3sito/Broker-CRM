@@ -283,6 +283,30 @@ Dependabot avisa de vulnerabilidades (sólo alertas: sus arreglos automáticos a
 Se lee del archivo y nunca va en la línea de comandos, en un log ni en un commit. Revocar: en
 GitHub, Settings → Developer settings → Fine-grained tokens, y borrar el archivo.
 
+### Pase con IA sobre las descripciones (2026-11-04, rama `feat/ia-atributos`)
+
+Un tercero nuevo: **DeepSeek** (`api.deepseek.com`), desde los scrapers del VPS, no desde el
+contenedor de la API. Lo usa `scrapers/v2/ia.py` con el cliente `api/modelo.py`.
+
+- **Qué sale:** el tipo y la descripción de anuncios activos, texto público de los portales.
+  **Nada del CRM** (`cliente`, `ficha`, `proceso`, notas) ni de las cuentas. DeepSeek es un
+  proveedor con sede en China: se acepta porque el dato ya es público, y por eso mismo la
+  línea es esa. Usarlo con datos de fichas propias (la narrativa del PDF) pide decidirlo aparte.
+- **La llave es propia de OfficeLab, no la de Hermes**, para revocarla sin tocar el control de
+  calidad y ver el gasto aparte. En la muestra se leyó del archivo que dejó el campo seguro de
+  la sesión (fuera del repo); para la corrida nocturna irá en `scrapers/.env` como
+  `DEEPSEEK_API_KEY` (pendiente). Nunca en la línea de comandos, un log ni un commit, y el
+  cliente la tacha si aparece en un error. Cualquier proceso como root la puede leer, igual
+  que `vps/.env`, y eso incluye a Hermes (H6). Revocar: platform.deepseek.com → API keys.
+- **El modelo no tiene herramientas ni memoria:** el pedido nunca lleva `tools`, y no pasa por
+  Hermes, que trae shell de root (H6) y con `-t memory` podría guardar lo que una descripción
+  le dicte. La respuesta es un dato: `atributos_ia.validar()` sólo acepta un valor cuya frase
+  esté copiada del texto, nombre el dato, quepa en 160 caracteres y, si es número, lo
+  contenga. Lo peor que logra una descripción maliciosa es mentir sobre su propio anuncio.
+- **Costo acotado:** medido el 2026-11-04, USD 0.22 por cada 1,000 anuncios a precio de hora
+  pico, sin razonamiento del modelo. La muestra pide un `--n` explícito; la corrida nocturna
+  llevará tope de anuncios y de tokens.
+
 ### Endpoints (2026-10-30) — atributos y movimiento en `/api/listings` (copia de trabajo)
 
 `GET /api/listings` y `GET /api/listings/{id}` agregan a cada fila `atributos`,

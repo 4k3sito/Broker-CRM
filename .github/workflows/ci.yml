@@ -36,6 +36,7 @@ jobs:
           python -m v2 selfcheck
           python -m v2.db selfcheck
           python -m v2.duplicados selfcheck
+          python -m v2.ia selfcheck
           python qa.py --selfcheck
           python liveness.py --selfcheck
 
