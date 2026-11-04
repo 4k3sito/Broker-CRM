@@ -4,11 +4,30 @@
 > Lo abierto de este archivo se pasó allá; esto queda como registro de lo desplegado y lo
 > medido. Lo nuevo que haya que hacer va a Notion, no aquí.
 
-Estado al **2026-11-02**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-11-04**. Es una foto, no la verdad: verifica antes de actuar.
 
 ## Corriendo ahora
 
 - *(nada)*
+
+## Pase con IA sobre las descripciones — **código en producción desde el 2026-11-04** (`9111ba1`)
+
+- `api/atributos_ia.py` (instrucciones y validación por evidencia), `api/modelo.py` (cliente de
+  DeepSeek, `deepseek-flash`, sin razonamiento ni herramientas) y `scrapers/v2/ia.py` (`muestra`,
+  `evaluar`, `selfcheck`). **No corre de noche**: `cron-v2.sh` no lo llama y no hay tabla todavía.
+- Muestra del 2026-11-04, 185 anuncios activos de Nuevo León, sin escribir en la base: terreno
+  92.2% (47/51) y construcción 91.7% (33/36) contra las columnas del portal; esquina 8/8 y
+  sobre avenida ~29/31 revisadas a mano; 0 respuestas fallidas. Los desacuerdos de superficie
+  que se revisaron eran del portal (terreno y construcción al revés).
+- Costo medido: USD 0.22 por 1,000 anuncios a precio de hora pico (entrada 0.30, caché 0.006,
+  salida 1.20 USD por millón de tokens); ~55 s por 185 anuncios con 4 hilos.
+- Con el razonamiento prendido (el de fábrica) y un tope de 600 tokens, 46 de 185 respuestas
+  salieron sin JSON; en los mismos anuncios dio la misma precisión al doble de costo. Va apagado.
+- La llave es propia de OfficeLab. Para la corrida nocturna falta ponerla en `scrapers/.env`
+  (`DEEPSEEK_API_KEY`).
+
+Reversa: `officelab-api:pre-2026-11-04` y `git checkout 27d6abf` en `/srv/officelab`. La API no
+usa los módulos nuevos, así que no hay nada que apagar.
 
 ## Filtros de Características y precios atípicos — **en producción desde el 2026-11-02** (`a5bcbe6`)
 
