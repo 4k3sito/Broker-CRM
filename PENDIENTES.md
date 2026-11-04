@@ -14,7 +14,7 @@ Estado al **2026-11-04**. Es una foto, no la verdad: verifica antes de actuar.
 
 - `api/atributos_ia.py` (instrucciones y validación por evidencia), `api/modelo.py` (cliente de
   DeepSeek, `deepseek-flash`, sin razonamiento ni herramientas) y `scrapers/v2/ia.py` (`muestra`,
-  `evaluar`, `selfcheck`). **No corre de noche**: `cron-v2.sh` no lo llama y no hay tabla todavía.
+  `evaluar`, `selfcheck`). Desde `5236b52` también `pasar`, que corre de noche (abajo).
 - Muestra del 2026-11-04, 185 anuncios activos de Nuevo León, sin escribir en la base: terreno
   92.2% (47/51) y construcción 91.7% (33/36) contra las columnas del portal; esquina 8/8 y
   sobre avenida ~29/31 revisadas a mano; 0 respuestas fallidas. Los desacuerdos de superficie
@@ -26,8 +26,15 @@ Estado al **2026-11-04**. Es una foto, no la verdad: verifica antes de actuar.
 - La llave es propia de OfficeLab y está en `scrapers/.env` de producción desde el 2026-11-04
   (`DEEPSEEK_API_KEY`), comprobada contra DeepSeek (HTTP 200).
 
+- **Paso nocturno en producción desde el 2026-11-04** (`5236b52`): tras `v2.db atributos`,
+  `v2.ia pasar` llena `anuncio_ia`, sólo Nuevo León, una vez por texto, con tope `IA_MAX=4000`
+  anuncios e `IA_MIN=30` minutos por noche. La tabla se creó antes, con
+  `/srv/backups/aplicar-anuncio-ia-2026-11-04.sql` (respaldo: el diario del mismo día). La
+  primera pasada es la de MercadoLibre del 2026-11-05, 07:00 UTC. Nada lee la tabla todavía.
+
 Reversa: `officelab-api:pre-2026-11-04` y `git checkout 27d6abf` en `/srv/officelab`. La API no
-usa los módulos nuevos, así que no hay nada que apagar.
+usa los módulos nuevos, así que no hay nada que apagar. Para apagar sólo el pase nocturno basta
+con quitar `DEEPSEEK_API_KEY` de `scrapers/.env`: sin llave no pregunta nada. La tabla puede quedarse.
 
 ## Filtros de Características y precios atípicos — **en producción desde el 2026-11-02** (`a5bcbe6`)
 
