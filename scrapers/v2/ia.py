@@ -1,13 +1,20 @@
 """The AI pass over listing descriptions. The rules live in api/atributos_ia.py; the client in
 api/modelo.py. This file only picks listings, asks, and keeps the receipts.
 
+    python -m v2.ia pasar [--fuente F] [--donde SQL] [--max N] [--min M]   fill `anuncio_ia`
+    python -m v2.ia pasar --ensayo --max 5                 the same with fake answers, rolled back
     python -m v2.ia muestra --n 200 --salida <file.jsonl>   ask a Nuevo León sample; never writes to the DB
     python -m v2.ia evaluar <file.jsonl> [--revisar]       precision, discards and tokens of a sample
     python -m v2.ia selfcheck                              no network, no DB
 
-The key comes from DEEPSEEK_API_KEY, or from the file named by DEEPSEEK_API_KEY_FILE. It is
-OfficeLab's own key, never Hermes's: that one belongs to the scrapers' QA and must be
-revocable on its own. Descriptions are public portal text; nothing from the CRM goes out.
+`pasar` asks each description once: a listing comes back only when its text or the rules'
+version changes (`huella`), or when its last answer failed (three tries). It stops at
+`--max` listings or `--min` minutes, whichever comes first, and commits as it goes.
+
+The key comes from DEEPSEEK_API_KEY, the file named by DEEPSEEK_API_KEY_FILE, or
+scrapers/.env. It is OfficeLab's own key, never Hermes's: that one belongs to the scrapers'
+QA and must be revocable on its own. Without a key `pasar` asks nothing and exits 0.
+Descriptions are public portal text; nothing from the CRM goes out.
 """
 from __future__ import annotations
 
@@ -64,7 +71,104 @@ def llave() -> str | None:
         return os.environ["DEEPSEEK_API_KEY"].strip()
     if (archivo := os.environ.get("DEEPSEEK_API_KEY_FILE")):
         return Path(archivo).read_text().strip() or None
-    return None
+    from v2.net import _env_file              # scrapers/.env, the same file the proxy reads
+    return _env_file().get("DEEPSEEK_API_KEY") or None
+
+
+# What still needs asking: no row yet, a text or rules version that changed since, or a
+# failed answer with tries left. `huella_sql` is atributos_ia.huella() computed by Postgres;
+# pasar() checks the two agree before trusting the query.
+SQL_PENDIENTES = """
+SELECT l.source, l.listing_id, l.tipo, l.description,
+       left(encode(sha256(convert_to(%(version)s::text || E'\\n' || l.description, 'UTF8')), 'hex'), 16)
+         AS huella_sql
+FROM listings l
+LEFT JOIN anuncio_ia a ON a.source = l.source AND a.listing_id = l.listing_id
+WHERE l.activo IS NOT FALSE
+  AND l.tipo IN ('local', 'bodega', 'oficina', 'terreno')
+  AND length(l.description) > 80
+  AND ({donde}) AND (%(fuente)s::text IS NULL OR l.source = %(fuente)s)
+  AND (a.source IS NULL
+       OR a.huella <> left(encode(sha256(convert_to(%(version)s::text || E'\\n' || l.description, 'UTF8')), 'hex'), 16)
+       OR (a.error IS NOT NULL AND a.intentos < 3))
+ORDER BY (a.source IS NOT NULL), l.observed_at DESC NULLS LAST
+LIMIT %(maximo)s
+"""
+
+SQL_GUARDA = """
+INSERT INTO anuncio_ia (source, listing_id, huella, version, modelo, datos, evidencias, descartes,
+                        error, tokens_entrada, tokens_salida, tokens_cache)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (source, listing_id) DO UPDATE SET
+  huella = EXCLUDED.huella, version = EXCLUDED.version, modelo = EXCLUDED.modelo,
+  datos = EXCLUDED.datos, evidencias = EXCLUDED.evidencias, descartes = EXCLUDED.descartes,
+  error = EXCLUDED.error,
+  intentos = CASE WHEN anuncio_ia.huella = EXCLUDED.huella AND EXCLUDED.error IS NOT NULL
+                  THEN anuncio_ia.intentos + 1 ELSE 1 END,
+  tokens_entrada = EXCLUDED.tokens_entrada, tokens_salida = EXCLUDED.tokens_salida,
+  tokens_cache = EXCLUDED.tokens_cache, preguntado_at = now()
+"""
+
+
+def fila_ia(linea: dict) -> tuple:
+    """A receipt line → the parameters of SQL_GUARDA. A failed answer stores no data."""
+    from psycopg.types.json import Jsonb
+    error = linea["uso"].get("error")
+    return (linea["source"], linea["listing_id"], linea["huella"], linea["version"], linea["modelo"],
+            Jsonb({} if error else linea["datos"]), Jsonb({} if error else linea["evidencias"]),
+            Jsonb({} if error else linea["descartes"]), error,
+            linea["uso"].get("entrada") or 0, linea["uso"].get("salida") or 0, linea["uso"].get("cache") or 0)
+
+
+def _respuesta_de_ensayo(mensajes, *, llave, pensar):
+    """What `--ensayo` answers instead of the model: nothing to accept, no cost."""
+    return {}, {"entrada": 0, "salida": 0, "cache": 0, "razonamiento": 0, "segundos": 0.0, "error": None}
+
+
+def pasar(*, fuente: str | None, donde: str, maximo: int, minutos: float, hilos: int,
+          ensayo: bool = False) -> dict:
+    from v2.db import connect
+    clave = "ensayo" if ensayo else llave()
+    if not clave:
+        print("ia: sin DEEPSEEK_API_KEY no se pregunta nada")
+        return {"preguntados": 0}
+    preguntar_json = _respuesta_de_ensayo if ensayo else None
+    conn = connect()
+    filas = conn.execute(SQL_PENDIENTES.format(donde=donde.replace("%", "%%")),
+                         {"version": ia.VERSION, "fuente": fuente, "maximo": maximo}).fetchall()
+    cuenta = Counter()
+    t0 = time.monotonic()
+    try:
+        with ThreadPoolExecutor(max_workers=hilos) as pool:
+            for i in range(0, len(filas), hilos * 5):
+                if time.monotonic() - t0 > minutos * 60:
+                    print(f"ia: tope de {minutos:g} min; quedan {len(filas) - i} para la próxima")
+                    break
+                tanda = []
+                for source, listing_id, tipo, descripcion, huella_sql in filas[i:i + hilos * 5]:
+                    if ia.huella(descripcion) != huella_sql:
+                        raise SystemExit("ia: la huella de Postgres no es la de atributos_ia.huella()")
+                    tanda.append({"source": source, "listing_id": listing_id, "tipo": tipo,
+                                  "grupo": "pase", "description": descripcion})
+                lineas = list(pool.map(lambda f: preguntar(f, clave, preguntar_json), tanda))
+                with conn.cursor() as cur:
+                    cur.executemany(SQL_GUARDA, [fila_ia(l) for l in lineas])
+                for l in lineas:
+                    cuenta["preguntados"] += 1
+                    cuenta["errores"] += bool(l["uso"].get("error"))
+                    for campo in l["datos"]:
+                        cuenta[campo] += 1
+                    for k in ("entrada", "salida", "cache"):
+                        cuenta[f"tokens_{k}"] += l["uso"].get(k) or 0
+                if ensayo:
+                    continue
+                conn.commit()                  # what was paid for survives a timeout
+        if ensayo:
+            conn.rollback()
+    finally:
+        conn.close()
+    print(f"ia: {'ensayo, nada guardado: ' if ensayo else ''}{dict(cuenta)} en {time.monotonic() - t0:.0f} s")
+    return dict(cuenta)
 
 
 def preguntar(fila: dict, clave: str | None, preguntar_json=None, pensar: bool = False) -> dict:
@@ -188,12 +292,27 @@ def selfcheck() -> None:
     assert rep["formato"]["esquina"] == {"si": 1, "con_palabra": 1, "palabra_sin_si": 0}, rep
     assert rep["usd"] == round((300 * 1.0 + 600 * 0.1 + 80 * 2.0) / 1e6, 4), rep
     assert modelo.preguntar_json([], llave=None)[0] is None           # no key, no network
+    # What goes to anuncio_ia: the accepted data, or nothing but the error when the answer failed.
+    p = fila_ia(linea)
+    assert p[:5] == ("lamudi", "1", ia.huella(texto), ia.VERSION, modelo.MODELO), p[:5]
+    assert p[5].obj == {"esquina": True, "construccion_m2": 120.0} and p[8] is None, p
+    roto = dict(linea, uso={"entrada": 700, "salida": 0, "cache": 0, "error": "HTTP 500: x"})
+    p = fila_ia(roto)
+    assert p[5].obj == {} and p[8] == "HTTP 500: x" and p[9:] == (700, 0, 0), p
+    assert "{donde}" in SQL_PENDIENTES and SQL_PENDIENTES.count("%(version)s") == 2
     print("ia selfcheck ok")
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    pa = sub.add_parser("pasar")
+    pa.add_argument("--fuente")
+    pa.add_argument("--donde", default="l.province ILIKE 'nuevo le%'", help="filtro SQL sobre listings l")
+    pa.add_argument("--max", type=int, default=4000)
+    pa.add_argument("--min", type=float, default=30)
+    pa.add_argument("--hilos", type=int, default=4)
+    pa.add_argument("--ensayo", action="store_true", help="respuestas falsas y sin guardar nada")
     mu = sub.add_parser("muestra")
     mu.add_argument("--n", type=int, default=200)
     mu.add_argument("--salida", type=Path, required=True)
@@ -208,6 +327,9 @@ def main() -> int:
     a = ap.parse_args()
     if a.cmd == "selfcheck":
         selfcheck()
+        return 0
+    if a.cmd == "pasar":
+        pasar(fuente=a.fuente, donde=a.donde, maximo=a.max, minutos=a.min, hilos=a.hilos, ensayo=a.ensayo)
         return 0
     if a.cmd == "muestra":
         return muestra(a.n, a.salida, a.hilos, a.semilla, a.pensar)

@@ -24,6 +24,8 @@ LOTE_MIN=${LOTE_MIN:-60}            # minutos de un lote de detalle (entre lotes
 DETALLE_MIN=${DETALLE_MIN:-90}      # minutos de detalle tras cada barrido
 DETALLE_H=${DETALLE_H:-6}           # horas que `detalle` trabaja antes de parar sola
 HUELLAS_MIN=${HUELLAS_MIN:-30}      # minutos de huellas de fotos tras cada carga (duplicados)
+IA_MAX=${IA_MAX:-4000}              # anuncios por noche del pase con IA (v2/ia.py), ~USD 0.90 en hora pico
+IA_MIN=${IA_MIN:-30}                # minutos del pase con IA tras cada carga
 # Tope de proxy del detalle, en MB, por portal y por invocación de este script. Los
 # tres portales directos no deberían gastar nada: su tope es un fusible, no un presupuesto.
 DETALLE_MB=${DETALLE_MB:-400}
@@ -40,6 +42,7 @@ if [ "$f" = selfcheck ]; then
     $PY -m v2 selfcheck || rc=1
     $PY -m v2.db selfcheck || rc=1
     $PY -m v2.duplicados selfcheck || rc=1
+    $PY -m v2.ia selfcheck || rc=1
     $PY qa.py --selfcheck || rc=1
     [ $rc = 0 ] && echo "cron-v2.sh listo"
     exit $rc
@@ -147,6 +150,9 @@ if [ $rc = 0 ]; then
     $PY -m v2.duplicados agrupar || echo "duplicados: no se pudo agrupar"
     # Después del detalle: de ahí salen las amenidades y la descripción que dan los filtros.
     $PY -m v2.db atributos "$f" || echo "atributos: no se pudieron recalcular"
+    # Pase con IA sobre las descripciones (v2/ia.py): sólo Nuevo León, una vez por texto y con
+    # tope. Sin DEEPSEEK_API_KEY en scrapers/.env no sale a la red. Como el QA, no tumba la corrida.
+    $PY -m v2.ia pasar --fuente "$f" --max "$IA_MAX" --min "$IA_MIN" || echo "ia: no se pudo hacer el pase"
 fi
 echo "=== $(date -Is) fin v2 $f modo=$modo scrape rc=$rs load rc=$rc"
 find logs -name '*.log' -mtime +30 -delete

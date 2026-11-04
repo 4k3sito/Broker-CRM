@@ -140,8 +140,11 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   lee —terreno contra construcción cuando el texto no lo deja claro, esquina, sobre avenida,
   drive-thru— se le pregunta a DeepSeek (`deepseek-flash`, sin razonamiento ni herramientas)
   y sólo se acepta lo que trae su frase copiada del texto (`validar`). `modelo.py` es el
-  cliente: sin llave no sale a la red y toda falla devuelve None. Lo corre `scrapers/v2/ia.py`
-  (`muestra` y `evaluar`); todavía no está en la corrida nocturna. A DeepSeek sólo va texto
+  cliente: sin llave no sale a la red y toda falla devuelve None. Lo corre `scrapers/v2/ia.py`:
+  `pasar` llena `anuncio_ia` tras cada carga, sólo Nuevo León, **una vez por texto** (la
+  `huella` cambia si cambia la descripción o la versión de las reglas) y con tope (`IA_MAX`,
+  `IA_MIN` en `cron-v2.sh`); `muestra` y `evaluar` miden. Sin `DEEPSEEK_API_KEY` en
+  `scrapers/.env` no pregunta nada. Nada lee `anuncio_ia` todavía. A DeepSeek sólo va texto
   público de anuncios, nunca del CRM (SECURITY.md).
   **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
   tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.

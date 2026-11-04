@@ -23,8 +23,8 @@ Estado al **2026-11-04**. Es una foto, no la verdad: verifica antes de actuar.
   salida 1.20 USD por millón de tokens); ~55 s por 185 anuncios con 4 hilos.
 - Con el razonamiento prendido (el de fábrica) y un tope de 600 tokens, 46 de 185 respuestas
   salieron sin JSON; en los mismos anuncios dio la misma precisión al doble de costo. Va apagado.
-- La llave es propia de OfficeLab. Para la corrida nocturna falta ponerla en `scrapers/.env`
-  (`DEEPSEEK_API_KEY`).
+- La llave es propia de OfficeLab y está en `scrapers/.env` de producción desde el 2026-11-04
+  (`DEEPSEEK_API_KEY`), comprobada contra DeepSeek (HTTP 200).
 
 Reversa: `officelab-api:pre-2026-11-04` y `git checkout 27d6abf` en `/srv/officelab`. La API no
 usa los módulos nuevos, así que no hay nada que apagar.

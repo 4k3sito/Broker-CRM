@@ -1238,3 +1238,30 @@ CREATE OR REPLACE FUNCTION marcar_outliers() RETURNS bigint AS $$
   SELECT count(*) FROM u WHERE decision IS NULL;
 $$ LANGUAGE sql;
 -- <<< filtros y outliers
+
+-- >>> pase con IA (2026-11-04)
+-- Lo que el pase con IA leyó de la descripción de un anuncio: terreno contra construcción,
+-- esquina, sobre avenida y drive-thru (`scrapers/v2/ia.py`; las reglas, en
+-- api/atributos_ia.py). Es inferido: nunca va a una columna de `listings` ni a un documento
+-- para el cliente. Una fila por anuncio preguntado. `huella` cambia cuando cambia el texto o
+-- la versión de las reglas, y entonces se vuelve a preguntar; si no, nunca: lo pagado se
+-- guarda aquí, aparte de `anuncio_atributo`, que se borra y se rehace en cada corrida.
+-- Con `error`, la respuesta no sirvió y se reintenta hasta tres veces (`intentos`).
+CREATE TABLE IF NOT EXISTS anuncio_ia (
+  source         text NOT NULL,
+  listing_id     text NOT NULL,
+  huella         text NOT NULL,
+  version        integer NOT NULL,
+  modelo         text NOT NULL,
+  datos          jsonb NOT NULL DEFAULT '{}'::jsonb,   -- {campo: valor} que aceptó validar()
+  evidencias     jsonb NOT NULL DEFAULT '{}'::jsonb,   -- {campo: frase copiada del texto}
+  descartes      jsonb NOT NULL DEFAULT '{}'::jsonb,   -- {campo: por qué no se aceptó}
+  error          text,
+  intentos       smallint NOT NULL DEFAULT 1,
+  tokens_entrada integer NOT NULL DEFAULT 0,
+  tokens_salida  integer NOT NULL DEFAULT 0,
+  tokens_cache   integer NOT NULL DEFAULT 0,
+  preguntado_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (source, listing_id)
+);
+-- <<< pase con IA

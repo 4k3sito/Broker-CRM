@@ -129,7 +129,7 @@ only re-queues a listing whose gallery size changed.
 | `net.py` | `Fetcher`: routes, pacing, retries, the meter; `ProxyDead` / `Blocked` / `Gone` |
 | `portal.py` | `Sweep` (resume, dedupe, exit codes) and `run_detail` |
 | `db.py` | loads that do not undo each other; the detail queue |
-| `ia.py` | the AI pass over descriptions: sample and evaluation (rules in `api/atributos_ia.py`, client in `api/modelo.py`) |
+| `ia.py` | the AI pass over descriptions: `pasar` fills `anuncio_ia` once per text after each load; `muestra` / `evaluar` measure (rules in `api/atributos_ia.py`, client in `api/modelo.py`) |
 | `portals/*.py` | URL grammar, sharding and parsing of one site |
 | `../../vps/schema.sql` | the `scrapers v2` block: 4 columns, 2 indexes, 2 functions |
 | `../../vps/cron-v2.sh` | one run: sweep → load → detail batch |
