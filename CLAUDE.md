@@ -143,8 +143,11 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   cliente: sin llave no sale a la red y toda falla devuelve None. Lo corre `scrapers/v2/ia.py`:
   `pasar` llena `anuncio_ia` tras cada carga, sólo Nuevo León, **una vez por texto** (la
   `huella` cambia si cambia la descripción o la versión de las reglas) y con tope (`IA_MAX`,
-  `IA_MIN` en `cron-v2.sh`); `muestra` y `evaluar` miden. Sin `DEEPSEEK_API_KEY` en
-  `scrapers/.env` no pregunta nada. Nada lee `anuncio_ia` todavía. A DeepSeek sólo va texto
+  `IA_MIN` en `cron-v2.sh`); `muestra` y `evaluar` miden; un texto ya contestado en otro anuncio se copia, y la cola
+  va por tipo (locales primero). `revalidar` aplica reglas más estrictas a lo guardado sin volver
+  a preguntar: a mano, nunca desde cron. Sin `DEEPSEEK_API_KEY` en `scrapers/.env` no pregunta
+  nada. **El tablero filtra por esquina y sobre avenida** con `anuncio_ia` (`inventario.ATRIBUTOS_IA`,
+  sólo con sesión); drive-thru espera a que haya datos. A DeepSeek sólo va texto
   público de anuncios, nunca del CRM (SECURITY.md).
   **`excel.py` escribe un .xlsx con la stdlib** (2026-10-12; `GET /api/clientes/{id}/excel`):
   tablas planas, números como número y texto nunca como fórmula. No traigas openpyxl para esto.
@@ -347,7 +350,8 @@ rentas de más de $10 M al mes que además pasan de $5,000/m² o cuyo título di
 marcado no sale en el tablero, `/api/v1` ni los comparables hasta que alguien decida «Es real»
 en `duplicados.html?vista=outliers` (`api/outliers.py`). La decisión vale para ese total.
 **Filtros de Características**: `anuncio_atributo`, que rehace `python -m v2.db atributos
-<fuente>` al final de cada corrida con lo que saca `api/atributos.py`.
+<fuente>` al final de cada corrida con lo que saca `api/atributos.py`. Esquina y sobre avenida
+salen de `anuncio_ia` (el pase con IA), por ahora sólo en Nuevo León.
 
 - **Se fusiona solo** por: mismo `eb_id` · gemelo Navent · mismo anunciante con mismo tipo,
   operación, m² y precio · mismo texto con mismos m² y precio · **una foto en común** con

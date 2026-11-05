@@ -29,7 +29,10 @@ import unicodedata
 # Súbela al cambiar INSTRUCCIONES o validar(): la huella cambia y se vuelve a preguntar.
 # 2 (2026-11-04): construcción sólo con el total, avenida sin parques industriales, y
 # «tiendas de autoservicio» —supermercados— ya no es drive-thru. Medido en la muestra.
-VERSION = 2
+# 3 (2026-11-05): drive-in no es drive-thru (en una bodega es una rampa de carga), la esquina
+# de un piso o de una torre no es esquina de calle, y lo que está dentro de un parque
+# industrial no está sobre la avenida. Salió de revisar a mano la primera pasada.
+VERSION = 3
 
 CAMPOS = ("terreno_m2", "construccion_m2", "esquina", "sobre_avenida", "drive_thru")
 SUPERFICIES = {"terreno_m2": (1, 10_000_000), "construccion_m2": (1, 2_000_000)}
@@ -41,8 +44,15 @@ _CLASE = {
     "construccion_m2": r"(constru|edific|\bnave|cubiert|techad|\brentable|\bbodega|\blocal\b|\boficina)",
     "esquina": r"\besquina",
     "sobre_avenida": r"\b(avenida|av|blvd|boulevard|bulevar|calzada|carretera|autopista)\b",
-    # «Autoservicio» solo no: «tiendas de autoservicio» son supermercados.
-    "drive_thru": r"\b(drive|autoexpress|auto express|autoexpres)",
+    # «Autoservicio» solo no: «tiendas de autoservicio» son supermercados. Y «drive-in» en
+    # una bodega es una rampa de carga.
+    "drive_thru": r"\bdrive ?(thru|through|tru)\b|\bauto ?expres",
+}
+
+# Lo que, si aparece en la frase, dice que es otra cosa aunque nombre el dato.
+_NO = {
+    "esquina": r"\b(piso|nivel)\s*\d",                # «en piso 15 en esquina»: oficina de esquina
+    "sobre_avenida": r"\bparque industrial\b|\bpark\b",  # el parque da a la avenida, la nave no
 }
 
 # Una evidencia larga no es evidencia: con la descripción entera cualquier dato «aparece».
@@ -66,9 +76,9 @@ Reglas:
 - terreno_m2: la superficie del terreno, predio o lote, en metros cuadrados.
 - construccion_m2: el total construido. Si el texto sólo da partes (bodega, oficinas, sótano, mezzanine) y no dice el total, déjalo en null: no sumes.
 - Si el texto dice que terreno y construcción miden lo mismo, pon el mismo número en los dos. Si da una superficie sin decir si es terreno o construcción, deja los dos en null.
-- esquina: true sólo si dice que el inmueble está en esquina.
+- esquina: true sólo si el inmueble está en la esquina de dos calles. Una oficina o un local en la esquina de un piso, de un nivel o de una torre no cuenta.
 - sobre_avenida: true sólo si el inmueble, o la plaza comercial donde está, está sobre una avenida, bulevar, calzada, carretera o autopista: sobre ella, con frente a ella, a orillas de ella, o con su dirección en ella. No cuentan «cerca de», «a X metros de», «a minutos de», «acceso a», ni estar dentro de un parque industrial que está sobre la avenida.
-- drive_thru: true sólo si dice drive-thru, drive in o autoexpress. «Tiendas de autoservicio» son supermercados: no cuentan.
+- drive_thru: true sólo si dice drive-thru o autoexpress: una ventanilla para atender a clientes sin bajarse del auto. «Drive-in» en una bodega es una rampa de carga y «tiendas de autoservicio» son supermercados: no cuentan.
 - Si el texto no lo dice, valor null y evidencia null. No supongas."""
 
 
@@ -78,8 +88,10 @@ def plano(s) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9.,]+", " ", s)).strip()
 
 
-def huella(descripcion: str | None) -> str:
-    return hashlib.sha256(f"{VERSION}\n{descripcion or ''}".encode()).hexdigest()[:16]
+def huella(descripcion: str | None, version: int | None = None) -> str:
+    """Con `version` se calcula la de otras reglas: así se sabe si un texto guardado cambió."""
+    v = VERSION if version is None else version
+    return hashlib.sha256(f"{v}\n{descripcion or ''}".encode()).hexdigest()[:16]
 
 
 def pedido(tipo: str | None, descripcion: str | None) -> list[dict]:
@@ -120,6 +132,8 @@ def _motivo(campo: str, valor, frase, texto: str) -> str | None:
         return "la evidencia no está en el texto"
     if not re.search(_CLASE[campo], f):
         return "la evidencia no habla de eso"
+    if campo in _NO and re.search(_NO[campo], f):
+        return "la evidencia habla de otra cosa"
     if campo in SUPERFICIES:
         if isinstance(valor, bool) or not isinstance(valor, (int, float)):
             return "no es un número"

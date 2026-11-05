@@ -664,8 +664,10 @@ const fbResumen = {
       ? ' ' + F.usos.map(u => USOS[u].toLowerCase()).join(' o ') : '')
     : `${F.tipos.length} tipos`,
   carac: () => {
-    const f = caracDe().filter(([k]) => F.carac[k]).map(([k, nombre, ops]) =>
-      `${nombre} ${ops.find(([v]) => String(v) === String(F.carac[k]))?.[1] ?? F.carac[k]}`);
+    const f = caracDe().filter(([k]) => F.carac[k]).map(([k, nombre, ops]) => {
+      const op = ops.find(([v]) => String(v) === String(F.carac[k]))?.[1] ?? F.carac[k];
+      return op === 'Sí' ? nombre : `${nombre} ${op}`;
+    });
     return !f.length ? 'Todas' : f.length === 1 ? f[0] : `${f[0]} +${f.length - 1}`;
   },
   cliente: () => F.pcliente === 'sin' ? 'Sin cliente' : F.pcliente ? (clientesCache?.find(c => String(c.id) === F.pcliente)?.nombre ?? '1 cliente') : 'Todos',
@@ -797,13 +799,18 @@ const USOS = { habitacional: 'Habitacional', comercial: 'Comercial', industrial:
 // Lo que importa de cada tipo, con los mismos datos que enseña su tarjeta (POR_TIPO en
 // api/atributos.py). Sale de `anuncio_atributo`: el portal o la descripción.
 const CAJONES = ['cajones_min', 'Cajones', [[2, '2+'], [5, '5+'], [10, '10+']]];
+// Estos dos los lee una IA en la descripción (`anuncio_ia`, sólo Nuevo León por ahora). La
+// esquina no se ofrece en oficinas: ahí casi siempre es la esquina de un piso, no de la calle.
+// Drive-thru espera: la primera pasada no encontró ninguno que lo fuera.
+const ESQUINA = ['esquina', 'Esquina', [[1, 'Sí']]];
+const AVENIDA = ['sobre_avenida', 'Sobre avenida', [[1, 'Sí']]];
 const CARACS = {
   bodega: [['altura_min', 'Altura', [[6, '6 m+'], [8, '8 m+'], [10, '10 m+'], [12, '12 m+']]],
-           ['andenes_min', 'Andenes', [[1, 'Con andén'], [2, '2+'], [4, '4+']]], CAJONES],
+           ['andenes_min', 'Andenes', [[1, 'Con andén'], [2, '2+'], [4, '4+']]], CAJONES, ESQUINA, AVENIDA],
   local: [CAJONES, ['banos_min', 'Baños', [[1, '1+'], [2, '2+'], [3, '3+']]],
-          ['frente_min', 'Frente', [[10, '10 m+'], [20, '20 m+']]]],
-  oficina: [CAJONES, ['banos_min', 'Baños', [[2, '2+'], [3, '3+']]], ['elevador', 'Elevador', [[1, 'Sí']]]],
-  terreno: [['frente_min', 'Frente', [[10, '10 m+'], [20, '20 m+'], [30, '30 m+']]]],
+          ['frente_min', 'Frente', [[10, '10 m+'], [20, '20 m+']]], ESQUINA, AVENIDA],
+  oficina: [CAJONES, ['banos_min', 'Baños', [[2, '2+'], [3, '3+']]], ['elevador', 'Elevador', [[1, 'Sí']]], AVENIDA],
+  terreno: [['frente_min', 'Frente', [[10, '10 m+'], [20, '20 m+'], [30, '30 m+']]], ESQUINA, AVENIDA],
 };
 const caracDe = () => F.tipos.length === 1 ? CARACS[F.tipos[0]] ?? [] : [];
 // Sólo lo que aplica al tipo elegido: al cambiar de tipo, lo del anterior deja de contar.
@@ -815,7 +822,7 @@ function fbCuerpoCarac() {
       const on = String(fbDraft.carac[k] ?? '') === String(v);
       return `<button type="button" class="pill-line${on ? ' active' : ''}" data-carac="${k}" data-valor="${v}" aria-pressed="${on}">${t}</button>`;
     }).join('') + `</div></div>`).join('') + `
-    <p class="fb-nota">Sale de lo que publica el portal y de la descripción. Un anuncio que no dice el dato queda fuera.</p>`;
+    <p class="fb-nota">Sale de lo que publica el portal y de la descripción. Esquina y sobre avenida los lee una IA en la descripción, por ahora sólo en Nuevo León. Un anuncio que no dice el dato queda fuera.</p>`;
 }
 
 function fbCuerpoTipo() {

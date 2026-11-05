@@ -308,7 +308,15 @@ contenedor de la API. Lo usa `scrapers/v2/ia.py` con el cliente `api/modelo.py`.
   (`v2.ia pasar` en `cron-v2.sh`) para en `IA_MAX` anuncios (4,000, ~USD 0.90) o `IA_MIN`
   minutos (30) por noche, y cada texto se paga una sola vez.
 - **Tabla `anuncio_ia`** en `public` (creada el 2026-11-04): lo leído por el modelo y su
-  frase de evidencia; sin datos de usuario. Nada la lee todavía.
+  frase de evidencia; sin datos de usuario. La lee el filtro del tablero (abajo).
+
+### Endpoints (2026-11-05) — esquina y sobre avenida en el tablero (copia de trabajo)
+
+`GET /api/listings`, `/api/listings/facets` y `/api/listings.csv` aceptan `esquina`,
+`sobre_avenida` y `drive_thru` (booleanos): un `EXISTS` sobre `anuncio_ia` con `datos @> %s::jsonb`,
+parametrizado, cuyo JSON arma la API con los nombres fijos de `ATRIBUTOS_IA`, nunca con texto
+del usuario. Sólo con sesión: `/api/v1` los ignora (no están en `V1_FILTROS`). No exponen nada
+nuevo: dicen si la descripción pública de un anuncio menciona esquina o avenida.
 
 ### Endpoints (2026-10-30) — atributos y movimiento en `/api/listings` (copia de trabajo)
 
@@ -721,7 +729,9 @@ distinguir su uso del de una persona (ver H5).
 
 **Rotada el 2026-09-21** con `passwd --generar`, para verificar en el navegador el botón
 del análisis de mercado; la rotación cerró las 40 sesiones que esa misma cuenta tenía
-abiertas, restos de corridas de verificación anteriores que nadie había cerrado. La cuenta **sigue existiendo** y sigue pendiente de borrarse.
+abiertas, restos de corridas de verificación anteriores que nadie había cerrado.
+**Rotada el 2026-11-05 en el esquema `dev`** (no en producción) para verificar el filtro de
+Esquina y Sobre avenida contra una API de prueba; la contraseña no se guardó. La cuenta **sigue existiendo** y sigue pendiente de borrarse.
 
 **Arreglo:** borrarla cuando deje de hacer falta —
 `docker compose exec -T api python main.py deluser verificacion-dom@officelab.local`,

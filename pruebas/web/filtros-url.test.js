@@ -31,6 +31,13 @@ test('las características viajan en la URL y se validan', () => {
   assert.deepEqual(plano(FiltrosURL.leer('cajones_min=mucho&elevador=1', VAL)), { carac: { elevador: '1' } });
 });
 
+test('esquina y sobre avenida viajan en la URL como un sí', () => {
+  const e = { ...vacio, tipos: ['local'], carac: { esquina: 1, sobre_avenida: 1 } };
+  assert.equal(FiltrosURL.escribir(e), 'esquina=1&sobre_avenida=1&tipo=local');
+  assert.deepEqual(plano(FiltrosURL.leer(FiltrosURL.escribir(e), VAL)), { tipos: ['local'], carac: { esquina: '1', sobre_avenida: '1' } });
+  assert.deepEqual(plano(FiltrosURL.leer('esquina=quizas&drive_thru=1', VAL)), { carac: { drive_thru: '1' } });
+});
+
 test('un tablero sin filtros deja la URL limpia', () => {
   assert.equal(FiltrosURL.escribir(vacio), '');
 });

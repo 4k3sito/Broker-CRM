@@ -27,6 +27,7 @@ Se prueba contra una base de verdad: `npm run probar:api` (api/prueba_inventario
 """
 from __future__ import annotations
 
+import json
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -160,6 +161,9 @@ _TEXTO_USO = "lower(coalesce(l.title, '') || ' ' || coalesce(l.property_type, ''
 # dato queda fuera, igual que con `m2_min`: no se adivina.
 ATRIBUTOS_MIN = {"cajones_min": "cajones", "banos_min": "banos", "altura_min": "altura",
                  "andenes_min": "andenes", "frente_min": "frente"}
+# Lo que leyó el pase con IA en la descripción (`anuncio_ia`, scrapers/v2/ia.py): sólo vale lo
+# que trae su frase copiada del texto. Por ahora sólo hay filas de Nuevo León.
+ATRIBUTOS_IA = ("esquina", "sobre_avenida", "drive_thru")
 
 # Lo que marcó `marcar_outliers()` y nadie ha comprobado, o se comprobó que está mal.
 OUTLIER = ("EXISTS (SELECT 1 FROM anuncio_outlier o WHERE o.source = l.source "
@@ -303,6 +307,10 @@ def _filtros(a: dict) -> tuple[list[str], list]:
     if conds:
         w.append("EXISTS (SELECT 1 FROM anuncio_atributo aa WHERE aa.source = l.source "
                  f"AND aa.listing_id = l.listing_id AND {' AND '.join(conds)})")
+    if (si := {k: True for k in ATRIBUTOS_IA if a.get(k)}):
+        w.append("EXISTS (SELECT 1 FROM anuncio_ia ia WHERE ia.source = l.source "
+                 "AND ia.listing_id = l.listing_id AND ia.datos @> %s::jsonb)")
+        p.append(json.dumps(si))
     if a.get("fuente"):
         w.append("l.source = ANY(%s)")
         p.append(a["fuente"])

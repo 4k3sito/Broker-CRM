@@ -50,6 +50,24 @@ def la_frase_tiene_que_hablar_de_eso():
     assert v["descartes"] == {"terreno_m2": "la evidencia no habla de eso"}
 
 
+def lo_que_enseno_la_primera_pasada():
+    # Tres trampas reales de la noche del 2026-11-05, más el caso bueno de cada una.
+    texto = ("Bodega en esquina sobre Av. Ruiz Cortines con 2 rampas tipo drive-in. "
+             "Oficina ubicada en piso 15 en esquina. Nave en parque industrial sobre avenida.")
+    v = ia.validar(texto, r(drive_thru=(True, "2 rampas tipo drive-in"),
+                            esquina=(True, "ubicada en piso 15 en esquina"),
+                            sobre_avenida=(True, "Nave en parque industrial sobre avenida")))
+    assert v["datos"] == {}, v
+    assert v["descartes"] == {"drive_thru": "la evidencia no habla de eso",
+                              "esquina": "la evidencia habla de otra cosa",
+                              "sobre_avenida": "la evidencia habla de otra cosa"}, v
+    v = ia.validar(texto, r(esquina=(True, "Bodega en esquina"),
+                            sobre_avenida=(True, "sobre Av. Ruiz Cortines")))
+    assert v["datos"] == {"esquina": True, "sobre_avenida": True}, v
+    v = ia.validar("Local con drive-thru y autoexpress", r(drive_thru=(True, "Local con drive-thru")))
+    assert v["datos"] == {"drive_thru": True}, v
+
+
 def copiar_toda_la_descripcion_no_es_evidencia():
     largo = "Local comercial en esquina. " + "Excelente ubicación, mucho flujo vehicular. " * 6
     v = ia.validar(largo, r(esquina=(True, largo)))
@@ -118,13 +136,14 @@ def la_huella_cambia_con_el_texto_y_con_la_version():
     try:
         ia.VERSION = viejo + 1
         assert ia.huella("Local en esquina") != a
+        assert ia.huella("Local en esquina", viejo) == a      # la de otra versión se puede calcular
     finally:
         ia.VERSION = viejo
 
 
 PRUEBAS = [lo_que_dice_el_texto_se_acepta, una_frase_inventada_no_pasa,
            un_numero_que_no_esta_en_la_frase_no_pasa, la_frase_tiene_que_hablar_de_eso,
-           copiar_toda_la_descripcion_no_es_evidencia, los_numeros_se_leen_como_los_escribe_una_persona,
+           lo_que_enseno_la_primera_pasada, copiar_toda_la_descripcion_no_es_evidencia, los_numeros_se_leen_como_los_escribe_una_persona,
            acentos_signos_y_mayusculas_no_cuentan, terreno_y_construccion_iguales_valen_si_el_texto_lo_dice,
            un_si_tiene_que_ser_un_si, una_superficie_absurda_no_pasa, lo_que_no_se_pidio_se_ignora,
            una_respuesta_rota_no_truena, el_pedido_lleva_el_texto_como_dato_y_recortado,

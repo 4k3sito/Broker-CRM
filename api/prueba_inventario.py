@@ -369,6 +369,21 @@ def el_punto_de_relleno_se_calla(conn):
         assert inventario.uno(conn, quien, L1)["lat"] == 25.67
 
 
+def esquina_y_avenida_salen_del_pase_con_ia(conn):
+    """Lo que el modelo leyó con su frase (anuncio_ia); lo que no dice nada queda fuera."""
+    conn.execute("""INSERT INTO anuncio_ia (source, listing_id, huella, version, modelo, datos) VALUES
+        ('lamudi', 'L1', 'a', 3, 'm', '{"esquina": true, "sobre_avenida": true}'),
+        ('pincali', 'D1', 'b', 3, 'm', '{"sobre_avenida": true, "terreno_m2": 300}'),
+        ('mercadolibre', 'U1', 'c', 3, 'm', '{}')""")
+    assert ids(conn, Asesor(ANA), esquina=True) == [L1]
+    assert ids(conn, Asesor(ANA), sobre_avenida=True) == [L1, D1]
+    assert ids(conn, Asesor(ANA), esquina=True, sobre_avenida=True) == [L1]
+    assert ids(conn, Asesor(ANA), drive_thru=True) == []
+    assert ids(conn, Asesor(ANA), sobre_avenida=True, tipo=["local"], operacion="sale") == [D1]
+    # Con llave no existe: lo que lee el modelo es del tablero, no de /api/v1.
+    assert ids(conn, Llave(), esquina=True) == VIGENTES
+
+
 def con_llave_solo_el_inventario(conn):
     """Otro programa lee los anuncios vigentes y nada del CRM ni del seguimiento."""
     vigentes = VIGENTES
@@ -484,7 +499,7 @@ PRUEBAS = [el_csv_es_todas_las_paginas, el_tablero_sin_filtros, el_uso_del_terre
            la_superficie_que_se_pide, cerca_de_un_punto, el_seguimiento_es_de_cada_asesor,
            la_bolsa_y_el_catalogo, cliente_y_etapa_en_el_mismo_proceso, las_paginas, los_contadores,
            uno_por_su_id, una_ficha_propia_se_lee_como_anuncio, el_punto_de_relleno_se_calla,
-           con_llave_solo_el_inventario, una_baja_es_el_ultimo_cambio_comparable, una_rebaja_real_llega_a_la_tarjeta,
+           esquina_y_avenida_salen_del_pase_con_ia, con_llave_solo_el_inventario, una_baja_es_el_ultimo_cambio_comparable, una_rebaja_real_llega_a_la_tarjeta,
            reciente_es_que_las_dos_fechas_lo_digan, la_tarjeta_trae_sus_atributos,
            lo_que_falta_viene_de_sus_hermanos]
 

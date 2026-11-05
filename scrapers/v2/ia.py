@@ -3,13 +3,19 @@ api/modelo.py. This file only picks listings, asks, and keeps the receipts.
 
     python -m v2.ia pasar [--fuente F] [--donde SQL] [--max N] [--min M]   fill `anuncio_ia`
     python -m v2.ia pasar --ensayo --max 5                 the same with fake answers, rolled back
+    python -m v2.ia revalidar [--ensayo]                   today's rules over what is stored, no asking
     python -m v2.ia muestra --n 200 --salida <file.jsonl>   ask a Nuevo León sample; never writes to the DB
     python -m v2.ia evaluar <file.jsonl> [--revisar]       precision, discards and tokens of a sample
     python -m v2.ia selfcheck                              no network, no DB
 
 `pasar` asks each description once: a listing comes back only when its text or the rules'
 version changes (`huella`), or when its last answer failed (three tries). It stops at
-`--max` listings or `--min` minutes, whichever comes first, and commits as it goes.
+`--max` listings or `--min` minutes, whichever comes first, and commits as it goes. A text
+already answered for another listing (Navent twins, republications) is copied, not paid again.
+
+`revalidar` judges what was accepted under older rules with today's `validar()` and stamps it
+with today's version, without asking again. It only makes sense when the new rules are
+stricter: anything they would newly accept is never asked. It is run by hand, never by cron.
 
 The key comes from DEEPSEEK_API_KEY, the file named by DEEPSEEK_API_KEY_FILE, or
 scrapers/.env. It is OfficeLab's own key, never Hermes's: that one belongs to the scrapers'
@@ -91,7 +97,10 @@ WHERE l.activo IS NOT FALSE
   AND (a.source IS NULL
        OR a.huella <> left(encode(sha256(convert_to(%(version)s::text || E'\\n' || l.description, 'UTF8')), 'hex'), 16)
        OR (a.error IS NOT NULL AND a.intentos < 3))
-ORDER BY (a.source IS NOT NULL), l.observed_at DESC NULLS LAST
+-- Locales first: they are what brands ask for. By observed_at alone the first night asked
+-- no locales at all, because MercadoLibre sweeps them first (2026-11-05).
+ORDER BY (a.source IS NOT NULL), array_position(ARRAY['local', 'terreno', 'bodega', 'oficina'], l.tipo),
+         l.observed_at DESC NULLS LAST
 LIMIT %(maximo)s
 """
 
@@ -120,6 +129,36 @@ def fila_ia(linea: dict) -> tuple:
             linea["uso"].get("entrada") or 0, linea["uso"].get("salida") or 0, linea["uso"].get("cache") or 0)
 
 
+_SIN_COSTO = {"entrada": 0, "salida": 0, "cache": 0, "razonamiento": 0, "segundos": 0.0, "error": None}
+
+
+def armar(tanda: list[dict], previos: dict, respuestas: dict) -> list[dict]:
+    """One receipt per listing of a batch: the answer it got, the answer its twin got in the
+    same batch (same huella), or the one already stored for that text. Copies cost nothing."""
+    lineas = []
+    for f in tanda:
+        r = respuestas.get(f["huella"])
+        if r is not None and (r["source"], r["listing_id"]) == (f["source"], f["listing_id"]):
+            lineas.append(r)
+        elif r is not None:
+            lineas.append(dict(r, source=f["source"], listing_id=f["listing_id"], reusado=True,
+                               uso=dict(_SIN_COSTO, error=r["uso"].get("error"))))
+        else:
+            datos, evidencias, descartes = previos[f["huella"]]
+            lineas.append({"source": f["source"], "listing_id": f["listing_id"], "huella": f["huella"],
+                           "version": ia.VERSION, "modelo": modelo.MODELO, "datos": datos,
+                           "evidencias": evidencias, "descartes": descartes,
+                           "uso": dict(_SIN_COSTO), "reusado": True})
+    return lineas
+
+
+def revalidado(descripcion: str, datos: dict, evidencias: dict, descartes: dict) -> tuple[dict, dict, dict]:
+    """What was accepted, judged again with today's rules. Only ever takes things out."""
+    respuesta = {c: {"valor": v, "evidencia": evidencias.get(c)} for c, v in datos.items()}
+    v = ia.validar(descripcion, respuesta)
+    return v["datos"], v["evidencias"], {**descartes, **v["descartes"]}
+
+
 def _respuesta_de_ensayo(mensajes, *, llave, pensar):
     """What `--ensayo` answers instead of the model: nothing to accept, no cost."""
     return {}, {"entrada": 0, "salida": 0, "cache": 0, "razonamiento": 0, "segundos": 0.0, "error": None}
@@ -136,6 +175,11 @@ def pasar(*, fuente: str | None, donde: str, maximo: int, minutos: float, hilos:
     conn = connect()
     filas = conn.execute(SQL_PENDIENTES.format(donde=donde.replace("%", "%%")),
                          {"version": ia.VERSION, "fuente": fuente, "maximo": maximo}).fetchall()
+    # What is already answered for the same text, from any portal: Navent twins and
+    # republications are not paid twice (17.5% of what was pending in NL, 2026-11-05).
+    previos = {h: (d, e, s) for h, d, e, s in conn.execute(
+        "SELECT huella, datos, evidencias, descartes FROM anuncio_ia WHERE error IS NULL AND version = %s",
+        (ia.VERSION,)).fetchall()}
     cuenta = Counter()
     t0 = time.monotonic()
     try:
@@ -148,18 +192,28 @@ def pasar(*, fuente: str | None, donde: str, maximo: int, minutos: float, hilos:
                 for source, listing_id, tipo, descripcion, huella_sql in filas[i:i + hilos * 5]:
                     if ia.huella(descripcion) != huella_sql:
                         raise SystemExit("ia: la huella de Postgres no es la de atributos_ia.huella()")
-                    tanda.append({"source": source, "listing_id": listing_id, "tipo": tipo,
-                                  "grupo": "pase", "description": descripcion})
-                lineas = list(pool.map(lambda f: preguntar(f, clave, preguntar_json), tanda))
+                    tanda.append({"source": source, "listing_id": listing_id, "tipo": tipo, "grupo": "pase",
+                                  "description": descripcion, "huella": huella_sql})
+                nuevos = {}
+                for f in tanda:
+                    if f["huella"] not in previos:
+                        nuevos.setdefault(f["huella"], f)
+                respuestas = {l["huella"]: l for l in
+                              pool.map(lambda f: preguntar(f, clave, preguntar_json), nuevos.values())}
+                lineas = armar(tanda, previos, respuestas)
                 with conn.cursor() as cur:
                     cur.executemany(SQL_GUARDA, [fila_ia(l) for l in lineas])
-                for l in lineas:
+                for l in respuestas.values():
                     cuenta["preguntados"] += 1
                     cuenta["errores"] += bool(l["uso"].get("error"))
-                    for campo in l["datos"]:
-                        cuenta[campo] += 1
                     for k in ("entrada", "salida", "cache"):
                         cuenta[f"tokens_{k}"] += l["uso"].get(k) or 0
+                    if not l["uso"].get("error"):
+                        previos[l["huella"]] = (l["datos"], l["evidencias"], l["descartes"])
+                for l in lineas:
+                    cuenta["reusados"] += bool(l.get("reusado"))
+                    for campo in l["datos"]:
+                        cuenta[campo] += 1
                 if ensayo:
                     continue
                 conn.commit()                  # what was paid for survives a timeout
@@ -186,6 +240,37 @@ def preguntar(fila: dict, clave: str | None, preguntar_json=None, pensar: bool =
 
 def _f(v):
     return float(v) if v is not None else None
+
+
+def revalidar(ensayo: bool = False) -> dict:
+    from psycopg.types.json import Jsonb
+    from v2.db import connect
+    conn = connect()
+    filas = conn.execute(
+        """SELECT a.source, a.listing_id, a.version, a.huella, a.datos, a.evidencias, a.descartes,
+                  l.description
+           FROM anuncio_ia a JOIN listings l USING (source, listing_id)
+           WHERE a.version < %s AND a.error IS NULL""", (ia.VERSION,)).fetchall()
+    cuenta = Counter()
+    with conn.cursor() as cur:
+        for source, listing_id, version, huella, datos, evidencias, descartes, descripcion in filas:
+            if ia.huella(descripcion, version) != huella:
+                cuenta["texto_cambiado"] += 1        # pasar() asks it again
+                continue
+            d, e, s = revalidado(descripcion, datos, evidencias, descartes)
+            for campo in set(datos) - set(d):
+                cuenta[f"quitado_{campo}"] += 1
+            cur.execute("UPDATE anuncio_ia SET version = %s, huella = %s, datos = %s, evidencias = %s, "
+                        "descartes = %s WHERE source = %s AND listing_id = %s",
+                        (ia.VERSION, ia.huella(descripcion), Jsonb(d), Jsonb(e), Jsonb(s), source, listing_id))
+            cuenta["revalidados"] += 1
+    if ensayo:
+        conn.rollback()
+    else:
+        conn.commit()
+    conn.close()
+    print(f"ia revalidar: {'ensayo, nada guardado: ' if ensayo else ''}{dict(cuenta)}")
+    return dict(cuenta)
 
 
 def muestra(n: int, salida: Path, hilos: int, semilla: str, pensar: bool = False) -> int:
@@ -300,6 +385,22 @@ def selfcheck() -> None:
     p = fila_ia(roto)
     assert p[5].obj == {} and p[8] == "HTTP 500: x" and p[9:] == (700, 0, 0), p
     assert "{donde}" in SQL_PENDIENTES and SQL_PENDIENTES.count("%(version)s") == 2
+    # Twins: one question per text; the twin and an already stored text are copied, for free.
+    h = ia.huella(texto)
+    tanda = [dict(fila, huella=h), dict(fila, listing_id="2", huella=h),
+             dict(fila, listing_id="3", huella="viejo")]
+    previos = {"viejo": ({"esquina": True}, {"esquina": "en esquina"}, {})}
+    lineas = armar(tanda, previos, {h: linea})
+    assert [(l["listing_id"], l.get("reusado", False)) for l in lineas] == [("1", False), ("2", True), ("3", True)]
+    assert lineas[1]["datos"] == linea["datos"] and lineas[1]["uso"]["entrada"] == 0
+    assert lineas[2]["datos"] == {"esquina": True} and lineas[2]["huella"] == "viejo"
+    # Revalidating only takes out what today's rules reject, and keeps the old discards.
+    d, e, s = revalidado("Bodega en esquina con 2 rampas tipo drive-in",
+                         {"esquina": True, "drive_thru": True},
+                         {"esquina": "en esquina", "drive_thru": "2 rampas tipo drive-in"},
+                         {"terreno_m2": "la evidencia no habla de eso"})
+    assert d == {"esquina": True} and e == {"esquina": "en esquina"}, (d, e)
+    assert s == {"terreno_m2": "la evidencia no habla de eso", "drive_thru": "la evidencia no habla de eso"}, s
     print("ia selfcheck ok")
 
 
@@ -313,6 +414,8 @@ def main() -> int:
     pa.add_argument("--min", type=float, default=30)
     pa.add_argument("--hilos", type=int, default=4)
     pa.add_argument("--ensayo", action="store_true", help="respuestas falsas y sin guardar nada")
+    rv = sub.add_parser("revalidar")
+    rv.add_argument("--ensayo", action="store_true", help="cuenta lo que cambiaría sin guardar nada")
     mu = sub.add_parser("muestra")
     mu.add_argument("--n", type=int, default=200)
     mu.add_argument("--salida", type=Path, required=True)
@@ -327,6 +430,9 @@ def main() -> int:
     a = ap.parse_args()
     if a.cmd == "selfcheck":
         selfcheck()
+        return 0
+    if a.cmd == "revalidar":
+        revalidar(a.ensayo)
         return 0
     if a.cmd == "pasar":
         pasar(fuente=a.fuente, donde=a.donde, maximo=a.max, minutos=a.min, hilos=a.hilos, ensayo=a.ensayo)

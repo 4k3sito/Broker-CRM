@@ -16,8 +16,10 @@ const FiltrosURL = (() => {
   // Texto libre y números, uno a uno. Los números se validan al leer.
   const TEXTO = ['q', 'calle', 'fuente', 'pcliente', 'asesor', 'near_txt'];
   const NUMEROS = ['precio_min', 'precio_max', 'm2_min', 'm2_max', 'ppm_min', 'ppm_max'];
-  // Características: un mínimo por dato, más `elevador`. Dependen del tipo elegido.
-  const CARAC = ['cajones_min', 'banos_min', 'altura_min', 'andenes_min', 'frente_min', 'elevador'];
+  // Características: un mínimo por dato, más los sí (`elevador` y los que lee la IA en la
+  // descripción). Dependen del tipo elegido.
+  const CARAC = ['cajones_min', 'banos_min', 'altura_min', 'andenes_min', 'frente_min', 'elevador',
+                 'esquina', 'sobre_avenida', 'drive_thru'];
   // Separador del lugar: "m40|Monterrey|Nuevo León". Los nombres de municipio no lo usan.
   const SEP = '|';
 
