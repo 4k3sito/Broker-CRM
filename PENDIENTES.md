@@ -4,11 +4,50 @@
 > Lo abierto de este archivo se pasó allá; esto queda como registro de lo desplegado y lo
 > medido. Lo nuevo que haya que hacer va a Notion, no aquí.
 
-Estado al **2026-11-04**. Es una foto, no la verdad: verifica antes de actuar.
+Estado al **2026-11-05**. Es una foto, no la verdad: verifica antes de actuar.
 
 ## Corriendo ahora
 
 - *(nada)*
+
+## Esquina y sobre avenida en el tablero — **en producción desde el 2026-11-05** (`c250d19`)
+
+Primera lectura de la primera pasada nocturna y lo que salió de ella.
+
+- **La pasada** (MercadoLibre, 2026-11-05 07:00 UTC): 4,000 anuncios, que es el tope, en 22 min,
+  0 errores, ~USD 0.81 a precio pico. Contra las columnas del portal: terreno 91.4% y
+  construcción 90.8%. Revisión a mano: sobre avenida 17/20; esquina 10/12 (las dos malas eran
+  oficinas «en la esquina» de un piso); drive-thru 0/3 (eran rampas drive-in de bodega).
+- **Nuevo León no son 11 mil descripciones sino ~65 mil**: 61,405 pendientes, y 17.5% son textos
+  repetidos (gemelos de Navent y republicaciones). Al ritmo actual, ~4 semanas y ~USD 13.
+- **Reglas v3** (`api/atributos_ia.py`): drive-in no es drive-thru; la esquina de un piso o de
+  una torre no es esquina de calle; una nave dentro de un parque industrial no está sobre la
+  avenida. `huella()` acepta otra versión para saber si el texto guardado cambió.
+- **`v2.ia revalidar`**: vuelve a juzgar con las reglas de hoy lo ya guardado, sin preguntar ni
+  pagar; sólo quita. A mano, nunca en cron. En producción quitó 2 esquinas, 5 avenidas y
+  3 drive-thru de 4,000 filas. Quedan 180 esquina, 428 sobre avenida y 0 drive-thru.
+- **Cola por tipo**: locales primero. La primera noche no preguntó ningún local porque
+  MercadoLibre barre primero ese tipo y la cola iba por `observed_at`.
+- **Textos repetidos**: si el mismo texto ya se contestó para otro anuncio, se copia en vez de
+  pagarlo otra vez.
+- **API**: `esquina`, `sobre_avenida` y `drive_thru` en `/api/listings`, facets y CSV: un
+  `EXISTS` sobre `anuncio_ia` con `datos @> %s::jsonb`, armado con `ATRIBUTOS_IA`, nunca con
+  texto del usuario. `/api/v1` los ignora, como los demás filtros de sesión.
+- **Tablero**: chips Esquina y Sobre avenida por tipo; en oficinas no se ofrece Esquina (ahí casi
+  siempre es la esquina de un piso). Drive-thru espera a que haya datos.
+- Verificado antes de desplegar con la API de prueba y el navegador: terreno+esquina 42,
+  oficina+avenida 140, bodega+avenida 24 en 10 km de Monterrey, todas las tarjetas con su dato.
+  Pruebas: web 55, API 28/28 con PostGIS, selfchecks de API, scrapers, QA y liveness.
+- Desplegado en `produccion` con `c250d19`; el run de GitHub se aprobó y la API se reconstruyó.
+  `anuncio_ia` quedó en versión 3 para las 4,000 filas.
+
+Reversa: `git checkout 5236b52` en `/srv/officelab` + `docker compose up -d --build api` (no se
+etiquetó imagen previa). Los datos pueden quedarse: la tabla sigue y `pasar` vuelve a llenarla.
+Para apagar sólo el pase nocturno, quitar `DEEPSEEK_API_KEY` de `scrapers/.env`.
+
+**Abierto:** decidir si se acelera el relleno de Nuevo León (hoy `IA_MAX=4000`, `IA_MIN=30`;
+subir ambos acorta las ~4 semanas, el costo total es el mismo) y activar drive-thru en el
+tablero cuando haya datos.
 
 ## Pase con IA sobre las descripciones — **código en producción desde el 2026-11-04** (`9111ba1`)
 
@@ -30,7 +69,8 @@ Estado al **2026-11-04**. Es una foto, no la verdad: verifica antes de actuar.
   `v2.ia pasar` llena `anuncio_ia`, sólo Nuevo León, una vez por texto, con tope `IA_MAX=4000`
   anuncios e `IA_MIN=30` minutos por noche. La tabla se creó antes, con
   `/srv/backups/aplicar-anuncio-ia-2026-11-04.sql` (respaldo: el diario del mismo día). La
-  primera pasada es la de MercadoLibre del 2026-11-05, 07:00 UTC. Nada lee la tabla todavía.
+  primera pasada es la de MercadoLibre del 2026-11-05, 07:00 UTC. Desde `c250d19` el tablero
+  filtra por esquina y sobre avenida con esa tabla (arriba).
 
 Reversa: `officelab-api:pre-2026-11-04` y `git checkout 27d6abf` en `/srv/officelab`. La API no
 usa los módulos nuevos, así que no hay nada que apagar. Para apagar sólo el pase nocturno basta
