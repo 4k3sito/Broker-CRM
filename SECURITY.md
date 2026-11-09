@@ -257,22 +257,6 @@ TLS. El bloque estuvo seis días puesto en el servidor sin commit.
 - Sus puertos 3000-3001 sólo escuchan en `127.0.0.1`: desde fuera, el único camino es
   Caddy.
 
-### KeKeratinas detrás del mismo Caddy (2026-11-09)
-
-`kekeratinas.com` (y `www`, que redirige) es un tercer sitio en el Caddyfile: la landing
-de otro proyecto (repo `4k3sito/keratinas`). No es parte de OfficeLab; comparte el Caddy
-para tener TLS.
-
-- **Es sólo archivos estáticos**: `file_server` sobre `/srv/kekeratinas`, que el
-  contenedor monta de sólo lectura. Sin proxy, sin contenedor nuevo y sin acceso a la
-  red de `db` ni `api`. Lo llena el `npm run deploy` de ese repo, en el host.
-- **Su bloque va por nombre** (Host/SNI): no cambia lo que sirve el bloque `:80` de
-  OfficeLab por IP. El certificado lo saca Caddy en cuanto el DNS de Hostinger apunte
-  a `31.220.56.100`.
-- **Sin CSP de scripts, a propósito**: carga los píxeles de Meta y TikTok y GA4 (inline
-  y de terceros). Sólo lleva `frame-ancestors 'none'`, HSTS (sin `includeSubDomains`),
-  `nosniff`, `Referrer-Policy` y `Permissions-Policy`. No sirve cookies ni sesiones.
-
 ### Endpoints (2026-09-01)
 
 `GET /api/scrapers` se suma a la lista. Como todo lo demás salvo `/api/health` y el

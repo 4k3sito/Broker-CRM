@@ -87,31 +87,3 @@ obsidian.31.220.56.100.sslip.io {
 	}
 	reverse_proxy obsidian:3000
 }
-
-# KeKeratinas (repo 4k3sito/keratinas). No es parte de OfficeLab: sólo comparte este
-# Caddy para tener TLS. Es un sitio estático (Astro); su deploy copia el build a
-# /srv/kekeratinas en el host, montado de sólo lectura. Caddy elige el bloque por el
-# nombre (Host/SNI), así que nada de esto alcanza al bloque `:80` de OfficeLab.
-kekeratinas.com {
-	root * /srv/kekeratinas
-	encode zstd gzip
-	header {
-		Strict-Transport-Security "max-age=31536000"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
-		# Sin CSP de scripts: los píxeles de Meta/TikTok y GA4 cargan código inline y de
-		# terceros. Sólo se impide que otro sitio la meta en un iframe.
-		Content-Security-Policy "frame-ancestors 'none'"
-		-Server
-	}
-	# Los archivos de /_astro/ llevan hash en el nombre: nunca cambian.
-	@hashed path /_astro/*
-	header @hashed Cache-Control "public, max-age=31536000, immutable"
-	header ?Cache-Control "no-cache"
-	file_server
-}
-
-www.kekeratinas.com {
-	redir https://kekeratinas.com{uri} permanent
-}

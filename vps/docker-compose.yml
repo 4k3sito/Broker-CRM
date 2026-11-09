@@ -60,9 +60,6 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ../web:/srv/site:ro          # solo el frontend: el resto del repo no se sirve
-      # KeKeratinas (otro proyecto, repo 4k3sito/keratinas): sólo comparte este Caddy.
-      # Su build estático se copia a /srv/kekeratinas en el host; ver el Caddyfile.
-      - /srv/kekeratinas:/srv/kekeratinas:ro
       - caddy_data:/data             # certificados, cuando haya dominio
       - caddy_config:/config
       - caddy_logs:/var/log/caddy
