@@ -34,8 +34,8 @@ Idioma de la interfaz y de todos los textos al usuario: **español**. Moneda: MX
 ```
 VPS  /srv/officelab            producción. Lo que hay en disco es lo que se sirve
      /srv/officelab-dev        copia de trabajo (git worktree, rama `desarrollo`)
-     vps/docker-compose.yml    caddy (:80/:443) + api (:8000) + db (postgis, :5432)
-                               api y db sólo en 127.0.0.1; Caddy es el único camino
+     vps/docker-compose.yml    caddy (sin puertos; detrás de /srv/edge) + api (:8000) + db (:5432)
+                               /srv/edge tiene 80/443 y reparte por nombre; api y db sólo en 127.0.0.1
      vps/cron-v2.sh            un scraper por noche (crontab de root), logs en
                                scrapers/logs/v2-<fuente>-<fecha>.log
 ```

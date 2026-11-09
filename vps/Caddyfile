@@ -1,5 +1,17 @@
 # Sirve el dashboard y hace de puerta a la API. La raíz es web/, nunca el repo:
 # con root en el repo, /vps/.env quedaría descargable desde internet.
+#
+# Desde el 2026-11 no publica puertos: delante está el proxy de entrada del VPS
+# (/srv/edge, 172.16.50.2), que tiene 80/443 y reparte por nombre entre OfficeLab,
+# Obsidian y otros sitios. Sólo a él se le cree el X-Forwarded-For: así la API sigue
+# viendo la IP del visitante (ip_cliente en api/main.py, límite de intentos) y no la
+# del edge. Cualquier otro que mande X-Forwarded-For se ignora.
+{
+	servers {
+		trusted_proxies static 172.16.50.2/32
+	}
+}
+
 :80 {
 	encode gzip
 
@@ -66,24 +78,9 @@
 	}
 }
 
-# Cuando haya dominio, esto reemplaza al bloque `:80` de arriba y Caddy saca el
-# certificado solo. Falta además: COOKIE_SECURE=1 en vps/.env, BASE_URL con el
+# Cuando haya dominio, se agrega en el Caddyfile del edge (/srv/edge) un bloque
+# `dominio { reverse_proxy officelab-web:80 }` y el edge saca el certificado; este
+# bloque `:80` se queda igual. Falta además: COOKIE_SECURE=1 en vps/.env, BASE_URL con el
 # dominio, y añadir a la cabecera
 #   Strict-Transport-Security "max-age=31536000; includeSubDomains"
 # que hoy sería mentira: sin TLS, el navegador no podría volver a entrar.
-
-# Obsidian (contenedor aparte, /srv/obsidian). No es parte de OfficeLab: sólo
-# comparte este Caddy para tener TLS. La contraseña la pide el propio contenedor
-# (basic auth, /srv/obsidian/.env). sslip.io resuelve el nombre a la IP sin DNS;
-# con dominio propio basta cambiar esta línea.
-obsidian.31.220.56.100.sslip.io {
-	encode gzip
-	header {
-		Strict-Transport-Security "max-age=31536000"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "no-referrer"
-		X-Robots-Tag "noindex, nofollow"
-		-Server
-	}
-	reverse_proxy obsidian:3000
-}

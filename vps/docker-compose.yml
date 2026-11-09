@@ -60,13 +60,22 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ../web:/srv/site:ro          # solo el frontend: el resto del repo no se sirve
-      - caddy_data:/data             # certificados, cuando haya dominio
+      - caddy_data:/data
       - caddy_config:/config
       - caddy_logs:/var/log/caddy
     depends_on: [api]
-    ports:
-      - "80:80"
-      - "443:443"
+    # Sin puertos públicos: el tráfico llega del proxy de entrada del VPS (/srv/edge)
+    # por la red `edge`, donde este Caddy se llama `officelab-web`. En esa red sólo
+    # hay servidores web: la API y la base se quedan en `default`.
+    networks:
+      default:
+      edge:
+        aliases: [officelab-web]
+
+networks:
+  # La crea el edge (ver /srv/edge/docker-compose.yml); tiene que existir antes.
+  edge:
+    external: true
 
 volumes:
   pgdata:

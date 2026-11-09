@@ -251,11 +251,31 @@ TLS. El bloque estuvo seis días puesto en el servidor sin commit.
 - **Lo que hay detrás es un escritorio completo**, no una página: quien entre maneja
   Obsidian dentro del contenedor y puede leer y escribir `/srv/obsidian/config` (la
   bóveda). El contenedor no es privilegiado y no monta nada más del host.
-- **Está en la red de Docker de OfficeLab** (`officelab_default`), que es lo que deja a
-  Caddy alcanzarlo. Eso también le deja alcanzar `db:5432` y `api:8000` por dentro, sin
-  pasar por Caddy. La base sigue pidiendo su contraseña, que el contenedor no tiene.
+- **Desde el 2026-11 ya no está en la red de OfficeLab**: le llega el tráfico del proxy
+  de entrada por la red `edge` (ver abajo), así que ya no alcanza `db:5432` ni
+  `api:8000` por dentro. Hasta entonces estaba en `officelab_default` y sí podía.
 - Sus puertos 3000-3001 sólo escuchan en `127.0.0.1`: desde fuera, el único camino es
   Caddy.
+
+### Proxy de entrada del VPS (2026-11-09)
+
+El Caddy de OfficeLab ya no publica 80/443. Delante está `/srv/edge`, un Caddy que no
+es de ningún proyecto: tiene los puertos, hace el TLS y reparte por nombre (Host/SNI)
+por la red Docker `edge` (172.16.50.0/24). OfficeLab se sigue usando por IP.
+
+- **Qué hay en la red `edge`**: sólo servidores web: el edge (172.16.50.2, fija),
+  este Caddy (alias `officelab-web`), Obsidian y `kekeratinas-web` (landing estática
+  de otro proyecto, repo `4k3sito/keratinas`). La API y la base se quedan en
+  `default`: ningún otro sitio las alcanza.
+- **La IP del visitante**: este Caddy sólo cree el `X-Forwarded-For` de 172.16.50.2
+  (`trusted_proxies`). El edge descarta el que mande el visitante y pone el suyo, así
+  que `ip_cliente` sigue recibiendo la IP real primero y el límite de intentos sigue
+  siendo por visitante. Otro contenedor de la red que mande `X-Forwarded-For` se
+  ignora (comprobado en una red de prueba el 2026-11-09). Para que nadie le gane la
+  .2 al edge, la red reparte IPs automáticas sólo en .128/25.
+- **Lo que cae por IP o por un nombre desconocido** va a OfficeLab (el `:80` del
+  edge). Un dominio de otro proyecto nunca llega aquí: tiene su bloque en el edge.
+- H2 no cambia: OfficeLab sigue en claro por IP.
 
 ### Endpoints (2026-09-01)
 
