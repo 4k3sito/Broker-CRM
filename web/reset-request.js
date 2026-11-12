@@ -32,7 +32,7 @@ form.addEventListener('submit', async event => {
     successView.hidden = false;
   } catch (err) {
     // Un 429 del límite de intentos sí se muestra: es del solicitante, no de la cuenta.
-    formError.textContent = err.message;
+    formError.textContent = err.red ? `${err.message} Inténtalo de nuevo.` : err.message;
     formError.hidden = false;
     setLoading(false);
   }

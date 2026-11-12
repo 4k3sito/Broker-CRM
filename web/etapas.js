@@ -17,7 +17,9 @@ const ETAPAS = [
   { key: 'cerrado',       label: 'Cerrado',       ayuda: 'Contrato firmado.' },
   { key: 'finalizado',    label: 'Finalizado',    ayuda: 'Todo concluido después de la firma: entrega, pagos y comisión.' },
   { key: 'pausa',         label: 'En pausa',      ayuda: 'On hold: se espera al dueño, al cliente o a un tercero.', lateral: true },
-  { key: 'rechazado',     label: 'Descartado',    ayuda: 'Cancelada, descartada o rentada a otro.', lateral: true },
+  // La clave sigue siendo `rechazado` (es la de la base); sólo cambia lo que se lee. «Descartado»
+  // ya es otra cosa —el estado de un anuncio en el tablero— y se confundían.
+  { key: 'rechazado',     label: 'Rechazado por el cliente', ayuda: 'Cancelada, descartada o rentada a otro.', lateral: true },
 ];
 const ETAPA = Object.fromEntries(ETAPAS.map((e, i) => [e.key, { ...e, orden: i }]));
 const etapaLabel = k => ETAPA[k]?.label ?? k;

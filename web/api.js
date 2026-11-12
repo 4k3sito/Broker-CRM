@@ -11,13 +11,28 @@ function alLogin() {
 
 const API = {
   async req(metodo, ruta, cuerpo, opciones) {
-    const r = await fetch(`/api${ruta}`, {
+    // Una lectura colgada (red móvil a medias) dejaba la página en «Cargando…» para
+    // siempre y, en el tablero, bloqueaba las cargas siguientes. Sólo las lecturas llevan
+    // tope: una escritura o una subida de fotos pueden tardar más y no deben cortarse.
+    const tope = metodo === 'GET' && !opciones?.signal && typeof AbortSignal?.timeout === 'function'
+      ? { signal: AbortSignal.timeout(30000) } : {};
+    let r;
+    try {
+      r = await fetch(`/api${ruta}`, {
+      ...tope,
       ...opciones,                  // { keepalive: true } para lo que sale al cerrar la página
       method: metodo,
       credentials: 'same-origin',   // la cookie de sesión viaja sola
       headers: cuerpo ? { 'Content-Type': 'application/json' } : undefined,
       body: cuerpo ? JSON.stringify(cuerpo) : undefined,
-    });
+      });
+    } catch (e) {
+      // fetch sólo rechaza por red o por el tope: que el mensaje lo diga en español.
+      const err = new Error(e?.name === 'TimeoutError' || e?.name === 'AbortError'
+        ? 'El servidor tardó demasiado en contestar.' : 'No se pudo conectar con el servidor.');
+      err.red = true;
+      throw err;
+    }
     return API.leer(r);
   },
   async leer(r) {
@@ -27,13 +42,22 @@ const API = {
     }
     if (r.status === 204) return null;
     const data = await r.json().catch(() => null);
-    if (!r.ok) throw new Error(data?.detail ?? `Error ${r.status}`);
+    if (!r.ok) {
+      // `detail` es texto en nuestros errores, pero FastAPI lo manda como lista cuando
+      // falla la validación: en pantalla salía «[object Object]».
+      const d = data?.detail;
+      const err = new Error(typeof d === 'string' ? d
+        : r.status >= 500 ? 'Error del servidor. Intenta de nuevo en un momento.'
+        : r.status === 422 ? 'Algún dato no es válido.' : `Error ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
     return data;
   },
   get:    (ruta)         => API.req('GET', ruta),
   post:   (ruta, cuerpo, opciones) => API.req('POST', ruta, cuerpo, opciones),
-  put:    (ruta, cuerpo) => API.req('PUT', ruta, cuerpo),
-  patch:  (ruta, cuerpo) => API.req('PATCH', ruta, cuerpo),
+  put:    (ruta, cuerpo, opciones) => API.req('PUT', ruta, cuerpo, opciones),
+  patch:  (ruta, cuerpo, opciones) => API.req('PATCH', ruta, cuerpo, opciones),
   del:    (ruta)         => API.req('DELETE', ruta),
 
   // Saca una propiedad de Inmobiliaria: borra su ficha y, en cascada (schema.sql), lo

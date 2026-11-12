@@ -21,6 +21,9 @@ let abierta = null;              // id de la tarea en el panel, o 'nueva'
 let coments = [];                // comentarios de la tarea abierta
 let previo = false;              // el editor de descripción muestra la vista previa
 let arrastrando = null;
+let editado = false;             // el panel tiene cambios sin guardar (ver `panelSucio`)
+let borrador = null;             // lo escrito en el panel, para que Vista previa no lo pierda
+let comentFallo = false;         // los comentarios de la tarea abierta no se pudieron cargar
 
 // El tono del avatar sale del id, no de una columna: mismo color siempre para la
 // misma persona sin tener que guardarlo.
@@ -112,18 +115,23 @@ async function cargar() {
   render();
 }
 
+// Devuelve si el servidor aceptó el cambio: quien guarda desde el panel no debe cerrarlo
+// (y tirar lo escrito) cuando el guardado falló.
 async function guardar(id, patch) {
   const i = tareas.findIndex(t => t.id === id);
   const previo = tareas[i];
   tareas[i] = { ...previo, ...patch };          // optimista: el tablero no debe parpadear
   render();
+  let ok = true;
   try {
     tareas[i] = await API.patch(`/tareas/${id}`, patch);
   } catch (err) {
     tareas[i] = previo;                          // el servidor manda: se revierte
-    UI.aviso(err.message);
+    UI.aviso(`No se guardó el cambio: ${err.message}`);
+    ok = false;
   }
   render();
+  return ok;
 }
 
 function visibles() {
@@ -135,12 +143,52 @@ function visibles() {
   });
 }
 
+// ── Cambios sin guardar en el panel ──────────────────────────────────────────
+// Esc, filtrar, arrastrar o abrir otra tarjeta reconstruían el panel y se llevaban lo
+// escrito. Mientras haya algo sin guardar `render()` no lo toca, y cerrarlo o abrir otro
+// pregunta antes. Un comentario a medias también cuenta.
+const panelSucio = () => (abierta || abiertoProc)
+  && (editado || !!document.getElementById('f-com')?.value.trim());
+
+// true si se puede seguir (no había nada o el usuario aceptó perderlo).
+async function descartar() {
+  if (!panelSucio()) { editado = false; borrador = null; return true; }
+  const ok = await UI.confirmar({ titulo: '¿Descartar los cambios?',
+    texto: 'Lo que escribiste en el panel todavía no se ha guardado.', verbo: 'Descartar', peligro: true });
+  if (ok) {
+    editado = false; borrador = null;
+    const com = document.getElementById('f-com');
+    if (com) com.value = '';        // si no, `panelSucio` seguiría dando true y el panel no se rehace
+  }
+  return ok;
+}
+
+async function cerrarPanel() {
+  if (!(await descartar())) return;
+  abierta = null; abiertoProc = null;
+  renderPanel();
+}
+
 async function abrirTarea(id) {
-  abierta = id; coments = []; previo = false;
+  if (!(await descartar())) return;
+  abierta = id; coments = []; previo = false; comentFallo = false;
   render();
   mostrarPanel();
-  coments = await API.get(`/tareas/${id}/comentarios`).catch(() => []);
-  renderPanel();
+  await cargarComentarios(id);
+}
+
+// Los comentarios llegan después del panel: sólo se repinta su bloque, no el panel, para
+// no pisar lo que ya se haya escrito. Un fallo no es «nadie ha comentado».
+async function cargarComentarios(id) {
+  try {
+    const c = await API.get(`/tareas/${id}/comentarios`);
+    if (abierta !== id) return;                 // se abrió otra mientras tanto
+    coments = c; comentFallo = false;
+  } catch {
+    if (abierta !== id) return;
+    coments = []; comentFallo = true;
+  }
+  refrescarComentarios();
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
@@ -159,38 +207,42 @@ function tarjeta(t) {
   const p = equipo.find(e => e.id === t.asignado_a);
   const chk = checklist(t.descripcion);
   const hechas = chk.filter(c => c.done).length;
-  const tarde = t.vence_el && t.vence_el < new Date().toISOString().slice(0, 10)
-                && t.columna !== 'completado';
+  const hecha = t.columna === 'completado';
+  const v = t.vence_el ? venceTxt(t.vence_el, hecha) : null;
   const art = document.createElement('article');
-  art.className = `tk p-${t.prioridad}${arrastrando === t.id ? ' dragging' : ''}`;
+  art.className = `tk p-${t.prioridad}${hecha ? ' hecha' : ''}${arrastrando === t.id ? ' dragging' : ''}`;
   art.draggable = true;
+  // La prioridad «media» era el 98% de las tarjetas y no distinguía a ninguna: sólo se
+  // rotula lo que se sale de lo normal. El avatar sube a la fila de arriba: antes ocupaba
+  // un pie entero, con su filete, sólo para una letra.
   art.innerHTML = `
     <div class="tk-top">
-      <span class="tk-prio p-${esc(t.prioridad)}">${esc(t.prioridad)}</span>
-      <span class="tk-tipo">${esc(t.tipo ?? 'Tarea')}</span>
-    </div>
-    <div class="tk-titulo">${esc(t.titulo)}</div>
-    ${t.proceso_titulo || t.listing_id || t.cliente_nombre || t.vence_el ? `<div class="tk-meta">
-      ${t.proceso_titulo ? `<span class="tk-cod" title="Propiedad del pipeline">${ICON_COD}${esc(t.proceso_titulo)}</span>` : ''}
-      ${t.listing_id ? `<span class="tk-cod">${ICON_COD}${esc(t.listing_id)}</span>` : ''}
-      ${t.cliente_nombre ? `<span class="tk-cod">${esc(t.cliente_nombre)}</span>` : ''}
-      ${t.vence_el ? `<span class="tk-vence${tarde ? ' tarde' : ''}">${esc(t.vence_el)}</span>` : ''}
-    </div>` : ''}
-    <div class="tk-sep"></div>
-    <div class="tk-foot">
-      <span class="tk-marks">
-        ${chk.length ? `<span class="tk-chk${hechas === chk.length ? ' full' : ''}">${ICON_CHK}${hechas}/${chk.length}</span>` : ''}
+      <span class="tk-chips">
+        ${t.prioridad !== 'media' ? `<span class="tk-prio p-${esc(t.prioridad)}">${esc(t.prioridad)}</span>` : ''}
+        <span class="tk-tipo">${esc(t.tipo ?? 'Tarea')}</span>
       </span>
       <span class="tk-ava${p ? '' : ' sin'}" ${p ? `style="background:${tono(p.id)}"` : ''}
             title="${esc(p?.nombre ?? p?.email ?? 'Sin asignar')}">${p ? iniciales(p) : '—'}</span>
-    </div>`;
+    </div>
+    <div class="tk-titulo">${esc(t.titulo)}</div>
+    ${t.proceso_titulo || t.listing_id || t.cliente_nombre || v || chk.length ? `<div class="tk-meta">
+      ${t.proceso_titulo ? `<span class="tk-cod" title="Propiedad del pipeline">${ICON_COD}${esc(t.proceso_titulo)}</span>` : ''}
+      ${t.listing_id ? `<span class="tk-cod">${ICON_COD}${esc(t.listing_id)}</span>` : ''}
+      ${t.cliente_nombre ? `<span class="tk-cod">${esc(t.cliente_nombre)}</span>` : ''}
+      ${v ? `<span class="tk-vence${v.tarde ? ' tarde' : ''}">${esc(v.txt)}</span>` : ''}
+      ${chk.length ? `<span class="tk-chk${hechas === chk.length ? ' full' : ''}">${ICON_CHK}${hechas}/${chk.length}</span>` : ''}
+    </div>` : ''}`;
   art.addEventListener('dragstart', e => {
     arrastrando = t.id;
     e.dataTransfer.effectAllowed = 'move';
     art.classList.add('dragging');
   });
   art.addEventListener('dragend', () => { arrastrando = null; render(); });
+  // Igual que las del pipeline: con teclado también se abre (Tab + Enter o Espacio).
+  art.tabIndex = 0;
+  art.setAttribute('role', 'button');
   art.addEventListener('click', () => abrirTarea(t.id));
+  art.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirTarea(t.id); } });
   return art;
 }
 
@@ -236,15 +288,15 @@ function renderTablero(lista) {
 // ── Lista: la bandeja del teléfono (ui_change.md §5.4) ───────────────────────
 // Una fila por tarea, de la que vence antes a la que vence después; sin fecha al final.
 const DIA = 864e5;
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+// `hoyLocal()` (texto.js), no `toISOString()`: éste da la fecha UTC y desde las 18:00 en
+// México lo que vence hoy salía como «Vencida».
 function venceTxt(fecha, hecha) {
   if (!fecha) return { txt: 'Sin fecha', tarde: false };
-  const dias = Math.round((Date.parse(fecha) - Date.parse(hoyISO())) / DIA);
+  const dias = Math.round((Date.parse(fecha) - Date.parse(hoyLocal())) / DIA);
   if (dias < 0 && !hecha) return { txt: `Vencida · hace ${-dias} ${-dias === 1 ? 'día' : 'días'}`, tarde: true };
   if (dias === 0) return { txt: 'Hoy', tarde: false };
   if (dias === 1) return { txt: 'Mañana', tarde: false };
-  const f = new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
-  return { txt: f.charAt(0).toUpperCase() + f.slice(1).replace(/\./g, ''), tarde: false };
+  return { txt: fechaCorta(fecha), tarde: false };
 }
 
 function filaLista(t) {
@@ -263,7 +315,7 @@ function filaLista(t) {
       <span class="tk-fila-meta">
         <span class="tk-vence${v.tarde ? ' tarde' : ''}">${esc(v.txt)}</span>
         <span class="tk-tipo">${esc(t.tipo ?? 'Tarea')}</span>
-        <span class="tk-prio p-${esc(t.prioridad)}">${esc(t.prioridad)}</span>
+        ${t.prioridad !== 'media' ? `<span class="tk-prio p-${esc(t.prioridad)}">${esc(t.prioridad)}</span>` : ''}
         ${liga ? `<span class="tk-cod">${esc(liga)}</span>` : ''}
       </span>
     </button>
@@ -340,30 +392,6 @@ function renderEquipo(lista) {
   return wrap;
 }
 
-function renderPersona(lista) {
-  const p = equipo.find(e => e.id === persona);
-  if (!p) return renderTablero(lista);
-  const mias = lista.filter(t => t.asignado_a === p.id);
-  const wrap = document.createElement('div');
-  const cab = document.createElement('div');
-  cab.className = 'tk-persona-head';
-  const st = (n, l, c) => `<div class="stat"><span class="stat-num" style="color:${c}">${n}</span><span class="stat-label">${l}</span></div>`;
-  cab.innerHTML = `
-    <div class="tk-persona">
-      <span class="tk-ava" style="background:${tono(p.id)}">${iniciales(p)}</span>
-      <span class="tk-persona-n"><strong>${esc(p.nombre ?? p.email)}</strong><span>${esc(p.rol ?? p.email)}</span></span>
-    </div>
-    <div class="tk-persona-stats">
-      ${st(mias.filter(t => t.columna !== 'completado').length, 'activas', 'var(--ink)')}
-      ${st(mias.filter(t => t.columna === 'encurso').length, 'en curso', 'var(--c-encurso)')}
-      ${st(mias.filter(t => t.columna === 'completado').length, 'completadas', 'var(--c-completado)')}
-      ${st(mias.length, 'en total', 'var(--muted)')}
-    </div>`;
-  wrap.appendChild(cab);
-  wrap.appendChild(renderTablero(mias));
-  return wrap;
-}
-
 function renderDirectorio() {
   const dir = document.createElement('div');
   dir.className = 'tk-dir';
@@ -377,7 +405,7 @@ function renderDirectorio() {
     </button>`;
   }).join('');
   dir.querySelectorAll('.tk-dir-card').forEach(b =>
-    b.addEventListener('click', () => { persona = b.dataset.id; vista = 'persona'; render(); }));
+    b.addEventListener('click', () => { persona = b.dataset.id; vista = 'tablero'; render(); }));
   return dir;
 }
 
@@ -408,7 +436,7 @@ function renderEquipoAside() {
       </div>`).join('') || '<div class="tk-aside-body"><p class="proc-empty">Sin equipo todavía.</p></div>'}`;
   aside.querySelector('#verTodo')?.addEventListener('click', () => { vista = 'equipo'; render(); });
   aside.querySelectorAll('.tk-mini').forEach(el => el.addEventListener('click', () => {
-    vista = 'persona'; persona = el.dataset.persona; render();
+    vista = 'tablero'; persona = el.dataset.persona; render();
   }));
   // Soltar una tarjeta sobre una persona la asigna, como en el mock.
   aside.querySelectorAll('.tk-mini').forEach(el =>
@@ -432,12 +460,12 @@ function panelCamposHtml(t, nueva) {
       <div><label for="f-prio">Prioridad</label><select id="f-prio">${opciones(PRIOS, t.prioridad)}</select></div>
     </div>
     <div class="tk-row">
-      <div><label for="f-col">Columna</label><select id="f-col">${opciones(COLS, t.columna, c => c.key, c => c.label)}</select></div>
+      <div><label for="f-col">Estado</label><select id="f-col">${opciones(COLS, t.columna, c => c.key, c => c.label)}</select></div>
       <div><label for="f-vence">Vence</label><input id="f-vence" type="date" value="${esc(t.vence_el ?? '')}"></div>
     </div>
     <div><label for="f-asg">Asignada a</label>
       <select id="f-asg"><option value="">Sin asignar</option>${opciones(equipo, t.asignado_a, p => p.id, p => `${esc(p.nombre ?? p.email)}${p.rol ? ' — ' + esc(p.rol) : ''}`)}</select></div>
-    <div><label for="f-listing">Inmueble (source:id)</label><input id="f-listing" value="${esc(t.listing_id ?? '')}" placeholder="pincali:EB-7741"></div>
+    <div><label for="f-listing">Código del anuncio (opcional)</label><input id="f-listing" value="${esc(t.listing_id ?? '')}" placeholder="Si la tarea es de un anuncio, su código. Ej. pincali:EB-7741" autocomplete="off"></div>
     ${panelProcesoHtml(t)}`;
 }
 
@@ -465,7 +493,7 @@ function panelChecklistHtml(chk) {
 function panelDescripcionHtml(t) {
   return `
     <div>
-      <label>Descripción · markdown</label>
+      <label>Descripción</label>
       <div class="md-bar">
         ${[['b','Negrita','**'],['i','Cursiva','*'],['`','Código','`']].map(([l,ti,m]) =>
           `<button class="md-b" data-wrap="${m}" title="${ti}">${l}</button>`).join('')}
@@ -482,27 +510,69 @@ function panelDescripcionHtml(t) {
 function panelAdjuntosHtml(t) {
   const adj = t.adjuntos ?? [];
   return `
-    <div><label for="f-adj">Adjuntos · una URL por línea</label>
+    <div><label for="f-adj">Enlaces · uno por línea</label>
       <textarea id="f-adj" class="md-adj" placeholder="https://…">${esc(adj.join('\n'))}</textarea>
       ${adj.length ? `<div class="tk-adj">${adj.map(u =>
         `<a href="${hrefSeguro(u)}" target="_blank" rel="noopener">${esc(u.split('/').pop() || u)}</a>`).join('')}</div>` : ''}</div>`;
 }
 
+// created_at llega como instante (UTC): se enseña en la hora de quien lo lee.
+const comentFecha = v => {
+  const d = new Date(v);
+  return isNaN(d) ? '' : d.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).replace('.', '');
+};
+
 function panelComentariosHtml() {
   return `<div class="tk-com">
-      <label>Comentarios · ${coments.length}</label>
+      <label>Comentarios${comentFallo ? '' : ` · ${coments.length}`}</label>
       ${coments.map(c => `<div class="tk-com-row">
           <span class="tk-ava" style="background:${tono(c.autor_email)}">${iniciales({ nombre: c.autor, email: c.autor_email })}</span>
           <span class="tk-com-b">
-            <span class="tk-com-h"><strong>${esc(c.autor ?? c.autor_email)}</strong><small>${esc((c.created_at ?? '').slice(0, 16).replace('T', ' '))}</small></span>
+            <span class="tk-com-h"><strong>${esc(c.autor ?? c.autor_email)}</strong><small>${esc(comentFecha(c.created_at))}</small></span>
             <span class="tk-com-t">${esc(c.texto)}</span>
           </span>
-        </div>`).join('') || '<p class="md-vacio">Nadie ha comentado.</p>'}
+        </div>`).join('') || (comentFallo
+          ? '<p class="md-vacio">No se pudieron cargar los comentarios. <button type="button" class="pp-abrir" id="tkReintCom">Reintentar</button></p>'
+          : '<p class="md-vacio">Nadie ha comentado.</p>')}
       <div class="tk-com-new">
         <input id="f-com" placeholder="Escribe un comentario">
         <button class="btn-solid" id="tkCom">Enviar</button>
       </div>
     </div>`;
+}
+
+async function enviarComentario() {
+  const inp = document.getElementById('f-com');
+  const texto = inp?.value.trim();
+  if (!texto || !abierta || abierta === 'nueva') return;
+  const id = abierta;
+  try {
+    const c = await API.post(`/tareas/${id}/comentarios`, { texto });
+    if (abierta !== id) return;
+    coments.push(c);
+    inp.value = '';
+    refrescarComentarios();
+  } catch (err) {
+    UI.aviso(`No se envió el comentario: ${err.message}`);   // lo escrito se queda en el campo
+  }
+}
+
+// Sólo el bloque de comentarios: reconstruir todo el panel borraba lo editado arriba.
+function refrescarComentarios() {
+  const viejo = document.querySelector('#aside .tk-com');
+  if (!viejo) return;
+  const escrito = document.getElementById('f-com')?.value ?? '';
+  viejo.outerHTML = panelComentariosHtml();
+  document.getElementById('f-com').value = escrito;
+  conectarComentarios();
+}
+
+function conectarComentarios() {
+  document.getElementById('tkCom')?.addEventListener('click', enviarComentario);
+  document.getElementById('f-com')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); enviarComentario(); }
+  });
+  document.getElementById('tkReintCom')?.addEventListener('click', () => { comentFallo = false; cargarComentarios(abierta); });
 }
 
 function conectarPanel(t, nueva) {
@@ -525,10 +595,11 @@ function conectarPanel(t, nueva) {
     adjuntos: document.getElementById('f-adj').value.split('\n').map(x => x.trim()).filter(Boolean),
   });
 
-  document.getElementById('tkClose').addEventListener('click', () => { abierta = null; renderPanel(); });
-  document.getElementById('tkAbrirProc')?.addEventListener('click', () => {
+  document.getElementById('tkClose').addEventListener('click', cerrarPanel);
+  document.getElementById('tkAbrirProc')?.addEventListener('click', async () => {
+    if (!(await descartar())) return;
     vista = 'pipeline';
-    abrirProc(t.proceso_id);
+    await abrirProc(t.proceso_id);
     render();
   });
   document.getElementById('tkSave').addEventListener('click', async () => {
@@ -536,49 +607,55 @@ function conectarPanel(t, nueva) {
     if (!body.titulo) return UI.aviso('El título es obligatorio.');
     try {
       if (nueva) tareas.unshift(await API.post('/tareas', body));
-      else await guardar(abierta, body);
-      abierta = null;
-      render();
-    } catch (err) { UI.aviso(err.message); }
+      else if (!(await guardar(abierta, body))) return;   // falló: el panel se queda con lo escrito
+    } catch (err) { return UI.aviso(`No se guardó la tarea: ${err.message}`); }
+    editado = false; borrador = null;
+    abierta = null;
+    render();
   });
   document.getElementById('tkDel')?.addEventListener('click', async () => {
     const t = tareas.find(x => x.id === abierta), nc = coments.length;
     if (!(await UI.confirmar({ titulo: `¿Borrar «${t?.titulo ?? 'esta tarea'}»?`,
       texto: (nc ? `Se borran también sus ${nc} ${nc === 1 ? 'comentario' : 'comentarios'}. ` : '') + 'No se puede deshacer.',
       verbo: 'Borrar', peligro: true }))) return;
-    await API.del(`/tareas/${abierta}`);
+    try {
+      await API.del(`/tareas/${abierta}`);
+    } catch (err) { return UI.aviso(`No se borró la tarea: ${err.message}`); }
     tareas = tareas.filter(x => x.id !== abierta);
+    editado = false; borrador = null;
     abierta = null;
     render();
   });
+  // La barra de formato cambia el textarea por programa: no dispara `input`.
   side.querySelectorAll('.md-b[data-wrap]').forEach(b =>
-    b.addEventListener('click', () => envolver(document.getElementById('f-desc'), b.dataset.wrap)));
+    b.addEventListener('click', () => { editado = true; envolver(document.getElementById('f-desc'), b.dataset.wrap); }));
   side.querySelectorAll('.md-b[data-pre]').forEach(b =>
-    b.addEventListener('click', () => prefijar(document.getElementById('f-desc'), b.dataset.pre)));
-  side.querySelector('.md-b[data-link]')?.addEventListener('click', () => {
-    const url = prompt('URL del enlace:');
-    if (url) envolver(document.getElementById('f-desc'), '[', `](${url})`);
+    b.addEventListener('click', () => { editado = true; prefijar(document.getElementById('f-desc'), b.dataset.pre); }));
+  side.querySelector('.md-b[data-link]')?.addEventListener('click', async () => {
+    const ta = document.getElementById('f-desc');
+    const { selectionStart: a, selectionEnd: z } = ta;       // el diálogo le quita el foco
+    const url = await UI.pedir({ titulo: 'Insertar enlace', etiqueta: 'Dirección web', verbo: 'Insertar',
+                                 placeholder: 'https://…', tipo: 'url' });
+    if (!url) return;
+    ta.setSelectionRange(a, z);
+    editado = true;
+    envolver(ta, '[', `](${url})`);
   });
   document.getElementById('mdPrev').addEventListener('click', () => {
-    // Al alternar se conserva lo escrito: el textarea desaparece del DOM.
-    const ta = document.getElementById('f-desc');
-    if (ta && !nueva) tareas[tareas.findIndex(x => x.id === abierta)].descripcion = ta.value;
-    else if (ta) t.descripcion = ta.value;
+    // Al alternar el panel se rehace: lo escrito en todos los campos pasa al borrador, no
+    // sólo la descripción (antes un título a medias se perdía al ver la vista previa).
+    borrador = cuerpo();
     previo = !previo;
     renderPanel();
   });
-  document.getElementById('tkCom')?.addEventListener('click', async () => {
-    const inp = document.getElementById('f-com');
-    if (!inp.value.trim()) return;
-    coments.push(await API.post(`/tareas/${abierta}/comentarios`, { texto: inp.value }));
-    renderPanel();
-  });
+  conectarComentarios();
 
   // Marcar una casilla reescribe la línea del markdown, no un campo aparte.
   side.querySelectorAll('.tk-check input').forEach(cb =>
     cb.addEventListener('change', () => {
       const ta = document.getElementById('f-desc');
       ta.value = marcar(ta.value, +cb.dataset.i, cb.checked);
+      cb.nextElementSibling?.classList.toggle('listo', cb.checked);
       if (!nueva) guardar(abierta, { descripcion: ta.value });
     }));
 }
@@ -590,11 +667,15 @@ function renderPanel() {
   side.classList.add('open');
 
   const nueva = abierta === 'nueva';
-  const t = nueva
+  const base = nueva
     ? { titulo: '', tipo: 'Visita', prioridad: 'media', columna: 'pendiente',
         asignado_a: null, listing_id: '', descripcion: '', vence_el: null }
     : tareas.find(x => x.id === abierta);
-  if (!t) { abierta = null; return renderPanel(); }
+  if (!base) { abierta = null; return renderPanel(); }
+  // Se pinta lo que el usuario llevaba escrito (si pidió la vista previa), en una copia:
+  // la tarea de la lista no cambia hasta que se guarda.
+  const t = { ...base, ...(borrador ?? {}) };
+  borrador = null;
 
   side.innerHTML = `
     <div class="tk-aside-head">
@@ -624,6 +705,7 @@ function renderPanel() {
 // vez, al abrir la vista, y se vuelven a pedir después de cada guardado.
 let pipe = null, clientesLista = [], cargandoPipe = false;
 let pipeCliente = '', pipeTrae = '', laterales = false;
+let pipeError = null;            // por qué falló la última carga del pipeline (null = no ha fallado)
 let abiertoProc = null;          // id del proceso en el panel, o 'nuevo'
 
 const mxn = n => '$' + Math.round(Number(n)).toLocaleString('es-MX');
@@ -631,7 +713,7 @@ const mxnCorto = n => n >= 1e6 ? '$' + (n / 1e6).toLocaleString('es-MX', { maxim
                     : n >= 1e3 ? '$' + Math.round(n / 1e3).toLocaleString('es-MX') + ' k' : mxn(n);
 const cifra = n => Number(n).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 const hay = v => v !== null && v !== undefined && v !== '';
-// "Quién lo trae" es texto mientras la persona no tenga cuenta; si ya la tiene, manda
+// "Presentó" (quién lo trae) es texto mientras la persona no tenga cuenta; si ya la tiene, manda
 // su nombre de usuario. Un valor como "A/B" son dos personas.
 const traeNombre = p => p.trae_nombre || p.trae || '';
 const traePersonas = p => traeNombre(p).split('/').map(x => x.trim()).filter(Boolean);
@@ -695,7 +777,8 @@ function renderPipeline(lista) {
   if (!pipe) {
     const div = document.createElement('div');
     div.className = 'kb-empty';
-    div.textContent = cargandoPipe ? 'Cargando el pipeline…' : 'No se pudo cargar el pipeline.';
+    if (cargandoPipe || !pipeError) div.textContent = 'Cargando el pipeline…';
+    else UI.errorCarga(div, `No se pudo cargar el pipeline. ${pipeError}`, () => { pipeError = null; render(); });
     return div;
   }
   const porFicha = {};
@@ -733,7 +816,7 @@ function renderPipeFiltros() {
   document.getElementById('f-cliente').innerHTML = '<option value="">Todos los clientes</option>' +
     clientesLista.filter(c => cuenta[c.id] || c.id === pipeCliente || (pipe ?? []).some(p => p.cliente_id === c.id))
       .map(c => `<option value="${esc(c.id)}"${c.id === pipeCliente ? ' selected' : ''}>${esc(c.nombre)} (${cuenta[c.id] ?? 0})</option>`).join('');
-  document.getElementById('f-trae').innerHTML = '<option value="">Quién lo trae: todos</option>' +
+  document.getElementById('f-trae').innerHTML = '<option value="">Presentó: todos</option>' +
     personas.map(n => `<option value="${esc(n)}"${n === pipeTrae ? ' selected' : ''}>${esc(n)}</option>`).join('');
   document.getElementById('f-laterales').checked = laterales;
 }
@@ -753,7 +836,7 @@ function renderPipeAside() {
     ${filas.map(({ c, activos, total }) => `
       <div class="tk-mini" data-cliente="${esc(c.id)}" tabindex="0" role="button">
         <span class="tk-ava" style="background:${tono(c.id)}">${esc(iniciales({ nombre: c.nombre }))}</span>
-        <span class="tk-mini-n"><strong>${esc(c.nombre)}</strong><small>Cuenta: ${esc(c.responsable_nombre || c.responsable || '—')}</small></span>
+        <span class="tk-mini-n"><strong>${esc(c.nombre)}</strong><small>Responsable: ${esc(c.responsable_nombre || c.responsable || '—')}</small></span>
         <span class="tk-mini-k"><b>${activos}</b><span>activas</span></span>
         <span class="tk-mini-k"><b>${total}</b><span>total</span></span>
       </div>`).join('') || '<div class="tk-aside-body"><p class="proc-empty">Todavía no hay procesos.</p></div>'}`;
@@ -765,7 +848,8 @@ function renderPipeAside() {
   });
 }
 
-function abrirProc(id) {
+async function abrirProc(id) {
+  if (!(await descartar())) return;
   abiertoProc = id;
   abierta = null;
   renderPanel();
@@ -788,14 +872,17 @@ const FICHA_CAMPOS = ['titulo', 'tipo', 'municipio', 'mapa_url', 'tamano_m2', 'p
 async function guardarProc(p, proc, ficha) {
   const i = pipe.findIndex(x => x.id === p.id);
   if (i >= 0 && proc.status) { pipe[i] = { ...pipe[i], status: proc.status }; render(); }
+  let ok = true;
   try {
     if (Object.keys(proc).length) await API.patch(`/procesos/${p.id}`, proc);
     if (Object.keys(ficha).length) await API.patch(`/fichas/${p.ficha_id}`, ficha);
   } catch (err) {
-    UI.aviso(err.message);
+    UI.aviso(`No se guardó el proceso: ${err.message}`);
+    ok = false;
   }
-  await cargarPipeline().catch(() => {});
+  await cargarPipeline().catch(() => UI.aviso('No se pudo refrescar el pipeline. Recarga la página si algo se ve desactualizado.'));
   render();
+  return ok;
 }
 
 function leerProcPanel() {
@@ -860,7 +947,7 @@ function renderProcPanel() {
         <div><label for="p-status">Etapa</label><select id="p-status">${etapaOpciones(p.status)}</select></div>
         ${campo('p-junta', 'Junta', p.junta, 'placeholder="1ra, 2da…"')}
       </div>
-      <div><label for="p-trae">Quién lo trae</label>
+      <div><label for="p-trae">Presentó</label>
         <input id="p-trae" list="p-personas" value="${esc(traeNombre(p))}" placeholder="Nombre">
         <datalist id="p-personas">${personas.map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
       <div><label for="p-notas">Seguimiento</label>
@@ -896,9 +983,10 @@ function renderProcPanel() {
                        `<span class="pp-etapa e-${esc(o.status)}">${esc(etapaLabel(o.status))}</span></button>`).join('')}</div></div>` : ''}
     </div>`;
 
-  document.getElementById('ppClose').addEventListener('click', () => { abiertoProc = null; renderPanel(); });
+  document.getElementById('ppClose').addEventListener('click', cerrarPanel);
   side.querySelectorAll('.pp-otro[data-proc]').forEach(b => b.addEventListener('click', () => abrirProc(b.dataset.proc)));
-  side.querySelectorAll('.pp-otro[data-tarea]').forEach(b => b.addEventListener('click', () => {
+  side.querySelectorAll('.pp-otro[data-tarea]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await descartar())) return;
     vista = 'tablero';
     abiertoProc = null;
     abrirTarea(b.dataset.tarea);
@@ -907,18 +995,25 @@ function renderProcPanel() {
     let datos;
     try { datos = leerProcPanel(); } catch (err) { return UI.aviso(err.message); }
     if (!datos.ficha.titulo) return UI.aviso('El nombre de referencia es obligatorio.');
-    if (!nuevo) return guardarProc(p, datos.proc, datos.ficha);
+    if (!nuevo) {
+      // Con `editado` puesto, `render()` no rehace el panel: si el guardado falla se queda
+      // lo escrito; si sale bien se limpia y se repinta con lo del servidor.
+      if (await guardarProc(p, datos.proc, datos.ficha)) { editado = false; renderPanel(); }
+      return;
+    }
     const cliente_id = document.getElementById('p-cliente').value;
     if (!cliente_id) return UI.aviso('Elige a qué cliente se le ofrece.');
     try {
       const ficha = await API.post('/fichas', datos.ficha);
       const proc = await API.post('/procesos', { ...datos.proc, cliente_id, ficha_id: ficha.id });
       await cargarPipeline();
+      editado = false;
       abiertoProc = proc.id;
       render();
-    } catch (err) { UI.aviso(err.message); }
+    } catch (err) { UI.aviso(`No se agregó la propiedad: ${err.message}`); }
   });
   document.getElementById('ppTarea')?.addEventListener('click', async () => {
+    if (!(await descartar())) return;
     try {
       const t = await API.post('/tareas', {
         titulo: `${p.cliente_nombre}: ${p.titulo}`, tipo: 'Seguimiento', prioridad: 'media',
@@ -929,15 +1024,17 @@ function renderProcPanel() {
       vista = 'tablero';
       abiertoProc = null;
       abrirTarea(t.id);
-    } catch (err) { UI.aviso(err.message); }
+    } catch (err) { UI.aviso(`No se creó la tarea: ${err.message}`); }
   });
 }
 
 function render() {
   const esPipe = vista === 'pipeline';
-  if (esPipe && !pipe && !cargandoPipe) {
+  // Sin `pipeError`, un fallo volvía a pedirse en cuanto `render()` lo notaba: un bucle
+  // de peticiones fallidas. Ahora se detiene y el usuario decide con «Reintentar».
+  if (esPipe && !pipe && !cargandoPipe && !pipeError) {
     cargandoPipe = true;
-    cargarPipeline().catch(err => console.warn('Carga del pipeline falló:', err.message))
+    cargarPipeline().catch(err => { pipeError = err.message; })
                     .finally(() => { cargandoPipe = false; render(); });
   }
   const lista = esPipe ? pipeVisibles() : visibles();
@@ -948,16 +1045,23 @@ function render() {
   document.getElementById('prioGroup').hidden = esPipe;
   document.getElementById('pipeGroup').hidden = !esPipe;
   document.querySelector('.tk-bar-hint').hidden = vista === 'lista';
+  // Un solo buscador con dos cajas: la de la topbar (escritorio) y la de la barra (≤900 px).
+  const ph = esPipe ? 'Buscar procesos…' : 'Buscar tareas…';
+  for (const id of ['searchInput', 'searchInputMovil']) {
+    const el = document.getElementById(id);
+    el.placeholder = ph;
+    if (el.value !== q) el.value = q;
+  }
   if (esPipe) renderPipeFiltros();
 
   const vp = document.getElementById('viewPills');
   vp.innerHTML = '';
-  [['lista', 'Lista'], ['tablero', 'Tablero'], ['pipeline', 'Pipeline'], ['equipo', 'Equipo'], ['persona', 'Persona']].forEach(([k, l]) =>
-    vp.appendChild(pill(l, vista === k, () => {
-      vista = k;
-      // La vista de una persona necesita una persona: si no hay, toma la primera.
-      if (k === 'persona' && !persona) persona = equipo[0]?.id ?? null;
+  // «Persona» ya no es una vista: era el tablero con el filtro de persona puesto.
+  [['lista', 'Lista'], ['tablero', 'Tablero'], ['pipeline', 'Pipeline'], ['equipo', 'Equipo']].forEach(([k, l]) =>
+    vp.appendChild(pill(l, vista === k, async () => {
       // El panel es de la vista: una tarea abierta no sigue abierta en el pipeline, ni al revés.
+      if (((k === 'pipeline' && abierta) || (k !== 'pipeline' && abiertoProc)) && !(await descartar())) return;
+      vista = k;
       if (k === 'pipeline') abierta = null; else abiertoProc = null;
       render();
     })));
@@ -974,43 +1078,66 @@ function render() {
   if (!pg.hidden) {
     const cont = document.getElementById('personaPills');
     cont.innerHTML = '';
-    if (vista === 'tablero' || vista === 'lista') cont.appendChild(pill('Todo el equipo', !persona, () => { persona = null; render(); }));
+    cont.appendChild(pill('Todo el equipo', !persona, () => { persona = null; render(); }));
     equipo.forEach(p => cont.appendChild(pill(
       `${esc(p.nombre ?? p.email)}<span class="pill-count">${p.abiertas}</span>`,
       persona === p.id, () => { persona = p.id; render(); })));
+    // En ≤900 px las píldoras de todo el equipo no caben en una fila: el mismo filtro, en select.
+    document.getElementById('personaSel').innerHTML = '<option value="">Todo el equipo</option>' +
+      equipo.map(p => `<option value="${esc(p.id)}"${persona === p.id ? ' selected' : ''}>${esc(p.nombre ?? p.email)} (${p.abiertas})</option>`).join('');
   }
 
   const main = document.getElementById('vista');
   main.innerHTML = '';
   main.appendChild(esPipe ? renderPipeline(lista)
                  : vista === 'equipo' ? renderEquipo(lista)
-                 : vista === 'persona' ? renderPersona(lista)
                  : vista === 'lista' ? renderLista(lista)
                  : renderTablero(lista));
-  renderEquipoAside();
-  renderPanel();
+  // Con algo escrito en el panel no se reconstruye: filtrar, arrastrar o guardar otra
+  // tarjeta se llevaban lo escrito.
+  if (!panelSucio()) { renderEquipoAside(); renderPanel(); }
 }
-document.getElementById('nueva-btn').addEventListener('click', () => {
+document.getElementById('nueva-btn').addEventListener('click', async () => {
   if (vista === 'pipeline') return abrirProc('nuevo');
-  abierta = 'nueva'; coments = []; previo = false; renderPanel(); mostrarPanel();
+  if (!(await descartar())) return;
+  abiertoProc = null;
+  abierta = 'nueva'; coments = []; previo = false; comentFallo = false; renderPanel(); mostrarPanel();
+});
+// Lo escrito en el panel (menos un comentario, que tiene su propio chequeo, y las casillas
+// del checklist, que guardan solas) lo marca como sin guardar.
+document.getElementById('aside').addEventListener('input', e => {
+  if (e.target.id === 'f-com' || e.target.closest('.tk-check') || !e.target.closest('.tk-aside-body')) return;
+  editado = true;
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && (abierta || abiertoProc)) { abierta = null; abiertoProc = null; renderPanel(); }
+  if (e.key !== 'Escape' || !(abierta || abiertoProc) || e.defaultPrevented) return;
+  // Esc dentro de un campo es de ese campo (o del menú o diálogo abierto), no del panel.
+  if (e.target.closest?.('input, textarea, select') || document.querySelector('dialog[open]')) return;
+  cerrarPanel();
 });
 // El buscador de la topbar existía sin listener: `q` se leía y nunca cambiaba.
-document.getElementById('searchInput').addEventListener('input', e => { q = e.target.value.trim(); render(); });
+for (const id of ['searchInput', 'searchInputMovil'])
+  document.getElementById(id).addEventListener('input', e => { q = e.target.value.trim(); render(); });
+document.getElementById('personaSel').addEventListener('change', e => { persona = e.target.value || null; render(); });
 document.getElementById('f-cliente').addEventListener('change', e => { pipeCliente = e.target.value; render(); });
 document.getElementById('f-trae').addEventListener('change', e => { pipeTrae = e.target.value; render(); });
 document.getElementById('f-laterales').addEventListener('change', e => { laterales = e.target.checked; render(); });
 // tareas.html#pipeline abre directo en el pipeline.
 if (location.hash === '#pipeline') vista = 'pipeline';
 
-API.me().then(u => {
-  document.getElementById('authBox').hidden = true;
-  document.getElementById('userBox').hidden = false;
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    await API.logout();
-    location.href = 'login.html';
-  });
-  return cargar();
-}).catch(() => {});
+// «Cargando…» y, si falla, el error con «Reintentar»: antes un fallo dejaba el tablero
+// vacío y mudo (`.catch(() => {})`), igual que si no hubiera tareas.
+async function iniciar() {
+  const vistaEl = document.getElementById('vista');
+  vistaEl.innerHTML = '<div class="kb-empty">Cargando tareas…</div>';
+  try {
+    await API.me();
+    document.getElementById('authBox').hidden = true;
+    document.getElementById('userBox').hidden = false;
+    await cargar();
+  } catch (err) {
+    if (err.message === 'Sesión expirada') return;    // api.js ya mandó al login
+    UI.errorCarga(vistaEl, `No se pudieron cargar las tareas. ${err.message}`, iniciar);
+  }
+}
+iniciar();

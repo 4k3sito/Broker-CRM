@@ -44,6 +44,9 @@
       aplicar(oscuro);
       try { localStorage.setItem('ol-theme', oscuro ? 'dark' : 'light'); } catch { /* no persiste */ }
       pintar();
+      // Los mapas (MapLibre) traen su propio estilo de teselas y no leen los tokens de CSS:
+      // se enteran por este evento y cambian de estilo (mapa.js, ubicacion.js).
+      document.dispatchEvent(new CustomEvent('ol-tema', { detail: { oscuro } }));
     });
     pintar();
     // Antes del bloque de sesión: en el mock el orden es filete · conteo · tema · entrar.

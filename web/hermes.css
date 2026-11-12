@@ -720,24 +720,6 @@ button, input, textarea, select { font: inherit; }
   font-family: var(--font-mono); font-size: 9px; letter-spacing: .22em; text-transform: uppercase;
 }
 
-.intro-copy { max-width: 460px; }
-.intro-kicker {
-  margin-bottom: 20px; opacity: .65;
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: .24em; text-transform: uppercase;
-}
-.intro-copy h1 {
-  font-family: var(--font-display); font-size: 32px; font-weight: 500;
-  line-height: 1.28; max-width: 420px;
-}
-.intro-text {
-  margin-top: 16px; max-width: 420px;
-  color: rgba(239,237,230,.55); font-size: 14.5px; line-height: 1.6;
-}
-.intro-footer {
-  color: rgba(239,237,230,.35);
-  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .05em;
-}
-
 /* Columna del formulario */
 .login-main { display: flex; align-items: center; justify-content: center; padding: 44px; }
 .login-card { display: flex; flex-direction: column; gap: 26px; width: 100%; max-width: 380px; }
@@ -771,7 +753,8 @@ button, input, textarea, select { font: inherit; }
   font-family: var(--font-ui); font-size: 14px; outline: none;
   transition: border-color .15s;
 }
-.login-card input:focus { border-color: var(--accent); }
+/* Foco: sólo el contorno de 2 px de la regla global `:focus-visible`. Aquí iba además un
+   borde de acento: dos marcos juntos. */
 .login-card input::placeholder { color: var(--faint); }
 
 /* El error del canvas: caja sólida, no una línea de texto suelta. */
@@ -830,13 +813,10 @@ button, input, textarea, select { font: inherit; }
 @media (max-width: 860px) {
   .login-shell { grid-template-columns: 1fr; }
   .login-intro { padding: 30px; min-height: 0; gap: 26px; }
-  .intro-copy h1 { font-size: 27px; }
-  .intro-text { font-size: 13.5px; }
   .login-main { padding: 34px 26px 54px; }
 }
 @media (max-width: 420px) {
   .login-intro { padding: 24px; }
-  .intro-copy h1 { font-size: 24px; }
   .login-card h2 { font-size: 24px; }
 }
 
@@ -2516,7 +2496,7 @@ button.cl-chip.oculta { background:transparent; border:1px dashed var(--border-2
 .est-por_contactar { --est:var(--tono-2); }
 .est-inactivo { --est:var(--s-descartado); }
 .cl-est { font-style:normal; font-weight:600; color:var(--est); }
-.cl-est::after { content:" · "; color:var(--faint); font-weight:400; }
+.cl-est:not(:last-child)::after { content:" · "; color:var(--faint); font-weight:400; }
 .cl-sel[class*="est-"] { color:var(--est); font-weight:600; }
 .cl-sel option { color:var(--ink); background:var(--surface); font-weight:400; }
 .cl-item > .cl-grip { width:10px; margin:0 -4px 0 -6px; opacity:0; }
@@ -2634,7 +2614,7 @@ button.cl-chip.oculta { background:transparent; border:1px dashed var(--border-2
   background:repeating-linear-gradient(135deg,rgba(255,255,255,.035) 0 1px,transparent 1px 28px),var(--blue);
 }
 .login-intro { position:absolute; top:24px; left:28px; padding:0; background:none; overflow:visible; }
-.login-intro::before, .intro-copy, .intro-footer { display:none; }
+.login-intro::before { display:none; }
 .login-brand .brand-mark { width:24px; height:24px; }
 .brand-lockup strong { font-size:18px; }
 .brand-lockup small { display:none; }
@@ -2642,7 +2622,6 @@ button.cl-chip.oculta { background:transparent; border:1px dashed var(--border-2
 .login-main > .login-card {
   max-width:420px; margin:0 auto; padding:36px; background:var(--surface); gap:20px;
 }
-.login-main > .login-card .login-card { max-width:none; }
 .login-foot { font-size:12px; }
 .pw-wrap { position:relative; }
 .pw-wrap input { padding-right:84px !important; }
@@ -3024,3 +3003,382 @@ a, button, select, summary, label, [role="button"] { touch-action:manipulation; 
    la acción principal de cada panel («Agregar» documento). */
 .fx-add .cto-add { background:transparent; color:var(--ink); border-color:var(--border-2); }
 .fx-add .cto-add:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ── UI.pedir y UI.errorCarga (ui.js) ─────────────────────────────────────── */
+.ui-dlg-lbl { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted); }
+.ui-dlg-in {
+  min-height:40px; padding:0 10px; border:1px solid var(--border-2);
+  background:var(--bg); color:var(--ink); font-family:var(--font-ui); font-size:15px;
+}
+.ui-dlg-in:focus { border-color:var(--accent); }
+.ui-err { display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:24px 16px; font-size:14px; color:var(--ink); }
+.ui-err p { margin:0; line-height:1.5; }
+
+/* ── Comparar y Clientes (revisión UI 2026-11-12) ── */
+/* Comparar: la moneda y el «/mes» van pegados al monto, más chicos que la cifra. */
+.cmp-mon { font-family:var(--font-ui); font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--muted); }
+.cmp-v { overflow-wrap:anywhere; }
+.cmp-aviso { margin:0 0 10px; padding:8px 12px; border:1px solid var(--border-2); border-left:3px solid var(--accent); background:var(--surface); font-size:13px; color:var(--ink); }
+.cmp-nota { margin:8px 0 0; font-size:12px; color:var(--muted); }
+.cmp-col-k { width:170px; }
+.cmp-col-add { width:150px; }
+@media (max-width: 700px) {
+  /* En el teléfono la etiqueta se queda fija a la izquierda y las columnas corren de
+     lado: con 720 px de mínimo y 170 de etiqueta no cabía ni una propiedad. */
+  .cmp { padding:12px 12px 32px; }
+  .cmp-table { width:auto; min-width:0; }
+  .cmp-col-k { width:90px; }
+  .cmp-col-v { width:150px; }
+  .cmp-col-add { width:110px; }
+  .cmp-k { position:sticky; left:0; z-index:1; width:90px; padding:0 8px; background:var(--surface); font-size:11px; letter-spacing:.04em; overflow-wrap:anywhere; }
+  .cmp-v.precio { font-size:16px; }
+}
+@media print { .cmp-nota { display:none; } }
+
+/* Clientes: «+ Nuevo cliente» con texto, «Filtros (n)» con los cuatro filtros dentro. */
+.cl-new { width:auto; height:28px; padding:0 10px; font-family:var(--font-ui); font-size:12.5px; font-weight:600; white-space:nowrap; }
+#btnFiltros.on { border-color:var(--accent); color:var(--accent); }
+.cl-filtros { flex:1 1 100%; display:flex; flex-direction:column; gap:8px; padding:8px 0 2px; }
+.cl-filtros[hidden] { display:none; }
+.cl-filtro { display:flex; flex-direction:column; gap:3px; }
+.cl-filtro > span { font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+.cl-filtros .cl-fsel { flex:none; width:100%; height:32px; }
+/* Una tarea vencida, en rojo y con la palabra: el color solo no basta. */
+.cl-venc, .cl-tmeta.vencida { color:var(--s-rechazado); font-weight:700; }
+/* «Eliminar» ya no está junto a Excel: vive en «⋯», con su color de peligro. */
+.cl-mas > summary { min-width:32px; justify-content:center; padding:0 10px; font-size:16px; }
+.cl.presenta .cl-mas { display:none; }
+/* Pista de que el campo se edita en el lugar: subrayado punteado hasta que se enfoca. En
+   modo presentación se quita, que el cliente está viendo la pantalla. */
+.cl .cli-in:not(:focus) { border-bottom-style:dashed; border-bottom-color:var(--border-2); }
+.cl.presenta .cli-in:not(:focus) { border-bottom-color:transparent; }
+/* La celda vacía de la columna «+ Agregar» (comparar.js) no lleva borde propio de datos. */
+.cmp-add-cell { background:var(--bg); }
+
+/* ── Revisión, Scrapers y acceso (revisión UI 2026-11-12) ── */
+/* Acceso: la vista interior de la tarjeta (antes un .login-card dentro de otro). */
+.login-vista { display:flex; flex-direction:column; gap:26px; }
+
+/* Revisión: las dos vistas son pestañas de la misma sección. */
+.dp-tabs { display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid var(--border); }
+.dp-tab {
+  height:38px; padding:0 16px; margin-bottom:-1px; border:0; border-bottom:3px solid transparent;
+  background:transparent; color:var(--muted); font-family:var(--font-ui); font-size:14px; font-weight:600; cursor:pointer;
+}
+.dp-tab:hover { color:var(--ink); }
+.dp-tab.active { color:var(--ink); border-bottom-color:var(--accent); }
+/* Las teclas: visibles junto al botón y en la línea de atajos. */
+.dp-atajos { font-size:12px; color:var(--muted); }
+.dp-atajos kbd, .dp-par-acc kbd, .dp-aviso kbd {
+  padding:0 5px; border:1px solid currentColor; font-family:var(--font-mono);
+  font-size:11px; font-weight:700; line-height:1.4;
+}
+.dp-par-acc kbd { color:var(--muted); }
+/* Lo que difiere entre los dos anuncios (precio, superficie): el texto de la cabecera lo
+   dice con palabras y el fondo lo señala en el renglón. */
+.dp-dif { font-weight:700; }
+.dp-par[data-dif~="precio"] .dp-precio b { padding:0 4px; margin-left:-4px; background:var(--accent-soft); }
+.dp-par[data-dif~="m2"] .dp-precio span { padding:1px 4px; background:var(--accent-soft); }
+@media (pointer: coarse) {
+  .dp-atajos, .dp-par-acc kbd, .dp-aviso kbd { display:none; }
+  .dp-tab { height:44px; }
+}
+
+/* Scrapers: tabla en escritorio, tarjetas en el teléfono. */
+.sc-cards { display:none; }
+@media (max-width: 700px) {
+  .sc-tab { display:none; }
+  .sc-cards { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+}
+.sc-tr.e-vacio { --sc-color:var(--muted); }
+.sc-card.e-vacio { --sc-color:var(--muted); --sc-ring:var(--border); }
+.sc-card-vacio { padding:14px 17px 18px; font-size:13px; line-height:1.5; color:var(--muted); }
+.sc-card-foot a { color:var(--accent); }
+.sc-cov.sin { color:var(--faint); font-family:var(--font-mono); font-size:11px; }
+.sc-hist th.sc-hist-n { text-align:right; }
+.sc-mas { align-self:flex-start; margin-top:12px; }
+.sc-nota p + .sc-tec { margin-top:10px; }
+.sc-tec summary { cursor:pointer; color:var(--ink); font-weight:600; }
+.sc-tec ul { margin:8px 0 0; padding-left:18px; list-style:disc; display:flex; flex-direction:column; gap:6px; }
+
+/* ── Ficha (revisión UI 2026-11-12) ── */
+/* «Ver N fotos» y contador sobre la foto: sólo en el teléfono, donde el mosaico enseña una. */
+.fx-vertodas { display:none; }
+.fx-vertodas b { font-family:var(--font-mono); font-size:11px; }
+/* El texto largo de WhatsApp y «Ver el anuncio» se acorta donde la barra de abajo no cabe. */
+.fx-largo { white-space:nowrap; }
+/* «Atajos ?» junto a anterior/siguiente; sin esas dos, sólo y a la derecha. */
+.fx-pasos-n { flex:1; }
+.fx-pasos.solo { justify-content:flex-end; }
+/* Indicador de las notas: Guardando… / Guardado / No se guardó · Reintentar. */
+.fx-guardado { margin-left:auto; font-family:var(--font-ui); font-size:12px; letter-spacing:0; text-transform:none; }
+.fx-guardado.error { color:var(--s-rechazado); font-weight:600; }
+.fx-reintento { padding:0; border:none; background:transparent; color:inherit; font:inherit; text-decoration:underline; cursor:pointer; }
+/* Fichas PDF ya no cuelga de «Ficha»: es su tarjeta y el borde de arriba sobra. */
+#pdfCard .fx-vers { border-top:none; padding-top:0; }
+/* Aviso de que agregar documento, contacto o cliente pasa la propiedad al Catálogo. */
+.fx-catalogo { border-left:2px solid var(--accent); padding-left:8px; color:var(--muted); }
+/* El CRM carga aparte de la propiedad: mientras tanto, o si falla, estas tarjetas lo dicen. */
+.crm-estado { min-height:84px; }
+.crm-err .ui-err { padding:4px 0 0; }
+/* Deshacer del cambio de estado por teclado (1-5): mismo aspecto que .ui-aviso. */
+.fx-deshacer {
+  position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:60;
+  display:flex; align-items:center; gap:14px; max-width:min(560px, 92vw); padding:8px 8px 8px 16px;
+  background:var(--ink); color:var(--bg); font-size:13.5px; line-height:1.4;
+}
+.fx-deshacer[hidden] { display:none; }
+.fx-deshacer button {
+  height:32px; padding:0 12px; border:1px solid currentColor; background:transparent;
+  color:inherit; font-family:var(--font-ui); font-size:13px; font-weight:600; cursor:pointer;
+}
+.fx-deshacer kbd, .fx-atajos kbd {
+  padding:1px 5px; border:1px solid currentColor; font-family:var(--font-mono); font-size:10px; font-weight:700;
+}
+/* Ayuda de atajos (diálogo). */
+.fx-atajos { display:flex; flex-direction:column; gap:8px; margin:0; }
+.fx-atajos > div { display:grid; grid-template-columns:96px minmax(0,1fr); gap:12px; align-items:baseline; }
+.fx-atajos dt { white-space:nowrap; }
+.fx-atajos dd { margin:0; font-size:13.5px; line-height:1.45; color:var(--muted); }
+.fx-atajos kbd { color:var(--ink); }
+
+@media (max-width: 700px) {
+  .fx-largo, .fx-ayuda { display:none; }
+  .fx-vertodas { display:flex; top:auto; bottom:10px; right:10px; min-height:44px; padding:0 12px; }
+  /* Lo que se trabaja a diario va primero: clientes y notas antes que documentos, contacto
+     y fichas PDF. Las pilas se deshacen (display:contents) para poder ordenar sus tarjetas. */
+  .fx-cols, .fx-cols.pres { display:flex; flex-direction:column; }
+  .fx-cols > .fx-stack { display:contents; }
+  #cliCard { order:1; }
+  .fx-notas { order:2; }
+  #docsCard, #crmDocs { order:3; }
+  #ctoCard { order:4; }
+  #pdfCard { order:5; }
+  /* La barra de abajo está fija: el deshacer sube sobre ella. */
+  .fx-deshacer { bottom:calc(76px + env(safe-area-inset-bottom)); }
+  /* En 390 px no caben estado + ☆ + WhatsApp + anuncio + Más con texto: el estado se
+     quedaba en una flechita sin palabra. El anuncio queda sólo con su ícono (aria-label
+     lo nombra) y el estado conserva un ancho donde se lee «Contactado». */
+  .fx-acciones .fx-status { flex:1 1 112px; min-width:112px; }
+  .fx-acciones .fx-btn, .fx-acciones .fx-mas-menu > summary { padding:0 12px; white-space:nowrap; flex:0 0 auto; }
+  .fx-ver-txt { display:none; }
+}
+
+/* Los × de cierre y quitar miden 20-30 px; con el dedo se pide 44×44. El área se extiende
+   con un ::after transparente, sin crecer a la vista. */
+@media (pointer: coarse) {
+  .proc-del, .fb-close, .tok-del, .qpop-x, .crit-x, .cl-x, .doc-del, .file-del, .fx-ver-del, .cto-del { position:relative; }
+  :is(.proc-del, .fb-close, .tok-del, .qpop-x, .crit-x, .cl-x, .doc-del, .file-del, .fx-ver-del, .cto-del)::after {
+    content:''; position:absolute; left:50%; top:50%; width:44px; height:44px; transform:translate(-50%, -50%);
+  }
+  .fx-reintento { min-height:44px; }
+  .fx-ayuda, .fx-deshacer kbd { display:none; }
+}
+
+/* ── Tareas y menú (revisión UI 2026-11-12) ── */
+/* Insignias de las pestañas: reservan su lugar aunque estén vacías, para que la barra no
+   cambie de ancho cuando llega la cifra. Revisión lleva «3.1k»; Tareas, dos dígitos. */
+.topbar-nav .tb-badge { min-width:22px; text-align:center; }
+.topbar-nav .tb-badge[data-badge="revision"] { min-width:34px; }
+.topbar-nav .tb-badge.vacia { visibility:hidden; }
+.nav-hoja-lista .tb-badge.vacia { display:none; }
+
+/* Menú de cuenta: el avatar es un botón y abre este panel (menu.js). El «Salir» suelto de
+   cada página sigue en el HTML pero oculto: lo sustituye «Cerrar sesión» del panel. */
+#userBox { position:relative; }
+button.tb-ava { border:none; padding:0; }
+#logout-btn[hidden] { display:none; }
+.tb-cuenta {
+  position:absolute; top:calc(100% + 12px); right:0; z-index:60;
+  display:flex; flex-direction:column; min-width:240px; max-width:calc(100vw - 24px);
+  background:var(--topbar); color:var(--topbar-text); border:1px solid rgba(255,255,255,.18);
+}
+.tb-cuenta[hidden] { display:none; }
+.tb-cuenta-quien {
+  display:flex; flex-direction:column; gap:2px; padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+.tb-cuenta-quien strong { font-size:13.5px; font-weight:600; overflow-wrap:anywhere; }
+.tb-cuenta-quien span { font-size:12px; color:rgba(239,237,230,.62); overflow-wrap:anywhere; }
+.tb-cuenta-it {
+  display:flex; align-items:center; min-height:40px; padding:0 14px; border:none;
+  background:transparent; color:var(--topbar-text); text-align:left; text-decoration:none; cursor:pointer;
+  font-family:var(--font-ui); font-size:13px; font-weight:500;
+}
+.tb-cuenta-it:hover { background:rgba(255,255,255,.1); color:var(--topbar-text); }
+.tb-cuenta-it[hidden] { display:none; }
+@media (pointer:coarse) { .tb-cuenta-it { min-height:44px; } }
+
+/* Tarjeta de tarea: la fila de arriba lleva chips y avatar; ya no hay pie. */
+.tk-chips { display:flex; align-items:center; gap:8px; min-width:0; }
+.tk.hecha { background:transparent; }
+.tk.hecha .tk-titulo { color:var(--muted); }
+
+/* Filtro de persona: píldoras en escritorio, select en ≤900 px, donde no caben. */
+#personaSel { display:none; }
+@media (max-width: 900px) {
+  #personaPills { display:none; }
+  #personaSel { display:inline-block; }
+}
+
+/* ── Tablero (revisión UI 2026-11-12) ── */
+/* Todo lo del tablero (index.html, app.js, mapa.js) que la revisión pidió, en un solo bloque
+   al final: la tarjeta como enlace, la hoja de filtros del teléfono, los tamaños de letra de
+   la tarjeta y los filtros. Las reglas de arriba que esto reemplaza se dejaron como estaban
+   para no pisar a las demás ediciones; donde coinciden, gana lo de aquí por ir después. */
+
+:root {
+  /* Un piso de 11 px para lo que se lee en la tarjeta y en los filtros (R1-18). El dato es lo
+     que se compara de un vistazo (m², $/m², cajones); la etiqueta lo acompaña. */
+  --fs-dato: 12px;
+  --fs-etiqueta: 11px;
+}
+
+/* La tarjeta es un enlace: el título lleva la liga y su ::after la extiende a toda la
+   tarjeta (clic medio, Ctrl+clic, Tab). Lo que se toca por separado va por encima. */
+.card-link { color:inherit; text-decoration:none; }
+.card-link:hover { text-decoration:underline; text-underline-offset:2px; }
+.card-link::after { content:''; position:absolute; inset:0; z-index:1; }
+.card-link:focus-visible::after { outline:2px solid var(--accent); outline-offset:-2px; }
+.card .btn-star, .card .card-chk { z-index:3; }
+.card-status { position:relative; z-index:2; }
+/* El texto que se puede seleccionar y copiar (precio, dirección, datos) también va encima del
+   enlace; un clic sobre él abre la ficha, salvo que haya texto seleccionado (app.js). */
+.card-price, .card-ppm, .price-note, .card-dup, .card-dir, .card-hechos, .card-mercado { position:relative; z-index:2; }
+.card-dir-t { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.card.fuera { opacity:.45; }
+/* La casilla de comparar se veía sólo con el ratón encima, y nadie sabía que existía. */
+.card-chk { opacity:.65; }
+
+/* Tamaños (R1-18). */
+.currency { font-size:var(--fs-etiqueta); }
+.currency.usd { padding:1px 4px; border:1px solid var(--ink); color:var(--ink); font-weight:700; }
+.price-op, .card-a { font-size:var(--fs-etiqueta); }
+.card-ppm { font-size:var(--fs-dato); }
+.price-note { font-family:var(--font-ui); font-size:var(--fs-dato); }
+.card-hechos { font-size:var(--fs-dato); }
+.card-m2 small, .card-mercado, .card-dup { font-size:var(--fs-etiqueta); }
+.card .badge-src, .card .badge-mercado, .badge { font-size:var(--fs-etiqueta); }
+.status-select { font-size:var(--fs-etiqueta); }
+.hecho-et { display:none; font-size:var(--fs-etiqueta); color:var(--muted); }
+.fb-k, .fb-sel-e, .fb-sug-e, .fb-sug-n, .fb-sub, .fb-title, .pill-count, .pill-n, .tok-kind,
+.suggestion-count, .suggestions-header, .street-chip, .map-note, .map-pin, .tray-txt small { font-size:var(--fs-etiqueta); }
+/* Las notas y párrafos de los filtros son texto corrido: en la letra de la interfaz. */
+.fb-nota { font-size:13px; }
+.pill-n { font-family:var(--font-mono); opacity:.65; }
+.pill.cero { opacity:.5; }
+
+/* Pestaña: una línea que dice qué es (R1-05). */
+.tab-ayuda {
+  margin:0; padding:5px 20px; background:var(--bg); border-bottom:1px solid var(--border);
+  font-size:12.5px; color:var(--muted);
+}
+/* El aviso de inventario viejo se puede descartar y a veces trae un enlace. */
+.frescura { display:flex; align-items:center; gap:12px; }
+.frescura > span { flex:1; min-width:0; }
+.frescura a { color:var(--ink); font-weight:700; text-decoration:underline; white-space:nowrap; }
+.frescura-x { width:32px; height:32px; border:none; background:transparent; color:var(--ink); font-size:18px; line-height:1; cursor:pointer; flex-shrink:0; }
+
+/* Bandeja: la explicación de lo que falta para comparar o fusionar, siempre a la vista. */
+.tray-ayuda { flex:1 1 180px; min-width:0; font-size:12.5px; opacity:.85; }
+.tray-ayuda:empty { display:none; }
+/* Aviso con destino: «Guardado en el Catálogo · Ver». */
+.toast a.toast-ver {
+  display:inline-flex; align-items:center; height:30px; padding:0 12px; border:1px solid currentColor;
+  color:inherit; font-weight:700; text-decoration:none; white-space:nowrap;
+}
+/* Vacío del tablero: los filtros que pueden estorbar, cada uno con su ×. */
+.empty-quitar { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; max-width:560px; }
+.empty-quitar .btn-clear { height:30px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Sugerencias de la búsqueda: el elemento activo del listbox. */
+.suggestion-row[aria-selected="true"] { background:var(--accent-soft); }
+/* La × del chip de ubicación buscada ahora es un botón. */
+button.street-chip-close {
+  border:none; background:transparent; color:inherit; padding:0 0 0 2px;
+  font-family:inherit; font-size:14px; line-height:1; cursor:pointer; opacity:.7;
+}
+
+/* Popover de filtros. El cuerpo va envuelto para poder fijar la cabecera y el pie. */
+.fb-cuerpo { display:flex; flex-direction:column; gap:11px; }
+.fb-sec { display:flex; flex-direction:column; gap:9px; padding:12px 0; border-top:1px solid var(--border); }
+.fb-sec:first-child { padding-top:0; border-top:none; }
+.fb-sec .fb-sub { margin:0; }
+.fb-modos .fb-seg { flex:1; }
+.fb-rango-km { width:100%; accent-color:var(--accent); }
+.fb-seg[data-centro] { flex:none; width:100%; }
+.fb-aplica { min-width:96px; }
+/* Sólo en el teléfono. */
+.fb-todos, .estado-sel, .mas-btn, .mas-menu { display:none; }
+
+@media (max-width:900px) {
+  /* Cabecera del tablero en el teléfono (R1-09): una fila «Buscar… [Filtros (n)]», el estado
+     como select y un «⋯». Hasta aquí ocupaba el 44 % de la pantalla y el estado quedaba
+     cortado («Todos 11,09»). */
+  .fb, .qbar-sentence, .tab-ayuda, .qbar-clear { display:none; }
+  .qbar-box { flex-wrap:wrap; }
+  .qbar-search { flex:1 1 0; min-width:0; }
+  .fb-todos {
+    display:inline-flex; align-items:center; height:36px; min-width:44px; padding:0 12px;
+    border:1px solid var(--border-2); background:var(--surface); color:var(--ink);
+    font-family:var(--font-ui); font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;
+  }
+  .fb-todos[aria-expanded="true"] { border-color:var(--accent); color:var(--accent); }
+
+  /* z-index 39 y no más: `.qbar` es 40 y la hoja de filtros cuelga de ella; si la fila de estado
+     la superara, taparía la cabecera de la hoja. */
+  .statebar { flex-wrap:nowrap; overflow:visible; position:relative; z-index:39; padding:6px 12px; gap:8px; }
+  .pill-txt { display:none; }
+  .statebar #statusPills { display:none; }
+  .statebar .pill { flex-shrink:0; height:36px; }
+  .estado-sel { display:flex; flex:1; min-width:0; }
+  .estado-sel select {
+    width:100%; height:36px; padding:0 6px 0 10px; border:1px solid var(--border-2); background:var(--surface);
+    color:var(--ink); font-family:var(--font-ui); font-size:12.5px; font-weight:600;
+  }
+  .statebar-right { position:static; margin-left:0; padding:0; border-left:none; background:none; gap:6px; align-self:auto; }
+  .statebar-right .seg, .statebar-right .orden-chip, #export-btn, #nueva-prop, #cargandoTxt { display:none; }
+  .statebar-right .mas-btn { display:inline-flex; align-items:center; justify-content:center; width:44px; height:36px; padding:0; font-size:18px; }
+  .mas-menu {
+    display:flex; flex-direction:column; position:absolute; right:12px; top:100%; z-index:60; min-width:210px;
+    background:var(--surface); border:1px solid var(--accent);
+  }
+  .mas-menu[hidden] { display:none; }
+  .mas-menu button {
+    display:flex; align-items:center; height:44px; padding:0 14px; border:none; background:transparent;
+    color:var(--ink); font-family:var(--font-ui); font-size:14px; font-weight:600; text-align:left; cursor:pointer;
+  }
+  .mas-menu button[hidden] { display:none; }
+  .mas-menu button + button { border-top:1px solid var(--border); }
+  .frescura { padding:8px 4px 8px 12px; }
+
+  /* La hoja de filtros: ya existía bajo 760 px; aquí vale hasta 900 y con cabecera y pie fijos,
+     para que «Aplicar» no se pierda al desplazarse. */
+  .fb-pop {
+    position:fixed; inset:auto 0 0 0; width:auto; max-height:82vh; overflow-y:auto; gap:0;
+    border-width:1px 0 0; padding:0 18px;
+  }
+  .fb-scrim { display:block; position:fixed; inset:0; z-index:85; background:rgba(17,17,32,.45); }
+  .fb-scrim[hidden] { display:none; }
+  .fb-cajas { grid-template-columns:1fr; }
+  .fb-head { position:sticky; top:0; z-index:2; padding:14px 0 8px; background:var(--surface); }
+  .fb-close { width:44px; height:44px; margin-right:-12px; font-size:22px; }
+  .fb-cuerpo { padding:4px 0 14px; }
+  .fb-foot {
+    position:sticky; bottom:0; z-index:2; padding:10px 0 calc(12px + env(safe-area-inset-bottom));
+    background:var(--surface); border-top:1px solid var(--border);
+  }
+  .fb-aplica { height:44px; flex:1; }
+  .fb-limpia { height:44px; padding:0 12px; }
+  .fb-seg, .fb-in { height:44px; }
+  .tray-ayuda { flex-basis:100%; order:3; }
+}
+
+@media (pointer: coarse) {
+  /* Sin ratón no hay `title`: la etiqueta corta del dato se ve («Caj. 2», «Elev. Sí»). */
+  .hecho-et { display:inline; }
+  /* Un <select> no admite ::after para crecer el área tocable: crece su altura y el aire
+     alrededor. */
+  .status-select { min-height:36px; }
+  .card-status { padding:4px 0; }
+}

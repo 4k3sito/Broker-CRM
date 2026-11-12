@@ -47,3 +47,30 @@ function superficies(terreno, construccion, area) {
   return (a ?? t) ? [['Superficie', a ?? t]] : [];
 }
 const m2Txt = n => `${Math.round(n).toLocaleString('es-MX')} m²`;
+
+// La fecha de hoy en hora LOCAL, como AAAA-MM-DD. `new Date().toISOString()` da la fecha
+// UTC: en Monterrey (UTC-6), de las 18:00 a medianoche ya es mañana, y lo que vencía hoy
+// salía como vencido. Toda comparación con un `vence_el` usa esto.
+const hoyLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Una fecha sin hora (AAAA-MM-DD) o un instante, en corto: "9 nov", con el año sólo si
+// no es el actual ("9 nov 2025"). Una fecha sin hora se lee como local: `new Date('2026-11-09')`
+// la tomaría como medianoche UTC y en México saldría el día anterior.
+function fechaCorta(v) {
+  if (!v) return '';
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T12:00:00`) : new Date(v);
+  if (isNaN(d)) return '';
+  const o = { day: 'numeric', month: 'short' };
+  if (d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+  return d.toLocaleDateString('es-MX', o).replace('.', '');
+}
+
+// La liga de WhatsApp de un teléfono: sólo dígitos y, si son 10 (un número mexicano sin
+// lada de país), con el 52 delante. Vacío si no parece un teléfono.
+function waLink(tel) {
+  const d = String(tel ?? '').replace(/\D/g, '');
+  return d.length >= 10 ? `https://wa.me/${d.length === 10 ? '52' + d : d}` : '';
+}

@@ -22,31 +22,7 @@ function setLoading(loading) {
   submitButton.querySelector('span').textContent = loading ? 'Entrando…' : 'Entrar';
 }
 
-// Mostrar/ocultar contraseña y aviso de Bloq Mayús. Se cuelgan de cualquier
-// input[type=password] de la página, así sirven también en recuperar/actualizar.
-function mejorarPassword(input) {
-  const wrap = document.createElement('div');
-  wrap.className = 'pw-wrap';
-  input.replaceWith(wrap);
-  wrap.appendChild(input);
-  const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'pw-toggle'; btn.textContent = 'Mostrar';
-  btn.addEventListener('click', () => {
-    const ver = input.type === 'password';
-    input.type = ver ? 'text' : 'password';
-    btn.textContent = ver ? 'Ocultar' : 'Mostrar';
-    input.focus();
-  });
-  wrap.appendChild(btn);
-  const caps = document.createElement('p');
-  caps.className = 'pw-caps'; caps.hidden = true; caps.textContent = 'Bloq Mayús activado';
-  wrap.after(caps);
-  const ver = e => { caps.hidden = !e.getModifierState?.('CapsLock'); };
-  input.addEventListener('keydown', ver);
-  input.addEventListener('keyup', ver);
-  input.addEventListener('blur', () => { caps.hidden = true; });
-}
-document.querySelectorAll('input[type="password"]').forEach(mejorarPassword);
+// Mostrar/ocultar contraseña y aviso de Bloq Mayús: los pone pw.js (lo carga login.html).
 
 // El correo se recuerda en este equipo (nunca la contraseña).
 try {
@@ -94,10 +70,13 @@ form.addEventListener('submit', async event => {
     try { localStorage.setItem('ol-email', emailInput.value.trim()); } catch { /* sin persistencia */ }
     location.replace(VOLVER);
   } catch (err) {
-    // 429 del limitador trae su propio mensaje; el resto se generaliza para no
-    // revelar si el correo existe.
-    showError(/Demasiados/.test(err.message)
-      ? err.message
+    // Un fallo de red o del servidor no es una contraseña mala: decirlo así mandaba a quien
+    // sólo estaba sin conexión a cambiar una contraseña que estaba bien. El 429 del
+    // limitador trae su propio mensaje; el resto se generaliza para no revelar si el
+    // correo existe.
+    showError(err.status === 429 || /Demasiados/.test(err.message) ? err.message
+      : err.red ? `${err.message} Inténtalo de nuevo.`
+      : err.status >= 500 ? err.message
       : 'Correo o contraseña incorrectos.');
     setLoading(false);
   }

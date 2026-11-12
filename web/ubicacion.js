@@ -10,8 +10,17 @@
 // Mismo contrato que mapa.js: un objeto global con `pintar`, y si algo falla se dice
 // en una nota en vez de dejar la caja vacía.
 const Ubicacion = (() => {
-  // El mapa base sigue al tema de la página, como el del tablero (mapa.js).
-  const ESTILO = `https://tiles.openfreemap.org/styles/${document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'positron'}`;
+  // El mapa base sigue al tema de la página, como el del tablero (mapa.js): al abrir y,
+  // si se cambia el tema con la ficha abierta, por el evento `ol-tema` de theme.js.
+  const estilo = oscuro => `https://tiles.openfreemap.org/styles/${oscuro ? 'dark' : 'positron'}`;
+  const estiloActual = () => estilo(document.documentElement.getAttribute('data-theme') === 'dark');
+  // MapLibre trae sus avisos de «gestos cooperativos» en inglés: se traducen aquí porque
+  // la rueda desplaza la página y alguien tiene que decir cómo acercar el mapa.
+  const LOCALE = {
+    'CooperativeGesturesHandler.WindowsHelpText': 'Usa Ctrl + rueda para acercar el mapa',
+    'CooperativeGesturesHandler.MacHelpText': 'Usa ⌘ + rueda para acercar el mapa',
+    'CooperativeGesturesHandler.MobileHelpText': 'Usa dos dedos para mover el mapa',
+  };
   let map = null, pin = null, alFijar = null, esperando = false;
 
   function aviso(txt) {
@@ -41,9 +50,10 @@ const Ubicacion = (() => {
     if (!map) {
       try {
         map = new maplibregl.Map({
-          container: el, style: ESTILO, center: centro, zoom: hay ? 15 : (cfg.zoom ?? 11),
+          container: el, style: estiloActual(), center: centro, zoom: hay ? 15 : (cfg.zoom ?? 11),
           attributionControl: false,     // la atribución va escrita bajo el mapa
           cooperativeGestures: true,     // la rueda desplaza la página, no el mapa
+          locale: LOCALE,
           dragRotate: false, pitchWithRotate: false,
         });
       } catch (e) { aviso('Este navegador no puede dibujar el mapa.'); return; }
@@ -89,7 +99,7 @@ const Ubicacion = (() => {
     mapaCmp?.remove();
     try {
       mapaCmp = new maplibregl.Map({
-        container: el, style: ESTILO, attributionControl: false, cooperativeGestures: true,
+        container: el, style: estiloActual(), attributionControl: false, cooperativeGestures: true, locale: LOCALE,
         dragRotate: false, pitchWithRotate: false,
         bounds: conGeo.reduce((b, l) => b.extend([l.lng, l.lat]), new maplibregl.LngLatBounds()),
         fitBoundsOptions: { padding: 50, maxZoom: 15 },
@@ -101,7 +111,9 @@ const Ubicacion = (() => {
     for (const l of conGeo.slice().sort((a, b) => (a.id === sujetoId) - (b.id === sujetoId))) {
       const pin = document.createElement('div');
       pin.className = 'map-pin' + (l.id === sujetoId ? ' on' : '');
-      pin.textContent = l.precio != null ? corto(Math.round(l.precio)) : 's/p';
+      // Es el precio por m²: sin el sufijo se leía como el total y junto al pin de un
+      // anuncio del tablero ($4.2M) parecía lo mismo.
+      pin.textContent = l.precio != null ? `${corto(Math.round(l.precio))}/m²` : 'Sin precio';
       pin.title = l.titulo ?? '';
       if (l.id !== sujetoId) pin.addEventListener('click', () => onPin?.(l.id));
       pinesCmp.push(new maplibregl.Marker({ element: pin, anchor: 'center' }).setLngLat([l.lng, l.lat]).addTo(mapaCmp));
@@ -109,6 +121,15 @@ const Ubicacion = (() => {
     const sin = lista.length - conGeo.length;
     nota(sin ? `${sin} de ${lista.length} sin ubicación` : null);
   }
+
+  // Cambio de tema con la ficha abierta (theme.js lo avisa con `ol-tema`): sin esto el
+  // mapa se quedaba con las calles claras sobre una página oscura. Los pines son DOM y
+  // sobreviven al cambio de estilo.
+  document.addEventListener('ol-tema', e => {
+    const url = estilo(!!e.detail?.oscuro);
+    map?.setStyle(url);
+    mapaCmp?.setStyle(url);
+  });
 
   return {
     pintar, esperarClic, comparables,

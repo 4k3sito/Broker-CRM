@@ -33,52 +33,71 @@
 
 <!-- Búsqueda y filtros en una sola caja: el buscador es el primer "token". -->
 <div class="qbar" id="qbar">
-  <!-- Barra fija: los tres filtros que el asesor usa siempre. El popover y su fondo
+  <!-- Barra fija: los filtros del tablero, todos con borrador y «Aplicar». El popover y su fondo
        viven fuera de .fb para que en el teléfono la hoja inferior no herede su ancho. -->
 <div class="fb" id="fb">
   <span class="fb-chip" data-f="ubicacion">
     <button class="fb-open" data-f="ubicacion" aria-expanded="false" aria-haspopup="dialog">
       <span class="fb-k">Ubicaci&#243;n</span><span class="fb-v" id="fbv-ubicacion">Todo M&#233;xico</span>
     </button>
-    <button class="fb-x" data-x="ubicacion" title="Quitar ubicaci&#243;n" hidden>&times;</button>
+    <button class="fb-x" data-x="ubicacion" title="Quitar ubicaci&#243;n" aria-label="Quitar ubicaci&#243;n" hidden>&times;</button>
+  </span>
+  <span class="fb-chip" data-f="operacion">
+    <button class="fb-open" data-f="operacion" aria-expanded="false" aria-haspopup="dialog">
+      <span class="fb-k">Operaci&#243;n</span><span class="fb-v" id="fbv-operacion">Todas</span>
+    </button>
+    <button class="fb-x" data-x="operacion" title="Quitar operaci&#243;n" aria-label="Quitar operaci&#243;n" hidden>&times;</button>
   </span>
   <span class="fb-chip" data-f="precio">
     <button class="fb-open" data-f="precio" aria-expanded="false" aria-haspopup="dialog">
       <span class="fb-k">Precio</span><span class="fb-v" id="fbv-precio">Cualquiera</span>
     </button>
-    <button class="fb-x" data-x="precio" title="Quitar precio" hidden>&times;</button>
+    <button class="fb-x" data-x="precio" title="Quitar precio" aria-label="Quitar precio" hidden>&times;</button>
+  </span>
+  <span class="fb-chip" data-f="m2">
+    <button class="fb-open" data-f="m2" aria-expanded="false" aria-haspopup="dialog">
+      <span class="fb-k">Superficie</span><span class="fb-v" id="fbv-m2">Cualquiera</span>
+    </button>
+    <button class="fb-x" data-x="m2" title="Quitar superficie" aria-label="Quitar superficie" hidden>&times;</button>
   </span>
   <span class="fb-chip" data-f="tipo">
     <button class="fb-open" data-f="tipo" aria-expanded="false" aria-haspopup="dialog">
       <span class="fb-k">Tipo</span><span class="fb-v" id="fbv-tipo">Todos</span>
     </button>
-    <button class="fb-x" data-x="tipo" title="Quitar tipo" hidden>&times;</button>
+    <button class="fb-x" data-x="tipo" title="Quitar tipo" aria-label="Quitar tipo" hidden>&times;</button>
   </span>
   <!-- Sólo con un tipo elegido: cada tipo pregunta por lo suyo (app.js). -->
   <span class="fb-chip" data-f="carac" hidden>
     <button class="fb-open" data-f="carac" aria-expanded="false" aria-haspopup="dialog">
       <span class="fb-k">Caracter&#237;sticas</span><span class="fb-v" id="fbv-carac">Todas</span>
     </button>
-    <button class="fb-x" data-x="carac" title="Quitar caracter&#237;sticas" hidden>&times;</button>
+    <button class="fb-x" data-x="carac" title="Quitar caracter&#237;sticas" aria-label="Quitar caracter&#237;sticas" hidden>&times;</button>
   </span>
-  <!-- Sólo en la pestaña Inmobiliaria (app.js los muestra). -->
+  <!-- Lo que se usa poco: fuente y precio por m². Atajo: Ctrl K (⌘K en Mac), que app.js escribe. -->
+  <span class="fb-chip" data-f="mas">
+    <button class="fb-open" data-f="mas" aria-expanded="false" aria-haspopup="dialog" id="fbMasBtn">
+      <span class="fb-k">M&#225;s filtros</span><span class="fb-v" id="fbv-mas">Ninguno</span>
+    </button>
+    <button class="fb-x" data-x="mas" title="Quitar fuente y $/m&#178;" aria-label="Quitar fuente y $/m&#178;" hidden>&times;</button>
+  </span>
+  <!-- Sólo en la pestaña Catálogo (app.js los muestra). -->
   <span class="fb-chip" data-f="cliente" hidden>
     <button class="fb-open" data-f="cliente" aria-expanded="false" aria-haspopup="dialog">
       <span class="fb-k">Cliente</span><span class="fb-v" id="fbv-cliente">Todos</span>
     </button>
-    <button class="fb-x" data-x="cliente" title="Quitar filtro" hidden>&times;</button>
+    <button class="fb-x" data-x="cliente" title="Quitar filtro" aria-label="Quitar filtro de cliente" hidden>&times;</button>
   </span>
   <span class="fb-chip" data-f="asesor" hidden>
     <button class="fb-open" data-f="asesor" aria-expanded="false" aria-haspopup="dialog">
-      <span class="fb-k">Asesor</span><span class="fb-v" id="fbv-asesor">Todos</span>
+      <span class="fb-k">Present&#243;</span><span class="fb-v" id="fbv-asesor">Todos</span>
     </button>
-    <button class="fb-x" data-x="asesor" title="Quitar filtro" hidden>&times;</button>
+    <button class="fb-x" data-x="asesor" title="Quitar filtro" aria-label="Quitar filtro de qui&#233;n present&#243;" hidden>&times;</button>
   </span>
   <span class="fb-chip" data-f="etapa" hidden>
     <button class="fb-open" data-f="etapa" aria-expanded="false" aria-haspopup="dialog">
       <span class="fb-k">Etapa</span><span class="fb-v" id="fbv-etapa">Todas</span>
     </button>
-    <button class="fb-x" data-x="etapa" title="Quitar filtro" hidden>&times;</button>
+    <button class="fb-x" data-x="etapa" title="Quitar filtro" aria-label="Quitar filtro de etapa" hidden>&times;</button>
   </span>
 </div>
 <div class="fb-scrim" id="fbScrim" hidden></div>
@@ -89,30 +108,35 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <span class="street-chip" id="searchChip" hidden>
         <span id="searchChipText"></span>
-        <span class="street-chip-close" id="searchChipClose">&times;</span>
+        <button type="button" class="street-chip-close" id="searchChipClose" aria-label="Quitar la ubicaci&#243;n buscada" title="Quitar">&times;</button>
       </span>
-      <input type="text" id="searchInput" placeholder="Direcci&#243;n, t&#237;tulo o c&#243;digo&#8230;" autocomplete="off">
-      <div class="search-suggestions" id="searchSuggestions"></div>
+      <!-- Combobox: las sugerencias son un listbox que se recorre con las flechas. -->
+      <input type="text" id="searchInput" placeholder="Direcci&#243;n, t&#237;tulo o c&#243;digo&#8230;  ( / )" autocomplete="off"
+             role="combobox" aria-label="Buscar por direcci&#243;n, t&#237;tulo o c&#243;digo" aria-autocomplete="list"
+             aria-expanded="false" aria-controls="searchSuggestions">
+      <div class="search-suggestions" id="searchSuggestions" role="listbox" aria-label="Ubicaciones sugeridas"></div>
     </div>
     <span id="tokens"></span>
-    <button class="qbar-add" id="qbar-add">+ filtro <span class="qbar-kbd">&#8984;K</span></button>
-    <button class="qbar-clear" id="qbar-clear" hidden>Limpiar</button>
+    <!-- Sólo en el teléfono (hermes.css): abre una hoja con todos los filtros. -->
+    <button type="button" class="fb-todos" id="fbTodos" aria-haspopup="dialog" aria-expanded="false">Filtros<span id="fbTodosN"></span></button>
+    <button class="qbar-clear" id="qbar-clear" hidden>Restablecer</button>
   </div>
-  <div class="qbar-sentence" id="qbarSentence"></div>
-
-  <div class="qpop qpop-pal" id="palette" hidden>
-    <input class="qpop-in" id="palInput" placeholder="Buscar filtro: precio, radio, colonia, fuente&#8230;">
-    <div id="palList"></div>
-  </div>
-  <div class="qpop qpop-ed" id="editor" hidden></div>
 </div>
 
 <!-- Sólo en la Bolsa: app.js lo enciende si una fuente lleva días sin cargar. -->
-<div class="frescura" id="frescura" role="status" hidden></div>
+<div class="frescura" id="frescura" role="status" hidden>
+  <span id="frescuraTxt"></span>
+  <a href="scrapers.html" id="frescuraVer" hidden>Ver fuentes</a>
+  <button type="button" class="frescura-x" id="frescuraX" aria-label="Descartar este aviso por hoy" title="Descartar por hoy">&times;</button>
+</div>
+<!-- Qué es la pestaña en la que se está (app.js lo escribe): Bolsa y Catálogo no se explicaban. -->
+<p class="tab-ayuda" id="tabAyuda"></p>
 
 <div class="statebar" id="statebar">
+  <!-- En el teléfono las píldoras se esconden y el estado es este select (hermes.css). -->
+  <label class="estado-sel"><span class="sr-only">Estado de seguimiento</span><select id="estadoSel"></select></label>
   <span id="statusPills"></span>
-  <button class="pill" id="pill-starred" data-group="starred">&#9733; Destacados<span class="pill-count" id="starredCount">0</span></button>
+  <button class="pill" id="pill-starred" data-group="starred" aria-label="Destacados">&#9733;<span class="pill-txt"> Destacados</span><span class="pill-count" id="starredCount">0</span></button>
   <div class="statebar-right">
     <div class="seg" role="group" aria-label="Vista">
       <button data-vista="grid">Rejilla</button>
@@ -120,13 +144,19 @@
     </div>
     <!-- Sólo en Inmobiliaria (app.js lo muestra): alta de una propiedad propia. -->
     <button class="btn-clear" id="nueva-prop" hidden>+ Nueva propiedad</button>
-    <button class="btn-clear" id="export-btn">CSV</button>
+    <button class="btn-clear" id="export-btn">Exportar CSV</button>
     <span class="cargando-txt" id="cargandoTxt" role="status" hidden>Actualizando&#8230;</span>
     <!-- El orden estaba escondido en la paleta (+ filtro / ⌘K). El total ya lo dice la
          píldora de estado, así que aquí no se repite. -->
     <label class="orden-chip"><span>Ordenar</span>
       <select id="ordenSel" aria-label="Ordenar por"></select>
     </label>
+    <!-- Sólo en el teléfono: CSV y «Nueva propiedad» no caben en la fila de estado. -->
+    <button type="button" class="btn-clear mas-btn" id="masBtn" aria-haspopup="menu" aria-expanded="false" aria-label="M&#225;s acciones">&#8943;</button>
+    <div class="mas-menu" id="masMenu" role="menu" hidden>
+      <button type="button" role="menuitem" id="masCsv">Exportar CSV</button>
+      <button type="button" role="menuitem" id="masNueva" hidden>Nueva propiedad</button>
+    </div>
   </div>
 </div>
 
@@ -151,6 +181,7 @@
 <div class="tray" id="tray" hidden>
   <span class="tray-count" id="trayCount"></span>
   <div class="tray-items" id="trayItems"></div>
+  <span class="tray-ayuda" id="trayAyuda"></span>
   <div class="tray-actions">
     <select class="tray-btn" id="trayEstado" aria-label="Cambiar estado">
       <option value="">Cambiar estado&#8230;</option>

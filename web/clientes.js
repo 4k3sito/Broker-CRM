@@ -70,7 +70,8 @@ let tareasDe = null;        // de qué cliente son: evita pedirlas en cada rende
 
 // ── Datos ────────────────────────────────────────────────────────────────────
 async function loadClientes() {
-  clientes = await API.get('/clientes').catch(err => { console.warn('Carga de clientes falló:', err.message); return []; });
+  // Sin atrapar: un fallo no es «no hay clientes». Lo muestra `iniciar()` con «Reintentar».
+  clientes = await API.get('/clientes');
 }
 async function createCliente(patch) {
   try {
@@ -79,11 +80,17 @@ async function createCliente(patch) {
     seleccionar(c.id);
   } catch (err) { UI.aviso('No se pudo crear el cliente: ' + err.message); }
 }
+const ROTULO = { nombre: 'el nombre', empresa: 'la empresa', estatus: 'el estatus', requerimientos: 'las notas del cliente' };
 function saveCliente(id, field, value) {
   const c = clientes.find(x => String(x.id) === String(id));
   if (!c || c[field] === value) return;
+  const antes = c[field];
   c[field] = value;
-  API.patch(`/clientes/${id}`, { [field]: value }).catch(err => console.warn('No se pudo guardar:', err.message));
+  // Lo que se ve ya es el valor nuevo: si el servidor no lo acepta se deshace y se avisa.
+  UI.guardar(API.patch(`/clientes/${id}`, { [field]: value }), {
+    que: ROTULO[field] ?? 'el cambio',
+    revertir: () => { c[field] = antes; renderLista(); renderDetalle(); },
+  }).catch(() => {});
   renderLista();
 }
 async function deleteCliente(id) {
@@ -101,11 +108,15 @@ async function deleteCliente(id) {
   } catch (err) { UI.aviso('No se pudo eliminar: ' + err.message); }
 }
 function setProcesoStatus(procId, status) {
+  let proc = null, antes = null;
   for (const c of clientes) {
     const p = (c.proceso ?? []).find(x => String(x.id) === String(procId));
-    if (p) p.status = status;
+    if (p) { proc = p; antes = p.status; p.status = status; }
   }
-  API.patch(`/procesos/${procId}`, { status }).catch(err => console.warn(err.message));
+  UI.guardar(API.patch(`/procesos/${procId}`, { status }), {
+    que: 'la etapa',
+    revertir: () => { if (proc) proc.status = antes; if (motivoDe === String(procId)) motivoDe = null; render(); },
+  }).catch(() => {});
   // Debajo de la fila, una línea opcional con el porqué (por qué se descartó, qué falta
   // para cerrar…). En presentación no: el cliente está viendo la pantalla.
   motivoDe = presentando ? null : String(procId);
@@ -129,8 +140,11 @@ function cerrarMotivo(c, guardar) {
   motivoDe = null;
   if (guardar && p && texto) {
     const hoy = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const antes = p.notas;
     p.notas = [p.notas, `${hoy} · ${etapaLabel(p.status)}: ${texto}`].filter(Boolean).join('\n');
-    API.patch(`/procesos/${p.id}`, { notas: p.notas }).catch(err => alert('No se pudo guardar la nota: ' + err.message));
+    UI.guardar(API.patch(`/procesos/${p.id}`, { notas: p.notas }), {
+      que: 'la nota', revertir: () => { p.notas = antes; renderDetalle(); },
+    }).catch(() => {});
   }
   renderDetalle();
 }
@@ -171,7 +185,13 @@ async function abrirCatalogo() {
   catAbierto = true; catQ = '';
   renderDetalle();
   try { catFichas = await API.get('/fichas'); }
-  catch (err) { catFichas = []; UI.aviso('No se pudo cargar el Catálogo: ' + err.message); }
+  catch (err) {
+    // Un Catálogo que no cargó no está «vacío»: se cierra el buscador y se dice por qué.
+    catFichas = null; catAbierto = false;
+    UI.aviso('No se pudo cargar el Catálogo: ' + err.message);
+    renderDetalle();
+    return;
+  }
   if (catAbierto) renderDetalle();
 }
 function catalogoListaHtml(c) {
@@ -282,7 +302,13 @@ function reordenar(c, deId, aId, despues) {
 async function cargarTareas(cid) {
   tareasDe = cid;
   tareas = [];
-  const ts = await API.get(`/tareas${API.qs({ cliente: cid })}`).catch(() => []);
+  let ts;
+  try { ts = await API.get(`/tareas${API.qs({ cliente: cid })}`); }
+  catch (err) {
+    // «Sin tareas» sería falso: se avisa de que no se pudieron traer.
+    if (tareasDe === cid) UI.aviso('No se pudieron cargar las tareas de este cliente: ' + err.message);
+    return;
+  }
   if (tareasDe !== cid) return;        // ya se cambió de cliente mientras llegaba
   tareas = ts;
   renderDetalle();
@@ -305,8 +331,11 @@ async function crearTarea(c, form) {
 function completarTarea(id, hecha) {
   const t = tareas.find(x => String(x.id) === String(id));
   if (!t) return;
+  const antes = t.columna;
   t.columna = hecha ? 'completado' : (t.asignado_a ? 'asignado' : 'pendiente');
-  API.patch(`/tareas/${id}`, { columna: t.columna }).catch(err => UI.aviso('No se pudo guardar: ' + err.message));
+  UI.guardar(API.patch(`/tareas/${id}`, { columna: t.columna }), {
+    que: 'la tarea', revertir: () => { t.columna = antes; renderDetalle(); },
+  }).catch(() => {});
   renderDetalle();
 }
 
@@ -367,8 +396,11 @@ function cuentaAsesor() {
   for (const c of base) for (const id of new Set((c.proceso ?? []).map(p => String(p.trae_id ?? '')).filter(Boolean))) n[id] = (n[id] ?? 0) + 1;
   return n;
 }
-const fecha = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '—';
-const telDe = s => { const d = String(s ?? '').replace(/\D/g, ''); return d.length >= 10 ? d : null; };
+// Una sola forma de escribir una fecha (texto.js): «9 nov», con el año si no es el actual. Un
+// `vence_el` sin hora ya no pasa por `new Date()` directo, que lo tomaba como UTC.
+const fecha = v => fechaCorta(v) || '—';
+// ¿Ya pasó? Contra la fecha LOCAL: con la UTC, de las 18:00 a medianoche lo de hoy salía vencido.
+const vencida = t => t.columna !== 'completado' && !!t.vence_el && String(t.vence_el).slice(0, 10) < hoyLocal();
 
 function seleccionar(id) {
   selId = id == null ? null : String(id);
@@ -384,7 +416,7 @@ function seleccionar(id) {
 const nombreDe = p => p.nombre || p.email;
 function cuentaHtml(c) {
   const suelto = !c.responsable_id && c.responsable;
-  return `<label class="cl-f"><span>Cuenta</span>
+  return `<label class="cl-f"><span>Responsable</span>
     <select class="cl-sel" id="clCuenta">
       <option value="">${suelto ? `${esc(c.responsable)} · sin cuenta` : 'Sin asignar'}</option>
       ${equipo.map(p => `<option value="${esc(p.id)}"${String(p.id) === String(c.responsable_id) ? ' selected' : ''}>${esc(nombreDe(p))}</option>`).join('')}
@@ -415,15 +447,18 @@ function contactoHtml(c) {
     </div>` : ''}</div>`;
 }
 function guardarContactos(c, cs) {
+  const antes = { contactos: c.contactos, contacto: c.contacto };
   c.contactos = cs;
   // `contacto: null` jubila el campo viejo de texto libre (ver schema.sql, 2026-10-07).
   c.contacto = null;
-  API.patch(`/clientes/${c.id}`, { contactos: cs, contacto: null }).catch(err => UI.aviso('No se pudo guardar el contacto: ' + err.message));
+  UI.guardar(API.patch(`/clientes/${c.id}`, { contactos: cs, contacto: null }), {
+    que: 'el contacto', revertir: () => { Object.assign(c, antes); renderDetalle(); },
+  }).catch(() => {});
 }
 function conectarContactos(c, box) {
-  box.querySelector('#clContacto').addEventListener('change', e => {
+  box.querySelector('#clContacto').addEventListener('change', async e => {
     if (e.target.value === '+') {
-      const nombre = prompt('Nombre del contacto:')?.trim();
+      const nombre = await UI.pedir({ titulo: 'Nuevo contacto', etiqueta: 'Nombre del contacto', verbo: 'Agregar' });
       if (nombre) { guardarContactos(c, [...(c.contactos ?? []), { nombre }]); ctoSel = c.contactos.length - 1; }
     } else ctoSel = Number(e.target.value) || 0;
     renderDetalle();
@@ -450,9 +485,10 @@ function conectarContactos(c, box) {
 }
 // El botón de WhatsApp del encabezado es del contacto que se está viendo.
 function pintarWhats(c, box) {
-  const tel = telDe((c.contactos ?? [])[ctoSel]?.telefono);
-  box.querySelector('#clWhats').innerHTML = tel
-    ? `<a class="fx-btn" href="https://wa.me/${tel.length === 10 ? '52' + tel : tel}" target="_blank" rel="noopener">WhatsApp</a>` : '';
+  // La liga la arma `waLink` (texto.js), la misma de la ficha: un solo criterio de lada.
+  const url = waLink((c.contactos ?? [])[ctoSel]?.telefono);
+  box.querySelector('#clWhats').innerHTML = url
+    ? `<a class="fx-btn" href="${esc(url)}" target="_blank" rel="noopener">WhatsApp</a>` : '';
 }
 function estatusHtml(c) {
   return `<label class="cl-f"><span>Estatus</span>
@@ -462,10 +498,13 @@ function estatusHtml(c) {
     </select></label>`;
 }
 function asignarCuenta(c, uid) {
+  const antes = { responsable_id: c.responsable_id, responsable: c.responsable, responsable_nombre: c.responsable_nombre };
   const p = equipo.find(x => String(x.id) === uid);
   const patch = { responsable_id: uid || null, ...(p ? { responsable: nombreDe(p) } : {}) };
   Object.assign(c, patch, { responsable_nombre: p ? nombreDe(p) : null });
-  API.patch(`/clientes/${c.id}`, patch).catch(err => UI.aviso('No se pudo asignar la cuenta: ' + err.message));
+  UI.guardar(API.patch(`/clientes/${c.id}`, patch), {
+    que: 'el responsable', revertir: () => { Object.assign(c, antes); renderLista(); renderDetalle(); },
+  }).catch(() => {});
   renderLista();
 }
 
@@ -548,8 +587,11 @@ function guardarCriterios(c, cr) {
   // Sin llaves vacías: el tablero trata una llave ausente como "sin filtro".
   for (const k of Object.keys(cr))
     if (cr[k] == null || cr[k] === '' || (Array.isArray(cr[k]) && !cr[k].length)) delete cr[k];
+  const antes = c.criterios;
   c.criterios = cr;
-  API.patch(`/clientes/${c.id}`, { criterios: cr }).catch(err => UI.aviso('No se pudo guardar: ' + err.message));
+  UI.guardar(API.patch(`/clientes/${c.id}`, { criterios: cr }), {
+    que: 'lo que busca', revertir: () => { c.criterios = antes; render(); },
+  }).catch(() => {});
   critAbierto = null;
   render();
 }
@@ -614,32 +656,36 @@ function conectarCriterios(c, box) {
 function renderLista() {
   const box = document.getElementById('clList');
   const fc = document.getElementById('fCuenta');
-  fc.innerHTML = `<option value="all">Cuenta: todas</option><option value="none">Sin asignar</option>` +
+  fc.innerHTML = `<option value="all">Todos</option><option value="none">Sin asignar</option>` +
     equipo.map(p => `<option value="${esc(p.id)}">${esc(nombreDe(p))}</option>`).join('');
   fc.value = filterCuenta;
   fc.classList.toggle('on', filterCuenta !== 'all');
   const fa = document.getElementById('fAsesor');
   const porAsesor = cuentaAsesor();
-  fa.innerHTML = `<option value="all">Asesor: todos</option>` + equipo.map(p =>
+  fa.innerHTML = `<option value="all">Todos</option>` + equipo.map(p =>
     `<option value="${esc(p.id)}">${esc(nombreDe(p))} (${porAsesor[String(p.id)] ?? 0})</option>`).join('');
   fa.value = filterAsesor;
   fa.classList.toggle('on', filterAsesor !== 'all');
   // Cuántos hay de cada estatus, con la búsqueda y la cuenta ya aplicadas.
   const fe = document.getElementById('fEstatus');
   const sinEst = cuentaEstatus();
-  fe.innerHTML = `<option value="all">Estatus cliente: todos</option>` +
+  fe.innerHTML = `<option value="all">Todos</option>` +
     ESTATUS.map(e => `<option value="${e.key}">${e.label} (${sinEst[e.key] ?? 0})</option>`).join('') +
     `<option value="none">Sin estatus (${sinEst.none ?? 0})</option>`;
   fe.value = filterEstatus;
   fe.classList.toggle('on', filterEstatus !== 'all');
-  // "Estatus propiedades": los clientes con al menos una propiedad en esa etapa
+  // «Etapa»: los clientes con al menos una propiedad en esa etapa
   // (etapas.js). Cuenta sobre lo que ya pasó la búsqueda y los otros dos filtros.
   const base = clientes.filter(pasaBase);
   const ft = document.getElementById('fEtapa');
-  ft.innerHTML = `<option value="all">Estatus propiedades: todos</option>` + ETAPAS.map(e =>
+  ft.innerHTML = `<option value="all">Todas</option>` + ETAPAS.map(e =>
     `<option value="${e.key}">${e.label} (${base.filter(c => delAsesor(c).some(p => p.status === e.key)).length})</option>`).join('');
   ft.value = filterStatus;
   ft.classList.toggle('on', filterStatus !== 'all');
+  const nFiltros = [filterCuenta, filterAsesor, filterEstatus, filterStatus].filter(v => v !== 'all').length;
+  const bf = document.getElementById('btnFiltros');
+  bf.textContent = nFiltros ? `Filtros (${nFiltros})` : 'Filtros';
+  bf.classList.toggle('on', nFiltros > 0);
   document.getElementById('fTodosN').textContent = base.length;
   document.getElementById('fTodos').classList.toggle('active', filterStatus === 'all' && filterCuenta === 'all' && filterEstatus === 'all' && filterAsesor === 'all');
   const lista = clientes.filter(pasaFiltro);
@@ -647,22 +693,25 @@ function renderLista() {
   document.getElementById('countNum').textContent = lista.length;
   document.getElementById('countTotal').textContent = clientes.length;
   if (!lista.length) {
-    box.innerHTML = `<p class="cl-empty">${clientes.length ? 'Ningún cliente coincide.' : 'Aún no hay clientes. Crea el primero con “+”.'}</p>`;
+    box.innerHTML = `<p class="cl-empty">${clientes.length ? 'Ningún cliente coincide.' : 'Aún no hay clientes. Crea el primero con «+ Nuevo cliente».'}</p>`;
     return;
   }
   box.innerHTML = lista.map(c => {
     const ps = c.proceso ?? [];
     const w = n => `${Math.min(n, 8) * 7}px`;
     const resp = c.responsable_nombre || c.responsable;
+    // Las barras no traen leyenda: el resumen va en `title` y en `aria-label`.
+    const nP = cuenta(ps, 'presentado'), nA = cuenta(ps, 'aprobado'), nR = cuenta(ps, 'rechazado');
+    const leyenda = `${nP} ${nP === 1 ? 'presentada' : 'presentadas'} · ${nA} ${nA === 1 ? 'aprobada' : 'aprobadas'} · ${nR} ${nR === 1 ? 'rechazada' : 'rechazadas'}`;
     return `<div class="cl-item${String(c.id) === selId ? ' on' : ''}" data-id="${esc(c.id)}" role="button" tabindex="0">
       <span class="cl-grip" title="Arrastra para cambiar el orden" aria-hidden="true">&#8942;&#8942;</span>
       <span class="cl-ava">${esc(iniciales(c.nombre))}</span>
-      <span class="cl-txt"><b>${esc(c.nombre)}</b><small>${c.estatus ? `<i class="cl-est est-${esc(c.estatus)}">${esc(estatusLabel(c.estatus) ?? c.estatus)}</i>` : ''}${esc(pildoras(c.criterios ?? {}).map(p => p.txt).join(' · ') || c.requerimientos || c.empresa || 'Sin requerimientos')}</small></span>
+      <span class="cl-txt"><b>${esc(c.nombre)}</b><small>${c.estatus ? `<i class="cl-est est-${esc(c.estatus)}">${esc(estatusLabel(c.estatus) ?? c.estatus)}</i>` : ''}${(t => t ? `<span>${esc(t)}</span>` : '')(pildoras(c.criterios ?? {}).map(p => p.txt).join(' · ') || c.requerimientos || c.empresa || '')}</small></span>
       <span class="cl-meta">
-        <span class="cl-bars"><i style="width:${w(cuenta(ps, 'presentado'))};background:var(--s-presentado)"></i><i style="width:${w(cuenta(ps, 'aprobado'))};background:var(--s-aprobado)"></i><i style="width:${w(cuenta(ps, 'rechazado'))};background:var(--s-rechazado)"></i></span>
+        <span class="cl-bars" role="img" aria-label="${leyenda}" title="${leyenda}"><i style="width:${w(cuenta(ps, 'presentado'))};background:var(--s-presentado)"></i><i style="width:${w(cuenta(ps, 'aprobado'))};background:var(--s-aprobado)"></i><i style="width:${w(cuenta(ps, 'rechazado'))};background:var(--s-rechazado)"></i></span>
         <small>${ps.length} prop.</small>
       </span>
-      ${resp ? `<span class="tk-ava cl-resp" style="background:${tono(c.responsable_id ?? resp)}" title="Cuenta: ${esc(resp)}">${esc(iniciales(resp.replace('/', ' ')))}</span>`
+      ${resp ? `<span class="tk-ava cl-resp" style="background:${tono(c.responsable_id ?? resp)}" title="Responsable: ${esc(resp)}">${esc(iniciales(resp.replace('/', ' ')))}</span>`
              : '<span class="tk-ava cl-resp sin" title="Sin asignar">&#8212;</span>'}
     </div>`;
   }).join('');
@@ -685,7 +734,7 @@ function tareasCelda(p) {
   if (!ab.length) return '—';
   const t = ab[0];
   return `<span title="${esc(ab.map(x => x.titulo).join(' · '))}"><b class="cl-tcount">${ab.length}</b>${esc(t.titulo)}${
-    t.vence_el ? `<small> · vence ${fecha(t.vence_el + 'T12:00')}</small>` : ''}</span>`;
+    t.vence_el ? `<small${vencida(t) ? ' class="cl-venc"' : ''}> · ${vencida(t) ? 'vencida' : 'vence'} ${fecha(t.vence_el)}</small>` : ''}</span>`;
 }
 
 // Las columnas que se pueden prender y apagar. `w` es el ancho en px: la rejilla de la
@@ -704,7 +753,7 @@ const COLS = [
   { k: 'junta',     label: 'Junta',     w: 56,  cls: 'cl-mono', html: p => texto(p.junta) },
   { k: 'marca',     label: 'Marca',     w: 100, html: p => texto(p.marca) },
   { k: 'notas',     label: 'Notas',     w: 200, html: p => notasHtml((presentando ? null : p.notas) || p.ficha.notas) },
-  { k: 'estatus',   label: 'Estatus',   w: 132, html: p => `<select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>` },
+  { k: 'estatus',   label: 'Etapa',     w: 132, html: p => `<select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>` },
   { k: 'fecha',     label: 'Fecha',     w: 60,  cls: 'cl-mono', html: p => fecha(p.created_at ?? p.creado_el) },
 ];
 // Qué columnas ve cada quien se queda en su navegador: es gusto, no dato del equipo.
@@ -782,7 +831,7 @@ function tareaHtml(t, conPropiedad) {
     <input type="checkbox" class="cl-tchk" data-id="${esc(t.id)}"${hecha ? ' checked' : ''} aria-label="Completada">
     <span class="cl-tt">${esc(t.titulo)}</span>
     ${conPropiedad && t.proceso_titulo ? `<span class="cl-tprop">${esc(t.proceso_titulo)}</span>` : ''}
-    <span class="cl-tmeta">${esc(t.asignado_nombre ?? t.asignado_email ?? 'Sin asignar')}${t.vence_el ? ` · vence ${fecha(t.vence_el + 'T12:00')}` : ''}</span>
+    <span class="cl-tmeta${vencida(t) ? ' vencida' : ''}">${esc(t.asignado_nombre ?? t.asignado_email ?? 'Sin asignar')}${t.vence_el ? ` · ${vencida(t) ? 'vencida' : 'vence'} ${fecha(t.vence_el)}` : ''}</span>
   </div>`;
 }
 // El alta rápida. Con `procId` la tarea nace ligada a esa propiedad; sin él se elige
@@ -1021,7 +1070,12 @@ function renderDetalle() {
           <span id="clWhats"></span>
           <button class="fx-btn${presentando ? ' solid' : ''}" id="clPres" aria-pressed="${presentando}" title="${presentando ? 'Volver a la vista completa' : 'Deja en pantalla s&#243;lo a este cliente: sin la lista de clientes ni &#171;Qu&#233; busca&#187;'}">${presentando ? 'Salir de presentaci&#243;n' : 'Modo presentaci&#243;n'}</button>
           <button class="fx-btn" id="clExcel"${presentando ? ' hidden' : ''} title="Descargar los datos de este cliente y sus propiedades en un archivo de Excel">Excel</button>
-          <button class="fx-btn" id="clDel" title="Eliminar cliente">Eliminar</button>
+          <details class="fx-mas-menu cl-mas" id="clMas">
+            <summary class="fx-btn" aria-label="Más acciones" title="Más acciones">&#8943;</summary>
+            <div class="fx-mas-lista">
+              <button class="fx-mas-item peligro" id="clDel" title="Elimina al cliente y sus propiedades propuestas">Eliminar cliente</button>
+            </div>
+          </details>
         </div>
       </div>
       <div class="cl-fields">
@@ -1043,7 +1097,7 @@ function renderDetalle() {
   conectarCriterios(c, box);
   conectarContactos(c, box);
   pintarWhats(c, box);
-  document.getElementById('clDel').addEventListener('click', () => deleteCliente(c.id));
+  document.getElementById('clDel').addEventListener('click', () => { document.getElementById('clMas').open = false; deleteCliente(c.id); });
   // Trae lo interno (notas con el cliente, contacto del inmueble): por eso no sale en
   // modo presentación.
   document.getElementById('clExcel').addEventListener('click', async e => {
@@ -1283,9 +1337,20 @@ const buscarCliente = (v, origen) => {
 };
 buscador.addEventListener('input', e => buscarCliente(e.target.value, buscador));
 buscadorLista?.addEventListener('input', e => buscarCliente(e.target.value, buscadorLista));
-document.getElementById('new-client-btn').addEventListener('click', () => {
-  const nombre = prompt('Nombre del cliente:');
-  if (nombre?.trim()) createCliente({ nombre: nombre.trim() });
+document.getElementById('new-client-btn').addEventListener('click', async () => {
+  const nombre = await UI.pedir({ titulo: 'Nuevo cliente', etiqueta: 'Nombre del cliente', verbo: 'Crear' });
+  if (nombre) createCliente({ nombre });
+});
+// «Filtros (n)» abre y cierra los cuatro filtros; los selects siguen siendo los mismos.
+document.getElementById('btnFiltros').addEventListener('click', e => {
+  const caja = document.getElementById('clFiltros');
+  caja.hidden = !caja.hidden;
+  e.currentTarget.setAttribute('aria-expanded', String(!caja.hidden));
+});
+// El menú «⋯» del cliente es un <details>: se cierra al tocar fuera.
+document.addEventListener('click', e => {
+  const m = document.getElementById('clMas');
+  if (m?.open && !m.contains(e.target)) m.open = false;
 });
 // ── Visor de fotos: clic en la foto de una fila. El mismo marcado y las mismas teclas
 // que el de la ficha (listing.js).
@@ -1326,10 +1391,20 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
   location.replace('login.html');
 });
 
-API.me().then(async user => {
-  currentUser = user;
-  document.getElementById('authBox').hidden = true;
-  document.getElementById('userBox').hidden = false;
-  [equipo] = await Promise.all([API.get('/equipo').catch(() => []), loadClientes()]);
-  render();
-}).catch(err => console.error('No se pudo validar la sesión:', err));
+// Un fallo al cargar no es «no hay clientes»: se dice, con un botón para reintentar.
+async function iniciar() {
+  const lista = document.getElementById('clList');
+  lista.innerHTML = '<p class="pg-empty">Cargando clientes&#8230;</p>';
+  try {
+    currentUser = await API.me();
+    document.getElementById('authBox').hidden = true;
+    document.getElementById('userBox').hidden = false;
+    let sinEquipo = false;
+    [equipo] = await Promise.all([API.get('/equipo').catch(() => { sinEquipo = true; return []; }), loadClientes()]);
+    render();
+    if (sinEquipo) UI.aviso('No se pudo cargar la lista del equipo: los filtros por persona saldrán vacíos.');
+  } catch (err) {
+    UI.errorCarga(lista, `No se pudieron cargar los clientes: ${err.message}`, iniciar);
+  }
+}
+iniciar();

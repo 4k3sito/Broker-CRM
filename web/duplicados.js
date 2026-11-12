@@ -7,16 +7,23 @@
 // ocultas del tablero hasta que alguien diga que son reales (api/outliers.py).
 //
 // La página es una cola: cada par decidido sale de la lista, el siguiente sube a su
-// lugar y durante unos segundos se puede deshacer.
+// lugar y durante unos segundos se puede deshacer. La cola de pares son miles, así que
+// se decide con el teclado: S = «Son el mismo» (o «Es real»), N = «No son» (o «Dato
+// erróneo») y Z = deshacer. Los filtros viven en la URL: recargar o compartir la liga
+// vuelve a la misma cola.
 
 const TIPOS = [['', 'Todos'], ['oficina', 'Oficinas'], ['local', 'Locales'], ['bodega', 'Bodegas'], ['terreno', 'Terrenos']];
 const SENALES = [['', 'Cualquier señal'], ['foto', 'Misma foto'], ['ubicacion', 'Misma ubicación']];
 const MOTIVOS = [['', 'Cualquier motivo'], ['precio_imposible', 'Precio imposible'], ['titulo_venta', 'El título dice venta']];
 const MOTIVO_TXT = { precio_imposible: 'Precio imposible para una renta', titulo_venta: 'El título dice venta y el portal, renta' };
+// Las dos vistas son pestañas de una misma sección, «Revisión»: la página se llama así
+// y `titulo` sólo completa el título de la pestaña del navegador.
 const VISTAS = {
-  pares: { pestana: 'Duplicados', titulo: 'Posibles duplicados', kpi: 'pares por revisar',
+  pares: { pestana: 'Duplicados', titulo: 'Duplicados', kpi: 'pares por revisar',
+           atajos: [['S', 'son el mismo'], ['N', 'no son el mismo'], ['Z', 'deshacer']],
            nota: 'Anuncios que se parecen pero no lo bastante para fusionarlos solos. Lo que decidas vale para todo el equipo: «Son el mismo» los deja en una sola tarjeta del tablero; «No son el mismo» quita el par de esta lista y no se vuelve a sugerir.' },
   outliers: { pestana: 'Precios atípicos', titulo: 'Precios atípicos', kpi: 'anuncios por revisar',
+              atajos: [['S', 'es real'], ['N', 'dato erróneo'], ['Z', 'deshacer']],
               nota: 'Rentas de más de $10 millones al mes que no cuadran. Están ocultas del tablero hasta que alguien las valide, y lo que decidas vale para todo el equipo: «Es real» las regresa al tablero; «Dato erróneo» las deja ocultas. Si el portal cambia el precio, vuelven a esta lista.' },
 };
 const AVISOS = { igual: 'Fusionados en una tarjeta', distinto: 'Marcados como distintos',
@@ -24,8 +31,32 @@ const AVISOS = { igual: 'Fusionados en una tarjeta', distinto: 'Marcados como di
 const POR_PAGINA = 20;
 const ESTADOS = [['Nuevo León', 'Nuevo León'], ['', 'Todo el país']];
 // Se abre en Nuevo León, que es donde trabaja el equipo.
-const F = { vista: new URLSearchParams(location.search).get('vista') === 'outliers' ? 'outliers' : 'pares',
-            estado: 'Nuevo León', tipo: '', senal: '', motivo: '', page: 1 };
+const ESTADO_INICIAL = 'Nuevo León';
+// Los filtros salen de la URL (`?vista=outliers&tipo=local&pagina=3`): lo que no esté, o no
+// sea una opción válida, queda en su valor de fábrica.
+function filtrosDeURL() {
+  const q = new URLSearchParams(location.search);
+  const valido = (lista, v, defecto) => lista.some(([x]) => x === v) ? v : defecto;
+  const pagina = Math.floor(Number(q.get('pagina')));
+  return { vista: q.get('vista') === 'outliers' ? 'outliers' : 'pares',
+           estado: q.has('estado') ? valido(ESTADOS, q.get('estado'), ESTADO_INICIAL) : ESTADO_INICIAL,
+           tipo: valido(TIPOS, q.get('tipo'), ''), senal: valido(SENALES, q.get('senal'), ''),
+           motivo: valido(MOTIVOS, q.get('motivo'), ''), page: pagina >= 1 ? pagina : 1 };
+}
+const F = filtrosDeURL();
+// Sin `pushState`: cada filtro no es una página del historial, pero sí tiene que
+// sobrevivir a una recarga. Sólo se escribe lo que difiere de lo de fábrica.
+function guardarURL() {
+  const q = new URLSearchParams();
+  if (F.vista === 'outliers') q.set('vista', 'outliers');
+  if (F.estado !== ESTADO_INICIAL) q.set('estado', F.estado);   // `estado=` es «todo el país»
+  if (F.tipo) q.set('tipo', F.tipo);
+  if (F.vista === 'pares' && F.senal) q.set('senal', F.senal);
+  if (F.vista === 'outliers' && F.motivo) q.set('motivo', F.motivo);
+  if (F.page > 1) q.set('pagina', F.page);
+  const t = q.toString();
+  history.replaceState(null, '', t ? `?${t}` : location.pathname);
+}
 // Cuánto tiempo se puede deshacer una decisión antes de que se mande.
 const ESPERA = 6000;
 // Tras decidir, los botones del par siguiente quedan bajo el cursor: lo que llegue antes
@@ -46,10 +77,14 @@ function pintarFiltros() {
   const ultimo = F.vista === 'outliers' ? pildoras(MOTIVOS, 'motivo') : pildoras(SENALES, 'senal');
   document.getElementById('dpFiltros').innerHTML = [pildoras(ESTADOS, 'estado'), pildoras(TIPOS, 'tipo'), ultimo].join('<span class="dp-sep"></span>');
   const v = VISTAS[F.vista];
-  document.getElementById('dpVistas').innerHTML = pildoras(Object.entries(VISTAS).map(([k, x]) => [k, x.pestana]), 'vista');
-  document.getElementById('dpTitulo').textContent = v.titulo;
+  document.getElementById('dpVistas').innerHTML = Object.entries(VISTAS).map(([k, x]) =>
+    `<button class="dp-tab${F.vista === k ? ' active' : ''}" data-campo="vista" data-valor="${k}"${F.vista === k ? ' aria-current="true"' : ''}>${x.pestana}</button>`).join('');
+  document.title = `${v.titulo} · Revisión · OfficeLab`;
   document.getElementById('dpKpi').textContent = v.kpi;
   document.getElementById('dpNota').textContent = v.nota;
+  // Atajos a la vista, no escondidos: en el teléfono no hay teclado y el CSS los oculta.
+  document.getElementById('dpAtajos').innerHTML = 'Atajos: ' +
+    v.atajos.map(([k, t]) => `<kbd>${k}</kbd> ${t}`).join(' &#183; ');
 }
 
 function pintarPaginas() {
@@ -73,34 +108,53 @@ function ponerTotal(n) {
     { duration: ms(200), easing: 'cubic-bezier(.2,0,0,1)' });
 }
 
-// Cuánto se separan los dos precios, sólo si se pueden comparar.
-function diferencia(a, b) {
-  if (!a.precio || !b.precio || a.currency !== b.currency || a.transaction_type !== b.transaction_type) return '';
-  if (a.precio === b.precio) return '';
-  // Dos precios distintos nunca son «100%», aunque el redondeo diga eso.
-  const pct = Math.min(99, Math.max(1, Math.round(Math.abs(a.precio - b.precio) / Math.max(a.precio, b.precio) * 100)));
-  return `Precio: ${pct}% de diferencia`;
+// Lo que separa a los dos anuncios, sólo si se puede comparar: el precio (en %) y la
+// superficie. `marcas` dice qué resaltar en el par; `texto` lo dice con palabras, para que
+// no dependa sólo de un color.
+function diferencias(a, b) {
+  const texto = [], marcas = [];
+  if (a.precio && b.precio && a.precio !== b.precio) {
+    marcas.push('precio');
+    if (a.currency === b.currency && a.transaction_type === b.transaction_type) {
+      // Dos precios distintos nunca son «100%», aunque el redondeo diga eso.
+      const pct = Math.min(99, Math.max(1, Math.round(Math.abs(a.precio - b.precio) / Math.max(a.precio, b.precio) * 100)));
+      texto.push(`Precio: ${pct}% de diferencia`);
+    } else texto.push('Precio: moneda u operación distinta');
+  }
+  const ma = Math.round(a.property_size_m2 || 0), mb = Math.round(b.property_size_m2 || 0);
+  if (ma && mb && ma !== mb) {
+    marcas.push('m2');
+    texto.push(`Superficie: ${m2Txt(ma)} y ${m2Txt(mb)}`);
+  }
+  return { texto: texto.join(' · '), marcas: marcas.join(' ') };
 }
 
-const parHtml = s => `<article class="dp-par" data-a="${esc(s.a.id)}" data-b="${esc(s.b.id)}">
+// Cada botón dice su tecla. Los dos pesan igual: con uno en sólido se leía como «lo
+// normal» y se decidía sin mirar (en la cola de precios atípicos premiaba el dato
+// imposible). `tabindex="-1"` deja que el foco caiga en el par, no en un botón.
+const botonesHtml = (si, no) => `<button class="fx-btn" data-decide="${si[0]}">${si[1]} <kbd>S</kbd></button>
+      <button class="fx-btn" data-decide="${no[0]}">${no[1]} <kbd>N</kbd></button>`;
+
+const parHtml = s => {
+  const dif = diferencias(s.a, s.b);
+  return `<article class="dp-par" tabindex="-1" data-a="${esc(s.a.id)}" data-b="${esc(s.b.id)}" data-dif="${dif.marcas}">
     <div class="dp-par-head">
       <span class="dp-senal">${esc(Propiedad.senal(s.senal))}</span>
-      <span class="dp-dif">${esc(diferencia(s.a, s.b))}</span>
+      <span class="dp-dif">${esc(dif.texto)}</span>
     </div>
     <div class="dp-lados">${Propiedad.fila(s.a)}${Propiedad.fila(s.b)}</div>
     <div class="dp-par-acc">
-      <button class="fx-btn solid" data-decide="igual">Son el mismo</button>
-      <button class="fx-btn" data-decide="distinto">No son el mismo</button>
+      ${botonesHtml(['igual', 'Son el mismo'], ['distinto', 'No son el mismo'])}
     </div>
   </article>`;
+};
 
 // Un outlier es un renglón y no un par: `b` vacío, para que la cola no distinga.
-const outlierHtml = s => `<article class="dp-par dp-uno" data-a="${esc(s.a.id)}" data-b="">
+const outlierHtml = s => `<article class="dp-par dp-uno" tabindex="-1" data-a="${esc(s.a.id)}" data-b="">
     <div class="dp-par-head"><span class="dp-senal">${esc(MOTIVO_TXT[s.a.motivo] ?? s.a.motivo)}</span></div>
     <div class="dp-lados">${Propiedad.fila(s.a)}</div>
     <div class="dp-par-acc">
-      <button class="fx-btn solid" data-decide="real">Es real</button>
-      <button class="fx-btn" data-decide="erroneo">Dato erróneo</button>
+      ${botonesHtml(['real', 'Es real'], ['erroneo', 'Dato erróneo'])}
     </div>
   </article>`;
 const itemHtml = s => F.vista === 'outliers' ? outlierHtml(s) : parHtml(s);
@@ -123,6 +177,7 @@ function vacio() {
 
 async function cargar() {
   const turno = ++vuelta;
+  guardarURL();
   lista.classList.add('cargando');
   await confirmar();
   let r;
@@ -131,11 +186,20 @@ async function cargar() {
   } catch (err) {
     if (turno !== vuelta) return;
     lista.classList.remove('cargando');
-    lista.innerHTML = `<p class="pg-empty">No se pudo cargar la lista.<br>${esc(err.message)}</p>`;
+    // Un error no es «no hay pares»: se dice qué pasó y se deja reintentar.
+    UI.errorCarga(lista, `No se pudo cargar la lista. ${err.message}`, () => {
+      lista.innerHTML = '<p class="pg-empty">Cargando&#8230;</p>';
+      cargar();
+    });
     return;
   }
   if (turno !== vuelta) return;
   lista.classList.remove('cargando');
+  // Una liga con `pagina=` de más (o una lista que se acortó) cae en la última página.
+  if (!r.items.length && r.total > 0 && F.page > 1) {
+    F.page = Math.max(1, Math.ceil(r.total / POR_PAGINA));
+    return cargar();
+  }
   total = r.total;
   document.getElementById('dpTotal').textContent = mx(total);
   pintarPaginas();
@@ -207,7 +271,7 @@ function devolver({ par, antes }) {
   par.inert = false;
   par.salida.forEach(a => a.reverse());
   par.scrollIntoView({ block: 'nearest' });
-  par.querySelector('[data-decide]').focus({ preventScroll: true });
+  par.focus({ preventScroll: true });
 }
 
 // La decisión no se manda al tocar el botón sino cuando ya no se puede deshacer: fusionar
@@ -273,11 +337,7 @@ function cambiarFiltro(e) {
 }
 
 document.getElementById('dpFiltros').addEventListener('click', cambiarFiltro);
-document.getElementById('dpVistas').addEventListener('click', e => {
-  if (!e.target.closest('[data-campo]')) return;
-  cambiarFiltro(e);
-  history.replaceState(null, '', F.vista === 'outliers' ? '?vista=outliers' : location.pathname);
-});
+document.getElementById('dpVistas').addEventListener('click', cambiarFiltro);
 
 document.getElementById('dpPaginas').addEventListener('click', e => {
   const b = e.target.closest('[data-pag]');
@@ -286,22 +346,64 @@ document.getElementById('dpPaginas').addEventListener('click', e => {
   cargar().then(() => window.scrollTo({ top: 0 }));
 });
 
+// El par que se decide: el que tiene el foco y, si el foco anda fuera de la lista, el
+// primero que se ve en pantalla. Nunca uno que quedó fuera de la vista.
+function parActivo() {
+  const pares = [...lista.querySelectorAll('.dp-par:not(.saliendo)')];
+  const enfocado = document.activeElement?.closest?.('.dp-par:not(.saliendo)');
+  if (enfocado && lista.contains(enfocado)) return enfocado;
+  return pares.find(p => { const r = p.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; });
+}
+
+// El siguiente par que se puede decidir: el de abajo y, si no hay, el de arriba.
+function vecino(par) {
+  const libre = p => p && !p.classList.contains('saliendo');
+  for (let p = par.nextElementSibling; p; p = p.nextElementSibling) if (libre(p) && p.matches('.dp-par')) return p;
+  for (let p = par.previousElementSibling; p; p = p.previousElementSibling) if (libre(p) && p.matches('.dp-par')) return p;
+  return null;
+}
+
 // El par se va en cuanto se decide y lo que sigue sube a su lugar: se revisa con el cursor
-// quieto, sin scroll. El foco pasa al par siguiente para seguir con el teclado.
-lista.addEventListener('click', e => {
-  const b = e.target.closest('[data-decide]');
-  if (!b || performance.now() - ultimaDecision < PAUSA) return;
+// quieto, sin scroll. El foco pasa al CONTENEDOR del par siguiente, no a uno de sus
+// botones: así un Enter o un espacio de más no decide un par que no se ha leído.
+function decidir(par, tipo) {
+  if (performance.now() - ultimaDecision < PAUSA) return;
   ultimaDecision = performance.now();
   confirmar();
-  const par = b.closest('.dp-par'), { a, b: otro } = par.dataset, tipo = b.dataset.decide;
+  const { a, b: otro } = par.dataset;
   const antes = par.nextElementSibling;
+  const siguiente = vecino(par);
   pendiente = { tipo, a, b: otro, par, antes };
   decididos.add(llave(a, otro));
   retirar(par, tipo);
-  (antes ?? par.previousElementSibling)?.querySelector('[data-decide]')?.focus({ preventScroll: true });
+  siguiente?.focus({ preventScroll: true });
   ponerTotal(Math.max(0, total - 1));
   mostrarAviso(AVISOS[tipo]);
   rellenar();
+}
+
+lista.addEventListener('click', e => {
+  const b = e.target.closest('[data-decide]');
+  if (b) decidir(b.closest('.dp-par'), b.dataset.decide);
+});
+
+// S y N deciden, Z deshace. No se disparan con un modificador (Ctrl+Z es del navegador),
+// escribiendo en un campo, con un diálogo abierto, ni con la tecla sostenida; la PAUSA
+// de `decidir` cubre además el segundo toque seguido.
+addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  if (e.target.closest?.('input, select, textarea, [contenteditable]') || document.querySelector('dialog[open]')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z') {
+    if (pendiente) { e.preventDefault(); deshacer(); }
+    return;
+  }
+  const i = k === 's' ? 0 : k === 'n' ? 1 : -1;
+  const par = i < 0 ? null : parActivo();
+  const boton = par?.querySelectorAll('[data-decide]')[i];
+  if (!boton) return;
+  e.preventDefault();
+  decidir(par, boton.dataset.decide);
 });
 
 document.getElementById('dpDeshacer').addEventListener('click', deshacer);
@@ -325,4 +427,8 @@ API.me().then(() => {
   document.getElementById('userBox').hidden = false;
   pintarFiltros();
   cargar();
-}).catch(err => console.error(err));
+}).catch(err => {
+  console.error(err);
+  // Sin esto la página se quedaba en «Cargando…» para siempre.
+  UI.errorCarga(lista, `No se pudo abrir la sesión. ${err.message}`, () => location.reload());
+});

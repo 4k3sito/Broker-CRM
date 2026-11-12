@@ -42,7 +42,8 @@ if (token) {
   document.getElementById('successLink').textContent = 'Ir al inicio de sesión';
   passwordInput.focus();
   // Avisar que el enlace murió ANTES de que el usuario teclee la contraseña dos veces.
-  API.get(`/reset/validar?t=${encodeURIComponent(token)}`).catch(mostrarVencido);
+  // Sólo un 4xx dice que el enlace murió; una caída de red no lo vence.
+  API.get(`/reset/validar?t=${encodeURIComponent(token)}`).catch(err => { if (err.status >= 400 && err.status < 500) mostrarVencido(); });
 } else {
   // Sin sesión no hay nada que cambiar; api.js redirige al login en el 401.
   API.me().catch(() => {});
@@ -69,14 +70,17 @@ form.addEventListener('submit', async event => {
     updateView.hidden = true;
     successView.hidden = false;
     if (r.sesiones_cerradas) {
+      const n = r.sesiones_cerradas;
+      const cerradas = n === 1 ? 'Se cerró 1 sesión abierta' : `Se cerraron ${n} sesiones abiertas`;
       document.getElementById('successDetail').textContent = token
-        ? `Tu nueva contraseña se guardó. Se cerraron ${r.sesiones_cerradas} sesión(es) abiertas; vuelve a entrar.`
-        : `Tu nueva contraseña se guardó. Se cerraron ${r.sesiones_cerradas} sesión(es) abiertas en otros dispositivos.`;
+        ? `Tu nueva contraseña se guardó. ${cerradas}; vuelve a entrar.`
+        : `Tu nueva contraseña se guardó. ${cerradas} en otros dispositivos.`;
     }
   } catch (err) {
-    // El backend contesta lo mismo para token gastado, vencido o inventado.
-    if (token && /ya no es válido/i.test(err.message)) return mostrarVencido();
-    showError(err.message);
+    // El backend contesta lo mismo (400) para token gastado, vencido o inventado; una
+    // contraseña rechazada también es 400, pero con otro texto, y ésa no vence el enlace.
+    if (token && err.status >= 400 && err.status < 500 && /ya no es válido/i.test(err.message)) return mostrarVencido();
+    showError(err.red ? `${err.message} Inténtalo de nuevo.` : err.message);
     setLoading(false);
   }
 });

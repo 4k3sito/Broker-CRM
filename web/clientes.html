@@ -24,11 +24,6 @@
       <span class="brand-sub">CRM Inmobiliario &#183; M&#233;xico</span>
     </span>
   </a>
-  <nav class="topbar-nav">
-    <a href="index.html">Inmuebles</a>
-    <a href="clientes.html" class="active" aria-current="page">Clientes</a>
-    <a href="tareas.html">Tareas</a>
-  </nav>
   <div class="topbar-search">
     <div class="search-box">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -52,11 +47,20 @@
   <aside class="cl-list">
     <div class="cl-list-head" id="filterbar">
       <button class="pill-line active" id="fTodos" title="Quitar los filtros">Todos <span class="pill-count" id="fTodosN">0</span></button>
-      <select class="cl-fsel" id="fCuenta" aria-label="Filtrar por quién lleva la cuenta"><option value="all">Cuenta: todas</option></select>
-      <button class="cl-new" id="new-client-btn" title="Nuevo cliente">+</button>
-      <select class="cl-fsel ancho" id="fAsesor" aria-label="Filtrar por quién presentó alguna de sus propiedades" title="Clientes con al menos una propiedad que presentó esta persona, lleve quien lleve la cuenta"><option value="all">Asesor: todos</option></select>
-      <select class="cl-fsel ancho" id="fEstatus" aria-label="Filtrar por estatus del cliente"><option value="all">Estatus cliente: todos</option></select>
-      <select class="cl-fsel ancho" id="fEtapa" aria-label="Filtrar por estatus de sus propiedades"><option value="all">Estatus propiedades: todos</option></select>
+      <button class="cl-btn" id="btnFiltros" type="button" aria-expanded="false" aria-controls="clFiltros">Filtros</button>
+      <button class="cl-new" id="new-client-btn" title="Crear un cliente nuevo">+ Nuevo cliente</button>
+      <!-- Los cuatro filtros, con su nombre a la vista: antes eran selects apilados cuyo
+           rótulo sólo se leía dentro de la opción elegida. -->
+      <div class="cl-filtros" id="clFiltros" hidden>
+        <label class="cl-filtro"><span>Responsable</span>
+          <select class="cl-fsel" id="fCuenta" aria-label="Filtrar por responsable de la cuenta"><option value="all">Todos</option></select></label>
+        <label class="cl-filtro"><span>Presentó</span>
+          <select class="cl-fsel" id="fAsesor" aria-label="Filtrar por quién presentó alguna de sus propiedades" title="Clientes con al menos una propiedad que presentó esta persona, lleve quien lleve la cuenta"><option value="all">Todos</option></select></label>
+        <label class="cl-filtro"><span>Estatus del cliente</span>
+          <select class="cl-fsel" id="fEstatus" aria-label="Filtrar por estatus del cliente"><option value="all">Todos</option></select></label>
+        <label class="cl-filtro"><span>Etapa</span>
+          <select class="cl-fsel" id="fEtapa" aria-label="Filtrar por etapa de sus propiedades" title="Clientes con al menos una propiedad en esta etapa"><option value="all">Todas</option></select></label>
+      </div>
       <!-- La topbar esconde su buscador por debajo de 900 px, y con él se iba la única
            manera de buscar un cliente en el teléfono. Es el mismo filtro, aquí. -->
       <div class="cl-filtro-busca">

@@ -8,13 +8,22 @@
     // con la pestaña de la que se vino, que app.js deja en sessionStorage.
     { href: 'index.html',                  label: 'Bolsa Inmobiliaria', de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'bolsa' },
     { href: 'index.html?tab=inmobiliaria', label: 'Catálogo',           de: ['index.html', 'listing.html', 'comparar.html', ''], tab: 'inmobiliaria' },
-    { href: 'duplicados.html', label: 'Duplicados', de: ['duplicados.html'] },
+    // «Revisión» y no «Duplicados»: la página trae también los precios atípicos. La insignia
+    // cuenta lo que espera una decisión (ver más abajo).
+    { href: 'duplicados.html', label: 'Revisión', de: ['duplicados.html'], badge: 'revision' },
     { href: 'clientes.html', label: 'Clientes',  de: ['clientes.html'] },
     { href: 'tareas.html',   label: 'Tareas',    de: ['tareas.html'], badge: 'tareas' },
   ];
   // Scrapers no está en la lista: sólo la ven las cuentas que la API marca con
-  // `scrapers` en /me, y se agrega abajo cuando eso contesta.
+  // `scrapers` en /me, y se agrega abajo cuando eso contesta. Esa respuesta tarda, y la
+  // pestaña (y las insignias) aparecían después de pintada la barra, moviendo las demás:
+  // lo último que /me dijo se recuerda y la pestaña nace ya puesta; las insignias reservan
+  // su lugar (hermes.css) aunque estén vacías.
   const SCRAPERS = { href: 'scrapers.html', label: 'Scrapers', de: ['scrapers.html'] };
+  const memoria = {
+    leer: k => { try { return localStorage.getItem(k); } catch { return null; } },
+    poner: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* sin persistencia */ } },
+  };
   const aqui = location.pathname.split('/').pop();
   let tab = new URLSearchParams(location.search).get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa';
   if (aqui !== 'index.html' && aqui !== '') {
@@ -49,9 +58,18 @@
     const enlace = t => {
       const on = t.de.includes(aqui) && (!t.tab || t.tab === tab);
       return `<a href="${t.href}"${on ? ' class="active" aria-current="page"' : ''}>${t.label}` +
-             (t.badge ? `<span class="tb-badge" data-badge="${t.badge}" hidden></span>` : '') + `</a>`;
+             (t.badge ? `<span class="tb-badge vacia" data-badge="${t.badge}"></span>` : '') + `</a>`;
     };
-    nav.innerHTML = TABS.map(enlace).join('');
+    nav.innerHTML = TABS.map(enlace).join('') + (memoria.leer('ol-scrapers') === '1' ? enlace(SCRAPERS) : '');
+    // Insignia de una pestaña: vacía (reservada pero invisible) o con la cifra. De mil para
+    // arriba se acorta —«3.1k»— para que quepa en el hueco; el título trae la cifra entera.
+    const ponerInsignia = (clave, n, titulo) => {
+      const b = nav.querySelector(`[data-badge="${clave}"]`);
+      if (!b) return;
+      b.textContent = n ? (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : n) : '';
+      b.title = n ? titulo : '';
+      b.classList.toggle('vacia', !n);
+    };
     const brand = topbar.querySelector('.brand-group');
     brand ? brand.after(nav) : topbar.prepend(nav);
 
@@ -81,42 +99,112 @@
     hoja.querySelector('.nav-hoja-x').addEventListener('click', () => hoja.close());
     // Tocar el fondo cierra: el clic cae en el propio <dialog>, fuera de su contenido.
     hoja.addEventListener('click', e => { if (e.target === hoja) hoja.close(); });
-    hoja.querySelector('.nav-hoja-salir').addEventListener('click', () => {
-      hoja.close();
-      document.getElementById('logout-btn')?.click();
-    });
 
-    // Avatar con iniciales junto a "Salir". Silencioso si no hay sesión.
+    // Cerrar sesión vive aquí y no en cada página: antes cada una cableaba su «Salir» (y
+    // tareas, además, lo repetía). Sin confirmar: entrar otra vez deshace salir, y el
+    // login devuelve a la misma página (`next=`). Si falla la red no se redirige, o la
+    // sesión seguiría abierta sin que se note.
+    const salir = async boton => {
+      const txt = boton?.textContent;
+      if (boton) boton.disabled = true;
+      try {
+        await API.logout();
+        location.href = 'login.html';
+      } catch {
+        if (boton) { boton.disabled = false; boton.textContent = 'No se pudo salir. Reintentar'; setTimeout(() => { boton.textContent = txt; }, 4000); }
+      }
+    };
+    // El «Salir» suelto de cada página queda en el HTML (sus scripts le cuelgan un
+    // listener) pero ya no se ve: el avatar tiene el menú de cuenta.
+    document.getElementById('logout-btn')?.setAttribute('hidden', '');
+    hoja.querySelector('.nav-hoja-salir').addEventListener('click', e => salir(e.currentTarget));
+
+    // Avatar con iniciales y su menú de cuenta. Silencioso si no hay sesión.
     API.me().then(u => {
-      if (u.scrapers) nav.insertAdjacentHTML('beforeend', enlace(SCRAPERS));
+      if (u.scrapers && !nav.querySelector('[href="scrapers.html"]')) nav.insertAdjacentHTML('beforeend', enlace(SCRAPERS));
+      if (!u.scrapers) nav.querySelector('[href="scrapers.html"]')?.remove();
+      memoria.poner('ol-scrapers', u.scrapers ? '1' : '');
       const nombre = (u.nombre || u.email || '').trim();
       const ini = nombre.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
       hoja.querySelector('.nav-hoja-quien').textContent = nombre;
-      hoja.querySelector('.nav-hoja-pie').hidden = !document.getElementById('logout-btn');
+      hoja.querySelector('.nav-hoja-pie').hidden = false;
       const box = document.getElementById('userBox');
-      if (box && !document.querySelector('.tb-ava')) {
-        const ava = document.createElement('span');
-        ava.className = 'tb-ava';
-        ava.title = u.email ?? '';
-        ava.textContent = ini;
-        // En el teléfono "Salir" se esconde (hermes.css, ≤560 px): tocar el avatar abre
-        // la hoja del menú, que trae «Cerrar sesión». Sin confirmar: entrar otra vez
-        // deshace salir, y el login devuelve a la misma página (`next=`).
-        ava.addEventListener('click', () => {
-          if (getComputedStyle(btn).display !== 'none') hoja.showModal();
-        });
-        box.prepend(ava);
-      }
+      if (box && !document.querySelector('.tb-ava')) montarCuenta(box, u, nombre, ini, salir);
+      cargarInsignias();
     }).catch(() => {});
 
-    // Insignia de tareas vencidas. Si el endpoint falla, simplemente no aparece.
-    const b = nav.querySelector('[data-badge="tareas"]');
-    if (b && aqui !== 'login.html') {
+    // El avatar abre un menú con lo que de la cuenta se puede hacer. Antes el avatar sólo
+    // decía el correo, y «Cambiar contraseña» no estaba enlazada desde ningún lado.
+    function montarCuenta(box, u, nombre, ini, salir) {
+      const ava = document.createElement('button');
+      ava.type = 'button';
+      ava.className = 'tb-ava';
+      ava.setAttribute('aria-haspopup', 'true');
+      ava.setAttribute('aria-expanded', 'false');
+      ava.setAttribute('aria-label', `Cuenta de ${nombre}`);
+      ava.textContent = ini;
+      const panel = document.createElement('div');
+      panel.className = 'tb-cuenta';
+      panel.setAttribute('role', 'group');
+      panel.setAttribute('aria-label', 'Cuenta');
+      panel.hidden = true;
+      panel.innerHTML = `<div class="tb-cuenta-quien"><strong>${esc(u.nombre || u.email)}</strong>` +
+          (u.nombre && u.email ? `<span>${esc(u.email)}</span>` : '') + `</div>
+        <a class="tb-cuenta-it" href="update-password.html">Cambiar contraseña</a>
+        <button type="button" class="tb-cuenta-it" data-tema></button>
+        <button type="button" class="tb-cuenta-it" data-salir>Cerrar sesión</button>`;
+      box.prepend(ava);
+      box.append(panel);
+      const tema = panel.querySelector('[data-tema]');
+      const pintarTema = () => {
+        tema.textContent = document.documentElement.getAttribute('data-theme') === 'dark'
+          ? 'Tema: oscuro · cambiar a claro' : 'Tema: claro · cambiar a oscuro';
+      };
+      // El interruptor es el de theme.js (guarda la preferencia); aquí sólo se le da otra puerta.
+      tema.hidden = !document.querySelector('.th-btn');
+      tema.addEventListener('click', () => { document.querySelector('.th-btn')?.click(); pintarTema(); });
+      panel.querySelector('[data-salir]').addEventListener('click', e => salir(e.currentTarget));
+
+      const cerrar = devolverFoco => {
+        panel.hidden = true;
+        ava.setAttribute('aria-expanded', 'false');
+        if (devolverFoco) ava.focus();
+      };
+      ava.addEventListener('click', () => {
+        if (!panel.hidden) return cerrar();
+        pintarTema();
+        panel.hidden = false;
+        ava.setAttribute('aria-expanded', 'true');
+        panel.querySelector('a, button:not([hidden])').focus();
+      });
+      document.addEventListener('click', e => { if (!panel.hidden && !box.contains(e.target)) cerrar(); });
+      box.addEventListener('focusout', e => { if (e.relatedTarget && !box.contains(e.relatedTarget)) cerrar(); });
+      // En captura y deteniendo el evento: la página de abajo (tareas, clientes…) también
+      // escucha Esc para cerrar su panel, y no debe cerrarlo al cerrar este menú.
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !panel.hidden) { e.preventDefault(); e.stopPropagation(); cerrar(true); }
+      }, true);
+    }
+
+    // Insignias. Si un endpoint falla, la insignia simplemente no aparece.
+    function cargarInsignias() {
+      if (aqui === 'login.html') return;
+      // Tareas vencidas (de todo el equipo: no se cambia aquí a «las mías»).
       API.get('/tareas').then(ts => {
-        const hoy = new Date().toISOString().slice(0, 10);
+        const hoy = hoyLocal();       // fecha local: la UTC marca vencido lo de hoy desde las 18:00
         const n = (ts ?? []).filter(t => t.vence_el && t.vence_el < hoy && t.columna !== 'completado').length;
-        if (n) { b.textContent = n; b.hidden = false; b.title = `${n} vencidas`; }
+        ponerInsignia('tareas', n, `${n} ${n === 1 ? 'vencida' : 'vencidas'}`);
       }).catch(() => {});
+      // Revisión: lo que espera decisión en Nuevo León, que es donde abre la página: pares de
+      // posibles duplicados más precios atípicos. Los mismos endpoints que usa duplicados.js
+      // (`total`, con una fila por página). En la propia página no se pone: ahí la cifra viva
+      // es la suya, y ésta quedaría vieja con cada decisión.
+      if (aqui === 'duplicados.html') return;
+      const q = API.qs({ estado: 'Nuevo León', per_page: 1 });
+      Promise.allSettled([API.get(`/duplicados/sugerencias${q}`), API.get(`/outliers${q}`)]).then(rs => {
+        const n = rs.reduce((a, r) => a + (r.status === 'fulfilled' ? Number(r.value?.total) || 0 : 0), 0);
+        ponerInsignia('revision', n, `${mx(n)} por revisar en Nuevo León`);
+      });
     }
   });
 })();

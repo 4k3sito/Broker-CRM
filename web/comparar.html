@@ -30,12 +30,12 @@
 
 <main class="cmp">
   <div class="cmp-head">
-    <a class="cmp-back" href="index.html">&#8592; Volver al tablero</a>
+    <a class="cmp-back" id="cmpBack" href="index.html">&#8592; Volver al tablero</a>
     <h1 class="cmp-title" id="cmpTitle">Comparar</h1>
     <div class="cmp-tools">
       <label><input type="checkbox" id="optMejor" checked> Resaltar mejor valor</label>
-      <label><input type="checkbox" id="optIguales"> Ocultar iguales</label>
-      <button class="btn-solid" id="btnImprimir">PDF comparativo</button>
+      <label><input type="checkbox" id="optIguales" checked> Ocultar iguales</label>
+      <button class="btn-solid" id="btnImprimir">Imprimir / guardar PDF</button>
     </div>
   </div>
   <div class="cmp-scroll" id="cmpBody"><p class="pg-empty">Cargando&#8230;</p></div>
@@ -43,6 +43,7 @@
 
 <script src="api.js"></script>
 <script src="texto.js"></script>
+<script src="ui.js"></script>
 <script src="menu.js"></script>
 <script src="anuncio.js"></script>
 <script src="comparar.js"></script>

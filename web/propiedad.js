@@ -20,6 +20,8 @@ const Propiedad = (() => {
 
   // Un anuncio en un renglón: foto, precio, superficie, quién y dónde. `acciones` es
   // el marcado de sus botones; `nota` una etiqueta junto al portal («Este anuncio»).
+  // «Ficha» abre en pestaña nueva con opener, como desde el tablero: la ficha cierra su
+  // pestaña al volver, y en Duplicados la cola que se estaba decidiendo no se pierde.
   function fila(t, acciones = '', nota = '') {
     const op = t.transaction_type === 'rent' ? ' / mes' : '';
     const ppm = t.precio && t.property_size_m2 ? ` · $${mx(Math.round(t.precio / t.property_size_m2))}/m²` : '';
@@ -34,7 +36,7 @@ const Propiedad = (() => {
           · ${esc(t.broker_name ?? 'Anunciante sin nombre')}${t.location || t.zona ? ' · ' + esc(t.location ?? t.zona) : ''}${t.activo ? '' : ' · dado de baja'}</div>
       </div>
       <div class="dp-acc">
-        <a class="fx-btn" href="listing.html?id=${encodeURIComponent(t.id)}">Ficha</a>
+        <a class="fx-btn" href="listing.html?id=${encodeURIComponent(t.id)}" target="_blank" rel="opener">Ficha</a>
         <a class="fx-btn" href="${hrefSeguro(t.url)}" target="_blank" rel="noopener">Portal &#8599;</a>
         ${acciones}
       </div>

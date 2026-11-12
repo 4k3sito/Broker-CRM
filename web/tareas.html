@@ -24,24 +24,19 @@
       <span class="brand-sub">CRM Inmobiliario &#183; M&#233;xico</span>
     </span>
   </a>
-  <nav class="topbar-nav">
-    <a href="index.html">Inmuebles</a>
-    <a href="clientes.html">Clientes</a>
-    <a href="tareas.html" class="active" aria-current="page">Tareas</a>
-  </nav>
+  <!-- Las pestañas las pone menu.js. -->
   <div class="topbar-search">
     <div class="search-box">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="searchInput" placeholder="Buscar tareas&#8230;">
+      <input type="text" id="searchInput" placeholder="Buscar tareas&#8230;" aria-label="Buscar">
     </div>
   </div>
   <div class="topbar-right">
     <span id="authBox">
       <a class="btn-ghost" href="login.html">Entrar</a>
     </span>
-    <span id="userBox" hidden>
-      <button class="btn-ghost" id="logout-btn">Salir</button>
-    </span>
+    <!-- El avatar y su menú de cuenta (con «Cerrar sesión») los pone menu.js. -->
+    <span id="userBox" hidden></span>
   </div>
 </header>
 <!-- El título que anuncia un lector al llegar; la topbar ya lo dice a la vista. -->
@@ -50,6 +45,11 @@
 <div class="tk-shell">
   <div class="tk-board">
     <div class="tk-bar">
+      <!-- Sólo a ≤900 px, donde la topbar esconde su buscador: el mismo filtro, en la barra. -->
+      <div class="cl-filtro-busca">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="search" id="searchInputMovil" placeholder="Buscar tareas&#8230;" aria-label="Buscar" autocomplete="off">
+      </div>
       <button class="btn-solid" id="nueva-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         <span id="nueva-txt">Nueva tarea</span>
@@ -60,11 +60,12 @@
       <span class="tk-bar-sep"></span>
       <span id="prioGroup"><span class="statebar-label">Prioridad</span>
       <span id="prioPills"></span></span>
-      <span id="personaGroup" hidden><span class="statebar-label">Persona</span><span id="personaPills"></span></span>
+      <span id="personaGroup" hidden><span class="statebar-label">Persona</span><span id="personaPills"></span>
+        <select class="tk-bar-select" id="personaSel" aria-label="Persona"></select></span>
       <span class="tk-bar-group" id="pipeGroup" hidden>
         <select class="tk-bar-select" id="f-cliente" aria-label="Cliente"></select>
-        <select class="tk-bar-select" id="f-trae" aria-label="Quién lo trae"></select>
-        <label class="tk-bar-toggle" for="f-laterales"><input type="checkbox" id="f-laterales"> En pausa y descartadas</label>
+        <select class="tk-bar-select" id="f-trae" aria-label="Presentó"></select>
+        <label class="tk-bar-toggle" for="f-laterales"><input type="checkbox" id="f-laterales"> En pausa y rechazadas</label>
       </span>
       <span class="tk-bar-right">
         <span class="tk-bar-hint">Arrastra una tarjeta a otra columna para cambiar su estado</span>

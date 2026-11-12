@@ -1,4 +1,5 @@
-// Mostrar/ocultar contraseña y aviso de Bloq Mayús (misma lógica que login.js).
+// Mostrar/ocultar contraseña y aviso de Bloq Mayús, para toda input[type=password] de la página.
+// Lo cargan login.html y update-password.html (antes login.js llevaba su propia copia).
 (() => {
 function mejorarPassword(input) {
   const wrap = document.createElement('div');

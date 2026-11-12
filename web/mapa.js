@@ -16,6 +16,20 @@ const Mapa = (() => {
   const corto = n => n >= 1e6 ? `$${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`
                    : n >= 1e3 ? `$${(n / 1e3).toFixed(1).replace(/\.0$/, '')}k` : `$${n}`;
 
+  // Lo que dice el pin, y su versión larga para el lector de pantalla. Un pin sin «/mes» ni
+  // moneda era ambiguo: «$45k» podía ser una renta o un precio, en pesos o en dólares (R1-11).
+  function textoPin(l) {
+    const o = Anuncio.ofertas(l, opts.operacion?.())[0];
+    if (o.monto == null) return { corto: 'Sin precio', largo: 'Sin precio' };
+    const mon = Anuncio.moneda(l), usd = mon !== 'MXN';
+    const unidad = (o.parcial ? '/m²' : '') + (o.op === 'Renta' ? '/mes' : '');
+    return { corto: corto(Math.round(o.monto)) + unidad + (usd ? ` ${mon}` : ''),
+             largo: `$${Math.round(o.monto).toLocaleString('es-MX')} ${mon}${o.parcial ? ' por m²' : ''}${o.op === 'Renta' ? ' al mes' : ''}` };
+  }
+
+  // El estilo de OpenFreeMap según el tema: claro «positron», oscuro «dark».
+  const estilo = oscuro => `https://tiles.openfreemap.org/styles/${oscuro ? 'dark' : 'positron'}`;
+
   function metros(a, b) {
     const R = 6371e3, r = x => x * Math.PI / 180;
     const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
@@ -36,7 +50,7 @@ const Mapa = (() => {
     try {
       map = new maplibregl.Map({
         container: el,
-        style: `https://tiles.openfreemap.org/styles/${oscuro ? 'dark' : 'positron'}`,
+        style: estilo(oscuro),
         center: cfg.centro ?? [-100.36, 25.66], zoom: cfg.zoom ?? 11,
         attributionControl: false, dragRotate: false, pitchWithRotate: false,
       });
@@ -49,6 +63,9 @@ const Mapa = (() => {
       if (!seguir || !opts.onMove || !(e.originalEvent || e.usuario)) return;
       opts.onMove(area());
     });
+    // Cambiar el tema desde el botón de la topbar (theme.js) no recargaba el mapa: en oscuro las
+    // calles seguían en el estilo claro. `setStyle` deja los pines, que son marcado propio.
+    document.addEventListener('ol-tema', e => { map.setStyle(estilo(!!e.detail?.oscuro)); });
     document.getElementById('mapMas')?.addEventListener('click', () => map.zoomIn({}, { usuario: true }));
     document.getElementById('mapMenos')?.addEventListener('click', () => map.zoomOut({}, { usuario: true }));
   }
@@ -74,7 +91,9 @@ const Mapa = (() => {
   }
   function ir({ lat, lng, zoom }) { map?.jumpTo({ center: [lng, lat], zoom }); }
 
-  function pintar(lista) {
+  // `info` trae lo que el mapa no sabe: cuántos resultados tiene la búsqueda y qué página es.
+  // Sólo se dibujan los de la página visible, y la nota lo dice (R1-11).
+  function pintar(lista, info = {}) {
     if (!map) return;
     pins.forEach(p => p.marker.remove());
     pins = new Map();
@@ -84,16 +103,29 @@ const Mapa = (() => {
       el.className = 'map-pin';
       // El precio de la operación que se busca: un local en renta y venta, buscando
       // renta, enseña su renta (`opts.operacion` es el filtro del tablero).
-      const o = Anuncio.ofertas(l, opts.operacion?.())[0];
-      el.textContent = o.monto != null ? corto(Math.round(o.monto)) : 's/p';
-      el.title = l.titulo ?? '';
+      const t = textoPin(l);
+      el.textContent = t.corto;
+      el.title = l.titulo ? `${t.largo} · ${l.titulo}` : t.largo;
+      // Un pin es un botón: se alcanza con Tab, resalta su tarjeta al enfocarlo y Enter o
+      // Espacio la llevan a la vista, como el clic.
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', `${t.largo}${l.titulo ? `, ${l.titulo}` : ''}. Ir a su tarjeta`);
       el.addEventListener('mouseenter', () => opts.onPinHover?.(l.id));
       el.addEventListener('mouseleave', () => opts.onPinHover?.(null));
+      el.addEventListener('focus', () => opts.onPinHover?.(l.id));
+      el.addEventListener('blur', () => opts.onPinHover?.(null));
       el.addEventListener('click', () => opts.onPin?.(l.id));
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); opts.onPin?.(l.id); }
+      });
       pins.set(l.id, { el, marker: new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([l.lng, l.lat]).addTo(map) });
     }
     const sin = lista.length - conGeo.length;
-    nota(sin ? `${sin} de ${lista.length} sin ubicación en esta página` : null);
+    const fmt = n => n.toLocaleString('es-MX');
+    // «70 de 11,093 · página 1»: sin esto parecía que el mapa enseñaba todo el resultado.
+    const parte = lista.length ? `${fmt(conGeo.length)} de ${fmt(info.total ?? lista.length)} · página ${info.pagina ?? 1}` : '';
+    nota(parte ? parte + (sin ? ` · ${fmt(sin)} sin ubicación` : '') : null);
     // Si el usuario está navegando el mapa, no se le mueve la cámara.
     if (!seguir && conGeo.length) {
       if (conGeo.length === 1) map.jumpTo({ center: [conGeo[0].lng, conGeo[0].lat], zoom: 15 });
