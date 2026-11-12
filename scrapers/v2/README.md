@@ -35,7 +35,7 @@ exact, lot and construction m² separately, description, amenities, photos, and
 |---|---|---|
 | Vivanuncios | direct | 24/24 results pages, details too |
 | Lamudi | direct | 24/24 results, 12/12 details; solves its own math CAPTCHA in place |
-| Mercado Libre | direct | 24/24 results, 60/60 details with no login wall |
+| Mercado Libre | direct → residential | 24/24 results until 2026-11-12; since then direct gets the account-verification wall and the ladder climbs |
 | Inmuebles24 | residential | 403s the VPS IP outright |
 | Pincali | residential | AWS WAF challenges the VPS IP forever |
 | Spot2 | direct only | sitemap and listing pages, 0 blocks (2026-11-12); no proxy rung, a block fails the run |

@@ -17,11 +17,19 @@ the quantiles of the 48 prices it just returned — the pages that told us where
 cut are never wasted. There is no conformant delta mode (the only date filter and
 every sort are Disallowed).
 
-The whole portal answers the VPS's own IP (24/24 results pages, 2026-10-08), so it
-runs on the free route. The detail page — full gallery, the amenities table and
+The whole portal answered the VPS's own IP (24/24 results pages, 2026-10-08), so
+it ran on the free route. The detail page — full gallery, the amenities table and
 the coordinate — did too in that test, but in August it demanded a login after a
 few pages; `_walled` names that page so the ladder treats it as a block instead of
 storing a wall as a listing.
+
+Since 2026-11-12 the free route gets `/gz/account-verification` instead: a 200,
+"Mercado Libre"-titled page from the suspicious-traffic frontend with no listings
+in it. Read as an empty search it marked 222 shards complete with 0 rows and the
+run claimed COMPLETE with 57 listings instead of 77,233. `BLOCK` names that wall
+so it climbs to the residential route as a block should, and a page with neither
+cards nor count that is not the site's own "No encontramos resultados" page is a
+`BadPage` rather than a silent empty shard.
 """
 
 from __future__ import annotations
@@ -59,6 +67,12 @@ STATES = {
 _MLM = re.compile(r"MLM-?(\d+)")
 _TOTAL = re.compile(r"([\d,\.]{1,12})\s*resultados")
 _AREA = re.compile(r"([\d.,]+)\s*m²\s*(construidos|de terreno|totales)", re.I)
+# The 200-with-no-listings gates this portal has served on the free route. The
+# account wall is a redirect to www.mercadolibre.com.mx/gz/account-verification;
+# the marker is in its <head>, so `block_re` (first 6 KB) sees it. Naming it makes
+# the fetcher climb the ladder instead of parsing a wall as an empty search.
+BLOCK = re.compile(r"suspicious-traffic-frontend|account-verification", re.I)
+_NO_RESULTS = "ui-search-rescue"       # the site's own "No encontramos resultados" block
 _decode = json.JSONDecoder().raw_decode
 
 
@@ -74,6 +88,12 @@ def total_results(html: str) -> int | None:
     """The "N resultados" headline; absent when everything fits on the page."""
     m = _TOTAL.search(html)
     return int(re.sub(r"[,.]", "", m.group(1))) if m else None
+
+
+def empty_result(html: str) -> bool:
+    """The site's own zero-results page. A page with neither a card nor a count
+    and without this block is a wall or a shell, not an empty search."""
+    return _NO_RESULTS in html
 
 
 def _graph(tree: LexborHTMLParser) -> dict[str, dict]:
@@ -237,6 +257,7 @@ class MercadoLibre(Portal):
     name = "mercadolibre"
     base = "https://inmuebles.mercadolibre.com.mx"
     impersonate = ("chrome142",)
+    block_re = BLOCK
     min_gap = 5.0               # robots.txt Crawl-delay
     searches = [
         ("locales-comerciales/renta", "rent"), ("locales-comerciales/venta", "sale"),
@@ -281,6 +302,9 @@ class MercadoLibre(Portal):
             html = f.get(url, referer=f"{self.base}/{category}/").text
             cards = list(parse_serp(html, operation))
             total = total_results(html)
+            if total is None and not cards and not empty_result(html):
+                # Never again 222 shards "complete — 0 seen, 0 new".
+                raise BadPage(f"no listings and no count on {url}: not an empty result page")
             total = len(cards) if total is None else total
             self._verify(cards, state, lo, hi, url)
             if first:
@@ -310,7 +334,8 @@ class MercadoLibre(Portal):
         return parse_detail(page.text, row)
 
     def selfcheck(self, fixtures: Path) -> str:
-        cards = list(parse_serp((fixtures / "ml_direct.html").read_text(encoding="utf-8"), "rent"))
+        serp = (fixtures / "ml_direct.html").read_text(encoding="utf-8")
+        cards = list(parse_serp(serp, "rent"))
         n = len(cards)
         assert n >= 40, f"expected 48 cards, got {n}"
         assert all(c.listingId.isdigit() and c.url.startswith("https://") for c in cards)
@@ -332,6 +357,14 @@ class MercadoLibre(Portal):
         assert split_range(5, 5, [5, 5, 5], 300) == [], "one price point cannot be split"
         assert _ITEM_URL.search("https://inmueble.mercadolibre.com.mx/MLM-3521750022-nueva-oficina-_JM")
         assert not _ITEM_URL.search("https://inmuebles.mercadolibre.com.mx/oficinas/renta/veracruz/boca-del-rio/")
+        # 2026-11-12: the free route began answering with this page instead of results.
+        wall = ('<html data-assets-prefix="https://http2.mlstatic.com/frontend-assets/'
+                'suspicious-traffic-frontend/"><title>Mercado Libre</title></html>')
+        assert BLOCK.search(wall), "the account wall must read as a block on the cheap route"
+        assert not BLOCK.search(serp), "a real results page must not read as a block"
+        assert empty_result('<div class="ui-search-rescue__info">No encontramos resultados</div>')
+        assert not empty_result(serp), "a page with cards is not an empty result"
+        assert not empty_result(wall), "a wall is not the site's empty-result page"
         ended = ('"id":"item_status_message","type":"ui_message","state":"VISIBLE",'
                  '"body":{"text":"Publicación finalizada"},"pictures":[{"id":"1"}]')
         try:
