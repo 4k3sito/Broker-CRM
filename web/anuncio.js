@@ -20,7 +20,7 @@ const Anuncio = (() => {
   // sus anuncios siguen en el inventario.
   const FUENTES = {
     inmuebles24: 'Inmuebles24', lamudi: 'Lamudi', vivanuncios: 'Vivanuncios', mercadolibre: 'MercadoLibre',
-    pincali: 'Pincali', easybroker: 'EasyBroker', metroscubicos: 'Metros²',
+    pincali: 'Pincali', spot2: 'Spot2', easybroker: 'EasyBroker', metroscubicos: 'Metros²',
     propiedadesmx: 'PropiedadesMX', propiedadesmexico: 'PropiedadesMX',
     pipeline: 'Pipeline',   // las fichas propias (ver _origen en la API)
   };

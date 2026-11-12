@@ -38,6 +38,7 @@ exact, lot and construction m² separately, description, amenities, photos, and
 | Mercado Libre | direct | 24/24 results, 60/60 details with no login wall |
 | Inmuebles24 | residential | 403s the VPS IP outright |
 | Pincali | residential | AWS WAF challenges the VPS IP forever |
+| Spot2 | direct only | sitemap and listing pages, 0 blocks (2026-11-12); no proxy rung, a block fails the run |
 
 **Datacenter IPs for the detail queue.** The Apify account has a group of 27
 datacenter IPs paid per IP, not per GB (`DATACENTER_GROUP` in `scrapers/.env`).
@@ -118,6 +119,18 @@ only re-queues a listing whose gallery size changed.
 - **Every one of them answers 200 to a filter it dropped.** Each adapter reads
   back what the server applied (sort, price floor, state, type) on the first page
   and raises `BadPage` instead of sweeping the wrong corpus.
+- **Spot2 has no walkable results pages** (2026-11-12). Category pages render 20
+  cards and ignore `?page=`; the rest comes from a client-side service. Its
+  `/sitemap.xml` (5.6 MB) is the inventory instead: 42,810 listings, all commercial.
+  Each listing page carries the whole row in JSON-LD, ~110 KB on the wire (770 KB
+  decoded), so a parsed row is cached in `data/v2/spot2.cache.jsonl` and re-emitted
+  for 45 days; the loader overwrites price with whatever a sweep sends, so a sweep
+  row is never a bare sitemap entry. Its detail queue is answered from that cache.
+  Prices are published per m²; the total, when there is one, is in
+  `additionalProperty`. A slug that says `renta-y-venta` may carry one offer only:
+  the page decides the operation. The state comes from the postal code
+  (`addressRegion` is a colonia half the time). Known bad data: one advertiser lists
+  71 lots of the same 65,000 m² field in Encarnación de Díaz (Jal.) at $1,100/m²/month.
 - **Cutting a download short does not save bytes with curl_cffi.** Tried: 127.7 KB
   either way — the transfer finishes before the reader can stop it.
 
@@ -150,6 +163,7 @@ listings on 2026-10-10 (257 enriched, 3 gone, 0 errors).
 | Vivanuncios | 85,303 | 0 | 98 KB direct | 0 |
 | Lamudi | 83,539 | 0 | 118 KB direct | 0 |
 | Mercado Libre | 85,521 | 0 | 113 KB direct | 0 |
+| Spot2 | 42,810 | 0 (5.6 MB sitemap + ~4.7 GB of pages once, direct) | 0 (cache) | 0 |
 
 About 5 GB once, then 0.3–0.5 GB a week. The meter counts response bodies; the
 proxy also bills headers, which matters only for Pincali's 0.3 KB gallery calls.

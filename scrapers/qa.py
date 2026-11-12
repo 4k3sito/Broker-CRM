@@ -372,7 +372,8 @@ def selfcheck() -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("fuente", nargs="?", choices=sorted(SCRIPT))
+    # spot2 nació en v2 y no tiene script v1: sólo corre con --v2.
+    ap.add_argument("fuente", nargs="?", choices=sorted([*SCRIPT, "spot2"]))
     ap.add_argument("--dry", action="store_true", help="imprime el veredicto, no avisa")
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--v2", action="store_true", help="la corrida fue de scrapers/v2")

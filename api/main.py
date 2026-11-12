@@ -909,6 +909,7 @@ SCRAPERS = {
     "vivanuncios":  "Vivanuncios",
     "mercadolibre": "MercadoLibre",
     "pincali":      "Pincali",
+    "spot2":        "Spot2",
 }
 
 

@@ -2,7 +2,7 @@
 # Scrapers v2: una corrida de un portal — barrido → PostGIS → control de calidad →
 # detalle de lo nuevo.
 #
-#   vps/cron-v2.sh vivanuncios|lamudi|mercadolibre|pincali|inmuebles24
+#   vps/cron-v2.sh vivanuncios|lamudi|mercadolibre|pincali|inmuebles24|spot2
 #   vps/cron-v2.sh detalle      # trabaja la cola de detalle de los cinco, en paralelo
 #   vps/cron-v2.sh selfcheck    # verifica el entorno, sin red ni base
 #
@@ -32,7 +32,7 @@ DETALLE_MB=${DETALLE_MB:-400}
 DIRECTO_MB=${DIRECTO_MB:-30}
 set -a; . /srv/officelab/vps/.env; set +a
 PY=.venv/bin/python
-FUENTES="vivanuncios lamudi mercadolibre pincali inmuebles24"
+FUENTES="vivanuncios lamudi mercadolibre pincali inmuebles24 spot2"
 
 if [ "$f" = selfcheck ]; then
     rc=0
@@ -49,7 +49,7 @@ if [ "$f" = selfcheck ]; then
 fi
 
 case $f in
-    vivanuncios|lamudi|mercadolibre|pincali|inmuebles24|detalle) ;;
+    vivanuncios|lamudi|mercadolibre|pincali|inmuebles24|spot2|detalle) ;;
     *) echo "fuente inválida: $f" >&2; exit 2 ;;
 esac
 

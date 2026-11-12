@@ -159,8 +159,8 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   las tres familias de Hermes Tinta empaquetadas en la imagen —el PDF no puede depender
   de que Google Fonts conteste al renderizar—. **La imagen ya no es sólo `pip install`**:
   WeasyPrint necesita Pango y Cairo del sistema (ver `api/Dockerfile`).
-- **`scrapers/`** — cinco portales nacionales (Inmuebles24, Lamudi, Vivanuncios,
-  MercadoLibre, Pincali). **Desde el 2026-10-10 lo que corre es `scrapers/v2`**: un
+- **`scrapers/`** — seis portales nacionales (Inmuebles24, Lamudi, Vivanuncios,
+  MercadoLibre, Pincali y, desde el 2026-11-12, Spot2: sólo comercial, sin proxy, por sitemap). **Desde el 2026-10-10 lo que corre es `scrapers/v2`**: un
   núcleo (`net.py` transporte y medidor, `portal.py` barrido y detalle, `db.py` carga a
   PostGIS) y un adaptador por portal en `v2/portals/`. **Lee `scrapers/v2/README.md`
   antes de tocarlo**: trae qué portal paga proxy, lo que cada sitio enseñó y el costo

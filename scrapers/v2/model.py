@@ -6,6 +6,7 @@ v2 JSONL loads with the old loader too; the new fields ride alongside.
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -67,8 +68,59 @@ def eb_id(*texts: str | None) -> str:
     return ""
 
 
+# Markup that reaches a description. Navent (and Pincali rows that inherit its text)
+# hides phones, e-mails and some numbers behind a "Ver datos" button whose href is
+# "#": the real value only exists for a logged-in visitor, so there is no link to keep.
+# Lamudi sends a little formatting (<br />, <strong>, <blockquote>). Measured
+# 2026-11-12 on live rows: 36,659 with the button, 38 with formatting. Only real tag
+# names are touched: "<Bodega industrial…" is text an advertiser typed.
+OCULTO = "(dato oculto por el portal)"
+_VER_DATOS = re.compile(
+    r"<span[^>]*descripcionDatosAnunciante[^>]*>\s*<button[^>]*>.*?</button>\s*</span>"
+    r"|<button[^>]*js-verDatos[^>]*>.*?</button>", re.I | re.S)
+_TAGS = r"(?:a|b|blockquote|br|button|div|em|font|h[1-6]|hr|i|li|ol|p|small|span|strong|u|ul)"
+_SALTO = re.compile(rf"<\s*(?:br|hr)\s*/?\s*>|</\s*(?:p|div|li|h[1-6]|blockquote)\s*>", re.I)
+_VINETA = re.compile(r"<\s*li(?:\s[^<>]*)?>", re.I)
+_TAG = re.compile(rf"</?\s*{_TAGS}(?:\s[^<>]*)?/?>", re.I)
+# A description cut off by the portal can end inside the button or a tag:
+# "al teléfono <span class='descripcionDatosAnunciante'><button c", "Ver datos</but", "</s".
+_VER_DATOS_COLA = re.compile(
+    r"<span[^>]*descripcionDatosAnunciante.*$|<button[^>]*js-verDatos.*$"
+    r"|<span\s+cla?s?s?=?['\"]?d[a-zA-Z]*$|Ver datos\s*</\s*[a-z]*$", re.I | re.S)
+_COLA = re.compile(r"<\s*/?\s*([a-z0-9]*)(?:\s[^<>]*)?$", re.I)
+_NOMBRES = ("a", "b", "blockquote", "br", "button", "div", "em", "font", "h1", "h2", "h3",
+            "h4", "h5", "h6", "hr", "i", "li", "ol", "p", "small", "span", "strong", "u", "ul")
+
+
+def _cola(m: re.Match) -> str:
+    name = m.group(1).lower()
+    return "" if any(n.startswith(name) for n in _NOMBRES) else m.group(0)
+
+
+_ENTIDAD = re.compile(r"&(?:#\d{1,6}|#x[0-9a-f]{1,5}|amp|nbsp|lt|gt|quot|apos);", re.I)
+
+
+def limpiar_descripcion(text: str | None) -> str:
+    """Plain text out of a description that carries portal markup."""
+    if not text or ("<" not in text and "&" not in text):
+        return text or ""
+    t = _VER_DATOS.sub(f" {OCULTO} ", text)
+    t = _VER_DATOS_COLA.sub(f" {OCULTO}", t)
+    t = _SALTO.sub("\n", t)
+    t = _VINETA.sub("\n• ", t)
+    t = _TAG.sub("", t)
+    t = _COLA.sub(_cola, t)
+    t = _ENTIDAD.sub(lambda m: html.unescape(m.group(0)), t)
+    t = re.sub(r"[ \t\u00a0]+", " ", t)
+    t = re.sub(rf"\s+(?=[.,;:)]?\s*{re.escape(OCULTO)})", " ", t)
+    t = re.sub(r" *\n *", "\n", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
+
+
 def finish(l: Listing) -> Listing:
     """Derived fields every adapter would otherwise repeat."""
+    l.description = limpiar_descripcion(l.description)
     if not l.ebId:
         l.ebId = eb_id(l.postingCode, l.description, l.title)
     l.images = list(dict.fromkeys(u for u in l.images if u))   # ordered, unique
@@ -102,3 +154,22 @@ def selfcheck() -> None:
     d = serialize(l)
     assert d["ebId"] == "EB-QW6165" and d["images"] == ["a", "b"] and d["imageUrl"] == "a"
     assert d["amenities"] == ["Alberca"] and d["areaM2"] == 90.0 and d["observedAt"]
+    boton = ("<span class='descripcionDatosAnunciante'><button class='btn btn-link js-verDatos' "
+             "href='#'>Ver datos</button></span>")
+    assert limpiar_descripcion(f"Teléfono: {boton} • Correo: {boton}") == \
+        f"Teléfono: {OCULTO} • Correo: {OCULTO}"
+    assert limpiar_descripcion(f"Itv{boton} / Easybroker eb-br4780.") == f"Itv {OCULTO} / Easybroker eb-br4780."
+    assert limpiar_descripcion("al teléfono <span class='descripcionDatosAnunciante'><button c") == \
+        f"al teléfono {OCULTO}"
+    assert limpiar_descripcion("cita hoy mismo:? Ver datos</but") == f"cita hoy mismo:? {OCULTO}"
+    assert limpiar_descripcion(f"por correo: {boton} </s") == f"por correo: {OCULTO}"
+    assert limpiar_descripcion("Bodega 5x3 </Bodeguita") == "Bodega 5x3 </Bodeguita"
+    assert limpiar_descripcion("Local:<br />Se renta.<br/>Baño") == "Local:\nSe renta.\nBaño"
+    assert limpiar_descripcion("<blockquote><strong>Terreno</strong> de 26,714 m2</blockquote>") == \
+        "Terreno de 26,714 m2"
+    assert limpiar_descripcion("ideal para distribución<Bodega industrial lista") == \
+        "ideal para distribución<Bodega industrial lista", "advertiser text is not a tag"
+    assert limpiar_descripcion("Precio < 5 M & sin comisión") == "Precio < 5 M & sin comisión"
+    assert limpiar_descripcion("Agua &amp; luz&nbsp;incluidas") == "Agua & luz incluidas"
+    assert limpiar_descripcion("Texto normal sin marcas.") == "Texto normal sin marcas."
+    assert limpiar_descripcion(None) == ""
