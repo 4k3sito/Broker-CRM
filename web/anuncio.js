@@ -39,6 +39,15 @@ const Anuncio = (() => {
     return (v && typeof v === 'object') ? (v.name ?? null) : null;
   }
 
+  // Los portales a veces mandan basura en la dirección: «., Santa María», «F, Del Norte».
+  // Se quitan las partes (separadas por coma) sin al menos dos letras o cifras; si no
+  // queda nada es como si no hubiera dirección y se usa lo que ya se usa en ese caso.
+  const limpiarLugar = s => {
+    if (s == null) return null;
+    const t = String(s).split(',').map(p => p.trim()).filter(p => (p.match(/[\p{L}\p{N}]/gu) ?? []).length >= 2).join(', ');
+    return t || null;
+  };
+
   // Fila de la API → anuncio. `precio` es el número que publicó el portal: si `porM2`
   // está puesto es $/m² y el total viene en `precioTotal` (ver `total`).
   function de(l) {
@@ -47,7 +56,7 @@ const Anuncio = (() => {
       fuente: l.source ?? 'desconocido',
       codigo: l.source === 'pipeline' ? null : (l.external_id ?? null),   // el uuid de la ficha no es un código
       titulo: l.title ?? l.broker_name ?? null,
-      direccion: lugar(l.location) ?? l.neighborhood ?? null,
+      direccion: limpiarLugar(lugar(l.location)) ?? limpiarLugar(l.neighborhood),
       zona: l.zona ?? null,
       precio: l.price_numeric ?? null,
       moneda: l.currency ?? 'MXN',
@@ -186,11 +195,11 @@ const Anuncio = (() => {
     return a.reciente ? { texto: 'Reciente', detalle: 'Publicado en los últimos 7 días' } : null;
   }
 
-  // Cuánto lleva anunciado, o null: "12 d", "5 meses", "2 años".
+  // Cuánto lleva anunciado, o null: "12 días", "5 meses", "2 años".
   function tiempoEnMercado(a, ahora = new Date()) {
     if (!a.desde) return null;
     const d = Math.max(1, Math.floor((ahora - new Date(a.desde)) / 864e5));
-    if (d < 60) return `${d} d`;
+    if (d < 60) return d === 1 ? '1 día' : `${d} días`;
     return d < 730 ? `${Math.round(d / 30.44)} meses` : `${Math.floor(d / 365.25)} años`;
   }
   const fecha = iso => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -206,5 +215,5 @@ const Anuncio = (() => {
   // Dónde está, en una línea: la dirección, y a falta de ella el municipio.
   const ubicacion = a => a.direccion ?? a.zona ?? null;
 
-  return { ESTADOS, de, total, porMetro, precioVisible, ofertas, operacion, rango, resumen, datos, superficiesDe, insignia, tiempoEnMercado, fecha, moneda, estadoApi, fuente, ubicacion };
+  return { ESTADOS, de, total, porMetro, precioVisible, ofertas, operacion, rango, resumen, datos, superficiesDe, insignia, tiempoEnMercado, fecha, moneda, estadoApi, fuente, ubicacion, limpiarLugar };
 })();

@@ -231,8 +231,8 @@ test('una rebaja gana a reciente; sin ninguna de las dos no hay insignia', () =>
 test('el tiempo en el mercado se dice en la unidad que cabe', () => {
   const ahora = new Date('2026-10-30T12:00:00Z');
   const hace = d => Anuncio.tiempoEnMercado(Anuncio.de(fila({ desde: new Date(ahora - d * 864e5).toISOString() })), ahora);
-  assert.equal(hace(0), '1 d');
-  assert.equal(hace(12), '12 d');
+  assert.equal(hace(0), '1 día');
+  assert.equal(hace(12), '12 días');
   assert.equal(hace(150), '5 meses');
   assert.equal(hace(800), '2 años');
   assert.equal(Anuncio.tiempoEnMercado(Anuncio.de(fila()), ahora), null);

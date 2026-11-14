@@ -180,7 +180,10 @@ async function cargar() {
   const turno = ++vuelta;
   guardarURL();
   lista.classList.add('cargando');
-  await confirmar();
+  // Cambiar de filtro, vista o página con el aviso de deshacer abierto confirma la decisión:
+  // se cierra el aviso (ya no se puede deshacer) y se dice que se guardó.
+  const habia = !!pendiente;
+  if (await confirmar() && habia) UI.aviso('Se guardó la decisión anterior.');
   let r;
   try {
     r = await pedir();
@@ -309,11 +312,14 @@ function confirmar() {
   if (!p) return guardando;
   pendiente = null;
   ocultarAviso();
-  guardando = enviar(p).catch(err => {
+  guardando = enviar(p).then(() => true, err => {
     decididos.delete(llave(p.a, p.b));
     ponerTotal(total + 1);
     devolver(p);
-    UI.aviso(`No se pudo guardar: ${err.message}. El par volvió a la lista.`);
+    // «igual» y «distinto» deciden un par; en Precios atípicos se decide un anuncio.
+    const que = p.tipo === 'igual' || p.tipo === 'distinto' ? 'El par' : 'El anuncio';
+    UI.aviso(`No se pudo guardar: ${err.message}. ${que} volvió a la lista.`);
+    return false;
   });
   return guardando;
 }

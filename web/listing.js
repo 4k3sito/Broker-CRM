@@ -776,7 +776,7 @@ function pintar() {
             || '<p class="fx-hint">Sin documentos todavía.</p>'}
         </div>
         <div class="fx-add">
-          <input class="doc-input" placeholder="+ Agregar documento (predial, planos…)">
+          <input class="doc-input" placeholder="Ej.: predial, planos">
           <button class="doc-file" title="Elegir uno o varios archivos. Con nombre escrito van a ese documento; sin nombre, cada archivo es un documento.">Archivos&#8230;</button>
           <button class="doc-add">Agregar</button>
         </div>

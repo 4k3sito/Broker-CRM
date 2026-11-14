@@ -38,7 +38,7 @@ const FILAS = [
   { k: 'Operación',   v: l => l.transaccion, f: v => v ?? '—' },
   { k: 'Ubicación',   v: Anuncio.ubicacion, f: v => esc(v ?? '—') },
   { k: 'Fotos',       v: l => l.fotos.length,  f: v => String(v), cls: 'mono' },
-  { k: 'Estado',      v: l => l.status, f: v => `<span style="color:var(--s-${v.toLowerCase()});font-weight:700">${v}</span>` },
+  { k: 'Estado',      v: l => l.status, f: v => `<span class="cmp-estado s-${esc(v)}">${esc(v)}</span>` },
   { k: 'Fuente',      v: l => Anuncio.fuente(l.fuente), f: v => esc(v), cls: 'mono' },
 ];
 

@@ -17,6 +17,8 @@ const TIPOS = ['Visita', 'Llamada', 'Fotos', 'Contrato', 'Documentos', 'Publicac
 const VISTA_BASE = matchMedia('(max-width: 760px)').matches ? 'lista' : 'tablero';   // la vista con que abre, para contar filtros
 let tareas = [], equipo = [], vista = VISTA_BASE;
 let prio = 'all', persona = null, q = '';
+let miId = null, yo = null;      // quién abrió sesión (/me) y su id dentro de `equipo` (null si no está)
+let arrancado = false;           // la primera carga abre filtrada a «yo»; las siguientes respetan la elección
 let listaVer = 'abiertas';       // la Lista: «Abiertas» o «Completadas»
 let abierta = null;              // id de la tarea en el panel, o 'nueva'
 let coments = [];                // comentarios de la tarea abierta
@@ -113,6 +115,8 @@ async function cargar() {
   // unos cientos de filas.
   [tareas, equipo] = await Promise.all([API.get('/tareas'), API.get('/equipo'),
     cargarPipeline().catch(err => console.warn('Carga del pipeline falló:', err.message))]);
+  yo = equipo.find(e => String(e.id) === String(miId))?.id ?? null;
+  if (!arrancado) { persona = yo; arrancado = true; }
   render();
 }
 
@@ -300,6 +304,23 @@ function venceTxt(fecha, hecha) {
   return { txt: fechaCorta(fecha), tarde: false };
 }
 
+// Aviso con «Deshacer» (mismo patrón que toast() de app.js): 6 s, y no corre con el puntero o el
+// foco encima.
+let avisoReloj = 0;
+function avisoDeshacer(msg, deshacer) {
+  const t = document.getElementById('toast');
+  t.innerHTML = `<span>${esc(msg)}</span><button type="button" id="toastUndo">Deshacer</button>` +
+    '<button type="button" id="toastCerrar" aria-label="Cerrar aviso">&times;</button>';
+  t.hidden = false;
+  const cerrar = () => { clearTimeout(avisoReloj); t.hidden = true; };
+  const programar = () => { clearTimeout(avisoReloj); avisoReloj = setTimeout(cerrar, 6000); };
+  programar();
+  t.onmouseenter = t.onfocusin = () => clearTimeout(avisoReloj);
+  t.onmouseleave = t.onfocusout = programar;
+  document.getElementById('toastCerrar').onclick = cerrar;
+  document.getElementById('toastUndo').onclick = () => { cerrar(); deshacer(); };
+}
+
 function filaLista(t) {
   const p = equipo.find(e => e.id === t.asignado_a);
   const chk = checklist(t.descripcion);
@@ -324,8 +345,15 @@ function filaLista(t) {
           title="${esc(p?.nombre ?? p?.email ?? 'Sin asignar')}">${p ? iniciales(p) : '—'}</span>`;
   fila.querySelector('.tk-fila-abrir').addEventListener('click', () => abrirTarea(t.id));
   // Reabrir la regresa a donde le toca: asignada si tiene dueño, si no pendiente.
-  fila.querySelector('.tk-fila-chk').addEventListener('change', e =>
-    guardar(t.id, { columna: e.target.checked ? 'completado' : (t.asignado_a ? 'asignado' : 'pendiente') }));
+  fila.querySelector('.tk-fila-chk').addEventListener('change', async e => {
+    const marcar = e.target.checked, antes = t.columna;
+    const ok = await guardar(t.id, { columna: marcar ? 'completado' : (t.asignado_a ? 'asignado' : 'pendiente') });
+    if (!ok) { e.target.checked = !marcar; return; }   // guardar() ya avisó y repintó la lista
+    // Completar la saca de «Abiertas» sin más: seis segundos para arrepentirse.
+    if (marcar) avisoDeshacer(`«${t.titulo}» completada`, () => {
+      if (tareas.find(x => x.id === t.id)?.columna === 'completado') guardar(t.id, { columna: antes });
+    });
+  });
   return fila;
 }
 
@@ -824,7 +852,9 @@ function renderPipeAside() {
   aside.querySelectorAll('.tk-mini').forEach(el => {
     const elegir = () => { pipeCliente = el.dataset.cliente; render(); };
     el.addEventListener('click', elegir);
-    el.addEventListener('keydown', e => { if (e.key === 'Enter') elegir(); });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); elegir(); }   // Espacio no debe desplazar la página
+    });
   });
 }
 
@@ -840,7 +870,13 @@ async function abrirProc(id) {
 // En el teléfono el panel queda debajo del tablero: sin esto, tocar una tarjeta no
 // daba ninguna señal (el detalle abría ~700 px bajo el pliegue).
 function mostrarPanel() {
-  if (matchMedia('(max-width: 760px)').matches) document.getElementById('aside').scrollIntoView({ block: 'start' });
+  if (!matchMedia('(max-width: 760px)').matches) return;
+  const aside = document.getElementById('aside');
+  const head = aside.querySelector('.tk-aside-head');
+  if (head) { head.tabIndex = -1; head.focus({ preventScroll: true }); }
+  // Su borde superior queda justo bajo la barra fija (scrollIntoView lo dejaba debajo de ella).
+  const barra = document.querySelector('.topbar')?.offsetHeight ?? 0;
+  window.scrollTo(0, Math.max(0, aside.getBoundingClientRect().top + window.scrollY - barra));
 }
 
 const PROC_CAMPOS = ['status', 'notas', 'junta', 'trae', 'trae_id'];
@@ -1028,7 +1064,7 @@ function render() {
   // «Filtros (n)» (≤700 px): n = lo que está distinto del predeterminado.
   const nFiltros = (vista !== VISTA_BASE ? 1 : 0) + (esPipe
     ? (pipeCliente ? 1 : 0) + (pipeTrae ? 1 : 0) + (laterales ? 1 : 0)
-    : (prio !== 'all' ? 1 : 0) + (persona && vista !== 'equipo' ? 1 : 0));
+    : (prio !== 'all' ? 1 : 0) + (persona !== yo && vista !== 'equipo' ? 1 : 0));
   const bf = document.getElementById('tkFiltrosBtn');
   bf.textContent = nFiltros ? `Filtros (${nFiltros})` : 'Filtros';
   bf.classList.toggle('on', nFiltros > 0);
@@ -1123,7 +1159,7 @@ async function iniciar() {
   const vistaEl = document.getElementById('vista');
   vistaEl.innerHTML = '<div class="kb-empty">Cargando tareas…</div>';
   try {
-    await API.me();
+    miId = (await API.me()).id;
     document.getElementById('authBox').hidden = true;
     document.getElementById('userBox').hidden = false;
     await cargar();

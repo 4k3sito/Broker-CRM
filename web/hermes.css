@@ -1867,7 +1867,7 @@ body.has-tray .inm-list { padding-bottom:70px; }
 .toast {
   position:fixed; left:50%; bottom:84px; transform:translateX(-50%); z-index:90;
   display:flex; align-items:center; gap:14px; padding:10px 10px 10px 16px;
-  background:var(--ink); color:var(--bg); font-size:13px; max-width:92vw;
+  background:var(--ink); color:var(--bg); font-size:13px; width:max-content; max-width:92vw;
 }
 .toast[hidden] { display:none; }
 .toast button {
@@ -3417,3 +3417,8 @@ button.street-chip-close {
 .dp-foto.sin-foto { display:flex; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); }
 /* Ficha del cliente en el teléfono: el nombre ocupa su renglón y las acciones bajan al siguiente. */
 @media (max-width: 800px) { .cl-names { flex:1 1 calc(100% - 70px); min-width:0; } }
+
+/* ── Revisión UI ronda 3 (2026-11-14) ─────────────────────────────────────── */
+.text-button{text-decoration:underline;text-underline-offset:2px}
+.cmp-estado{display:inline-block;padding:2px 8px;font-weight:700}
+.tk-aside-head:focus{outline:none}

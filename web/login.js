@@ -26,8 +26,10 @@ function setLoading(loading) {
 // El correo se recuerda en este equipo (nunca la contraseña).
 try {
   const g = localStorage.getItem('ol-email');
-  if (g && !emailInput.value) { emailInput.value = g; passwordInput.focus(); }
+  if (g && !emailInput.value) emailInput.value = g;
 } catch { /* modo privado */ }
+// Un solo foco, ya decidido: contraseña si el correo viene lleno, si no el correo.
+(emailInput.value ? passwordInput : emailInput).focus();
 
 function validateCredentials() {
   if (!emailInput.checkValidity()) {

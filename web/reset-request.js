@@ -19,7 +19,8 @@ form.addEventListener('submit', async event => {
   formError.hidden = true;
 
   const email = emailInput.value.trim();
-  if (!email.includes('@')) {
+  // type=email acepta «a@b»; además se exige un punto en el dominio (algo@algo.algo).
+  if (!emailInput.checkValidity() || !/^[^\s@]+@[^\s@]+\.[^\s@.]+$/.test(email)) {
     formError.textContent = 'Escribe un correo válido.';
     formError.hidden = false;
     return emailInput.focus();

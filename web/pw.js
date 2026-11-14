@@ -8,10 +8,13 @@ function mejorarPassword(input) {
   wrap.appendChild(input);
   const btn = document.createElement('button');
   btn.type = 'button'; btn.className = 'pw-toggle'; btn.textContent = 'Mostrar';
+  const etiqueta = ver => { btn.setAttribute('aria-pressed', String(ver)); btn.setAttribute('aria-label', ver ? 'Ocultar contraseña' : 'Mostrar contraseña'); };
+  etiqueta(false);
   btn.addEventListener('click', () => {
     const ver = input.type === 'password';
     input.type = ver ? 'text' : 'password';
     btn.textContent = ver ? 'Ocultar' : 'Mostrar';
+    etiqueta(ver);
     input.focus();
   });
   wrap.appendChild(btn);

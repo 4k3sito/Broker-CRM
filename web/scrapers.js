@@ -149,9 +149,9 @@ function tablaFuentes(fuentes) {
       return `<div class="sc-tr e-${fr.estado}">
         <span class="sc-src"><i></i><span><b>${esc(nombre(f))}</b><small>${esc(fr.label)}</small></span></span>
         <span class="sc-ago">${vacia ? '—' : esc(haceCuanto(f.ultima_carga))}</span>
-        <span class="sc-big">${num(f.total)}</span>
-        <span class="sc-mono">${num(f.activos)}</span>
-        <span class="sc-mono dim">${num(f.caidos)}</span>
+        <span class="sc-big">${vacia ? '—' : num(f.total)}</span>
+        <span class="sc-mono">${vacia ? '—' : num(f.activos)}</span>
+        <span class="sc-mono dim">${vacia ? '—' : num(f.caidos)}</span>
         ${COBERTURA.map(([k, l]) => {
           if (vacia) return '<span class="sc-cov sin">—</span>';
           const p = f.total ? (f[k] / f.total) * 100 : 0;
@@ -167,7 +167,7 @@ function alertas(fuentes) {
   const items = [];
   for (const f of fuentes) {
     const fr = frescura(f);
-    if (f.huerfana) items.push(['off', `${nombre(f)}: ${num(f.total)} anuncios de una fuente que ya nadie actualiza. Hay que programarle un scraper o borrarlos.`]);
+    if (f.huerfana) items.push(['off', `${nombre(f)}: ${num(f.total)} anuncios de una fuente que ya nadie actualiza. Pídele a quien opera los scrapers que le programe uno, o bórralos.`]);
     else if (!tieneCargas(f)) continue;    // una fuente nueva no es una falla: su fila ya lo dice
     else if (fr.estado !== 'rentado') items.push(['warn', `${nombre(f)}: última carga ${haceCuanto(f.ultima_carga)}.`]);
     for (const [k, l] of COBERTURA) {

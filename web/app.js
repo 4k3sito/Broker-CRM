@@ -620,8 +620,8 @@ function limpiarTodo() {
   cerrarSug();
   // «Restablecer» vuelve a lo de fábrica, no a todo México: la Bolsa abre buscando en el
   // área de partida, y el mapa regresa a ella.
-  if (seguirPreferido()) {
-    seguirMapa(true);
+  if (!INMO) {
+    seguirMapa(seguirPreferido());
     const a = areaInicial();
     Mapa.ir({ lat: a.lat, lng: a.lng, zoom: window.OL_CONFIG?.zoom ?? 11 });
     buscarEnElMapa(a, CENTRO_NOMBRE);
@@ -1453,6 +1453,9 @@ Mapa.init(document.getElementById('map'), {
   // modos de ubicación son excluyentes).
   onMove: a => { F.lugares = []; buscarEnElMapa(a); page = 1; render(); },
 });
+// La Bolsa abre con el área de partida salvo que ya mande otra cosa (cliente, lugares o un
+// punto de la URL); es independiente de que «Buscar al mover el mapa» esté marcado.
+const usaAreaInicial = () => !INMO && !F.cliente && !F.lugares.length && !F.near;
 // El área de fábrica: el centro de `config.js` y un radio fijo en metros. Existe para que
 // la Bolsa de partida no dependa del tamaño de la ventana.
 function areaInicial() {
@@ -1467,14 +1470,15 @@ function buscarEnElMapa({ lat, lng, radio }, de = MAPA_TXT) {
   F.nearTxt = de;
   F.radio = radio;
 }
-// "Buscar al mover el mapa" viene marcado, y el mapa abre en Monterrey
-// (OL_CONFIG.centro): la Bolsa arranca con lo que hay ahí y no con el inventario
-// nacional. Quien lo apague lo encuentra apagado la próxima vez. Sólo en la Bolsa: las
-// propiedades del Catálogo casi nunca traen coordenada y buscar por cercanía las
-// escondería.
+// "Buscar al mover el mapa" viene APAGADO: sólo lo enciende quien lo marcó antes (se
+// guarda 'si'). Aun apagado, la Bolsa abre buscando en el área de partida de
+// OL_CONFIG.centro (chip «Monterrey · 10 km», ver `usaAreaInicial` y `limpiarTodo`) y no
+// en el inventario nacional; lo que no hace es volver a filtrar al mover el mapa. Sólo en
+// la Bolsa: las propiedades del Catálogo casi nunca traen coordenada y buscar por
+// cercanía las escondería.
 const mapFollow = document.getElementById('mapFollow');
 function seguirMapa(v) { mapFollow.checked = v; Mapa.seguir(v); }
-const seguirPreferido = () => !INMO && (() => { try { return localStorage.getItem('ol-mapa-seguir'); } catch { return null; } })() !== 'no';
+const seguirPreferido = () => !INMO && (() => { try { return localStorage.getItem('ol-mapa-seguir'); } catch { return null; } })() === 'si';
 seguirMapa(seguirPreferido());
 mapFollow.addEventListener('change', e => {
   Mapa.seguir(e.target.checked);
@@ -1835,7 +1839,7 @@ API.me().then(async sesion => {
   // ve, se respeta esa —es una búsqueda que alguien compartió, no la de fábrica—.
   // Y con lugares elegidos tampoco: son el otro modo de decir dónde.
   if (F.cliente || F.lugares.length) seguirMapa(false);
-  else if (mapFollow.checked) {
+  else if (usaAreaInicial()) {
     const area = u.mapa && inm.classList.contains('split') ? Mapa.area() : areaInicial();
     if (area) buscarEnElMapa(area, u.mapa ? MAPA_TXT : CENTRO_NOMBRE);
   }

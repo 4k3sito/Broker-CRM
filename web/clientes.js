@@ -406,8 +406,14 @@ const vencida = t => t.columna !== 'completado' && !!t.vence_el && String(t.venc
 // que llevaba la lista. Se lleva a la vista y el foco va a su encabezado.
 const detalleAparte = matchMedia('(max-width: 800px)');
 function seleccionar(id) {
+  const antes = selId;
+  // En el teléfono lista y detalle son «pantallas»: abrir un cliente empuja una entrada para que
+  // Atrás vuelva a la lista (el hashchange de abajo la pinta) y no salga de Clientes.
+  if (id == null && history.state?.clDetalle) { history.back(); return; }
   selId = id == null ? null : String(id);
-  history.replaceState(null, '', selId ? `#${encodeURIComponent(selId)}` : location.pathname);
+  const url = selId ? `#${encodeURIComponent(selId)}` : location.pathname;
+  if (selId && !antes && detalleAparte.matches) history.pushState({ clDetalle: true }, '', url);
+  else history.replaceState(history.state, '', url);
   render();
   if (selId && detalleAparte.matches) {
     const d = document.getElementById('clDetail');
@@ -762,7 +768,7 @@ const COLS = [
   { k: 'junta',     label: 'Junta',     w: 56,  cls: 'cl-mono', html: p => texto(p.junta) },
   { k: 'marca',     label: 'Marca',     w: 100, html: p => texto(p.marca) },
   { k: 'notas',     label: 'Notas',     w: 200, html: p => notasHtml((presentando ? null : p.notas) || p.ficha.notas) },
-  { k: 'estatus',   label: 'Etapa',     w: 132, html: p => `<select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>` },
+  { k: 'estatus',   label: 'Etapa',     w: 212, html: p => `<select class="proc-status e-${esc(p.status)}" data-proc="${esc(p.id)}">${etapaOpciones(p.status)}</select>` },
   { k: 'fecha',     label: 'Fecha',     w: 60,  cls: 'cl-mono', html: p => fecha(p.created_at ?? p.creado_el) },
 ];
 // Qué columnas ve cada quien se queda en su navegador: es gusto, no dato del equipo.
