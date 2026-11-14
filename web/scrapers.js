@@ -87,7 +87,7 @@ function tarjeta(f) {
 
       <div class="sc-rows">
         ${fila('Última carga', `${fecha(f.ultima_carga)} · ${haceCuanto(f.ultima_carga)}`)}
-        ${COBERTURA.map(([k, l]) => fila(`Con ${l.toLowerCase()}`, pc(k), pct(k) < 90)).join('')}
+        ${COBERTURA.map(([k, l]) => fila(`Con ${l.toLowerCase()}`, pc(k), pct(k) < COBERTURA_MIN)).join('')}
         ${f.dual ? fila('Con dos precios', num(f.dual)) : ''}
       </div>
 
@@ -133,8 +133,10 @@ function historial(cargas) {
 
 // ── Tabla comparativa (diseño 1a) ─────────────────────────────────────────────────
 // Una fila por fuente, una columna por métrica: se comparan fuentes de un
-// vistazo. Bajo 90 % de cobertura la celda va en ámbar. Cada % enlaza al tablero
+// vistazo. Bajo `COBERTURA_MIN` de cobertura la celda va en ámbar y entra a «Requieren atención». Cada % enlaza al tablero
 // filtrado por esa fuente.
+// Un solo umbral: lo que sale en ámbar es lo mismo que aparece en «Requieren atención».
+const COBERTURA_MIN = 90;
 const COBERTURA = [['con_precio', 'Precio'], ['con_area', 'm²'], ['con_geo', 'Ubicación'], ['con_zona', 'Municipio'], ['con_foto', 'Foto']];
 
 function tablaFuentes(fuentes) {
@@ -153,7 +155,7 @@ function tablaFuentes(fuentes) {
         ${COBERTURA.map(([k, l]) => {
           if (vacia) return '<span class="sc-cov sin">—</span>';
           const p = f.total ? (f[k] / f.total) * 100 : 0;
-          return `<a class="sc-cov${p < 90 ? ' bajo' : ''}" href="${verFuente(f)}" title="${num(f.total - (f[k] ?? 0))} sin ${esc(l.toLowerCase())}: ver ${esc(nombre(f))} en el tablero">
+          return `<a class="sc-cov${p < COBERTURA_MIN ? ' bajo' : ''}" href="${verFuente(f)}" title="${num(f.total - (f[k] ?? 0))} sin ${esc(l.toLowerCase())}: ver ${esc(nombre(f))} en el tablero">
             <b>${pctTxt(p)}%</b><i><em style="width:${p.toFixed(1)}%"></em></i></a>`;
         }).join('')}
       </div>`;
@@ -170,7 +172,7 @@ function alertas(fuentes) {
     else if (fr.estado !== 'rentado') items.push(['warn', `${nombre(f)}: última carga ${haceCuanto(f.ultima_carga)}.`]);
     for (const [k, l] of COBERTURA) {
       const p = f.total ? (f[k] / f.total) * 100 : 100;
-      if (!f.huerfana && p < 70) items.push(['warn', `${nombre(f)}: ${Math.round(100 - p)} % de sus anuncios sin ${l.toLowerCase()}.`]);
+      if (!f.huerfana && p < COBERTURA_MIN) items.push(['warn', `${nombre(f)}: ${Math.round(100 - p)} % de sus anuncios sin ${l.toLowerCase()}.`]);
     }
   }
   if (!items.length) return '';
@@ -205,15 +207,12 @@ function render(datos) {
   const atrasadas = vivas.filter(f => tieneCargas(f) && frescura(f).estado !== 'rentado').length;
   const sinCargas = vivas.filter(f => !tieneCargas(f));
 
-  document.getElementById('headSummary').textContent =
-    `${num(total)} anuncios · ${plural(vivas.length, 'fuente', 'fuentes')}`;
-
   document.getElementById('vista').innerHTML = `
     <div class="sc-head">
       <div>
         <h1 class="pg-title versal">Scrapers</h1>
         <p class="sc-sub">
-          ${plural(vivas.length, 'fuente con scraper', 'fuentes con scraper')} &#183; ${num(total)} anuncios
+          ${plural(vivas.length, 'fuente con scraper', 'fuentes con scraper')}
           ${ultima ? `&#183; última carga ${esc(haceCuanto(ultima))}` : ''}
         </p>
       </div>

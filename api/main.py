@@ -369,7 +369,7 @@ def change_password(body: PasswordIn, request: Request,
         # Re-autenticar aunque ya haya sesión: si alguien roba una cookie, que no
         # pueda apoderarse de la cuenta sin conocer la contraseña.
         if not row or not verify_password(body.actual, row["password_hash"]):
-            raise HTTPException(401, "La contraseña actual no coincide")
+            raise HTTPException(403, "La contraseña actual no coincide")
         conn.execute("UPDATE usuario SET password_hash = %s WHERE id = %s",
                      (hash_password(body.nueva), user["id"]))
         # Cierra las demás sesiones y conserva ésta: si alguien más había entrado con

@@ -27,7 +27,7 @@ const Propiedad = (() => {
     const ppm = t.precio && t.property_size_m2 ? ` · $${mx(Math.round(t.precio / t.property_size_m2))}/m²` : '';
     const foto = srcSeguro(t.image);
     return `<div class="dp-fila${t.activo ? '' : ' baja'}" data-id="${esc(t.id)}">
-      ${foto ? `<img class="dp-foto" src="${foto}" alt="" loading="lazy">` : '<span class="dp-foto"></span>'}
+      ${foto ? `<img class="dp-foto" src="${foto}" alt="" loading="lazy">` : '<span class="dp-foto sin-foto">Sin foto</span>'}
       <div class="dp-txt">
         <div class="dp-precio"><b>${t.precio ? '$' + mx(Math.round(t.precio)) : 'Sin precio'}</b>
           <span>${esc(t.currency ?? 'MXN')}${op}${t.property_size_m2 ? ' · ' + m2Txt(t.property_size_m2) : ''}${ppm}</span></div>
@@ -42,6 +42,17 @@ const Propiedad = (() => {
       </div>
     </div>`;
   }
+
+  // Una miniatura que no carga (enlace muerto, bloqueo del portal) se cambia por el mismo
+  // marcador de «Sin foto», de tamaño fijo. `error` no burbujea: se escucha en captura.
+  document.addEventListener('error', e => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains('dp-foto')) return;
+    const m = document.createElement('span');
+    m.className = 'dp-foto sin-foto';
+    m.textContent = 'Sin foto';
+    img.replaceWith(m);
+  }, true);
 
   const de = id => API.get(`/duplicados${API.qs({ id })}`);
   const fusionar = (ids, opciones) => API.post('/duplicados/fusionar', { ids }, opciones);

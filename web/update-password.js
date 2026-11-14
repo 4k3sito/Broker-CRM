@@ -53,6 +53,10 @@ form.addEventListener('submit', async event => {
   event.preventDefault();
   formError.hidden = true;
 
+  if (!token && !actualInput.value) {
+    showError('Escribe tu contraseña actual.');
+    return actualInput.focus();
+  }
   if (passwordInput.value.length < MIN_PASSWORD_LENGTH) {
     showError(`La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
     return passwordInput.focus();
@@ -69,6 +73,8 @@ form.addEventListener('submit', async event => {
       : await API.post('/password', { actual: actualInput.value, nueva: passwordInput.value });
     updateView.hidden = true;
     successView.hidden = false;
+    // «Ya puedes entrar» sólo tiene sentido tras recuperar con token; con sesión ya estás dentro.
+    document.getElementById('successTitle').textContent = token ? 'Ya puedes entrar' : 'Contraseña actualizada';
     if (r.sesiones_cerradas) {
       const n = r.sesiones_cerradas;
       const cerradas = n === 1 ? 'Se cerró 1 sesión abierta' : `Se cerraron ${n} sesiones abiertas`;
@@ -80,6 +86,13 @@ form.addEventListener('submit', async event => {
     // El backend contesta lo mismo (400) para token gastado, vencido o inventado; una
     // contraseña rechazada también es 400, pero con otro texto, y ésa no vence el enlace.
     if (token && err.status >= 400 && err.status < 500 && /ya no es válido/i.test(err.message)) return mostrarVencido();
+    // 403 = la contraseña actual no coincide (api.js sólo redirige con 401): se muestra el
+    // `detail` del servidor, sin tocar lo escrito, y el foco vuelve al campo.
+    if (!token && err.status === 403) {
+      showError(/^Error 403$/.test(err.message) ? 'La contraseña actual no es correcta.' : err.message);
+      setLoading(false);
+      return actualInput.focus();
+    }
     showError(err.red ? `${err.message} Inténtalo de nuevo.` : err.message);
     setLoading(false);
   }

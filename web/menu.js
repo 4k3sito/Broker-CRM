@@ -195,15 +195,16 @@
         const n = (ts ?? []).filter(t => t.vence_el && t.vence_el < hoy && t.columna !== 'completado').length;
         ponerInsignia('tareas', n, `${n} ${n === 1 ? 'vencida' : 'vencidas'}`);
       }).catch(() => {});
-      // Revisión: lo que espera decisión en Nuevo León, que es donde abre la página: pares de
-      // posibles duplicados más precios atípicos. Los mismos endpoints que usa duplicados.js
-      // (`total`, con una fila por página). En la propia página no se pone: ahí la cifra viva
+      // Revisión: lo que espera decisión en Nuevo León, que es donde abre la página. La cifra es
+      // la de pares de duplicados (el KPI de la página); el title suma los precios atípicos. Los
+      // mismos endpoints que usa duplicados.js (`total`, con una fila por página). En la propia página no se pone: ahí la cifra viva
       // es la suya, y ésta quedaría vieja con cada decisión.
       if (aqui === 'duplicados.html') return;
       const q = API.qs({ estado: 'Nuevo León', per_page: 1 });
       Promise.allSettled([API.get(`/duplicados/sugerencias${q}`), API.get(`/outliers${q}`)]).then(rs => {
-        const n = rs.reduce((a, r) => a + (r.status === 'fulfilled' ? Number(r.value?.total) || 0 : 0), 0);
-        ponerInsignia('revision', n, `${mx(n)} por revisar en Nuevo León`);
+        const cuenta = r => r.status === 'fulfilled' ? Number(r.value?.total) || 0 : 0;
+        const n = cuenta(rs[0]), m = cuenta(rs[1]);
+        ponerInsignia('revision', n, `${mx(n)} ${n === 1 ? 'par' : 'pares'} y ${mx(m)} ${m === 1 ? 'precio atípico' : 'precios atípicos'} por revisar`);
       });
     }
   });

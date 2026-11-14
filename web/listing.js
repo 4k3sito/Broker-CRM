@@ -95,6 +95,16 @@ const rutaEstado = id => `/listings/${encodeURIComponent(id)}/estado`;
 // tres campos desde la copia que esta pestaña tenía al abrirse, y destacar aquí pisaba la
 // nota que se hubiera escrito después en otra pestaña. Optimista: la pantalla ya muestra
 // el valor nuevo; si el servidor no lo acepta se deshace y se avisa.
+// Destacar sólo repinta su botón: render() completo reescribe la página y se pierde el foco,
+// el cursor de las notas y el scroll.
+function pintarEstrella() {
+  const b = document.getElementById('detailStar');
+  if (!b) return;
+  b.classList.toggle('on', !!listing.starred);
+  b.setAttribute('aria-pressed', String(!!listing.starred));
+  b.textContent = listing.starred ? '\u2605' : '\u2606';
+}
+const destacar = () => { guardarEstado({ starred: !listing.starred }, 'el destacado').catch(() => {}); pintarEstrella(); };
 function guardarEstado(patch, que = 'el estado') {
   const antes = Object.fromEntries(Object.keys(patch).map(k => [k, listing[k]]));
   Object.assign(listing, patch);
@@ -102,7 +112,7 @@ function guardarEstado(patch, que = 'el estado') {
   if ('status' in patch) cuerpo.status = Anuncio.estadoApi(patch.status);
   if ('starred' in patch) cuerpo.starred = patch.starred;
   return UI.guardar(API.put(rutaEstado(listing.id), cuerpo), {
-    que, revertir: () => { Object.assign(listing, antes); render(); },
+    que, revertir: () => { Object.assign(listing, antes); if (Object.keys(patch).every(k => k === 'starred')) pintarEstrella(); else render(); },
   });
 }
 
@@ -268,13 +278,29 @@ async function removeArchivo(id) {
   try { await API.del(`/archivos/${id}`); d.archivos = d.archivos.filter(x => x !== a); render(); }
   catch (err) { UI.aviso('No se pudo borrar el archivo: ' + err.message); }
 }
+// Marcar un documento sólo toca su fila, el contador y la barra: render() completo
+// reescribiría la tarjeta y quitaría el foco del casillero.
+function pintarDocumentos() {
+  const hechos = documentos.filter(d => d.done).length;
+  for (const d of documentos) {
+    const fila = document.querySelector(`.fx-doc[data-id="${CSS.escape(String(d.id))}"]`);
+    if (!fila) continue;
+    fila.classList.toggle('done', !!d.done);
+    const chk = fila.querySelector('.doc-chk');
+    if (chk) chk.checked = !!d.done;
+  }
+  const n = document.querySelector('#docsCard h2 .fx-n');
+  if (n) n.textContent = `${hechos} / ${documentos.length}`;
+  const barra = document.querySelector('#docsCard .fx-prog span');
+  if (barra && documentos.length) barra.style.width = `${Math.round(hechos / documentos.length * 100)}%`;
+}
 function toggleDocumento(id, done) {
   const d = documentos.find(x => String(x.id) === String(id));
   if (d) d.done = done;
   UI.guardar(API.patch(`/documentos/${id}`, { done }), {
-    que: 'el documento', revertir: () => { if (d) d.done = !done; render(); },
+    que: 'el documento', revertir: () => { if (d) d.done = !done; pintarDocumentos(); },
   }).catch(() => {});
-  render();
+  pintarDocumentos();
 }
 async function removeDocumento(id) {
   const n = documentos.find(x => String(x.id) === String(id))?.archivos?.length ?? 0;
@@ -283,6 +309,45 @@ async function removeDocumento(id) {
     verbo: 'Borrar', peligro: true }))) return;
   try { await API.del(`/documentos/${id}`); documentos = documentos.filter(x => String(x.id) !== String(id)); render(); }
   catch (err) { UI.aviso('No se pudo quitar el documento: ' + err.message); }
+}
+// Indicador de «Datos de la ficha» (mismo texto que el de las notas). `campos` guarda lo
+// que se escribió en los campos que no se pudieron guardar, para dejarlos marcados
+// (aria-invalid) con su texto en vez de volver al valor viejo como si nada.
+const fichaEst = { est: '', ver: null, campos: new Map() };
+function fichaFallos() {
+  if (fichaEst.ver !== versionSel) { fichaEst.ver = versionSel; fichaEst.campos.clear(); }
+  return fichaEst.campos;
+}
+function pintarFichaEstado() {
+  const el = document.getElementById('fichaEst');
+  if (!el) return;
+  el.classList.toggle('error', fichaEst.est === 'error');
+  el.innerHTML = { guardando: 'Guardando…', guardado: 'Guardado' }[fichaEst.est]
+    ?? (fichaEst.est === 'error' ? 'No se guardó · <button type="button" class="fx-reintento" id="fichaRe">Reintentar</button>' : '');
+  el.querySelector('#fichaRe')?.addEventListener('click', () => {
+    for (const [f, v] of [...fichaFallos()]) saveFicha(f, v);
+  });
+}
+// `restaurar`: tras un render(), los campos fallidos vuelven a mostrar lo que se escribió.
+function pintarFichaCampos(restaurar = false) {
+  const mal = fichaFallos();
+  document.querySelectorAll('#pdfData .ficha-in').forEach(el => {
+    if (mal.has(el.dataset.f)) {
+      if (restaurar) el.value = mal.get(el.dataset.f);
+      el.setAttribute('aria-invalid', 'true');
+    } else el.removeAttribute('aria-invalid');
+  });
+}
+function fichaEstado(est) { fichaEst.est = est; pintarFichaEstado(); }
+function fichaFalla(field, value) {
+  fichaFallos().set(field, value);
+  pintarFichaCampos();
+  fichaEstado('error');
+}
+function fichaOk(field) {
+  fichaFallos().delete(field);
+  pintarFichaCampos();
+  fichaEstado(fichaEst.campos.size ? 'error' : 'guardado');
 }
 // El formulario "Datos de la ficha" escribe en la versión que esté cargada; sin
 // versión, en la ficha misma (la General).
@@ -294,32 +359,43 @@ async function saveFicha(field, value) {
     if ((v.datos[field] ?? null) === val) return;
     const antes = v.datos;
     v.datos = { ...v.datos, [field]: val };
+    fichaEstado('guardando');
     UI.guardar(API.patch(`/versiones/${v.id}`, { datos: v.datos }), {
-      que: 'la ficha', revertir: () => { v.datos = antes; repintar(); },
-    }).catch(() => {});
+      que: 'la ficha', revertir: () => { v.datos = antes; fichaFalla(field, value); repintar(); },
+    }).then(() => fichaOk(field), () => {});
     // El $/m² que se propone cuando se deja vacío sale de precio y m²: que se actualice.
     if (field === 'precio' || field === 'tamano_m2') repintar();
     return;
   }
-  await asegurarFicha().catch(err => UI.aviso('No se pudo guardar la ficha: ' + err.message));
-  if (!ficha || (ficha[field] ?? null) === val) return;
+  fichaEstado('guardando');
+  let sinFicha = false;
+  await asegurarFicha().catch(err => { sinFicha = true; UI.aviso('No se pudo guardar la ficha: ' + err.message); });
+  if (sinFicha || !ficha) { fichaFalla(field, value); return; }
+  if ((ficha[field] ?? null) === val) { fichaOk(field); return; }
   const antes = ficha[field];
   ficha[field] = val;
   if (!esPropia(listing)) {
     UI.guardar(API.patch(`/fichas/${ficha.id}`, { [field]: val }), {
-      que: 'la ficha', revertir: () => { ficha[field] = antes; repintar(); },
-    }).catch(() => {});
+      que: 'la ficha', revertir: () => { ficha[field] = antes; fichaFalla(field, value); repintar(); },
+    }).then(() => fichaOk(field), () => {});
     return;
   }
   // En una propiedad propia la ficha ES la propiedad: el encabezado, el precio y los
   // datos de arriba salen de aquí, así que se vuelven a pedir y a pintar.
+  let enServidor = false;
   try {
     // La respuesta trae también lo que la API calculó: con dos de precio / m² / $/m²
     // sale el tercero (derivar_precio en main.py).
     Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, { [field]: val })));
+    enServidor = true;
     listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+    fichaOk(field);
     repintar();
-  } catch (err) { UI.aviso('No se pudo guardar: ' + err.message); }
+  } catch (err) {
+    if (!enServidor) ficha[field] = antes;
+    UI.aviso('No se pudo guardar: ' + err.message);
+    if (enServidor) fichaOk(field); else fichaFalla(field, value);
+  }
 }
 // Postgres manda los `numeric` como texto ("45800.00"): se vuelven número para que el
 // formulario no enseñe decimales que nadie escribió.
@@ -596,6 +672,7 @@ function pintar() {
         </div>
         <details class="fx-pdfdata" id="pdfData"${pdfAbierto || (propia && !(l.tipo && l.zona)) ? ' open' : ''}>
           <summary>${propia && !vSel ? 'Datos de la propiedad' : `Datos de ${esc(nombrePdf(vSel))}.pdf`}</summary>
+          <p class="fx-guardado fx-ficha-est" id="fichaEst" role="status" aria-live="polite"></p>
           <label>Título<input class="ficha-in" data-f="titulo" value="${esc(d.titulo ?? tituloPdf(l))}"></label>
           <div class="fx-row">
             <label>Precio<input type="number" class="ficha-in" data-f="precio" value="${d.precio ?? (vSel ? '' : (total != null ? Math.round(total) : ''))}"></label>
@@ -671,6 +748,7 @@ function pintar() {
         </details>
       </div>
     </section>
+    ${crmOk && !ficha ? '<p class="fx-hint fx-catalogo fx-bolsa">Esta propiedad está en la Bolsa. Al agregar un documento o un contacto, o al asignarla a un cliente, pasa al Catálogo.</p>' : ''}
 
     <div class="fx-cols${PRESENTA_A ? ' pres' : ''}">
       <section class="fx-card">
@@ -704,7 +782,6 @@ function pintar() {
         </div>
         <p class="fx-hint">${subiendo.docs ? `Subiendo ${subiendo.docs} ${subiendo.docs === 1 ? 'archivo' : 'archivos'}&#8230;`
           : 'Puedes arrastrar archivos aquí: PDF, imágenes, Word, Excel… hasta 20 MB cada uno.'}</p>
-        ${ficha ? '' : '<p class="fx-hint fx-catalogo">Al agregar un documento la propiedad pasa de la Bolsa al Catálogo.</p>'}
         <input type="file" id="docFile" multiple hidden>
       </section>`}
 
@@ -719,7 +796,7 @@ function pintar() {
             <input class="cto-in" data-k="telefono" value="${esc(c.telefono ?? '')}" placeholder="Teléfono" inputmode="tel" aria-label="Teléfono">
             <input class="cto-in" data-k="correo" value="${esc(c.correo ?? '')}" placeholder="Correo" type="email" aria-label="Correo">
             <span class="cto-wa">${waHtml(c.telefono)}</span>
-          </div>`).join('') || `<p class="fx-hint">Sin contacto todavía.${ficha ? '' : ' Al agregar uno, la propiedad pasa de la Bolsa al Catálogo.'}</p>`}
+          </div>`).join('') || `<p class="fx-hint">Sin contacto todavía.</p>`}
         <div class="fx-add">
           <button class="cto-add" data-rol="dueno">+ Dueño</button>
           <button class="cto-add" data-rol="asesor">+ Asesor</button>
@@ -743,7 +820,6 @@ function pintar() {
             ? (disponibles.length ? `<select class="fx-asignar" id="procAdd"><option value="">+ Asignar a cliente…</option>
                 ${disponibles.map(c => `<option value="${c.id}">${esc(c.nombre)}${respDe(c.id) ? ` · ${esc(respDe(c.id))}` : ''}</option>`).join('')}</select>` : '')
             : '<p class="fx-hint">Crea clientes en <a href="clientes.html">Clientes</a>.</p>'}
-          ${ficha || !clientes.length ? '' : '<p class="fx-hint fx-catalogo">Al asignarla a un cliente la propiedad pasa de la Bolsa al Catálogo.</p>'}
         </section>`}
         <section class="fx-card fx-notas">
           <h2>Notas internas <span class="fx-n fx-guardado" id="notasEst" role="status" aria-live="polite"></span></h2>
@@ -760,7 +836,7 @@ const fotosEdHtml = fotos => Fotos.caja(fotos, { subiendo: subiendo.fotos });
 // Lo que depende de la propiedad y no del CRM: estado, destacar, notas, menú y navegación.
 function enlazar() {
   const $ = id => document.getElementById(id);
-  $('detailStar').onclick = () => { guardarEstado({ starred: !listing.starred }, 'el destacado').catch(() => {}); render(); };
+  $('detailStar').onclick = destacar;
   $('detailStatus').onchange = e => {
     guardarEstado({ status: e.target.value }).catch(() => {});
     e.target.className = `fx-status s-${e.target.value}`;
@@ -776,6 +852,8 @@ function enlazar() {
     ta.onblur = guardarNotas;
   }
   notasEstado(notas.est);     // render() reescribe el indicador: se vuelve a pintar
+  pintarFichaEstado();
+  pintarFichaCampos(true);
   $('btnPdf').onclick = () => imprimirFicha(versionSel);
   $('mkt-pdf').onclick = e => descargarAnalisis(e.currentTarget);
   $('btnAyuda') && ($('btnAyuda').onclick = ayudaAtajos);
@@ -1161,7 +1239,7 @@ document.addEventListener('keydown', e => {
   // Cambiar el estado no se hace ante el cliente en modo presentación.
   else if (PRESENTA_A) return;
   else if (/^[1-9]$/.test(k) && Anuncio.ESTADOS[+k - 1]) atajoEstado(Anuncio.ESTADOS[+k - 1]);
-  else if (k === 's' || k === 'S') { guardarEstado({ starred: !listing.starred }, 'el destacado').catch(() => {}); render(); }
+  else if (k === 's' || k === 'S') destacar();
 });
 
 // ── Ficha técnica PDF · formato Pro Realtors ─────────────────────────────────

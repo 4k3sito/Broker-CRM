@@ -73,13 +73,14 @@ let ultimaDecision = -PAUSA;
 
 function pintarFiltros() {
   const pildoras = (lista, campo) => lista.map(([v, t]) =>
-    `<button class="pill-line${F[campo] === v ? ' active' : ''}" data-campo="${campo}" data-valor="${v}" aria-pressed="${F[campo] === v}">${t}</button>`).join('');
+    `<button class="pill-line${F[campo] === v ? ' active' : ''}" data-campo="${esc(campo)}" data-valor="${esc(v)}" aria-pressed="${F[campo] === v}">${esc(t)}</button>`).join('');
   const ultimo = F.vista === 'outliers' ? pildoras(MOTIVOS, 'motivo') : pildoras(SENALES, 'senal');
   document.getElementById('dpFiltros').innerHTML = [pildoras(ESTADOS, 'estado'), pildoras(TIPOS, 'tipo'), ultimo].join('<span class="dp-sep"></span>');
   const v = VISTAS[F.vista];
   document.getElementById('dpVistas').innerHTML = Object.entries(VISTAS).map(([k, x]) =>
-    `<button class="dp-tab${F.vista === k ? ' active' : ''}" data-campo="vista" data-valor="${k}"${F.vista === k ? ' aria-current="true"' : ''}>${x.pestana}</button>`).join('');
+    `<button class="dp-tab${F.vista === k ? ' active' : ''}" data-campo="vista" data-valor="${esc(k)}"${F.vista === k ? ' aria-current="true"' : ''}>${esc(x.pestana)}</button>`).join('');
   document.title = `${v.titulo} · Revisión · OfficeLab`;
+  document.getElementById('dpTitulo').textContent = v.titulo;
   document.getElementById('dpKpi').textContent = v.kpi;
   document.getElementById('dpNota').textContent = v.nota;
   // Atajos a la vista, no escondidos: en el teléfono no hay teclado y el CSS los oculta.
@@ -330,9 +331,13 @@ function deshacer() {
 function cambiarFiltro(e) {
   const b = e.target.closest('[data-campo]');
   if (!b) return;
-  F[b.dataset.campo] = b.dataset.valor;
+  const { campo, valor } = b.dataset;
+  const zona = b.closest('#dpFiltros, #dpVistas');
+  F[campo] = valor;
   F.page = 1;
   pintarFiltros();
+  // pintarFiltros reconstruye los botones: el foco vuelve al que se pulsó (mismo campo y valor).
+  zona.querySelector(`[data-campo="${CSS.escape(campo)}"][data-valor="${CSS.escape(valor)}"]`)?.focus();
   cargar();
 }
 

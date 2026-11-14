@@ -402,10 +402,19 @@ const fecha = v => fechaCorta(v) || '—';
 // ¿Ya pasó? Contra la fecha LOCAL: con la UTC, de las 18:00 a medianoche lo de hoy salía vencido.
 const vencida = t => t.columna !== 'completado' && !!t.vence_el && String(t.vence_el).slice(0, 10) < hoyLocal();
 
+// A ≤800 px lista y detalle se turnan (hermes.css, `.cl.has-sel`): el detalle abre con el scroll
+// que llevaba la lista. Se lleva a la vista y el foco va a su encabezado.
+const detalleAparte = matchMedia('(max-width: 800px)');
 function seleccionar(id) {
   selId = id == null ? null : String(id);
   history.replaceState(null, '', selId ? `#${encodeURIComponent(selId)}` : location.pathname);
   render();
+  if (selId && detalleAparte.matches) {
+    const d = document.getElementById('clDetail');
+    d.querySelector('.cl-head')?.focus({ preventScroll: true });
+    // A ≤800 la lista se oculta al elegir: el detalle empieza arriba, bajo la barra fija.
+    window.scrollTo(0, 0);
+  }
 }
 
 // ── Cuenta: quién del equipo lleva al cliente ────────────────────────────────
@@ -547,7 +556,7 @@ function pildoras(cr) {
 
 function queBuscaHtml(c) {
   const ps = pildoras(c.criterios ?? {});
-  return `<div class="cl-f wide cl-busca"><span>Qué busca</span>
+  return `<div class="cl-f wide cl-busca"><span>Qué busca <em class="cl-ayuda">(tipo, superficie, precio, zona)</em></span>
     <div class="crit-row">
       ${ps.map(p => `<span class="crit-pill"><b>${esc(p.label ?? CRITERIOS[p.k].label)}</b>${esc(p.txt)}` +
         `<button class="crit-x" data-k="${p.k}"${p.i != null ? ` data-i="${p.i}"` : ''} title="Quitar">&times;</button></span>`).join('')}
@@ -557,7 +566,7 @@ function queBuscaHtml(c) {
       </span>
       ${ps.length ? `<a class="crit-buscar" href="index.html?cliente=${encodeURIComponent(c.id)}">Buscar inmuebles &#8594;</a>` : ''}
     </div>
-    <input class="cli-in crit-nota" data-f="requerimientos" value="${esc(c.requerimientos)}" placeholder="Notas: lo que no cabe en una píldora…">
+    <input class="cli-in crit-nota" data-f="requerimientos" value="${esc(c.requerimientos)}" placeholder="Notas libres sobre lo que busca">
   </div>`;
 }
 
@@ -843,7 +852,7 @@ function tareaFormHtml(c, procId) {
       ${(c.proceso ?? []).map(p => `<option value="${esc(p.id)}">${esc(p.ficha?.titulo ?? '(sin título)')}</option>`).join('')}</select>`}
     <select data-t="asignado" aria-label="Asignar a"><option value="">Sin asignar</option>
       ${equipo.map(u => `<option value="${esc(u.id)}"${String(u.id) === String(c.responsable_id) ? ' selected' : ''}>${esc(nombreDe(u))}</option>`).join('')}</select>
-    <input type="date" data-t="vence" aria-label="Vence">
+    <input type="date" lang="es-MX" data-t="vence" aria-label="Vence">
     <button>Agregar</button>
   </form>`;
 }
@@ -1058,7 +1067,7 @@ function renderDetalle() {
   if (traer) abierto = volverA;
   volverA = null;
   box.innerHTML = `
-    <div class="cl-head">
+    <div class="cl-head" tabindex="-1">
       <button class="cl-back" id="clBack">&#8592; Clientes</button>
       <div class="cl-title">
         <span class="cl-ava lg">${esc(iniciales(c.nombre))}</span>

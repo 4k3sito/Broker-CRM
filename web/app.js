@@ -347,8 +347,10 @@ function deFabrica() {
   return ubicacionDeFabrica() && !F.cliente && FB_CLAVES.every(k => k === 'ubicacion' || !fbPuesto[k]())
     && !F.q && !searchStreet && filterStatus === 'Todos' && !filterStarred && F.orden === 'recientes';
 }
-// Cuántos filtros hay puestos, para el botón «Filtros (n)» del teléfono.
-const fbCuenta = () => FB_CLAVES.filter(k => k === 'ubicacion' ? !ubicacionDeFabrica() : fbPuesto[k]()).length
+// Cuántos filtros hay puestos, para el botón «Filtros (n)» del teléfono. Cuenta también la
+// ubicación de fábrica («Monterrey · 10 km»): restringe los resultados aunque no la pusiera
+// la persona, y el chip de escritorio la muestra.
+const fbCuenta = () => FB_CLAVES.filter(k => fbPuesto[k]()).length
   + (F.orden !== 'recientes' ? 1 : 0);
 
 function renderTokens() {

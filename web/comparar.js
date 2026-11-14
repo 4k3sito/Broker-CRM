@@ -29,8 +29,8 @@ const monTxt = (l, mes) => `<small class="cmp-mon">${esc(Anuncio.moneda(l))}${me
 // precio y el $/m² lo traen: «más superficie» o «más fotos» es opinión, no un mejor valor.
 // `dinero` marca las filas cuyo número depende de la moneda y de la operación.
 const FILAS = [
-  { k: 'Precio',      v: Anuncio.total, f: (v, l) => v != null ? `$${mx(Math.round(v))} ${monTxt(l, true)}` : '—', cls: 'precio', gana: 'min', dinero: true },
-  { k: '$ / m²',      v: Anuncio.porMetro,    f: (v, l) => v != null ? `$${mx(Math.round(v))} ${monTxt(l, true)}` : '—', cls: 'mono', gana: 'min', dinero: true },
+  { k: 'Precio',      v: Anuncio.total, f: (v, l) => v != null ? `<span class="cmp-monto">$${mx(Math.round(v))}</span> ${monTxt(l, true)}` : '—', cls: 'precio', gana: 'min', dinero: true },
+  { k: '$ / m²',      v: Anuncio.porMetro,    f: (v, l) => v != null ? `<span class="cmp-monto">$${mx(Math.round(v))}</span> ${monTxt(l, true)}` : '—', cls: 'mono', gana: 'min', dinero: true },
   { k: 'Superficie',  v: l => l.size,   f: v => v != null ? `${mx(Math.round(v))} m²` : '—', cls: 'mono' },
   { k: 'Terreno',      v: l => l.terreno,      f: v => v != null ? m2Txt(v) : '—', cls: 'mono' },
   { k: 'Construcción', v: l => l.construccion, f: v => v != null ? m2Txt(v) : '—', cls: 'mono' },
@@ -60,7 +60,8 @@ function render() {
   // Lo que no se pudo traer no es «no hay nada»: se dice cuántos faltan.
   const aviso = fallos ? `<p class="cmp-aviso" role="status">${fallos} de ${ids.length} no se pudieron cargar. Recarga la página para intentarlo de nuevo.</p>` : '';
   if (items.length < 2) {
-    body.innerHTML = `${aviso}<div class="pg-empty">Selecciona al menos dos inmuebles en el tablero para compararlos.
+    body.innerHTML = `${aviso}<div class="pg-empty">Para comparar hacen falta al menos dos inmuebles.
+      <br>Marca la casilla de las tarjetas en el <a href="${esc(TABLERO)}">tablero</a> y pulsa Comparar.
       <br><br><a class="btn-solid" href="${esc(TABLERO)}">Ir al tablero</a></div>`;
     return;
   }

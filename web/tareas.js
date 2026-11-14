@@ -14,7 +14,8 @@ const PRIOS = ['alta', 'media', 'baja'];
 const TIPOS = ['Visita', 'Llamada', 'Fotos', 'Contrato', 'Documentos', 'Publicación', 'Seguimiento', 'Otro'];
 
 // En el teléfono el kanban medía 7,374 px de alto: ahí se abre en Lista.
-let tareas = [], equipo = [], vista = matchMedia('(max-width: 760px)').matches ? 'lista' : 'tablero';
+const VISTA_BASE = matchMedia('(max-width: 760px)').matches ? 'lista' : 'tablero';   // la vista con que abre, para contar filtros
+let tareas = [], equipo = [], vista = VISTA_BASE;
 let prio = 'all', persona = null, q = '';
 let listaVer = 'abiertas';       // la Lista: «Abiertas» o «Completadas»
 let abierta = null;              // id de la tarea en el panel, o 'nueva'
@@ -420,27 +421,6 @@ function renderEquipoAside() {
   // ancho. El equipo vive en la vista "Equipo" y en el filtro de persona.
   aside.classList.remove('open');
   aside.innerHTML = '';
-  return;
-  aside.innerHTML = `
-    <div class="tk-aside-head">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-      Equipo
-      <button class="tk-todo" id="verTodo">Ver todo</button>
-    </div>
-    ${equipo.map(p => `
-      <div class="tk-mini" data-persona="${esc(p.id)}">
-        <span class="tk-ava" style="background:${tono(p.id)}">${iniciales(p)}</span>
-        <span class="tk-mini-n"><strong>${esc(p.nombre ?? p.email)}</strong><small>${esc(p.rol ?? '')}</small></span>
-        <span class="tk-mini-k"><b>${p.abiertas ?? 0}</b><span>activas</span></span>
-        <span class="tk-mini-k"><b>${p.hechas ?? 0}</b><span>hechas</span></span>
-      </div>`).join('') || '<div class="tk-aside-body"><p class="proc-empty">Sin equipo todavía.</p></div>'}`;
-  aside.querySelector('#verTodo')?.addEventListener('click', () => { vista = 'equipo'; render(); });
-  aside.querySelectorAll('.tk-mini').forEach(el => el.addEventListener('click', () => {
-    vista = 'tablero'; persona = el.dataset.persona; render();
-  }));
-  // Soltar una tarjeta sobre una persona la asigna, como en el mock.
-  aside.querySelectorAll('.tk-mini').forEach(el =>
-    zonaSoltar(el, id => guardar(id, { asignado_a: el.dataset.persona })));
 }
 
 function opciones(lista, sel, valor = x => x, texto = x => x) {
@@ -461,7 +441,7 @@ function panelCamposHtml(t, nueva) {
     </div>
     <div class="tk-row">
       <div><label for="f-col">Estado</label><select id="f-col">${opciones(COLS, t.columna, c => c.key, c => c.label)}</select></div>
-      <div><label for="f-vence">Vence</label><input id="f-vence" type="date" value="${esc(t.vence_el ?? '')}"></div>
+      <div><label for="f-vence">Vence</label><input id="f-vence" type="date" lang="es-MX" value="${esc(t.vence_el ?? '')}"></div>
     </div>
     <div><label for="f-asg">Asignada a</label>
       <select id="f-asg"><option value="">Sin asignar</option>${opciones(equipo, t.asignado_a, p => p.id, p => `${esc(p.nombre ?? p.email)}${p.rol ? ' — ' + esc(p.rol) : ''}`)}</select></div>
@@ -1045,6 +1025,13 @@ function render() {
   document.getElementById('prioGroup').hidden = esPipe;
   document.getElementById('pipeGroup').hidden = !esPipe;
   document.querySelector('.tk-bar-hint').hidden = vista === 'lista';
+  // «Filtros (n)» (≤700 px): n = lo que está distinto del predeterminado.
+  const nFiltros = (vista !== VISTA_BASE ? 1 : 0) + (esPipe
+    ? (pipeCliente ? 1 : 0) + (pipeTrae ? 1 : 0) + (laterales ? 1 : 0)
+    : (prio !== 'all' ? 1 : 0) + (persona && vista !== 'equipo' ? 1 : 0));
+  const bf = document.getElementById('tkFiltrosBtn');
+  bf.textContent = nFiltros ? `Filtros (${nFiltros})` : 'Filtros';
+  bf.classList.toggle('on', nFiltros > 0);
   // Un solo buscador con dos cajas: la de la topbar (escritorio) y la de la barra (≤900 px).
   const ph = esPipe ? 'Buscar procesos…' : 'Buscar tareas…';
   for (const id of ['searchInput', 'searchInputMovil']) {
@@ -1118,6 +1105,11 @@ document.addEventListener('keydown', e => {
 // El buscador de la topbar existía sin listener: `q` se leía y nunca cambiaba.
 for (const id of ['searchInput', 'searchInputMovil'])
   document.getElementById(id).addEventListener('input', e => { q = e.target.value.trim(); render(); });
+// «Filtros (n)» abre y cierra Vista, Prioridad y Persona; los controles siguen siendo los mismos.
+document.getElementById('tkFiltrosBtn').addEventListener('click', e => {
+  const abierto = document.getElementById('tkFiltros').classList.toggle('abierto');
+  e.currentTarget.setAttribute('aria-expanded', String(abierto));
+});
 document.getElementById('personaSel').addEventListener('change', e => { persona = e.target.value || null; render(); });
 document.getElementById('f-cliente').addEventListener('change', e => { pipeCliente = e.target.value; render(); });
 document.getElementById('f-trae').addEventListener('change', e => { pipeTrae = e.target.value; render(); });

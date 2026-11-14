@@ -330,6 +330,12 @@ contenedor de la API. Lo usa `scrapers/v2/ia.py` con el cliente `api/modelo.py`.
 - **Tabla `anuncio_ia`** en `public` (creada el 2026-11-04): lo leído por el modelo y su
   frase de evidencia; sin datos de usuario. La lee el filtro del tablero (abajo).
 
+### Endpoints (2026-11-14) — contraseña actual equivocada da 403
+
+- `POST /api/password` responde **403** (antes 401) cuando la contraseña actual no coincide.
+  Con 401, `api.js` mandaba al login y el asesor perdía el formulario y la sesión parecía
+  caída. 401 queda sólo para "sin sesión". Sigue siendo obligatoria la re-autenticación.
+
 ### Endpoints (2026-11-05) — esquina y sobre avenida en el tablero (copia de trabajo)
 
 `GET /api/listings`, `/api/listings/facets` y `/api/listings.csv` aceptan `esquina`,

@@ -1,6 +1,5 @@
 // Autenticación contra la API propia. La sesión vive en una cookie httponly:
 // este archivo nunca ve el token.
-const MIN_PASSWORD_LENGTH = 8;
 const form = document.getElementById('loginForm');
 const emailInput = document.getElementById('email');
 const passwordInput = document.getElementById('password');
@@ -36,8 +35,8 @@ function validateCredentials() {
     emailInput.focus();
     return false;
   }
-  if (passwordInput.value.length < MIN_PASSWORD_LENGTH) {
-    showError(`La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+  if (!passwordInput.value) {                    // la longitud la decide el servidor
+    showError('Ingresa tu contraseña.');
     passwordInput.focus();
     return false;
   }
