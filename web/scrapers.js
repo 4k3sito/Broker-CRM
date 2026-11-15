@@ -36,6 +36,9 @@ function frescura(f) {
 // Anuncio.fuente() para las huérfanas, que sólo traen la clave.
 const nombre = f => f.huerfana ? Anuncio.fuente(f.source) : f.label;
 const tieneCargas = f => !!f.ultima_carga;
+// Con anuncios pero 0 vigentes y 0 de baja: aún no se verificaron (p. ej. Spot2); un «0» mentiría.
+const sinVerificar = f => f.total > 0 && !f.activos && !f.caidos;
+const SIN_VERIF = 'Sin verificar todavía';
 
 // Una cobertura nunca se redondea hacia arriba: 89.6 % pasaba por «90 %» y aun así
 // salía en ámbar, que era una contradicción a la vista.
@@ -81,8 +84,8 @@ function tarjeta(f) {
   const cuerpo = tieneCargas(f) ? `
       <div class="sc-figs">
         <div class="sc-fig"><b>${num(f.total)}</b><small>anuncios</small></div>
-        <div class="sc-fig"><b>${num(f.activos)}</b><small>vigentes</small></div>
-        <div class="sc-fig"><b>${num(f.caidos)}</b><small>de baja</small></div>
+        <div class="sc-fig"${sinVerificar(f) ? ` title="${SIN_VERIF}"` : ''}><b>${sinVerificar(f) ? '—' : num(f.activos)}</b><small>vigentes</small></div>
+        <div class="sc-fig"${sinVerificar(f) ? ` title="${SIN_VERIF}"` : ''}><b>${sinVerificar(f) ? '—' : num(f.caidos)}</b><small>de baja</small></div>
       </div>
 
       <div class="sc-rows">
@@ -150,8 +153,8 @@ function tablaFuentes(fuentes) {
         <span class="sc-src"><i></i><span><b>${esc(nombre(f))}</b><small>${esc(fr.label)}</small></span></span>
         <span class="sc-ago">${vacia ? '—' : esc(haceCuanto(f.ultima_carga))}</span>
         <span class="sc-big">${vacia ? '—' : num(f.total)}</span>
-        <span class="sc-mono">${vacia ? '—' : num(f.activos)}</span>
-        <span class="sc-mono dim">${vacia ? '—' : num(f.caidos)}</span>
+        <span class="sc-mono"${!vacia && sinVerificar(f) ? ` title="${SIN_VERIF}"` : ''}>${vacia || sinVerificar(f) ? '—' : num(f.activos)}</span>
+        <span class="sc-mono dim"${!vacia && sinVerificar(f) ? ` title="${SIN_VERIF}"` : ''}>${vacia || sinVerificar(f) ? '—' : num(f.caidos)}</span>
         ${COBERTURA.map(([k, l]) => {
           if (vacia) return '<span class="sc-cov sin">—</span>';
           const p = f.total ? (f[k] / f.total) * 100 : 0;

@@ -59,6 +59,10 @@ function render() {
   document.getElementById('cmpBack').href = TABLERO;
   // Lo que no se pudo traer no es «no hay nada»: se dice cuántos faltan.
   const aviso = fallos ? `<p class="cmp-aviso" role="status">${fallos} de ${ids.length} no se pudieron cargar. Recarga la página para intentarlo de nuevo.</p>` : '';
+  const nOcultas = document.getElementById('optIgualesN');
+  const topAgregar = document.getElementById('cmpAgregarTop');
+  nOcultas.textContent = '';
+  topAgregar.hidden = true;
   if (items.length < 2) {
     body.innerHTML = `${aviso}<div class="pg-empty">Para comparar hacen falta al menos dos inmuebles.
       <br>Marca la casilla de las tarjetas en el <a href="${esc(TABLERO)}">tablero</a> y pulsa Comparar.
@@ -89,6 +93,10 @@ function render() {
     </tr>`;
   }).join('');
 
+  // «+ Agregar» también va junto a los controles: en el teléfono la columna se oculta (CSS).
+  topAgregar.hidden = !faltan;
+  topAgregar.href = TABLERO;
+  nOcultas.textContent = ocultar && ocultas ? `(${ocultas} ${ocultas === 1 ? 'oculta' : 'ocultas'})` : '';
   body.innerHTML = `${aviso}${mezcla ? '<p class="cmp-aviso" role="status">Monedas u operaciones distintas: no se compara el precio.</p>' : ''}
   <table class="cmp-table">
     <colgroup><col class="cmp-col-k">${items.map(() => '<col class="cmp-col-v">').join('')}${faltan ? '<col class="cmp-col-add">' : ''}</colgroup>
@@ -97,7 +105,7 @@ function render() {
         <div class="cmp-foto">
           ${l.fotos[0] ? `<img src="${esc(l.fotos[0])}" alt="">` : '<div class="card-img-blueprint"></div>'}
           <span class="badge badge-src">${esc(Anuncio.fuente(l.fuente).toUpperCase())}</span>
-          <button class="cmp-quitar" data-id="${esc(l.id)}" title="Quitar de la comparación">&times;</button>
+          <button type="button" class="cmp-quitar" data-id="${esc(l.id)}" title="Quitar de la comparación" aria-label="Quitar ${esc(l.titulo)} de la comparación">&times;</button>
         </div>
         <div class="cmp-nombre">${esc(l.titulo)}</div>
       </td>`).join('')}
@@ -106,14 +114,15 @@ function render() {
     <tbody>${filas}
       <tr><td></td>${items.map(l => `<td><div class="cmp-acc">
         <a class="btn-outline" href="listing.html?id=${encodeURIComponent(l.id)}">Abrir ficha</a>
-      </div></td>`).join('')}${faltan ? '<td></td>' : ''}</tr>
+      </div></td>`).join('')}${faltan ? '<td class="cmp-add-cell"></td>' : ''}</tr>
     </tbody>
-  </table>${ocultas ? `<p class="cmp-nota">${ocultas} ${ocultas === 1 ? 'fila igual oculta' : 'filas iguales ocultas'} (iguales en todos). Quita «Ocultar iguales» para verlas.</p>` : ''}`;
+  </table>`;
 }
 
+function marcarAgregar() { try { recordar(); sessionStorage.setItem('ol-comparar-agregar', '1'); } catch { /* sin persistencia */ } }
+
 document.getElementById('cmpBody').addEventListener('click', e => {
-  // El tablero ve esta marca al cargar y devuelve a la bandeja lo que se comparaba.
-  if (e.target.closest('#cmpAgregar')) { try { recordar(); sessionStorage.setItem('ol-comparar-agregar', '1'); } catch { /* sin persistencia */ } return; }
+  if (e.target.closest('#cmpAgregar')) return marcarAgregar();
   const q = e.target.closest('.cmp-quitar');
   if (!q) return;
   items = items.filter(l => String(l.id) !== q.dataset.id);
@@ -121,6 +130,8 @@ document.getElementById('cmpBody').addEventListener('click', e => {
   recordar();
   render();
 });
+// El tablero ve esta marca al cargar y devuelve a la bandeja lo que se comparaba.
+document.getElementById('cmpAgregarTop').addEventListener('click', marcarAgregar);
 document.getElementById('optMejor').addEventListener('change', render);
 document.getElementById('optIguales').addEventListener('change', render);
 document.getElementById('btnImprimir').addEventListener('click', () => window.print());

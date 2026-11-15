@@ -29,7 +29,8 @@ try {
   if (g && !emailInput.value) emailInput.value = g;
 } catch { /* modo privado */ }
 // Un solo foco, ya decidido: contraseña si el correo viene lleno, si no el correo.
-(emailInput.value ? passwordInput : emailInput).focus();
+// En el teléfono (puntero táctil) no se enfoca: el teclado taparía la tarjeta.
+if (!matchMedia('(pointer: coarse)').matches) (emailInput.value ? passwordInput : emailInput).focus();
 
 function validateCredentials() {
   if (!emailInput.checkValidity()) {

@@ -18,6 +18,7 @@ const VISTA_BASE = matchMedia('(max-width: 760px)').matches ? 'lista' : 'tablero
 let tareas = [], equipo = [], vista = VISTA_BASE;
 let prio = 'all', persona = null, q = '';
 let miId = null, yo = null;      // quién abrió sesión (/me) y su id dentro de `equipo` (null si no está)
+let defPersona = null;           // el filtro de persona con que abrió la página (para contar filtros)
 let arrancado = false;           // la primera carga abre filtrada a «yo»; las siguientes respetan la elección
 let listaVer = 'abiertas';       // la Lista: «Abiertas» o «Completadas»
 let abierta = null;              // id de la tarea en el panel, o 'nueva'
@@ -116,7 +117,13 @@ async function cargar() {
   [tareas, equipo] = await Promise.all([API.get('/tareas'), API.get('/equipo'),
     cargarPipeline().catch(err => console.warn('Carga del pipeline falló:', err.message))]);
   yo = equipo.find(e => String(e.id) === String(miId))?.id ?? null;
-  if (!arrancado) { persona = yo; arrancado = true; }
+  if (!arrancado) {
+    // Sin tareas abiertas propias, abrir filtrado a «yo» sólo muestra un tablero vacío: se abre con todo el equipo.
+    const mias = tareas.filter(t => t.asignado_a === yo && t.columna !== 'completado').length;
+    persona = yo != null && mias ? yo : null;
+    defPersona = persona;
+    arrancado = true;
+  }
   render();
 }
 
@@ -143,7 +150,7 @@ function visibles() {
   return tareas.filter(t => {
     if (prio !== 'all' && t.prioridad !== prio) return false;
     if (persona && t.asignado_a !== persona) return false;
-    if (q && !norm(`${t.titulo} ${t.listing_id ?? ''} ${t.cliente_nombre ?? ''}`).includes(norm(q))) return false;
+    if (q && !norm(`${t.titulo} ${t.tipo ?? ''} ${t.descripcion ?? ''} ${t.listing_id ?? ''} ${t.cliente_nombre ?? ''}`).includes(norm(q))) return false;
     return true;
   });
 }
@@ -262,9 +269,29 @@ function zonaSoltar(el, alSoltar) {
   });
 }
 
+// Cuando el filtro de persona deja la vista sin tareas: de quién son las que se muestran y una salida.
+function avisoPersona(base) {
+  const p = equipo.find(e => e.id === persona);
+  const quien = persona === yo ? 'tus tareas' : `las tareas de ${p?.nombre ?? p?.email ?? 'esta persona'}`;
+  const div = document.createElement('div');
+  div.className = 'kb-empty tk-vacio-filtro';
+  const msg = document.createElement('span');
+  msg.textContent = `${base} Estás viendo sólo ${quien}.`;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cl-btn';
+  btn.textContent = 'Ver todo el equipo';
+  btn.addEventListener('click', () => { persona = null; render(); });
+  div.append(msg, btn);
+  return div;
+}
+
 function renderTablero(lista) {
   const kb = document.createElement('div');
   kb.className = 'kb';
+  const out = document.createDocumentFragment();
+  if (persona && !lista.length) out.appendChild(avisoPersona('Sin tareas con este filtro.'));
+  out.appendChild(kb);
   for (const col of COLS) {
     const items = lista.filter(t => t.columna === col.key);
     const div = document.createElement('div');
@@ -283,11 +310,18 @@ function renderTablero(lista) {
     zonaSoltar(div, id => {
       const t = tareas.find(x => x.id === id);
       if (col.key === 'asignado' && !t.asignado_a) return UI.aviso('Asigna la tarea a alguien primero.');
-      if (t.columna !== col.key) guardar(id, { columna: col.key });
+      if (t.columna === col.key) return;
+      const antes = t.columna;
+      guardar(id, { columna: col.key }).then(ok => {
+        // Completar sin querer es fácil de arrastrar: seis segundos para arrepentirse, como en la Lista.
+        if (ok && col.key === 'completado') avisoDeshacer(`«${t.titulo}» completada`, () => {
+          if (tareas.find(x => x.id === id)?.columna === 'completado') guardar(id, { columna: antes });
+        });
+      });
     });
     kb.appendChild(div);
   }
-  return kb;
+  return out;
 }
 
 // ── Lista: la bandeja del teléfono (ui_change.md §5.4) ───────────────────────
@@ -378,9 +412,13 @@ function renderLista(lista) {
       : PRIOS.indexOf(a.prioridad) - PRIOS.indexOf(b.prioridad));
   if (!filas.length) {
     const vacio = document.createElement('div');
-    vacio.className = 'kb-empty';
-    vacio.textContent = listaVer === 'abiertas' ? 'No tienes tareas abiertas para este filtro.' : 'Nada completado con este filtro.';
-    wrap.appendChild(vacio);
+    const base = listaVer === 'abiertas' ? 'No hay tareas abiertas para este filtro.' : 'Nada completado con este filtro.';
+    if (persona) wrap.appendChild(avisoPersona(base));
+    else {
+      vacio.className = 'kb-empty';
+      vacio.textContent = base;
+      wrap.appendChild(vacio);
+    }
   }
   filas.forEach(t => wrap.appendChild(filaLista(t)));
   return wrap;
@@ -1064,7 +1102,7 @@ function render() {
   // «Filtros (n)» (≤700 px): n = lo que está distinto del predeterminado.
   const nFiltros = (vista !== VISTA_BASE ? 1 : 0) + (esPipe
     ? (pipeCliente ? 1 : 0) + (pipeTrae ? 1 : 0) + (laterales ? 1 : 0)
-    : (prio !== 'all' ? 1 : 0) + (persona !== yo && vista !== 'equipo' ? 1 : 0));
+    : (prio !== 'all' ? 1 : 0) + (persona !== defPersona && vista !== 'equipo' ? 1 : 0));
   const bf = document.getElementById('tkFiltrosBtn');
   bf.textContent = nFiltros ? `Filtros (${nFiltros})` : 'Filtros';
   bf.classList.toggle('on', nFiltros > 0);

@@ -3019,7 +3019,6 @@ a, button, select, summary, label, [role="button"] { touch-action:manipulation; 
 .cmp-mon { font-family:var(--font-ui); font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--muted); }
 .cmp-v { overflow-wrap:anywhere; }
 .cmp-aviso { margin:0 0 10px; padding:8px 12px; border:1px solid var(--border-2); border-left:3px solid var(--accent); background:var(--surface); font-size:13px; color:var(--ink); }
-.cmp-nota { margin:8px 0 0; font-size:12px; color:var(--muted); }
 .cmp-col-k { width:170px; }
 .cmp-col-add { width:150px; }
 @media (max-width: 700px) {
@@ -3033,7 +3032,6 @@ a, button, select, summary, label, [role="button"] { touch-action:manipulation; 
   .cmp-k { position:sticky; left:0; z-index:1; width:90px; padding:0 8px; background:var(--surface); font-size:11px; letter-spacing:.04em; overflow-wrap:anywhere; }
   .cmp-v.precio { font-size:16px; }
 }
-@media print { .cmp-nota { display:none; } }
 
 /* Clientes: «+ Nuevo cliente» con texto, «Filtros (n)» con los cuatro filtros dentro. */
 .cl-new { width:auto; height:28px; padding:0 10px; font-family:var(--font-ui); font-size:12.5px; font-weight:600; white-space:nowrap; }
@@ -3422,3 +3420,13 @@ button.street-chip-close {
 .text-button{text-decoration:underline;text-underline-offset:2px}
 .cmp-estado{display:inline-block;padding:2px 8px;font-weight:700}
 .tk-aside-head:focus{outline:none}
+
+/* ── Revisión UI ronda 4 (2026-11-15) ─────────────────────────────────────── */
+.cmp-add-top { display:none; }
+.cmp-quitar::after { content:""; position:absolute; inset:-8px; }
+.cmp-foto .badge-src { top:auto; bottom:6px; left:6px; }
+.tk-vacio-filtro { display:flex; flex-direction:column; align-items:center; gap:10px; }
+@media (max-width:760px) {
+  .cmp-col-add, .cmp-add, .cmp-add-cell { display:none; }
+  .cmp-add-top:not([hidden]) { display:inline-flex; align-items:center; min-height:40px; font-size:12.5px; font-weight:600; color:var(--accent); }
+}

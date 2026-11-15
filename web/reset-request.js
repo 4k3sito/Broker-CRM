@@ -9,6 +9,9 @@ const formError = document.getElementById('formError');
 const requestView = document.getElementById('requestView');
 const successView = document.getElementById('successView');
 
+// Mismo correo que recuerda login.js.
+try { const g = localStorage.getItem('ol-email'); if (g && !emailInput.value) emailInput.value = g; } catch { /* modo privado */ }
+
 function setLoading(loading) {
   submitButton.disabled = loading;
   submitButton.querySelector('span').textContent = loading ? 'Enviando…' : 'Enviar enlace';

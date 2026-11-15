@@ -399,21 +399,6 @@ function pintarVacio(grid) {
 
 // ── Render ───────────────────────────────────────────────────────────────────
 
-function renderStats() {
-  const n = e => facetas.por_estado[Anuncio.estadoApi(e)] ?? 0;
-  const celda = (num, label, color) =>
-    `<div class="stat"><span class="stat-num" style="color:${color}">${mx(num)}</span>` +
-    `<span class="stat-label">${label}</span></div>`;
-  document.getElementById('statsBar').innerHTML =
-    `<div class="stat stat-main"><span class="stat-num">${mx(totalFiltrado)}</span>` +
-    `<span class="stat-label">listados visibles</span></div>` +
-    celda(n('Nuevo'), 'nuevos', 'var(--s-nuevo)') +
-    celda(n('Revisado'), 'revisados', 'var(--s-revisado)') +
-    celda(n('Contactado'), 'contactados', 'var(--s-contactado)') +
-    celda(n('Rentado'), 'rentados', 'var(--s-rentado)') +
-    celda(facetas.destacados, '★ destacados', 'var(--accent)');
-}
-
 function renderStatusPills() {
   const n = v => v === 'Todos' ? facetas.total : (facetas.por_estado[Anuncio.estadoApi(v)] ?? 0);
   const todos = ['Todos', ...Anuncio.ESTADOS];

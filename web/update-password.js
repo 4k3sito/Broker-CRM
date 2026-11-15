@@ -47,6 +47,7 @@ if (token) {
 } else {
   // Sin sesión no hay nada que cambiar; api.js redirige al login en el 401.
   API.me().catch(() => {});
+  actualInput.focus();                     // pw.js (cargado antes) ya envolvió los inputs: el autofocus se perdió
 }
 
 form.addEventListener('submit', async event => {

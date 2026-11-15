@@ -111,8 +111,9 @@ function setProcesoStatus(procId, status) {
   let proc = null, antes = null;
   for (const c of clientes) {
     const p = (c.proceso ?? []).find(x => String(x.id) === String(procId));
-    if (p) { proc = p; antes = p.status; p.status = status; }
+    if (p) { proc = p; antes = p.status; p.status = status; break; }
   }
+  if (!proc) return;
   UI.guardar(API.patch(`/procesos/${procId}`, { status }), {
     que: 'la etapa',
     revertir: () => { if (proc) proc.status = antes; if (motivoDe === String(procId)) motivoDe = null; render(); },
@@ -121,7 +122,6 @@ function setProcesoStatus(procId, status) {
   // para cerrar…). En presentación no: el cliente está viendo la pantalla.
   motivoDe = presentando ? null : String(procId);
   render();
-  document.querySelector('#clDetail .cl-motivo-in')?.focus();
 }
 // El porqué de un cambio de etapa va a las notas de la propiedad con este cliente, en
 // un renglón con fecha y etapa, debajo de lo que ya había.
