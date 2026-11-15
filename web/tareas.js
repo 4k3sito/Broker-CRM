@@ -29,6 +29,14 @@ let editado = false;             // el panel tiene cambios sin guardar (ver `pan
 let borrador = null;             // lo escrito en el panel, para que Vista previa no lo pierda
 let comentFallo = false;         // los comentarios de la tarea abierta no se pudieron cargar
 
+// Preferencias de este navegador (localStorage puede fallar: modo privado, datos bloqueados).
+const almacen = {
+  get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento: se olvida al recargar */ } },
+};
+let complPlegada = almacen.get('tk-compl-plegada') !== '0';   // «Completado» abre plegada en el tablero
+let yaArrastro = almacen.get('tk-arrastro') === '1';          // la pista de arrastrar sólo hasta el primer arrastre
+
 // El tono del avatar sale del id, no de una columna: mismo color siempre para la
 // misma persona sin tener que guardarlo.
 const TONOS = Array.from({ length: 7 }, (_, i) => `var(--tono-${i})`);
@@ -159,7 +167,7 @@ function visibles() {
 // Esc, filtrar, arrastrar o abrir otra tarjeta reconstruían el panel y se llevaban lo
 // escrito. Mientras haya algo sin guardar `render()` no lo toca, y cerrarlo o abrir otro
 // pregunta antes. Un comentario a medias también cuenta.
-const panelSucio = () => (abierta || abiertoProc)
+const panelSucio = () => abierta
   && (editado || !!document.getElementById('f-com')?.value.trim());
 
 // true si se puede seguir (no había nada o el usuario aceptó perderlo).
@@ -177,7 +185,7 @@ async function descartar() {
 
 async function cerrarPanel() {
   if (!(await descartar())) return;
-  abierta = null; abiertoProc = null;
+  abierta = null;
   renderPanel();
 }
 
@@ -248,6 +256,7 @@ function tarjeta(t) {
     arrastrando = t.id;
     e.dataTransfer.effectAllowed = 'move';
     art.classList.add('dragging');
+    if (!yaArrastro) { yaArrastro = true; almacen.set('tk-arrastro', '1'); }
   });
   art.addEventListener('dragend', () => { arrastrando = null; render(); });
   // Igual que las del pipeline: con teclado también se abre (Tab + Enter o Espacio).
@@ -298,14 +307,28 @@ function renderTablero(lista) {
     // Una columna vacía se pliega (hermes.css): «Pendiente 0» y «En curso 0» ocupaban
     // media pantalla mientras 38 tarjetas se apretaban en las otras dos. Sigue siendo
     // un lugar donde soltar.
-    div.className = `kb-col${items.length ? '' : ' vacia'}`;
-    div.innerHTML = `<div class="kb-head"><span class="kb-dot" style="background:var(--c-${col.key})"></span>` +
+    // «Completado» arranca plegada (sólo título y cuenta); se despliega con un clic y se recuerda.
+    const plegable = col.key === 'completado', plegada = plegable && complPlegada;
+    div.className = `kb-col${plegada ? ' plegada' : items.length ? '' : ' vacia'}`;
+    div.innerHTML = `<div class="kb-head${plegable ? ' plegable' : ''}"><span class="kb-dot" style="background:var(--c-${col.key})"></span>` +
                      `<span>${col.label}</span><span class="kb-n">${items.length}</span></div>`;
-    const cont = document.createElement('div');
-    cont.className = 'kb-list';
-    items.forEach(t => cont.appendChild(tarjeta(t)));
-    if (!items.length) cont.innerHTML = '<div class="kb-empty">Suelta tareas aquí</div>';
-    div.appendChild(cont);
+    if (plegable) {
+      const head = div.firstElementChild;
+      head.tabIndex = 0;
+      head.setAttribute('role', 'button');
+      head.setAttribute('aria-expanded', String(!plegada));
+      head.title = plegada ? 'Mostrar las completadas' : 'Plegar las completadas';
+      const alternar = () => { complPlegada = !complPlegada; almacen.set('tk-compl-plegada', complPlegada ? '1' : '0'); render(); };
+      head.addEventListener('click', alternar);
+      head.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } });
+    }
+    if (!plegada) {
+      const cont = document.createElement('div');
+      cont.className = 'kb-list';
+      items.forEach(t => cont.appendChild(tarjeta(t)));
+      if (!items.length) cont.innerHTML = '<div class="kb-empty">Suelta tareas aquí</div>';
+      div.appendChild(cont);
+    }
     // Soltar en la columna mueve la tarea; sin asignado, "asignado" no tiene sentido.
     zonaSoltar(div, id => {
       const t = tareas.find(x => x.id === id);
@@ -353,6 +376,19 @@ function avisoDeshacer(msg, deshacer) {
   t.onmouseleave = t.onfocusout = programar;
   document.getElementById('toastCerrar').onclick = cerrar;
   document.getElementById('toastUndo').onclick = () => { cerrar(); deshacer(); };
+}
+
+// Los grupos de la Lista abierta, por la fecha de vencimiento (en hora local: hoyLocal).
+// «Esta semana» llega hasta el domingo; lo posterior es «Más adelante».
+const GRUPOS = ['Vencidas', 'Hoy', 'Esta semana', 'Más adelante', 'Sin fecha'];
+function grupoVence(fecha) {
+  if (!fecha) return 4;
+  const f = String(fecha).slice(0, 10), hoy = hoyLocal();
+  if (f < hoy) return 0;
+  if (f === hoy) return 1;
+  const t0 = Date.parse(hoy);
+  const domingo = new Date(t0 + (7 - (new Date(t0).getUTCDay() || 7)) * DIA).toISOString().slice(0, 10);
+  return f <= domingo ? 2 : 3;
 }
 
 function filaLista(t) {
@@ -420,7 +456,16 @@ function renderLista(lista) {
       wrap.appendChild(vacio);
     }
   }
-  filas.forEach(t => wrap.appendChild(filaLista(t)));
+  if (listaVer !== 'abiertas') filas.forEach(t => wrap.appendChild(filaLista(t)));
+  else GRUPOS.forEach((nombre, g) => {
+    const delGrupo = filas.filter(t => grupoVence(t.vence_el) === g);
+    if (!delGrupo.length) return;
+    const h = document.createElement('h3');
+    h.className = 'tk-grupo';
+    h.innerHTML = `${nombre} <span class="tk-grupo-n">${delGrupo.length}</span>`;
+    wrap.appendChild(h);
+    delGrupo.forEach(t => wrap.appendChild(filaLista(t)));
+  });
   return wrap;
 }
 
@@ -480,7 +525,7 @@ function renderDirectorio() {
 // abierta; cuando la hay, `renderPanel` lo reemplaza por el detalle.
 function renderEquipoAside() {
   const aside = document.getElementById('aside');
-  if (abierta || abiertoProc) return;        // el detalle manda sobre el resumen
+  if (abierta) return;                       // el detalle manda sobre el resumen
   // En el pipeline el panel es el filtro por cliente: se queda a la vista.
   if (vista === 'pipeline') { aside.classList.add('open'); return renderPipeAside(); }
   // Diseño 1c: sin tarea abierta, el panel se oculta y el tablero usa todo el
@@ -527,7 +572,7 @@ function panelProcesoHtml(t) {
     <select id="f-proc"><option value="">Sin ligar</option>${Object.entries(porCliente).map(([c, ps]) =>
       `<optgroup label="${esc(c)}">${ps.map(p =>
         `<option value="${esc(p.id)}"${p.id === t.proceso_id ? ' selected' : ''}>${esc(p.titulo)} · ${esc(etapaLabel(p.status))}</option>`).join('')}</optgroup>`).join('')}</select>
-    ${t.proceso_id ? '<button class="pp-abrir" id="tkAbrirProc">Abrir en el pipeline →</button>' : ''}</div>`;
+    ${t.proceso_id ? '<button class="pp-abrir" id="tkAbrirProc">Abrir en Clientes →</button>' : ''}</div>`;
 }
 
 function panelChecklistHtml(chk) {
@@ -644,9 +689,7 @@ function conectarPanel(t, nueva) {
   document.getElementById('tkClose').addEventListener('click', cerrarPanel);
   document.getElementById('tkAbrirProc')?.addEventListener('click', async () => {
     if (!(await descartar())) return;
-    vista = 'pipeline';
-    await abrirProc(t.proceso_id);
-    render();
+    location.href = urlProc(t.proceso_id);
   });
   document.getElementById('tkSave').addEventListener('click', async () => {
     const body = cuerpo();
@@ -708,7 +751,6 @@ function conectarPanel(t, nueva) {
 
 function renderPanel() {
   const side = document.getElementById('aside');
-  if (abiertoProc) return renderProcPanel();
   if (!abierta) return renderEquipoAside();
   side.classList.add('open');
 
@@ -752,7 +794,6 @@ function renderPanel() {
 let pipe = null, clientesLista = [], cargandoPipe = false;
 let pipeCliente = '', pipeTrae = '', laterales = false;
 let pipeError = null;            // por qué falló la última carga del pipeline (null = no ha fallado)
-let abiertoProc = null;          // id del proceso en el panel, o 'nuevo'
 
 const mxn = n => '$' + Math.round(Number(n)).toLocaleString('es-MX');
 const mxnCorto = n => n >= 1e6 ? '$' + (n / 1e6).toLocaleString('es-MX', { maximumFractionDigits: 1 }) + ' M'
@@ -763,6 +804,9 @@ const hay = v => v !== null && v !== undefined && v !== '';
 // su nombre de usuario. Un valor como "A/B" son dos personas.
 const traeNombre = p => p.trae_nombre || p.trae || '';
 const traePersonas = p => traeNombre(p).split('/').map(x => x.trim()).filter(Boolean);
+
+// El proceso se edita en Clientes: allí abre al cliente dueño y resalta la fila.
+const urlProc = id => `clientes.html?proc=${encodeURIComponent(id)}`;
 
 async function cargarPipeline() {
   [pipe, clientesLista] = await Promise.all([API.get('/pipeline'), API.get('/clientes')]);
@@ -792,7 +836,8 @@ function tarjetaProc(p, clientesDeLaFicha) {
   art.className = `tk pp e-${p.status}${arrastrando === p.id ? ' dragging' : ''}`;
   art.draggable = true;
   art.tabIndex = 0;
-  art.setAttribute('role', 'button');
+  art.setAttribute('role', 'link');
+  art.title = 'Abrir en Clientes';
   art.innerHTML = `
     <div class="tk-top">
       <span class="pp-cliente">${esc(p.cliente_nombre)}</span>
@@ -814,8 +859,8 @@ function tarjetaProc(p, clientesDeLaFicha) {
     art.classList.add('dragging');
   });
   art.addEventListener('dragend', () => { arrastrando = null; render(); });
-  art.addEventListener('click', () => abrirProc(p.id));
-  art.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirProc(p.id); } });
+  art.addEventListener('click', () => { location.href = urlProc(p.id); });
+  art.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); location.href = urlProc(p.id); } });
   return art;
 }
 
@@ -847,7 +892,7 @@ function renderPipeline(lista) {
     col.appendChild(cont);
     zonaSoltar(col, id => {
       const p = pipe.find(x => x.id === id);
-      if (p && p.status !== e.key) guardarProc(p, { status: e.key }, {});
+      if (p && p.status !== e.key) moverProc(p, e.key);
     });
     kb.appendChild(col);
   }
@@ -896,15 +941,6 @@ function renderPipeAside() {
   });
 }
 
-async function abrirProc(id) {
-  if (!(await descartar())) return;
-  abiertoProc = id;
-  abierta = null;
-  renderPanel();
-  document.getElementById('aside').scrollTop = 0;
-  mostrarPanel();
-}
-
 // En el teléfono el panel queda debajo del tablero: sin esto, tocar una tarjeta no
 // daba ninguna señal (el detalle abría ~700 px bajo el pliegue).
 function mostrarPanel() {
@@ -917,169 +953,18 @@ function mostrarPanel() {
   window.scrollTo(0, Math.max(0, aside.getBoundingClientRect().top + window.scrollY - barra));
 }
 
-const PROC_CAMPOS = ['status', 'notas', 'junta', 'trae', 'trae_id'];
-const FICHA_CAMPOS = ['titulo', 'tipo', 'municipio', 'mapa_url', 'tamano_m2', 'precio_m2', 'precio', 'notas'];
-
-// Guarda los dos lados de una tarjeta: lo del proceso y lo de la ficha, que es de
-// todos los clientes que la tienen. Optimista para la etapa (arrastrar no debe
+// Arrastrar una tarjeta a otra etapa sólo cambia el estado del proceso. Optimista (no debe
 // parpadear); después vuelve a pedir el pipeline, que es la fuente de verdad.
-async function guardarProc(p, proc, ficha) {
+async function moverProc(p, status) {
   const i = pipe.findIndex(x => x.id === p.id);
-  if (i >= 0 && proc.status) { pipe[i] = { ...pipe[i], status: proc.status }; render(); }
-  let ok = true;
+  if (i >= 0) { pipe[i] = { ...pipe[i], status }; render(); }
   try {
-    if (Object.keys(proc).length) await API.patch(`/procesos/${p.id}`, proc);
-    if (Object.keys(ficha).length) await API.patch(`/fichas/${p.ficha_id}`, ficha);
+    await API.patch(`/procesos/${p.id}`, { status });
   } catch (err) {
     UI.aviso(`No se guardó el proceso: ${err.message}`);
-    ok = false;
   }
   await cargarPipeline().catch(() => UI.aviso('No se pudo refrescar el pipeline. Recarga la página si algo se ve desactualizado.'));
   render();
-  return ok;
-}
-
-function leerProcPanel() {
-  const val = id => document.getElementById(id).value.trim();
-  const num = (id, nombre) => {
-    const v = val(id).replace(/[$,\s]/g, '');
-    if (!v) return null;
-    const n = Number(v);
-    if (!Number.isFinite(n)) throw new Error(`${nombre} tiene que ser un número.`);
-    return n;
-  };
-  const trae = val('p-trae');
-  const cuenta = equipo.find(e => norm(e.nombre ?? '') === norm(trae));
-  return {
-    proc: { status: val('p-status'), notas: val('p-notas') || null, junta: val('p-junta') || null,
-            trae: trae || null, trae_id: cuenta?.id ?? null },
-    ficha: { titulo: val('p-titulo'), tipo: val('p-tipo') || null, municipio: val('p-mun') || null,
-             mapa_url: val('p-mapa') || null, tamano_m2: num('p-m2', 'M²'),
-             precio_m2: num('p-pm2', 'Precio x m²'), precio: num('p-monto', 'Monto de salida'),
-             notas: val('p-fnotas') || null },
-  };
-}
-
-// Las tareas ligadas a un proceso, abiertas primero.
-function panelTareasDeProc(p) {
-  const suyas = tareas.filter(x => x.proceso_id === p.id)
-    .sort((a, b) => (a.columna === 'completado') - (b.columna === 'completado'));
-  const n = suyas.filter(x => x.columna !== 'completado').length;
-  return `<div class="pp-grupo"><span class="pp-grupo-t">Tareas · ${n} ${n === 1 ? 'abierta' : 'abiertas'}</span>${
-    suyas.length ? `<div>${suyas.map(x =>
-      `<button class="pp-otro" data-tarea="${esc(x.id)}"><span>${esc(x.titulo)}</span>` +
-      `<span class="pp-col">${esc(COLS.find(c => c.key === x.columna)?.label ?? x.columna)}</span></button>`).join('')}</div>`
-    : '<p class="pp-nota">Sin tareas ligadas a esta propiedad y cliente.</p>'}
-    <button class="pp-nueva" id="ppTarea">+ Crear tarea ligada</button></div>`;
-}
-
-function renderProcPanel() {
-  const side = document.getElementById('aside');
-  const nuevo = abiertoProc === 'nuevo';
-  const p = nuevo ? { status: 'prospecto', cliente_id: pipeCliente } : pipe?.find(x => x.id === abiertoProc);
-  if (!p) { abiertoProc = null; return renderPanel(); }
-  side.classList.add('open');
-  const otros = nuevo ? [] : pipe.filter(x => x.ficha_id === p.ficha_id && x.id !== p.id);
-  const personas = [...new Set([...equipo.map(e => e.nombre).filter(Boolean),
-                                ...(pipe ?? []).flatMap(traePersonas)])].sort((a, b) => a.localeCompare(b, 'es'));
-  const campo = (id, label, valor, extra = '') =>
-    `<div><label for="${id}">${label}</label><input id="${id}" value="${esc(valor ?? '')}" ${extra}></div>`;
-
-  side.innerHTML = `
-    <div class="tk-aside-head">
-      ${nuevo ? 'Agregar propiedad al pipeline' : 'Proceso'}
-      <button class="tk-x" id="ppClose" title="Cerrar">&times;</button>
-    </div>
-    <div class="tk-aside-body">
-      ${nuevo
-        ? `<div><label for="p-cliente">Cliente</label><select id="p-cliente"><option value="">Elige un cliente</option>${
-             clientesLista.map(c => `<option value="${esc(c.id)}"${c.id === p.cliente_id ? ' selected' : ''}>${esc(c.nombre)}</option>`).join('')}</select></div>`
-        : `<h2>${esc(p.titulo)}</h2>
-           <div class="pp-sub">${esc([p.cliente_nombre, p.tipo, p.municipio].filter(Boolean).join(' · '))}</div>
-           <span class="pp-etapa e-${esc(p.status)}">${esc(etapaLabel(p.status))}</span>`}
-      <div class="tk-row">
-        <div><label for="p-status">Etapa</label><select id="p-status">${etapaOpciones(p.status)}</select></div>
-        ${campo('p-junta', 'Junta', p.junta, 'placeholder="1ra, 2da…"')}
-      </div>
-      <div><label for="p-trae">Presentó</label>
-        <input id="p-trae" list="p-personas" value="${esc(traeNombre(p))}" placeholder="Nombre">
-        <datalist id="p-personas">${personas.map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
-      <div><label for="p-notas">Seguimiento</label>
-        <textarea id="p-notas" class="pp-corto" placeholder="Siguiente paso con este cliente">${esc(p.notas ?? '')}</textarea></div>
-      ${nuevo ? '' : panelTareasDeProc(p)}
-
-      <div class="pp-grupo">
-        <span class="pp-grupo-t">Propiedad</span>
-        ${otros.length ? `<p class="pp-nota">Estos datos son de la propiedad y los comparten ${otros.length + 1} clientes: cambiarlos aquí los cambia en todos.</p>` : ''}
-        ${campo('p-titulo', 'Nombre de referencia', p.titulo, 'placeholder="Plaza O2, Av. Concordia…"')}
-        <div class="tk-row">
-          <div><label for="p-tipo">Tipo</label><input id="p-tipo" list="p-tipos" value="${esc(p.tipo ?? '')}">
-            <datalist id="p-tipos">${['Terreno', 'Local', 'Bodega', 'Estacionamiento', 'Oficina'].map(t => `<option value="${t}">`).join('')}</datalist></div>
-          ${campo('p-mun', 'Municipio', p.municipio)}
-        </div>
-        <div class="tk-row">
-          ${campo('p-m2', 'M²', p.tamano_m2, 'inputmode="decimal"')}
-          ${campo('p-pm2', 'Precio x m²', p.precio_m2, 'inputmode="decimal"')}
-        </div>
-        ${campo('p-monto', 'Monto de salida', p.precio, 'inputmode="decimal" placeholder="Vacío = por definir"')}
-        <div><label for="p-mapa">Ubicación (Google Maps)</label>
-          <input id="p-mapa" value="${esc(p.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…">
-          ${p.mapa_url ? `<a class="pp-mapa" href="${hrefSeguro(p.mapa_url)}" target="_blank" rel="noopener">Abrir en Google Maps ↗</a>` : ''}</div>
-        <div><label for="p-fnotas">Notas de la propiedad</label>
-          <textarea id="p-fnotas" class="pp-corto">${esc(p.ficha_notas ?? '')}</textarea></div>
-      </div>
-
-      <div class="tk-actions">
-        <button class="btn-solid" id="ppSave">${nuevo ? 'Agregar al pipeline' : 'Guardar'}</button>
-      </div>
-      ${otros.length ? `<div class="pp-grupo"><span class="pp-grupo-t">También ofrecida a</span><div>${
-        otros.map(o => `<button class="pp-otro" data-proc="${esc(o.id)}"><span>${esc(o.cliente_nombre)}</span>` +
-                       `<span class="pp-etapa e-${esc(o.status)}">${esc(etapaLabel(o.status))}</span></button>`).join('')}</div></div>` : ''}
-    </div>`;
-
-  document.getElementById('ppClose').addEventListener('click', cerrarPanel);
-  side.querySelectorAll('.pp-otro[data-proc]').forEach(b => b.addEventListener('click', () => abrirProc(b.dataset.proc)));
-  side.querySelectorAll('.pp-otro[data-tarea]').forEach(b => b.addEventListener('click', async () => {
-    if (!(await descartar())) return;
-    vista = 'tablero';
-    abiertoProc = null;
-    abrirTarea(b.dataset.tarea);
-  }));
-  document.getElementById('ppSave').addEventListener('click', async () => {
-    let datos;
-    try { datos = leerProcPanel(); } catch (err) { return UI.aviso(err.message); }
-    if (!datos.ficha.titulo) return UI.aviso('El nombre de referencia es obligatorio.');
-    if (!nuevo) {
-      // Con `editado` puesto, `render()` no rehace el panel: si el guardado falla se queda
-      // lo escrito; si sale bien se limpia y se repinta con lo del servidor.
-      if (await guardarProc(p, datos.proc, datos.ficha)) { editado = false; renderPanel(); }
-      return;
-    }
-    const cliente_id = document.getElementById('p-cliente').value;
-    if (!cliente_id) return UI.aviso('Elige a qué cliente se le ofrece.');
-    try {
-      const ficha = await API.post('/fichas', datos.ficha);
-      const proc = await API.post('/procesos', { ...datos.proc, cliente_id, ficha_id: ficha.id });
-      await cargarPipeline();
-      editado = false;
-      abiertoProc = proc.id;
-      render();
-    } catch (err) { UI.aviso(`No se agregó la propiedad: ${err.message}`); }
-  });
-  document.getElementById('ppTarea')?.addEventListener('click', async () => {
-    if (!(await descartar())) return;
-    try {
-      const t = await API.post('/tareas', {
-        titulo: `${p.cliente_nombre}: ${p.titulo}`, tipo: 'Seguimiento', prioridad: 'media',
-        columna: p.trae_id ? 'asignado' : 'pendiente', asignado_a: p.trae_id ?? null,
-        cliente_id: p.cliente_id, proceso_id: p.id, descripcion: p.notas ? `- [ ] ${p.notas}` : '',
-      });
-      tareas.unshift(t);
-      vista = 'tablero';
-      abiertoProc = null;
-      abrirTarea(t.id);
-    } catch (err) { UI.aviso(`No se creó la tarea: ${err.message}`); }
-  });
 }
 
 function render() {
@@ -1095,11 +980,11 @@ function render() {
   document.getElementById('countNum').textContent = lista.length;
   document.getElementById('countTotal').textContent = esPipe ? (pipe?.length ?? 0) : tareas.length;
   document.getElementById('countQue').textContent = esPipe ? 'procesos' : 'tareas';
-  document.getElementById('nueva-txt').textContent = esPipe ? 'Agregar propiedad' : 'Nueva tarea';
+  document.getElementById('nueva-btn').hidden = esPipe;     // los procesos se crean y editan en Clientes
   document.getElementById('prioGroup').hidden = esPipe;
   document.getElementById('pipeGroup').hidden = !esPipe;
-  document.querySelector('.tk-bar-hint').hidden = vista === 'lista';
-  // «Filtros (n)» (≤700 px): n = lo que está distinto del predeterminado.
+  document.querySelector('.tk-bar-hint').hidden = vista !== 'tablero' || yaArrastro;
+  // «Filtros (n)»: n = lo que está distinto del predeterminado.
   const nFiltros = (vista !== VISTA_BASE ? 1 : 0) + (esPipe
     ? (pipeCliente ? 1 : 0) + (pipeTrae ? 1 : 0) + (laterales ? 1 : 0)
     : (prio !== 'all' ? 1 : 0) + (persona !== defPersona && vista !== 'equipo' ? 1 : 0));
@@ -1118,14 +1003,21 @@ function render() {
   const vp = document.getElementById('viewPills');
   vp.innerHTML = '';
   // «Persona» ya no es una vista: era el tablero con el filtro de persona puesto.
-  [['lista', 'Lista'], ['tablero', 'Tablero'], ['pipeline', 'Pipeline'], ['equipo', 'Equipo']].forEach(([k, l]) =>
-    vp.appendChild(pill(l, vista === k, async () => {
-      // El panel es de la vista: una tarea abierta no sigue abierta en el pipeline, ni al revés.
-      if (((k === 'pipeline' && abierta) || (k !== 'pipeline' && abiertoProc)) && !(await descartar())) return;
+  [['lista', 'Lista'], ['tablero', 'Tablero'], ['pipeline', 'Pipeline'], ['equipo', 'Equipo']].forEach(([k, l]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = l;
+    b.className = vista === k ? 'on' : '';
+    b.setAttribute('aria-pressed', String(vista === k));
+    b.addEventListener('click', async () => {
+      // El panel es de la vista: una tarea abierta no sigue abierta en el pipeline.
+      if (k === 'pipeline' && abierta && !(await descartar())) return;
       vista = k;
-      if (k === 'pipeline') abierta = null; else abiertoProc = null;
+      if (k === 'pipeline') abierta = null;
       render();
-    })));
+    });
+    vp.appendChild(b);
+  });
 
   const pp = document.getElementById('prioPills');
   pp.innerHTML = '';
@@ -1159,9 +1051,7 @@ function render() {
   if (!panelSucio()) { renderEquipoAside(); renderPanel(); }
 }
 document.getElementById('nueva-btn').addEventListener('click', async () => {
-  if (vista === 'pipeline') return abrirProc('nuevo');
   if (!(await descartar())) return;
-  abiertoProc = null;
   abierta = 'nueva'; coments = []; previo = false; comentFallo = false; renderPanel(); mostrarPanel();
 });
 // Lo escrito en el panel (menos un comentario, que tiene su propio chequeo, y las casillas
@@ -1171,7 +1061,7 @@ document.getElementById('aside').addEventListener('input', e => {
   editado = true;
 });
 document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape' || !(abierta || abiertoProc) || e.defaultPrevented) return;
+  if (e.key !== 'Escape' || !abierta || e.defaultPrevented) return;
   // Esc dentro de un campo es de ese campo (o del menú o diálogo abierto), no del panel.
   if (e.target.closest?.('input, textarea, select') || document.querySelector('dialog[open]')) return;
   cerrarPanel();
@@ -1179,10 +1069,23 @@ document.addEventListener('keydown', e => {
 // El buscador de la topbar existía sin listener: `q` se leía y nunca cambiaba.
 for (const id of ['searchInput', 'searchInputMovil'])
   document.getElementById(id).addEventListener('input', e => { q = e.target.value.trim(); render(); });
-// «Filtros (n)» abre y cierra Vista, Prioridad y Persona; los controles siguen siendo los mismos.
-document.getElementById('tkFiltrosBtn').addEventListener('click', e => {
-  const abierto = document.getElementById('tkFiltros').classList.toggle('abierto');
-  e.currentTarget.setAttribute('aria-expanded', String(abierto));
+// «Filtros (n)» abre y cierra Prioridad, Persona y los filtros del pipeline (también en escritorio,
+// donde es un panel flotante: se cierra con un clic fuera o con Esc).
+const filtrosBtn = document.getElementById('tkFiltrosBtn'), filtrosPanel = document.getElementById('tkFiltros');
+function filtrosAbrir(abrir) {
+  filtrosPanel.classList.toggle('abierto', abrir);
+  filtrosBtn.setAttribute('aria-expanded', String(abrir));
+}
+filtrosBtn.addEventListener('click', () => filtrosAbrir(!filtrosPanel.classList.contains('abierto')));
+document.addEventListener('click', e => {
+  // composedPath y no closest(): una píldora se repinta al hacer clic y su nodo ya no está en el documento.
+  if (filtrosPanel.classList.contains('abierto') && !e.composedPath().some(n => n === filtrosPanel || n === filtrosBtn)) filtrosAbrir(false);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && filtrosPanel.classList.contains('abierto') && !document.querySelector('dialog[open]')) {
+    filtrosAbrir(false);
+    filtrosBtn.focus();
+  }
 });
 document.getElementById('personaSel').addEventListener('change', e => { persona = e.target.value || null; render(); });
 document.getElementById('f-cliente').addEventListener('change', e => { pipeCliente = e.target.value; render(); });

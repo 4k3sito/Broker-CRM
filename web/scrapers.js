@@ -213,7 +213,7 @@ function render(datos) {
   document.getElementById('vista').innerHTML = `
     <div class="sc-head">
       <div>
-        <h1 class="pg-title versal">Scrapers</h1>
+        <h1 class="pg-title">Scrapers</h1>
         <p class="sc-sub">
           ${plural(vivas.length, 'fuente con scraper', 'fuentes con scraper')}
           ${ultima ? `&#183; última carga ${esc(haceCuanto(ultima))}` : ''}
@@ -260,11 +260,6 @@ document.getElementById('vista').addEventListener('click', e => {
   if (!e.target.closest('[data-mas]') || !datosActuales) return;
   hist += HIST_PASO;
   document.getElementById('scHist').innerHTML = historial(datosActuales.cargas);
-});
-
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  await API.logout().catch(() => {});
-  location.replace('login.html');
 });
 
 async function cargar() {

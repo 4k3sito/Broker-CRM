@@ -285,7 +285,7 @@ larga impide encoger la columna. Va `minmax(0,1fr)`.
 
 **Los objetivos táctiles van por `@media (pointer: coarse)`, no por ancho** — una laptop
 con pantalla táctil también los necesita. Ese bloque y el de 760 px viven **al final del
-archivo** a propósito: `.th-btn`, `.pg-kpis` y `.statsbar` se declaran más abajo que la
+archivo** a propósito: `.pg-kpis` y otras reglas de contenido se declaran más abajo que la
 topbar, y a igual especificidad gana el último. Puestos arriba, las reglas de contenido
 no se aplican y el bloque parece no hacer nada.
 

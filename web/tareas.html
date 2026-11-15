@@ -14,15 +14,12 @@
 <body class="tk-page">
 <header class="topbar">
   <a class="brand-group" href="index.html" aria-label="OfficeLab, propiedades">
-    <svg class="brand-mark" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <svg class="brand-mark" width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <rect x="2" y="2" width="28" height="28" stroke="currentColor" stroke-width="2"/>
       <rect x="9" y="9" width="14" height="14" fill="currentColor"/>
       <rect x="13.5" y="13.5" width="5" height="5" fill="var(--topbar)"/>
     </svg>
-    <span class="brand-text">
-      <span class="brand">Office<i>Lab</i></span>
-      <span class="brand-sub">CRM Inmobiliario &#183; M&#233;xico</span>
-    </span>
+    <span class="brand-text"><span class="brand">Office<i>Lab</i></span></span>
   </a>
   <!-- Las pestañas las pone menu.js. -->
   <div class="topbar-search">
@@ -55,12 +52,10 @@
         <span id="nueva-txt">Nueva tarea</span>
       </button>
       <span class="tk-bar-sep"></span>
-      <!-- Sólo a ≤700 px: «Filtros (n)» abre y cierra Vista, Prioridad y Persona (tareas.js). -->
+      <!-- «Vista» queda a la vista; «Filtros (n)» abre y cierra Prioridad, Persona y los filtros del pipeline (tareas.js). -->
+      <span class="seg" id="viewPills" role="group" aria-label="Vista"></span>
       <button class="cl-btn" id="tkFiltrosBtn" type="button" aria-expanded="false" aria-controls="tkFiltros">Filtros</button>
       <div class="tk-filtros" id="tkFiltros">
-        <span class="statebar-label">Vista</span>
-        <span id="viewPills"></span>
-        <span class="tk-bar-sep"></span>
         <span id="prioGroup"><span class="statebar-label">Prioridad</span>
         <span id="prioPills"></span></span>
         <span id="personaGroup" hidden><span class="statebar-label">Persona</span><span id="personaPills"></span>

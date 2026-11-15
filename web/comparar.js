@@ -135,11 +135,6 @@ document.getElementById('cmpAgregarTop').addEventListener('click', marcarAgregar
 document.getElementById('optMejor').addEventListener('change', render);
 document.getElementById('optIguales').addEventListener('change', render);
 document.getElementById('btnImprimir').addEventListener('click', () => window.print());
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  await API.logout().catch(() => {});
-  location.replace('login.html');
-});
-
 // Pide los inmuebles; un fallo de red o de sesión se enseña con «Reintentar», no como
 // «selecciona al menos dos».
 async function cargar() {

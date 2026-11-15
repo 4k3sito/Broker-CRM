@@ -30,6 +30,16 @@
     try { tab = sessionStorage.getItem('ol-tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa'; } catch { /* sin persistencia */ }
   }
 
+  // E2: fuera del tablero, sus dos pestañas vuelven a la última búsqueda (app.js la deja en
+  // `ol-tablero`, con `tab=inmobiliaria` sólo cuando es el Catálogo), no a la de fábrica.
+  let tablero = null;
+  if (aqui !== 'index.html' && aqui !== '') {
+    try {
+      const g = sessionStorage.getItem('ol-tablero');
+      if (g?.startsWith('index.html')) tablero = { url: g, tab: new URLSearchParams(g.split('?')[1] ?? '').get('tab') === 'inmobiliaria' ? 'inmobiliaria' : 'bolsa' };
+    } catch { /* sin persistencia */ }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const topbar = document.querySelector('.topbar');
     if (!topbar) return;
@@ -57,7 +67,8 @@
     nav.setAttribute('aria-label', 'Secciones');
     const enlace = t => {
       const on = t.de.includes(aqui) && (!t.tab || t.tab === tab);
-      return `<a href="${t.href}"${on ? ' class="active" aria-current="page"' : ''}>${t.label}` +
+      const href = tablero && t.tab === tablero.tab ? tablero.url : t.href;
+      return `<a href="${href}"${on ? ' class="active" aria-current="page"' : ''}>${t.label}` +
              (t.badge ? `<span class="tb-badge vacia" data-badge="${t.badge}"></span>` : '') + `</a>`;
     };
     nav.innerHTML = TABS.map(enlace).join('') + (memoria.leer('ol-scrapers') === '1' ? enlace(SCRAPERS) : '');
@@ -87,9 +98,7 @@
     hoja.setAttribute('aria-label', 'Secciones');
     hoja.innerHTML = `<div class="nav-hoja-head"><span>Secciones</span>
         <button type="button" class="nav-hoja-x" aria-label="Cerrar menú">&times;</button></div>
-      <nav class="nav-hoja-lista"></nav>
-      <div class="nav-hoja-pie" hidden><span class="nav-hoja-quien"></span>
-        <button type="button" class="nav-hoja-salir">Cerrar sesión</button></div>`;
+      <nav class="nav-hoja-lista"></nav>`;
     document.body.appendChild(hoja);
     const lista = hoja.querySelector('.nav-hoja-lista');
     const copiar = () => { lista.innerHTML = nav.innerHTML; };
@@ -100,8 +109,8 @@
     // Tocar el fondo cierra: el clic cae en el propio <dialog>, fuera de su contenido.
     hoja.addEventListener('click', e => { if (e.target === hoja) hoja.close(); });
 
-    // Cerrar sesión vive aquí y no en cada página: antes cada una cableaba su «Salir» (y
-    // tareas, además, lo repetía). Sin confirmar: entrar otra vez deshace salir, y el
+    // Cerrar sesión vive sólo en el menú de cuenta (el avatar), también en el teléfono.
+    // Sin confirmar: entrar otra vez deshace salir, y el
     // login devuelve a la misma página (`next=`). Si falla la red no se redirige, o la
     // sesión seguiría abierta sin que se note.
     const salir = async boton => {
@@ -114,10 +123,6 @@
         if (boton) { boton.disabled = false; boton.textContent = 'No se pudo salir. Reintentar'; setTimeout(() => { boton.textContent = txt; }, 4000); }
       }
     };
-    // El «Salir» suelto de cada página queda en el HTML (sus scripts le cuelgan un
-    // listener) pero ya no se ve: el avatar tiene el menú de cuenta.
-    document.getElementById('logout-btn')?.setAttribute('hidden', '');
-    hoja.querySelector('.nav-hoja-salir').addEventListener('click', e => salir(e.currentTarget));
 
     // Avatar con iniciales y su menú de cuenta. Silencioso si no hay sesión.
     API.me().then(u => {
@@ -126,11 +131,9 @@
       memoria.poner('ol-scrapers', u.scrapers ? '1' : '');
       const nombre = (u.nombre || u.email || '').trim();
       const ini = nombre.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-      hoja.querySelector('.nav-hoja-quien').textContent = nombre;
-      hoja.querySelector('.nav-hoja-pie').hidden = false;
       const box = document.getElementById('userBox');
       if (box && !document.querySelector('.tb-ava')) montarCuenta(box, u, nombre, ini, salir);
-      cargarInsignias();
+      cargarInsignias(u.id);
     }).catch(() => {});
 
     // El avatar abre un menú con lo que de la cuenta se puede hacer. Antes el avatar sólo
@@ -157,12 +160,11 @@
       box.append(panel);
       const tema = panel.querySelector('[data-tema]');
       const pintarTema = () => {
-        tema.textContent = document.documentElement.getAttribute('data-theme') === 'dark'
+        tema.textContent = window.OLTema?.oscuro()
           ? 'Tema: oscuro · cambiar a claro' : 'Tema: claro · cambiar a oscuro';
       };
-      // El interruptor es el de theme.js (guarda la preferencia); aquí sólo se le da otra puerta.
-      tema.hidden = !document.querySelector('.th-btn');
-      tema.addEventListener('click', () => { document.querySelector('.th-btn')?.click(); pintarTema(); });
+      // El interruptor es el de theme.js (guarda la preferencia y avisa a los mapas).
+      tema.addEventListener('click', () => { window.OLTema?.alternar(); pintarTema(); });
       panel.querySelector('[data-salir]').addEventListener('click', e => salir(e.currentTarget));
 
       const cerrar = devolverFoco => {
@@ -187,12 +189,12 @@
     }
 
     // Insignias. Si un endpoint falla, la insignia simplemente no aparece.
-    function cargarInsignias() {
+    function cargarInsignias(miId) {
       if (aqui === 'login.html') return;
-      // Tareas vencidas (de todo el equipo: no se cambia aquí a «las mías»).
+      // Tareas vencidas abiertas de quien tiene la sesión (`asignado_a` es su id en /me).
       API.get('/tareas').then(ts => {
         const hoy = hoyLocal();       // fecha local: la UTC marca vencido lo de hoy desde las 18:00
-        const n = (ts ?? []).filter(t => t.vence_el && t.vence_el < hoy && t.columna !== 'completado').length;
+        const n = (ts ?? []).filter(t => t.asignado_a === miId && t.vence_el && t.vence_el < hoy && t.columna !== 'completado').length;
         ponerInsignia('tareas', n, `${n} ${n === 1 ? 'vencida' : 'vencidas'}`);
       }).catch(() => {});
       // Revisión: lo que espera decisión en Nuevo León, que es donde abre la página. La cifra es

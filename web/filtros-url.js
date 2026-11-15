@@ -22,6 +22,8 @@ const FiltrosURL = (() => {
                  'esquina', 'sobre_avenida', 'drive_thru'];
   // Separador del lugar: "m40|Monterrey|Nuevo León". Los nombres de municipio no lo usan.
   const SEP = '|';
+  // El estado con que abre el tablero: lo que sigue en juego (sin Descartado ni Rentado/Cerrado).
+  const ESTADO_DEFECTO = 'Pendientes';
 
   function escribir(e) {
     const p = new URLSearchParams();
@@ -44,7 +46,10 @@ const FiltrosURL = (() => {
     if (e.mapa) pon('mapa', [e.mapa.lat.toFixed(5), e.mapa.lng.toFixed(5), e.mapa.zoom.toFixed(2)].join(','));
     else if (e.near) { pon('near', e.near); pon('near_txt', e.near_txt); pon('radio', e.radio); }
     if (e.orden && e.orden !== 'recientes') pon('orden', e.orden);
-    if (e.estado && e.estado !== 'Todos') pon('estado', e.estado);
+    // El estado de fábrica no se escribe. Es «Pendientes» (todo menos Descartado y Rentado/Cerrado)
+    // salvo que app.js diga otra cosa con `estado_defecto` (el Catálogo abre en «Todos»); por eso
+    // «Todos» sí viaja cuando el de fábrica es «Pendientes».
+    if (e.estado && e.estado !== (e.estado_defecto ?? ESTADO_DEFECTO)) pon('estado', e.estado);
     if (e.destacados) pon('destacados', 1);
     if (e.pagina > 1) pon('pagina', e.pagina);
     return p.toString();
@@ -98,5 +103,5 @@ const FiltrosURL = (() => {
     return r;
   }
 
-  return { escribir, leer };
+  return { escribir, leer, ESTADO_DEFECTO };
 })();

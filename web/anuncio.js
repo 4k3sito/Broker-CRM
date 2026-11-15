@@ -14,6 +14,10 @@
 const Anuncio = (() => {
   const ESTADOS = ['Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'];
   const ESTADO_API = { Nuevo: 'new', Revisado: 'reviewed', Contactado: 'contacted', Rentado: 'rented', Descartado: 'discarded' };
+  // Cómo se llama cada estado en pantalla. La clave (`Rentado`) es la que guarda y manda la API;
+  // sólo el rótulo cambió a «Cerrado» (cubre renta y venta). Cualquier otro estado se llama como su clave.
+  const ETIQUETA_ESTADO = { Rentado: 'Cerrado' };
+  const etiquetaEstado = estado => ETIQUETA_ESTADO[estado] ?? estado;
   const ESTADO_DE_API = Object.fromEntries(Object.entries(ESTADO_API).map(([k, v]) => [v, k]));
   const OPERACION_DE_API = { rent: 'Renta', rental: 'Renta', sale: 'Venta' };
   // Cómo se llama cada fuente en pantalla. Trae también portales que ya no se scrapean:
@@ -56,6 +60,9 @@ const Anuncio = (() => {
       fuente: l.source ?? 'desconocido',
       codigo: l.source === 'pipeline' ? null : (l.external_id ?? null),   // el uuid de la ficha no es un código
       titulo: l.title ?? l.broker_name ?? null,
+      // Quién lo anuncia (agencia o persona). La lista de la API lo manda como `broker_name`
+      // (agency_name) y la ficha como `anunciante`.
+      anunciante: l.broker_name ?? l.anunciante ?? l.agency_name ?? null,
       direccion: limpiarLugar(lugar(l.location)) ?? limpiarLugar(l.neighborhood),
       zona: l.zona ?? null,
       precio: l.price_numeric ?? null,
@@ -215,5 +222,5 @@ const Anuncio = (() => {
   // Dónde está, en una línea: la dirección, y a falta de ella el municipio.
   const ubicacion = a => a.direccion ?? a.zona ?? null;
 
-  return { ESTADOS, de, total, porMetro, precioVisible, ofertas, operacion, rango, resumen, datos, superficiesDe, insignia, tiempoEnMercado, fecha, moneda, estadoApi, fuente, ubicacion, limpiarLugar };
+  return { ESTADOS, de, total, porMetro, precioVisible, ofertas, operacion, rango, resumen, datos, superficiesDe, insignia, tiempoEnMercado, fecha, moneda, estadoApi, etiquetaEstado, fuente, ubicacion, limpiarLugar };
 })();

@@ -15,41 +15,19 @@
   // Sin preferencia guardada manda el sistema.
   aplicar(guardado ? guardado === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
 
-  // El botón se cuelga de la topbar, igual que el del menú: así ninguna página
-  // repite el marcado. Login y recuperación no tienen topbar y se quedan sin
-  // botón — siguen el tema guardado o el del sistema, que es lo que importa ahí.
-  document.addEventListener('DOMContentLoaded', () => {
-    const destino = document.querySelector('.topbar-right');
-    if (!destino) return;
-    const btn = document.createElement('button');
-    btn.className = 'th-btn';
-    btn.type = 'button';
-    // Sólo el glifo: con la pestaña de Scrapers, la topbar de Tareas ya no tiene
-    // sitio para una etiqueta. El cuadro medio relleno es el ícono de contraste
-    // de siempre y encaja con la marca, que es un cuadro dentro de otro.
-    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none"
-      stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-      <rect x="1.5" y="1.5" width="13" height="13"/>
-      <path d="M8 1.5v13H2.2a.7.7 0 0 1-.7-.7V2.2a.7.7 0 0 1 .7-.7z" fill="currentColor" stroke="none"/>
-    </svg>`;
-    const pintar = () => {
-      const oscuro = raiz.getAttribute('data-theme') === 'dark';
-      const t = oscuro ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
-      btn.title = t;
-      btn.setAttribute('aria-label', t);
-      btn.setAttribute('aria-pressed', String(oscuro));
-    };
-    btn.addEventListener('click', () => {
-      const oscuro = raiz.getAttribute('data-theme') !== 'dark';
+  // El único interruptor vive en el menú de cuenta (menu.js), que llama a esta función:
+  // cambia el tema, lo guarda y avisa a los mapas. Login y recuperación no tienen menú y
+  // se quedan con el tema guardado o el del sistema, que es lo que importa ahí.
+  window.OLTema = {
+    oscuro: () => raiz.getAttribute('data-theme') === 'dark',
+    alternar() {
+      const oscuro = !this.oscuro();
       aplicar(oscuro);
       try { localStorage.setItem('ol-theme', oscuro ? 'dark' : 'light'); } catch { /* no persiste */ }
-      pintar();
       // Los mapas (MapLibre) traen su propio estilo de teselas y no leen los tokens de CSS:
       // se enteran por este evento y cambian de estilo (mapa.js, ubicacion.js).
       document.dispatchEvent(new CustomEvent('ol-tema', { detail: { oscuro } }));
-    });
-    pintar();
-    // Antes del bloque de sesión: en el mock el orden es filete · conteo · tema · entrar.
-    destino.insertBefore(btn, document.getElementById('authBox') ?? destino.firstChild);
-  });
+      return oscuro;
+    },
+  };
 })();

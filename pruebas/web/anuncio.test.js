@@ -120,6 +120,19 @@ test('el estado del asesor se lee de la API y se le devuelve en su clave', () =>
   assert.deepEqual(plano(Anuncio.ESTADOS), ['Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado']);
 });
 
+test('«Rentado» se ve como «Cerrado» y su clave de API no cambia', () => {
+  assert.equal(Anuncio.etiquetaEstado('Rentado'), 'Cerrado');
+  assert.equal(Anuncio.etiquetaEstado('Nuevo'), 'Nuevo');
+  assert.equal(Anuncio.estadoApi('Rentado'), 'rented');
+  assert.equal(Anuncio.de(fila({ status: 'rented' })).status, 'Rentado');
+});
+
+test('el anunciante sale de broker_name (lista) o de anunciante (ficha)', () => {
+  assert.equal(Anuncio.de(fila({ broker_name: 'Inmobiliaria Sol' })).anunciante, 'Inmobiliaria Sol');
+  assert.equal(Anuncio.de(fila({ anunciante: 'Ana' })).anunciante, 'Ana');
+  assert.equal(Anuncio.de(fila({})).anunciante, null);
+});
+
 test('un anuncio de portal sin operación se toma como renta', () => {
   assert.equal(Anuncio.de(fila({ transaction_type: null })).transaccion, 'Renta');
   assert.equal(Anuncio.de(fila({ transaction_type: 'sale' })).transaccion, 'Venta');

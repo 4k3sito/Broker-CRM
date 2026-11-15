@@ -24,7 +24,7 @@
   </a>
   <div class="topbar-right">
     <span id="authBox"><a class="btn-ghost" href="login.html">Entrar</a></span>
-    <span id="userBox" hidden><button class="btn-ghost" id="logout-btn">Salir</button></span>
+    <span id="userBox" hidden></span>
   </div>
 </header>
 
@@ -36,6 +36,10 @@
      Fuera de #detail por lo mismo que el mercado comparable. -->
 <section class="mk" id="propiedad" hidden></section>
 
+<!-- Contenedor fijo de Ubicación y Mercado: listing.js los mete en la rejilla de #detail
+     tras cada render y los devuelve aquí antes del siguiente (render() reescribe #detail
+     entero y se llevaría los mapas). -->
+<div id="fijos">
 <!-- Ubicación: fuera de #detail por lo mismo que el mercado comparable. El mapa es
      MapLibre con teselas de OpenFreeMap (ubicacion.js): sin llave de Google. -->
 <section class="mk" id="ubicacion" hidden>
@@ -60,6 +64,7 @@
 <!-- Mercado comparable: fuera de #detail porque render() reescribe ese bloque
      entero en cada cambio y se llevaría el mapa con él. -->
 <section class="mk" id="mercado" hidden></section>
+</div>
 
 <!-- Visor de fotos a pantalla completa -->
 <div class="fx-lb" id="lightbox" hidden>

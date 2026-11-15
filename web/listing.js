@@ -22,15 +22,19 @@ const VOLVER = (() => {
   return c ? { href: `clientes.html${API.qs({ proc: u.get('proc') })}#${encodeURIComponent(c)}`, texto: 'Volver al cliente' }
            : { href: TABLERO, texto: 'Volver al tablero', tablero: true };
 })();
-// La ficha se abre en otra pestaña desde el tablero. Volver es cerrarla y regresar a la
-// pestaña del tablero, que sigue como se dejó. Si el navegador no deja cerrarla (se
-// navegó dentro de ella) o el tablero ya no está, el enlace abre el tablero con la
-// búsqueda en su URL (`ol-tablero`).
+// La ficha se abre en otra pestaña desde el tablero (con opener) o, en el teléfono, en la
+// misma. Con opener, Volver cierra la pestaña y regresa a la del tablero, que sigue como
+// se dejó. Sin opener, si se vino del tablero se regresa en el historial (conserva scroll
+// y filtros); si no, el enlace abre el tablero con la búsqueda en su URL (`ol-tablero`).
+const esTablero = u => { try { const r = new URL(u, location.href); return r.origin === location.origin && /\/(index\.html)?$/.test(r.pathname); } catch { return false; } };
 document.addEventListener('click', e => {
-  if (!VOLVER.tablero || !e.target.closest('.fx-back') || e.metaKey || e.ctrlKey) return;
+  if (!VOLVER.tablero || !e.target.closest('.fx-back') || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
   let tablero = null;
-  try { tablero = window.opener && !window.opener.closed && /\/(index\.html)?$/.test(window.opener.location.pathname) ? window.opener : null; } catch { /* otro origen */ }
-  if (!tablero) return;
+  try { tablero = window.opener && !window.opener.closed && esTablero(window.opener.location.href) ? window.opener : null; } catch { /* otro origen */ }
+  if (!tablero) {
+    if (history.length > 1 && document.referrer && esTablero(document.referrer)) { e.preventDefault(); history.back(); }
+    return;                                     // si no, el enlace (index.html con su búsqueda)
+  }
   e.preventDefault();
   tablero.focus();
   window.close();
@@ -53,10 +57,21 @@ const conGeneral = () => !PRESENTA_A || !versionesVisibles().length;
 
 const ICON_EXTERNAL = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 
+// Quién publica el anuncio: nombre y teléfono tal como los trae la API (Anuncio.de sólo
+// conserva el teléfono dentro de la liga de WhatsApp).
+let anunciante = null;
+async function cargarAnuncio(id) {
+  const r = await API.get(`/listings/${encodeURIComponent(id)}`);
+  anunciante = { nombre: r.broker_name ?? null, tel: r.whatsapp ?? null };
+  return Anuncio.de(r);
+}
 let listing = null, ficha = null, clientes = [], procesos = [], documentos = [], currentUser = null;
 // Las fichas PDF guardadas de esta propiedad (ficha_version). `versionSel` es la que
 // está cargada en el formulario y la que imprime "Ficha PDF"; null es la General.
 let versiones = [], versionSel = null, pdfAbierto = false;
+// Tarjetas vacías del CRM (<details>) que se abrieron a mano: render() reescribe todo y,
+// sin esto, se volverían a cerrar.
+const abiertas = new Set();
 // El CRM (ficha, documentos, clientes) se pide aparte de la propiedad para pintar ésta
 // sin esperarlo: 'cargando' | 'ok' | 'error'. Sin saber si hay ficha no se ofrece «Guardar
 // en Catálogo» ni nada que la cree: un fallo de red no es «esta propiedad no tiene ficha».
@@ -388,7 +403,7 @@ async function saveFicha(field, value) {
     // sale el tercero (derivar_precio en main.py).
     Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, { [field]: val })));
     enServidor = true;
-    listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+    listing = await cargarAnuncio(listing.id);
     fichaOk(field);
     repintar();
   } catch (err) {
@@ -465,7 +480,7 @@ async function saveBase(field, crudo) {
   if (JSON.stringify(patch[field]) === JSON.stringify(ficha[field] ?? null)) return;
   try {
     Object.assign(ficha, numeros(await API.patch(`/fichas/${ficha.id}`, patch)));
-    listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+    listing = await cargarAnuncio(listing.id);
     repintar();
     pintarUbicacion();
   } catch (err) { UI.aviso('No se pudo guardar: ' + err.message); }
@@ -503,7 +518,7 @@ const versionActual = () => versiones.find(x => String(x.id) === versionSel) ?? 
 const fotosBase = () => (ficha?.fotos?.length ? ficha.fotos : listing?.fotos) ?? [];
 const fotosEnEdicion = () => { const v = versionActual(); return (v ? (v.datos.fotos ?? fotosBase()) : (ficha?.fotos ?? [])).slice(); };
 async function refrescarFotos() {
-  listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(listing.id)}`));
+  listing = await cargarAnuncio(listing.id);
   repintar();
 }
 // Quitar, poner de portada o agregar una liga: todo es guardar la lista nueva. La API
@@ -537,7 +552,7 @@ Fotos.escuchar(document.getElementById('detail'), destinoFotos);
 
 async function guardarEnInmobiliaria() {
   try { await asegurarFicha(); render(); }
-  catch (err) { UI.aviso('No se pudo guardar en el Catálogo: ' + err.message); }
+  catch (err) { UI.aviso('No se pudo guardar en el Catálogo: ' + err.message); document.getElementById('btnInmo')?.removeAttribute('disabled'); }
 }
 // Lo contrario. Un anuncio de portal vuelve a la Bolsa y la página sigue sirviendo; una
 // propiedad propia ES su ficha, así que al borrarla ya no hay nada que mostrar.
@@ -638,6 +653,11 @@ function pintar() {
   // Mientras el CRM carga o falla no se ofrece nada que dependa de saber si hay ficha.
   const crmCaja = (id, titulo) => `<section class="fx-card crm-estado" id="${id}"><h2>${titulo}</h2>
       ${crm === 'cargando' ? '<p class="fx-hint">Cargando…</p>' : '<div class="crm-err"></div>'}</section>`;
+  // Una tarjeta del CRM sin nada todavía ocupa una línea: <details> con su resumen
+  // («Documentos · 0»); al abrirla se ve completa, y en cuanto tiene datos vuelve a ser tarjeta.
+  const plegable = (id, vacio, resumen, cuerpo) => vacio
+    ? `<details class="fx-vacia" id="${id}"${abiertas.has(id) ? ' open' : ''}><summary>${resumen}</summary><div class="fx-card">${cuerpo}</div></details>`
+    : `<section class="fx-card" id="${id}">${cuerpo}</section>`;
   const enSeg = new Set(procesos.map(p => String(p.cliente_id)));
   const disponibles = clientes.filter(c => !enSeg.has(String(c.id)));
   const nav = vecinos();
@@ -650,7 +670,7 @@ function pintar() {
 
   // Fichas PDF y sus datos, en su propia tarjeta: ocupaban media columna dentro de «Ficha» y
   // dejaban esa columna el doble de larga que las otras.
-  const pdfHtml = !crmOk ? '' : `<section class="fx-card" id="pdfCard">
+  const pdfHtml = !crmOk ? '' : plegable('pdfCard', !versionesVisibles().length && !propia && !pdfAbierto, 'Fichas PDF · solo la General', `
         <div class="fx-vers">
           <h2>Fichas PDF <span class="fx-n">${versionesVisibles().length + conGeneral()}</span></h2>
           ${conGeneral() ? `<div class="fx-ver${vSel ? '' : ' on'}">
@@ -708,9 +728,9 @@ function pintar() {
           </div>
           <label>Liga del mapa<input class="base-in" data-f="mapa_url" value="${esc(ficha.mapa_url ?? '')}" placeholder="https://maps.app.goo.gl/…"></label>
           ${vSel ? '' : fotosEdHtml(fotosEnEdicion())}` : ''}
-        </details>
-      </section>`;
+        </details>`);
 
+  guardarFijos();      // render() reescribe #detail: Ubicación y Mercado salen antes y vuelven después
   document.getElementById('detail').innerHTML = `
     ${mosaicoHtml(l)}
     ${pasosHtml(nav)}
@@ -719,6 +739,7 @@ function pintar() {
         <h1>${esc(l.titulo ?? 'Sin título')}</h1>
         <p>${[l.direccion, l.tipo && cap(l.tipo), Anuncio.operacion(l), l.codigo, fuente].filter(Boolean).map(esc).join(' · ')}
           ${mapsLink(l) ? ` · <a href="${hrefSeguro(mapsLink(l))}" target="_blank" rel="noopener">ver en mapa</a>` : ''}</p>
+        ${anuncianteHtml()}
       </div>
       <div class="fx-band-p">
         ${ofs.length > 1 ? preciosDualHtml(l, ofs) : `
@@ -731,7 +752,7 @@ function pintar() {
            es una barra fija abajo (hermes.css). -->
       <div class="fx-acciones">
         <select class="fx-status s-${l.status}" id="detailStatus" aria-label="Estado" title="Estado: teclas 1 a 5">
-          ${Anuncio.ESTADOS.map(s => `<option${s === l.status ? ' selected' : ''}>${s}</option>`).join('')}
+          ${Anuncio.ESTADOS.map(s => `<option value="${s}"${s === l.status ? ' selected' : ''}>${Anuncio.etiquetaEstado(s)}</option>`).join('')}
         </select>
         <button class="fx-star${l.starred ? ' on' : ''}" id="detailStar" aria-pressed="${l.starred}" title="Destacar (S)" aria-label="Destacar">${l.starred ? '&#9733;' : '&#9734;'}</button>
         ${waLink(l.whatsapp) ? `<a class="fx-btn solid" href="${waLink(l.whatsapp)}" target="_blank" rel="noopener" aria-label="WhatsApp al anunciante"><span>WhatsApp<span class="fx-largo"> al anunciante</span></span></a>` : ''}
@@ -742,26 +763,28 @@ function pintar() {
             <button class="fx-mas-item" id="btnPdf"${crmOk ? '' : ' disabled'} title="Abre el cuadro de impresión de ${esc(nombrePdf(vSel))}.pdf: ahí se elige «Guardar como PDF»">Imprimir / guardar PDF</button>
             <button class="fx-mas-item" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
             ${!crmOk ? '' : esPropia(l) ? (ficha ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra la propiedad con todo lo que cuelga de ella">Eliminar propiedad</button>' : '') : (ficha
-              ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar del Catálogo</button>'
-              : '<button class="fx-mas-item" id="btnInmo" title="Guardarla en la bolsa propia, sin asignarla a nadie">+ Guardar en Catálogo</button>')}
+              ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar del Catálogo</button>' : '')}
           </div>
         </details>
       </div>
     </section>
-    ${crmOk && !ficha ? '<p class="fx-hint fx-catalogo fx-bolsa">Esta propiedad está en la Bolsa. Al agregar un documento o un contacto, o al asignarla a un cliente, pasa al Catálogo.</p>' : ''}
+    ${crmOk && !ficha && !esPropia(l) ? `<p class="fx-hint fx-catalogo fx-bolsa"><span>En la Bolsa: sin seguimiento del equipo.</span>
+      <button class="fx-btn solid" id="btnInmo" title="Guardarla en el Catálogo del equipo, sin asignarla a nadie. También pasa sola al agregar un documento, un contacto o un cliente.">Pasar al Catálogo</button></p>` : ''}
 
     <div class="fx-cols${PRESENTA_A ? ' pres' : ''}">
-      <section class="fx-card">
+      <div class="fx-stack" id="colFicha">
+      <section class="fx-card" id="fichaCard">
         <h2>Ficha</h2>
         <dl class="fx-facts">${facts.map(([k, v, ic]) => `<div><dt>${ic ? Iconos.de(ic, 12) : ''}${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
         ${l.descripcion ? `<p class="fx-desc">${esc(l.descripcion)}</p>` : ''}
         ${features.length ? `<ul class="fx-feat">${features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
       </section>
+      </div>
 
       ${/* Columna de enmedio: documentos y, debajo, el contacto del inmueble. Van en una
            pila para que la tercera columna siga siendo la de clientes. */''}
       <div class="fx-stack">
-      ${!crmOk ? crmCaja('crmDocs', 'Documentos y contacto') : `<section class="fx-card" id="docsCard">
+      ${!crmOk ? crmCaja('crmDocs', 'Documentos y contacto') : plegable('docsCard', !documentos.length, 'Documentos · 0', `
         <h2>Documentos <span class="fx-n">${hechos} / ${documentos.length}</span></h2>
         ${documentos.length ? `<div class="fx-prog"><span style="width:${Math.round(hechos / documentos.length * 100)}%"></span></div>` : ''}
         <div class="fx-docs">
@@ -782,10 +805,9 @@ function pintar() {
         </div>
         <p class="fx-hint">${subiendo.docs ? `Subiendo ${subiendo.docs} ${subiendo.docs === 1 ? 'archivo' : 'archivos'}&#8230;`
           : 'Puedes arrastrar archivos aquí: PDF, imágenes, Word, Excel… hasta 20 MB cada uno.'}</p>
-        <input type="file" id="docFile" multiple hidden>
-      </section>`}
+        <input type="file" id="docFile" multiple hidden>`)}
 
-      ${PRESENTA_A || !crmOk ? '' : `<section class="fx-card" id="ctoCard">
+      ${PRESENTA_A || !crmOk ? '' : plegable('ctoCard', !(ficha?.contactos ?? []).length, 'Contacto · sin datos', `
         <h2>Contacto <span class="fx-n">de quién tenemos el inmueble</span></h2>
         ${(ficha?.contactos ?? []).map((c, i) => `<div class="fx-cto" data-i="${i}">
             <select class="cto-in" data-k="rol" aria-label="Dueño o asesor">
@@ -800,8 +822,7 @@ function pintar() {
         <div class="fx-add">
           <button class="cto-add" data-rol="dueno">+ Dueño</button>
           <button class="cto-add" data-rol="asesor">+ Asesor</button>
-        </div>
-      </section>`}
+        </div>`)}
       ${pdfHtml}
       </div>
 
@@ -827,7 +848,36 @@ function pintar() {
         </section>
       </div>`}
     </div>`;
+  acomodarFijos();
   enlazar();
+}
+
+// Ubicación y Mercado viven fuera de #detail (render() lo reescribe entero y se llevaría
+// los mapas). Se meten en la rejilla de la ficha —Ubicación bajo la columna Ficha, Mercado
+// a todo lo ancho— y antes de cada render vuelven al contenedor fijo #fijos. Así el CSS
+// los ordena junto con las tarjetas (en el teléfono: Ficha, Ubicación, Mercado, y luego el CRM).
+function guardarFijos() {
+  const fijos = document.getElementById('fijos');
+  for (const id of ['ubicacion', 'mercado']) { const el = document.getElementById(id); if (el && fijos && el.parentNode !== fijos) fijos.appendChild(el); }
+}
+function acomodarFijos() {
+  const col = document.getElementById('colFicha'), cols = col?.parentNode;
+  if (!col) return;
+  col.appendChild(document.getElementById('ubicacion'));
+  cols.appendChild(document.getElementById('mercado'));
+  Ubicacion.redimensionar();
+}
+
+// El anunciante del portal —nombre y teléfono— a la vista, no sólo detrás del botón de
+// WhatsApp. En modo presentación no sale (es dato interno, como el contacto).
+function anuncianteHtml() {
+  if (PRESENTA_A || !anunciante) return '';
+  const nombre = (anunciante.nombre ?? '').trim(), tel = (anunciante.tel ?? '').trim();
+  const d = tel.replace(/\D/g, '');
+  if (!nombre && !tel) return '';
+  const telHtml = !tel ? '' : d.length >= 7
+    ? `<a class="fx-anun-tel" href="tel:${d.length === 10 ? '+52' : '+'}${d}">${esc(tel)}</a>` : esc(tel);
+  return `<p class="fx-anun">Anunciante: ${nombre ? `<b>${esc(nombre)}</b>` : '<i>sin nombre</i>'}${telHtml ? ` · ${telHtml}` : ''}</p>`;
 }
 
 // La caja de fotos del formulario (fotos.js).
@@ -872,9 +922,10 @@ function enlazar() {
 // Lo que cuelga de la ficha: sólo existe cuando el CRM cargó (ver `crm`).
 function enlazarCrm() {
   const $ = id => document.getElementById(id);
-  $('btnInmo') && ($('btnInmo').onclick = guardarEnInmobiliaria);
+  $('btnInmo') && ($('btnInmo').onclick = e => { e.currentTarget.disabled = true; guardarEnInmobiliaria(); });
   $('btnQuitar') && ($('btnQuitar').onclick = quitarDeInmobiliaria);
   $('pdfData').ontoggle = e => { pdfAbierto = e.target.open; };
+  document.querySelectorAll('details.fx-vacia').forEach(d => d.ontoggle = () => d.open ? abiertas.add(d.id) : abiertas.delete(d.id));
   // Una ficha guardada: su nombre la carga en el formulario; "PDF" la imprime.
   document.querySelectorAll('.fx-ver-n').forEach(b => b.onclick = () => { versionSel = b.dataset.v || null; pdfAbierto = true; render(); });
   document.querySelectorAll('.fx-ver-pdf').forEach(b => b.onclick = () => imprimirFicha(b.dataset.v || null));
@@ -1196,7 +1247,7 @@ async function atajoEstado(estado) {
 
 const ATAJOS = [
   ['<kbd>J</kbd> <kbd>K</kbd>', 'Propiedad siguiente o anterior de la búsqueda'],
-  [`<kbd>1</kbd> a <kbd>${Anuncio.ESTADOS.length}</kbd>`, 'Marcar el estado y pasar a la siguiente: ' + Anuncio.ESTADOS.map((x, i) => `${i + 1} ${x}`).join(' · ')],
+  [`<kbd>1</kbd> a <kbd>${Anuncio.ESTADOS.length}</kbd>`, 'Marcar el estado y pasar a la siguiente: ' + Anuncio.ESTADOS.map((x, i) => `${i + 1} ${Anuncio.etiquetaEstado(x)}`).join(' · ')],
   ['<kbd>S</kbd>', 'Destacar o quitar el destacado'],
   ['<kbd>Z</kbd>', 'Deshacer el último cambio de estado'],
   ['<kbd>&#8592;</kbd> <kbd>&#8594;</kbd>', 'Fotos, con el visor abierto'],
@@ -1327,11 +1378,6 @@ function imprimirFicha(versionId) {
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  await API.logout().catch(() => {});
-  location.replace('login.html');
-});
-
 const id = new URLSearchParams(location.search).get('id');
 // La propiedad se pinta en cuanto llega; el CRM (ficha, documentos, clientes), el mercado y
 // los anuncios hermanos se piden aparte y en paralelo, y ninguno retrasa a los demás.
@@ -1342,7 +1388,7 @@ async function iniciar() {
     document.getElementById('authBox').hidden = true;
     document.getElementById('userBox').hidden = false;
     if (!id) { detalle.innerHTML = '<p class="pg-empty">Falta el identificador de la propiedad.</p>'; return; }
-    listing = Anuncio.de(await API.get(`/listings/${encodeURIComponent(id)}`));
+    listing = await cargarAnuncio(id);
   } catch (err) {
     UI.errorCarga(detalle, `No se pudo cargar esta propiedad: ${err.message}`, iniciar);
     return;

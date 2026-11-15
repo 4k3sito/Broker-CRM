@@ -55,7 +55,12 @@ const F = {
 // nada: no es un valor que produzca tipo_norm(). Misma lista que TIPOS_COM en la API.
 const TIPOS_COM = ['oficina', 'local', 'bodega', 'terreno'];
 const MAX_LUGARES = 20;          // igual que en la API
-let filterStatus  = 'Todos';
+// Vista de triage: la Bolsa abre en «Pendientes» (todo menos Descartado y Rentado/Cerrado), y
+// «Todos» es una píldora más. El Catálogo, donde el equipo ya trabaja lo cerrado, abre en «Todos».
+// Estados de la API que «Pendientes» deja fuera.
+const ESTADOS_CERRADOS = ['Rentado', 'Descartado'];
+const ESTADO_DEFECTO = INMO ? 'Todos' : FiltrosURL.ESTADO_DEFECTO;
+let filterStatus  = ESTADO_DEFECTO;
 let filterStarred = false;
 let searchStreet  = '';
 let page = 1;
@@ -109,7 +114,7 @@ const paramsBase = (G = F) => ({
 async function cargarPagina() {
   const [lista, f] = await Promise.all([
     API.get(`/listings${API.qs({ ...paramsBase(), orden: F.orden,
-      estado: filterStatus !== 'Todos' ? Anuncio.estadoApi(filterStatus) : '',
+      ...estadoParams(),
       page, per_page: PAGE_SIZE })}`),
     // Las facetas ignoran el filtro de estado a propósito: alimentan las píldoras.
     API.get(`/listings/facets${API.qs(paramsBase())}`),
@@ -128,6 +133,25 @@ async function cargarPagina() {
 // actualizan en su sitio. Antes se llamaba a `render()` justo después del PUT sin esperarlo;
 // la lectura podía llegar antes que la escritura y la tarjeta volvía sola a su estado
 // anterior, además de perder el scroll y el foco (R1-12).
+// Rótulo de un valor del filtro de estado: «Rentado» se ve como «Cerrado»; la clave no cambia.
+const etiquetaFiltro = v => Anuncio.etiquetaEstado(v);
+// Cuántos inmuebles da cada valor del filtro de estado, según las facetas `f` (las píldoras y
+// el «Ver N» de la hoja de filtros). «Pendientes» es el total menos lo cerrado.
+const cuentaDe = (v, f) => {
+  const pe = f?.por_estado ?? {}, de = k => pe[Anuncio.estadoApi(k)] ?? 0;
+  return v === 'Todos' ? f?.total
+    : v === 'Pendientes' ? Math.max(0, (f?.total ?? 0) - ESTADOS_CERRADOS.reduce((a, k) => a + de(k), 0))
+    : pe[Anuncio.estadoApi(v)] ?? 0;
+};
+// ≤760 px: la ficha se abre en la misma pestaña y el mapa ocupa toda la pantalla bajo un botón.
+const TELEFONO = matchMedia('(max-width: 760px)');
+const esTelefono = () => TELEFONO.matches;
+// ¿Este estado entra en el filtro de estado activo?
+const coincideEstado = st => filterStatus === 'Todos' || (filterStatus === 'Pendientes' ? !ESTADOS_CERRADOS.includes(st) : st === filterStatus);
+// Lo que la API recibe del filtro de estado: uno (`estado`), o los que se excluyen (`estado_excluir`).
+const estadoParams = () => filterStatus === 'Todos' ? {}
+  : filterStatus === 'Pendientes' ? { estado_excluir: ESTADOS_CERRADOS.map(Anuncio.estadoApi) }
+  : { estado: Anuncio.estadoApi(filterStatus) };
 const cuentaEstado = (clave, d) => { facetas.por_estado[clave] = Math.max(0, (facetas.por_estado[clave] ?? 0) + d); };
 function moverCuentas(antes, despues) {
   if (antes.status !== despues.status) {
@@ -148,7 +172,7 @@ function pintarEstado(id) {
   card.classList.add(`status-${l.status.toLowerCase()}`);
   // Si el filtro activo ya no la incluiría, se atenúa hasta el siguiente filtro en vez de
   // desaparecer bajo el dedo.
-  card.classList.toggle('fuera', (filterStatus !== 'Todos' && l.status !== filterStatus) || (filterStarred && !l.starred));
+  card.classList.toggle('fuera', !coincideEstado(l.status) || (filterStarred && !l.starred));
   const star = card.querySelector('.btn-star');
   star.innerHTML = l.starred ? '&#9733;' : '&#9734;';
   star.title = l.starred ? 'Quitar destacado' : 'Destacar';
@@ -156,7 +180,7 @@ function pintarEstado(id) {
   star.setAttribute('aria-pressed', !!l.starred);
   const sel = card.querySelector('.status-select');
   sel.value = l.status;
-  sel.className = `status-select s-${l.status}`;
+  sel.className = `status-select estado-lite s-${l.status}`;
   card.querySelector('.status-dot').style.background = `var(--s-${l.status.toLowerCase()})`;
 }
 
@@ -191,7 +215,7 @@ async function setState(id, patch, sinAviso = false) {
       { que: 'status' in patch ? 'el estado' : 'el destacado', revertir: () => poner(id, previo) });
   } catch { return; }      // UI.guardar ya avisó y revirtió
   if (sinAviso) return;
-  const msg = 'status' in patch ? `Marcado como ${patch.status}`
+  const msg = 'status' in patch ? `Marcado como ${Anuncio.etiquetaEstado(patch.status)}`
     : patch.starred ? 'Agregado a destacados' : 'Quitado de destacados';
   toast(msg, () => setState(id, previo, true));
 }
@@ -296,8 +320,9 @@ function renderCard(l) {
   const sel = seleccion.has(l.id);
   const ins = Anuncio.insignia(l), mercado = Anuncio.tiempoEnMercado(l);
   // El título es el enlace de la tarjeta, extendido a toda ella con ::after (CSS): clic medio,
-  // Ctrl+clic, «copiar dirección del enlace» y Tab funcionan. La ficha abre en otra pestaña a
-  // propósito, para que «Volver» la cierre y la búsqueda siga en ésta.
+  // Ctrl+clic, «copiar dirección del enlace» y Tab funcionan. En escritorio la ficha abre en otra
+  // pestaña a propósito, para que «Volver» la cierre y la búsqueda siga en ésta; en el teléfono
+  // (≤760 px) abre en la misma, sin `target`.
   return `<article class="card ${l.starred ? 'starred' : ''}${sel ? ' sel' : ''} status-${l.status.toLowerCase()}" data-id="${esc(l.id)}">
     <div class="card-img">
       ${imgHtml}
@@ -315,9 +340,10 @@ function renderCard(l) {
           ${dup ? `<div class="card-dup" title="Anuncios del mismo inmueble, fusionados en esta tarjeta">${dup}</div>` : ''}
         </div>
       </div>
-      <div class="card-title"><a class="card-link" href="listing.html?id=${encodeURIComponent(l.id)}" target="_blank" rel="opener" title="${esc(l.titulo ?? '')}">${esc(l.titulo || 'Ver el inmueble')}</a></div>
+      <div class="card-title"><a class="card-link" href="listing.html?id=${encodeURIComponent(l.id)}"${esTelefono() ? '' : ' target="_blank" rel="opener"'} title="${esc(l.titulo ?? '')}">${esc(l.titulo || 'Ver el inmueble')}</a></div>
       ${Anuncio.ubicacion(l) ? `<div class="card-dir" title="${esc(Anuncio.ubicacion(l))}">${ICON_PIN}<span class="card-dir-t">${esc(Anuncio.ubicacion(l))}</span></div>` : ''}
       ${hechosHtml(l)}
+      ${l.anunciante && l.anunciante !== l.titulo ? `<div class="card-anunciante" title="Anunciante: ${esc(l.anunciante)}">${esc(l.anunciante)}</div>` : ''}
       <div class="card-tags">
         ${l.tipo ? `<span class="tag-tipo">${esc(l.tipo)}</span>` : ''}
         ${Anuncio.operacion(l) ? `<span class="tag-txn">${esc(Anuncio.operacion(l))}</span>` : ''}
@@ -327,8 +353,8 @@ function renderCard(l) {
       <div class="card-pie">
         <div class="card-status">
           <span class="status-dot" style="background:var(--s-${l.status.toLowerCase()})"></span>
-          <select class="status-select s-${l.status}" aria-label="Estado">
-            ${Anuncio.ESTADOS.map(st => `<option${st === l.status ? ' selected' : ''}>${st}</option>`).join('')}
+          <select class="status-select estado-lite s-${l.status}" aria-label="Estado">
+            ${Anuncio.ESTADOS.map(st => `<option value="${st}"${st === l.status ? ' selected' : ''}>${Anuncio.etiquetaEstado(st)}</option>`).join('')}
           </select>
         </div>
         ${mercado ? `<span class="card-mercado" title="En el mercado desde al menos el ${esc(Anuncio.fecha(l.desde))}">${esc(mercado)} en mercado</span>` : ''}
@@ -345,7 +371,7 @@ function renderCard(l) {
 const ubicacionDeFabrica = () => !F.lugares.length && (!F.near || (F.nearTxt === CENTRO_NOMBRE && Number(F.radio) === areaInicial().radio));
 function deFabrica() {
   return ubicacionDeFabrica() && !F.cliente && FB_CLAVES.every(k => k === 'ubicacion' || !fbPuesto[k]())
-    && !F.q && !searchStreet && filterStatus === 'Todos' && !filterStarred && F.orden === 'recientes';
+    && !F.q && !searchStreet && filterStatus === ESTADO_DEFECTO && !filterStarred && F.orden === 'recientes';
 }
 // Cuántos filtros hay puestos, para el botón «Filtros (n)» del teléfono. Cuenta también la
 // ubicación de fábrica («Monterrey · 10 km»): restringe los resultados aunque no la pusiera
@@ -363,19 +389,38 @@ function renderTokens() {
       <button class="tok-del" data-campo="cliente" title="Quitar" aria-label="Quitar el filtro del cliente ${esc(F.cliente.nombre)}">&times;</button>
     </span>` : '';
   document.getElementById('qbar-clear').hidden = deFabrica();
+  renderChipsMovil();
   const n = fbCuenta();
   document.getElementById('fbTodosN').textContent = n ? ` (${n})` : '';
 }
 
+// Teléfono (≤760 px, CSS): los filtros puestos —con la ubicación de fábrica «Monterrey · 10 km»—
+// como una fila compacta que se desliza. El texto es el valor y no «Etiqueta: valor», para que
+// quepan; tocar uno abre la hoja de filtros y la × lo quita. Se pinta siempre y el CSS decide
+// si se ve, así que el teléfono no depende de que se redimensione la ventana.
+function renderChipsMovil() {
+  const box = document.getElementById('chipsMovil'), l = filtrosPuestos();
+  box.hidden = !l.length;
+  box.innerHTML = l.map((f, i) => `<span class="chip-m"><button type="button" class="chip-m-v" data-abre>${esc(f.corto)}</button>` +
+    `<button type="button" class="chip-m-x" data-quitar="${i}" aria-label="Quitar ${esc(f.texto)}" title="Quitar">&times;</button></span>`).join('');
+}
+document.getElementById('chipsMovil').addEventListener('click', e => {
+  const x = e.target.closest('[data-quitar]');
+  if (x) return filtrosPuestos()[Number(x.dataset.quitar)]?.quitar();
+  const v = e.target.closest('[data-abre]');
+  if (v) fbAbrir('todos', document.getElementById('fbTodos'));
+});
+
 // Lo que hay puesto y puede estorbar, cada cosa con su forma de quitarla: el vacío del
 // tablero le dice a la persona cuál es el filtro, en vez de pedirle que «quite un token».
 function filtrosPuestos() {
-  const l = FB_CLAVES.filter(k => fbPuesto[k]()).map(k => ({ texto: `${FB_TITULO[k]}: ${fbResumen[k]()}`, quitar: () => fbQuitar(k) }));
-  if (F.q || searchStreet) l.push({ texto: `Búsqueda: «${searchStreet || F.q}»`, quitar: () => {
+  const l = FB_CLAVES.filter(k => fbPuesto[k]()).map(k => ({ texto: `${FB_TITULO[k]}: ${fbResumen[k]()}`, corto: fbResumen[k](), quitar: () => fbQuitar(k) }));
+  if (F.q || searchStreet) l.push({ texto: `Búsqueda: «${searchStreet || F.q}»`, corto: `«${searchStreet || F.q}»`, quitar: () => {
     clearTimeout(busquedaEspera); F.q = ''; searchStreet = ''; searchInput.value = '';
     document.getElementById('searchChip').hidden = true; page = 1; render(); } });
-  if (filterStatus !== 'Todos') l.push({ texto: `Estado: ${filterStatus}`, quitar: () => { filterStatus = 'Todos'; page = 1; render(); } });
-  if (filterStarred) l.push({ texto: 'Sólo destacados', quitar: () => { filterStarred = false; page = 1; render(); } });
+  if (filterStatus !== ESTADO_DEFECTO) l.push({ texto: `Estado: ${etiquetaFiltro(filterStatus)}`, corto: etiquetaFiltro(filterStatus),
+    quitar: () => { filterStatus = ESTADO_DEFECTO; page = 1; render(); } });
+  if (filterStarred) l.push({ texto: 'Sólo destacados', corto: 'Destacados', quitar: () => { filterStarred = false; page = 1; render(); } });
   return l;
 }
 
@@ -400,18 +445,22 @@ function pintarVacio(grid) {
 // ── Render ───────────────────────────────────────────────────────────────────
 
 function renderStatusPills() {
-  const n = v => v === 'Todos' ? facetas.total : (facetas.por_estado[Anuncio.estadoApi(v)] ?? 0);
-  const todos = ['Todos', ...Anuncio.ESTADOS];
-  // Una píldora en cero pesaba lo mismo que las que tienen datos: se atenúa (R1-44).
-  document.getElementById('statusPills').innerHTML = todos.map(v =>
-    `<button class="pill${filterStatus === v ? ' active' : ''}${n(v) === 0 && filterStatus !== v ? ' cero' : ''}" data-group="status" data-val="${v}">` +
-    `${v}<span class="pill-count">${mx(n(v))}</span></button>`).join('');
-  // En el teléfono las siete píldoras no caben y se cortaban («Todos 11,09»): ahí el estado
+  const n = v => cuentaDe(v, facetas);
+  const todos = ['Pendientes', 'Todos', ...Anuncio.ESTADOS];
+  // Una píldora sin nada que enseñar sobraba: se esconde la que vale cero y la que vale lo
+  // mismo que «Todos» (Nuevo 11,378 = Todos). Siempre se ve la activa, para poder quitarla.
+  const visible = v => v === 'Todos' || filterStatus === v || (n(v) > 0 && n(v) !== facetas.total);
+  document.getElementById('statusPills').innerHTML = todos.filter(visible).map(v =>
+    `<button class="pill${filterStatus === v ? ' active' : ''}" data-group="status" data-val="${v}">` +
+    `${etiquetaFiltro(v)}<span class="pill-count">${mx(n(v))}</span></button>`).join('');
+  // En el teléfono las píldoras no caben y se cortaban («Todos 11,09»): ahí el estado
   // es un <select> en su propia fila, con el total completo (R1-09).
-  document.getElementById('estadoSel').innerHTML = todos.map(v =>
-    `<option value="${v}"${filterStatus === v ? ' selected' : ''}>Estado: ${v} (${mx(n(v))})</option>`).join('');
-  document.getElementById('pill-starred').classList.toggle('active', filterStarred);
-  document.getElementById('pill-starred').classList.toggle('cero', !facetas.destacados && !filterStarred);
+  document.getElementById('estadoSel').innerHTML = todos.filter(visible).map(v =>
+    `<option value="${v}"${filterStatus === v ? ' selected' : ''}>Estado: ${etiquetaFiltro(v)} (${mx(n(v))})</option>`).join('');
+  const star = document.getElementById('pill-starred');
+  // Destacados en cero se esconde salvo que esté activo.
+  star.hidden = !facetas.destacados && !filterStarred;
+  star.classList.toggle('active', filterStarred);
   document.getElementById('starredCount').textContent = mx(facetas.destacados);
 }
 
@@ -534,7 +583,7 @@ function sincronizarURL() {
     near: sigue ? '' : F.near, near_txt: F.nearTxt, radio: F.radio, mapa: sigue ? Mapa.vista() : null,
     orden: F.orden, lugares: F.lugares, tipos: F.tipos, usos: F.usos, carac: caracPuesta(),
     pcliente: INMO ? F.pcliente : '', asesor: INMO ? F.asesor : '', etapas: INMO ? F.etapas : [],
-    estado: filterStatus, destacados: filterStarred, pagina: page,
+    estado: filterStatus, estado_defecto: ESTADO_DEFECTO, destacados: filterStarred, pagina: page,
   });
   const url = location.pathname + (qs ? `?${qs}` : '') + location.hash;
   if (url !== location.pathname + location.search + location.hash) history.replaceState(null, '', url);
@@ -565,7 +614,7 @@ function restaurarScroll() {
 // Lo que trae la URL al abrir. Lo que no viene o no es válido se queda de fábrica.
 function aplicarURL() {
   const u = FiltrosURL.leer(location.search, {
-    tipos: TIPOS_COM, ordenes: Object.keys(ORDENES), estados: ['Todos', ...Anuncio.ESTADOS], maxLugares: MAX_LUGARES, usos: Object.keys(USOS),
+    tipos: TIPOS_COM, ordenes: Object.keys(ORDENES), estados: ['Todos', 'Pendientes', ...Anuncio.ESTADOS], maxLugares: MAX_LUGARES, usos: Object.keys(USOS),
   });
   for (const k of ['q', 'operacion', 'fuente', 'precio_min', 'precio_max', 'm2_min', 'm2_max', 'm2_de', 'ppm_min', 'ppm_max', 'orden'])
     if (u[k] != null) F[k] = u[k];
@@ -599,7 +648,7 @@ function limpiarTodo() {
   F.pcliente = ''; F.etapas = []; F.asesor = '';
   fbCerrar();
   clearTimeout(busquedaEspera);
-  F.q = ''; searchStreet = ''; filterStatus = 'Todos'; filterStarred = false;
+  F.q = ''; searchStreet = ''; filterStatus = ESTADO_DEFECTO; filterStarred = false;
   document.getElementById('searchInput').value = '';
   document.getElementById('searchChip').hidden = true;
   cerrarSug();
@@ -674,8 +723,7 @@ function exportCSV() {
   // visible —el botón decía «CSV» y no lo aclaraba— y el asesor lo mandaba al cliente
   // creyendo que iba el inventario filtrado. `API.descargar` ya sabe de 401 y de
   // errores con motivo, así que un fallo se dice en la página y no en un JSON.
-  const qs = API.qs({ ...paramsBase(), orden: F.orden,
-    estado: filterStatus !== 'Todos' ? Anuncio.estadoApi(filterStatus) : '' });
+  const qs = API.qs({ ...paramsBase(), orden: F.orden, ...estadoParams() });
   toast(`Preparando el CSV de ${mx(totalFiltrado)} inmuebles…`);
   API.descargar(`/listings.csv${qs}`)
      .then(n => toast(`CSV listo: ${mx(n ?? totalFiltrado)} inmuebles`))
@@ -880,7 +928,7 @@ function fbContar() {
     let f = null;
     try { f = await API.get(`/listings/facets${API.qs(params)}`); } catch { return; }
     if (mio !== fbContarPeticion || !fbAbierto || !boton()) return;
-    const n = filterStatus === 'Todos' ? f?.total : f?.por_estado?.[Anuncio.estadoApi(filterStatus)];
+    const n = cuentaDe(filterStatus, f);
     if (Number.isFinite(n)) boton().textContent = `Ver ${mx(n)}`;
   }, 350);
 }
@@ -1331,7 +1379,9 @@ document.getElementById('grid').addEventListener('click', e => {
   // Arrastrar para copiar una dirección o un precio no debe abrir la ficha al soltar.
   if (String(getSelection()).trim()) return;
   // La ficha abre en otra pestaña: la búsqueda se queda donde estaba en ésta.
-  window.open(`listing.html?id=${encodeURIComponent(id)}`, '_blank');
+  // En el teléfono se abre en la misma pestaña (no hay pestañas a la vista): «Volver» regresa aquí.
+  const url = `listing.html?id=${encodeURIComponent(id)}`;
+  if (esTelefono()) location.href = url; else window.open(url, '_blank');
 });
 
 // Hover tarjeta → pin. mouseover burbujea; se ignoran los movimientos internos. El foco del
@@ -1408,7 +1458,35 @@ const inm = document.getElementById('inm');
 // de un monitor grande no decida la de la laptop.
 const CHICO = matchMedia('(max-width: 1366px)').matches;
 const VISTA_KEY = matchMedia('(max-width: 900px)').matches ? 'ol-vista-movil' : CHICO ? 'ol-vista-media' : 'ol-vista';
+// Teléfono (≤760 px): «Mapa» enseña el mapa solo, a todo lo ancho, en lugar de la lista, y
+// «Lista» regresa a la vista que había. El CSS de `.solo-mapa` (hermes.css) esconde la lista.
+const mapaToggle = document.getElementById('mapaToggle');
+let vistaAntesDelMapa = 'grid';
+function ponerSoloMapa(v) {
+  if (v === inm.classList.contains('solo-mapa')) return;
+  if (v) {
+    vistaAntesDelMapa = inm.classList.contains('split') ? 'split' : 'grid';
+    inm.classList.add('solo-mapa', 'split');
+    inm.classList.remove('grid-only');
+  } else {
+    inm.classList.remove('solo-mapa');
+    inm.classList.toggle('split', vistaAntesDelMapa === 'split');
+    inm.classList.toggle('grid-only', vistaAntesDelMapa !== 'split');
+  }
+  mapaToggle.textContent = v ? 'Lista' : 'Mapa';
+  mapaToggle.setAttribute('aria-pressed', String(v));
+  // El mapa estaba en un contenedor de 0 px: sin esto sale en blanco o desencuadrado.
+  requestAnimationFrame(() => Mapa.resize());
+}
+mapaToggle.addEventListener('click', () => ponerSoloMapa(!inm.classList.contains('solo-mapa')));
+// Al ensanchar la ventana (girar el teléfono) deja de haber «Mapa» y «Lista».
+TELEFONO.addEventListener('change', e => { if (!e.matches) ponerSoloMapa(false); });
+
 function ponerVista(v) {
+  // Elegir una vista desde la hoja de filtros también sale del mapa a pantalla completa.
+  inm.classList.remove('solo-mapa');
+  mapaToggle.textContent = 'Mapa';
+  mapaToggle.setAttribute('aria-pressed', 'false');
   inm.classList.toggle('split', v === 'split');
   inm.classList.toggle('grid-only', v !== 'split');
   document.querySelectorAll('.seg [data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === v));
@@ -1426,6 +1504,8 @@ ponerVista((() => { try { return localStorage.getItem(VISTA_KEY); } catch { retu
 Mapa.init(document.getElementById('map'), {
   operacion: () => F.operacion,
   onPin: id => {
+    // Con el mapa a pantalla completa (teléfono) la tarjeta no se ve: se vuelve a la lista.
+    if (inm.classList.contains('solo-mapa')) ponerSoloMapa(false);
     const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
     if (!card) return;
     const list = document.getElementById('inmList');
@@ -1594,10 +1674,10 @@ document.getElementById('trayEstado').addEventListener('change', async e => {
   if (!nuevo) return;
   // Sólo las que cambian: mandar un PUT por las que ya estaban así es ruido.
   const previos = new Map([...seleccion.values()].filter(l => l.status !== nuevo).map(l => [l.id, l.status]));
-  if (!previos.size) return toast(`Las ${seleccion.size} ya estaban en ${nuevo}`);
+  if (!previos.size) return toast(`Las ${seleccion.size} ya estaban en ${Anuncio.etiquetaEstado(nuevo)}`);
   const { ok, fallidos } = await estadoEnLote([...previos.keys()].map(id => [id, nuevo]));
   const unidad = ok.length === 1 ? 'inmueble' : 'inmuebles';
-  toast(`${ok.length} ${unidad} → ${nuevo}` +
+  toast(`${ok.length} ${unidad} → ${Anuncio.etiquetaEstado(nuevo)}` +
         (fallidos.length ? `. ${fallidos.length} no se ${fallidos.length === 1 ? 'pudo guardar' : 'pudieron guardar'}.` : ''),
     ok.length ? async () => {
       const r = await estadoEnLote(ok.map(id => [id, previos.get(id)]));
@@ -1727,11 +1807,6 @@ document.getElementById('nueva-prop').addEventListener('click', async () => {
     const f = await API.post('/fichas', { titulo });
     location.href = `listing.html?id=${encodeURIComponent('pipeline:' + f.id)}`;
   } catch (err) { toast('No se pudo crear la propiedad: ' + err.message); }
-});
-
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  await API.logout().catch(() => {});
-  location.replace('login.html');
 });
 
 // ── Init ─────────────────────────────────────────────────────────────────────

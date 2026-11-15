@@ -12,13 +12,16 @@ let searchQ = '';
 let selId = decodeURIComponent(location.hash.slice(1)) || null;
 // "Volver" desde la ficha completa de una propiedad (listing.js) regresa con
 // `?proc=<id>`: esa fila se abre y se trae a la vista, que es donde se estaba.
+// También lo usan las ligas de otras páginas (tareas): el cliente dueño del proceso se
+// abre solo (`iniciar`), y la fila se resalta un momento (`resaltar`).
 let volverA = new URLSearchParams(location.search).get('proc');
 if (volverA) history.replaceState(null, '', location.pathname + location.hash);
+let resaltar = null;        // id del proceso cuya fila se marca al llegar por `?proc=`
 let equipo = [];            // personas con cuenta, para el selector de "Cuenta"
 let critAbierto = null;     // qué criterio se está editando en el menú de "Qué busca"
 let lugarSugs = [];         // sugerencias del autocompletado de ubicación
 let filterCuenta = 'all';   // lista: 'all' | 'none' (sin asignar) | id de quien lleva la cuenta
-let filterEstatus = 'all';  // lista: 'all' | 'none' (sin estatus) | llave de ESTATUS
+let filterEstatus = 'all';  // seguimiento. lista: 'all' | 'none' (sin seguimiento) | llave de ESTATUS
 let filterAsesor = 'all';   // lista: 'all' | id de quien presentó alguna de sus propiedades
 let abierto = null;         // id del proceso cuya fila está desplegada
 let colsAbierto = false;    // el menú de "Columnas"
@@ -80,7 +83,7 @@ async function createCliente(patch) {
     seleccionar(c.id);
   } catch (err) { UI.aviso('No se pudo crear el cliente: ' + err.message); }
 }
-const ROTULO = { nombre: 'el nombre', empresa: 'la empresa', estatus: 'el estatus', requerimientos: 'las notas del cliente' };
+const ROTULO = { nombre: 'el nombre', empresa: 'la empresa', estatus: 'el seguimiento', requerimientos: 'las notas del cliente' };
 function saveCliente(id, field, value) {
   const c = clientes.find(x => String(x.id) === String(id));
   if (!c || c[field] === value) return;
@@ -118,9 +121,10 @@ function setProcesoStatus(procId, status) {
     que: 'la etapa',
     revertir: () => { if (proc) proc.status = antes; if (motivoDe === String(procId)) motivoDe = null; render(); },
   }).catch(() => {});
-  // Debajo de la fila, una línea opcional con el porqué (por qué se descartó, qué falta
-  // para cerrar…). En presentación no: el cliente está viendo la pantalla.
-  motivoDe = presentando ? null : String(procId);
+  // Debajo de la fila, una línea opcional con el porqué, sólo al salirse del camino
+  // (pausa o rechazo: por qué se descartó, qué se espera). En las demás etapas no estorba.
+  // En presentación tampoco: el cliente está viendo la pantalla.
+  motivoDe = presentando || !etapaPideMotivo(status) ? null : String(procId);
   render();
 }
 // El porqué de un cambio de etapa va a las notas de la propiedad con este cliente, en
@@ -353,7 +357,7 @@ function traeHtml(p) {
     ? `<span class="tk-ava" style="background:${tono(p.trae_id ?? quien)}">${esc(iniciales(quien.replace('/', ' ')))}</span><span class="cl-trae-n">${esc(quien)}</span>`
     : '<span class="tk-ava sin">&#8212;</span><span class="cl-trae-n sin">Sin asignar</span>'}</span>`;
 }
-// Estatus del cliente: en qué va la relación con él. No es la etapa —esa sale de sus
+// Seguimiento del cliente (`cliente.estatus` en la base): en qué va la relación con él. No es la etapa —esa sale de sus
 // propiedades—; lo marca el asesor en la ficha del cliente (`cliente.estatus`).
 const ESTATUS = [
   { key: 'activo',        label: 'Activo' },
@@ -506,9 +510,9 @@ function pintarWhats(c, box) {
     ? `<a class="fx-btn" href="${esc(url)}" target="_blank" rel="noopener">WhatsApp</a>` : '';
 }
 function estatusHtml(c) {
-  return `<label class="cl-f"><span>Estatus</span>
+  return `<label class="cl-f"><span>Seguimiento</span>
     <select class="cl-sel${c.estatus ? ` est-${esc(c.estatus)}` : ''}" id="clEstatus">
-      <option value="">Sin estatus</option>
+      <option value="">Sin seguimiento</option>
       ${ESTATUS.map(e => `<option value="${e.key}"${e.key === c.estatus ? ' selected' : ''}>${e.label}</option>`).join('')}
     </select></label>`;
 }
@@ -681,15 +685,15 @@ function renderLista() {
     `<option value="${esc(p.id)}">${esc(nombreDe(p))} (${porAsesor[String(p.id)] ?? 0})</option>`).join('');
   fa.value = filterAsesor;
   fa.classList.toggle('on', filterAsesor !== 'all');
-  // Cuántos hay de cada estatus, con la búsqueda y la cuenta ya aplicadas.
+  // Cuántos hay de cada seguimiento, con la búsqueda y la cuenta ya aplicadas.
   const fe = document.getElementById('fEstatus');
   const sinEst = cuentaEstatus();
   fe.innerHTML = `<option value="all">Todos</option>` +
     ESTATUS.map(e => `<option value="${e.key}">${e.label} (${sinEst[e.key] ?? 0})</option>`).join('') +
-    `<option value="none">Sin estatus (${sinEst.none ?? 0})</option>`;
+    `<option value="none">Sin seguimiento (${sinEst.none ?? 0})</option>`;
   fe.value = filterEstatus;
   fe.classList.toggle('on', filterEstatus !== 'all');
-  // «Etapa»: los clientes con al menos una propiedad en esa etapa
+  // «Con inmueble en etapa»: los clientes con al menos una propiedad en esa etapa
   // (etapas.js). Cuenta sobre lo que ya pasó la búsqueda y los otros dos filtros.
   const base = clientes.filter(pasaBase);
   const ft = document.getElementById('fEtapa');
@@ -721,7 +725,7 @@ function renderLista() {
     return `<div class="cl-item${String(c.id) === selId ? ' on' : ''}" data-id="${esc(c.id)}" role="button" tabindex="0">
       <span class="cl-grip" title="Arrastra para cambiar el orden" aria-hidden="true">&#8942;&#8942;</span>
       <span class="cl-ava">${esc(iniciales(c.nombre))}</span>
-      <span class="cl-txt"><b>${esc(c.nombre)}</b><small>${c.estatus ? `<i class="cl-est est-${esc(c.estatus)}">${esc(estatusLabel(c.estatus) ?? c.estatus)}</i>` : ''}${(t => t ? `<span>${esc(t)}</span>` : '')(pildoras(c.criterios ?? {}).map(p => p.txt).join(' · ') || c.requerimientos || c.empresa || '')}</small></span>
+      <span class="cl-txt"><b>${esc(c.nombre)}</b><small>${c.estatus ? `<i class="cl-est est-${esc(c.estatus)}" title="Seguimiento: ${esc(estatusLabel(c.estatus) ?? c.estatus)}"><span class="sr-only">Seguimiento: </span>${esc(estatusLabel(c.estatus) ?? c.estatus)}</i>` : ''}${(t => t ? `<span>${esc(t)}</span>` : '')(pildoras(c.criterios ?? {}).map(p => p.txt).join(' · ') || c.requerimientos || c.empresa || '')}</small></span>
       <span class="cl-meta">
         <span class="cl-bars" role="img" aria-label="${leyenda}" title="${leyenda}"><i style="width:${w(cuenta(ps, 'presentado'))};background:var(--s-presentado)"></i><i style="width:${w(cuenta(ps, 'aprobado'))};background:var(--s-aprobado)"></i><i style="width:${w(cuenta(ps, 'rechazado'))};background:var(--s-rechazado)"></i></span>
         <small>${ps.length} prop.</small>
@@ -998,6 +1002,8 @@ function propiedadesHtml(c) {
   const ps = c.proceso ?? [];
   colsFila = colsQueCaben();
   const visibles = ps.filter(seVe);
+  // Las prendidas que `colsQueCaben` escondió por falta de ancho.
+  const nOcultas = colsVisibles().filter(col => !(presentando && col.k === 'tareas')).length - colsFila.length;
   // Quién ha presentado algo a este cliente, para el filtro. Sin repetir.
   const quienes = [...new Map(ps.filter(p => traeKey(p)).map(p => [traeKey(p), p.trae_nombre || p.trae])).entries()];
   return `
@@ -1014,17 +1020,18 @@ function propiedadesHtml(c) {
         ${quienes.map(([k, n]) => `<option value="${esc(k)}"${propTrae === k ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : ''}
       <span class="cl-colswrap">
         <button class="cl-btn" id="colsBtn" aria-expanded="${colsAbierto}">Columnas</button>
+        ${nOcultas ? `<span class="cl-colsnota" id="colsNota">${nOcultas} ${nOcultas === 1 ? 'columna oculta' : 'columnas ocultas'} por espacio</span>` : ''}
         ${colsAbierto ? `<div class="crit-pop cl-colspop">${COLS.filter(col => !(presentando && col.k === 'tareas')).map(col =>
           `<label><input type="checkbox" class="cl-colchk" value="${col.k}"${colsOn.includes(col.k) ? ' checked' : ''}>${col.label}${
             colsOn.includes(col.k) && !colsFila.includes(col) ? '<small>no cabe en este ancho</small>' : ''}</label>`).join('')}</div>` : ''}
       </span>
       <span class="cl-catwrap">
-        <button class="cl-proponer" id="catBtn" aria-expanded="${catAbierto}">+ Proponer desde Cat&#225;logo</button>
+        <button class="cl-proponer" id="catBtn" aria-expanded="${catAbierto}">+ Proponer del Cat&#225;logo</button>
         ${catAbierto ? `<div class="crit-pop cl-catpop">
           <input type="search" id="catQ" value="${esc(catQ)}" placeholder="Buscar por t&#237;tulo&#8230;" aria-label="Buscar en el Cat&#225;logo" autocomplete="off">
           <div class="cl-catlist" id="catList">${catalogoListaHtml(c)}</div></div>` : ''}
       </span>
-      <a class="cl-proponer cl-proponer-2" href="index.html">+ Proponer desde Bolsa</a>
+      <a class="cl-proponer cl-proponer-2" href="index.html">+ Proponer de la Bolsa</a>
     </div>
     <div class="cl-table" style="${rejilla(colsFila)}">
       ${ps.length ? `<div class="cl-tr cl-th"><span></span><span>N°</span><span></span><span>Inmueble</span>
@@ -1070,7 +1077,12 @@ function renderDetalle() {
     cargarTareas(String(c.id));
   }
   const traer = volverA && (c.proceso ?? []).some(p => String(p.id) === volverA);
-  if (traer) abierto = volverA;
+  if (traer) {
+    abierto = resaltar = volverA;
+    // Una etapa que la tabla esconde (cerrado, finalizado, rechazado) se suma a lo visible.
+    const st = c.proceso.find(p => String(p.id) === volverA).status;
+    if (OCULTAS.has(st)) propEtapas.add(st);
+  }
   volverA = null;
   box.innerHTML = `
     <div class="cl-head" tabindex="-1">
@@ -1123,7 +1135,13 @@ function renderDetalle() {
   });
   document.getElementById('clBack').addEventListener('click', () => seleccionar(null));
   document.getElementById('clPres').addEventListener('click', () => presentar(!presentando));
-  if (traer) box.querySelector('.cl-tr.open')?.scrollIntoView({ block: 'center' });
+  if (traer) {
+    box.querySelector('.cl-tr.open')?.scrollIntoView({ block: 'center' });
+    const fila = box.querySelector(`.cl-tr[data-proc="${CSS.escape(String(resaltar))}"]`);
+    fila?.classList.add('cl-resalta');
+    setTimeout(() => fila?.classList.remove('cl-resalta'), 2400);
+    resaltar = null;
+  }
 }
 
 function render() {
@@ -1401,11 +1419,6 @@ document.addEventListener('keydown', e => {
   const j = e.key === 'ArrowDown' ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1);
   if (ids[j] && j !== i) { e.preventDefault(); seleccionar(ids[j]); }
 });
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  await API.logout().catch(() => {});
-  location.replace('login.html');
-});
-
 // Un fallo al cargar no es «no hay clientes»: se dice, con un botón para reintentar.
 async function iniciar() {
   const lista = document.getElementById('clList');
@@ -1416,7 +1429,9 @@ async function iniciar() {
     document.getElementById('userBox').hidden = false;
     let sinEquipo = false;
     [equipo] = await Promise.all([API.get('/equipo').catch(() => { sinEquipo = true; return []; }), loadClientes()]);
-    render();
+    // `?proc=<id>`: abre al cliente dueño de ese proceso (si el id no existe, queda lo de siempre).
+    const dueno = volverA && clientes.find(c => (c.proceso ?? []).some(p => String(p.id) === String(volverA)));
+    if (dueno) seleccionar(dueno.id); else render();
     if (sinEquipo) UI.aviso('No se pudo cargar la lista del equipo: los filtros por persona saldrán vacíos.');
   } catch (err) {
     UI.errorCarga(lista, `No se pudieron cargar los clientes: ${err.message}`, iniciar);

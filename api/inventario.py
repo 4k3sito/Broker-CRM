@@ -360,6 +360,10 @@ def _filtros(a: dict) -> tuple[list[str], list]:
     if a.get("estado"):
         w.append("ul.status = %s")
         p.append(a["estado"])
+    if a.get("estado_excluir"):
+        # Sin fila en user_listing el anuncio es «new»: también cuenta como pendiente.
+        w.append("coalesce(ul.status, 'new') <> ALL(%s)")
+        p.append(list(a["estado_excluir"]))
     if a.get("favoritos"):
         w.append("ul.starred IS TRUE")
     if a.get("near"):
@@ -716,7 +720,7 @@ def contar(conn, quien: Asesor, filtros: dict) -> dict:
     """Contadores para las píldoras de filtro. Deliberadamente ignora el filtro de
     estado: las píldoras muestran a cuántos llegarías si cambiaras de estado. Son del
     tablero: cuentan el seguimiento de un asesor, que con llave no existe."""
-    base, p = _consulta(quien, {k: v for k, v in filtros.items() if k != "estado"})
+    base, p = _consulta(quien, {k: v for k, v in filtros.items() if k not in ("estado", "estado_excluir")})
     # Con anuncios fusionados se cuentan propiedades: la píldora tiene que decir lo mismo
     # que la rejilla. Una propiedad anunciada en dos portales cuenta en los dos.
     fus = _fusiona(quien, filtros)

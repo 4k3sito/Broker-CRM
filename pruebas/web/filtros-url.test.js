@@ -12,12 +12,12 @@ const FiltrosURL = vm.runInContext('FiltrosURL', ctx);
 const plano = v => JSON.parse(JSON.stringify(v));
 
 const VAL = { tipos: ['oficina', 'local', 'bodega', 'terreno'], usos: ['habitacional', 'comercial', 'industrial', 'sin'], ordenes: ['recientes', 'precio_asc', 'precio_desc', 'm2_desc'],
-              estados: ['Todos', 'Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'] };
+              estados: ['Todos', 'Pendientes', 'Nuevo', 'Revisado', 'Contactado', 'Rentado', 'Descartado'] };
 
 const vacio = { tab: 'bolsa', q: '', calle: '', operacion: '', fuente: '', precio_min: '', precio_max: '',
   m2_min: '', m2_max: '', m2_de: '', ppm_min: '', ppm_max: '', near: '', near_txt: '', radio: 2000,
   orden: 'recientes', lugares: [], tipos: [], etapas: [], pcliente: '', asesor: '', cliente: '',
-  estado: 'Todos', destacados: false, pagina: 1, mapa: null };
+  estado: 'Pendientes', destacados: false, pagina: 1, mapa: null };
 
 test('el uso de los terrenos viaja en la URL y se valida', () => {
   const e = { ...vacio, tipos: ['terreno'], usos: ['comercial', 'sin'] };
@@ -85,4 +85,14 @@ test('un nombre de lugar sin separador usa el valor como nombre', () => {
 test('los textos con acentos y espacios llegan intactos', () => {
   const qs = FiltrosURL.escribir({ ...vacio, q: 'Av. Constitución & Zaragoza', calle: 'José Benítez' });
   assert.deepEqual(plano(FiltrosURL.leer(qs, VAL)), { q: 'Av. Constitución & Zaragoza', calle: 'José Benítez' });
+});
+
+test('«Pendientes» es el estado de fábrica: no se escribe, y «Todos» sí', () => {
+  assert.equal(FiltrosURL.escribir(vacio), '');
+  assert.equal(new URLSearchParams(FiltrosURL.escribir({ ...vacio, estado: 'Todos' })).get('estado'), 'Todos');
+  assert.deepEqual(plano(FiltrosURL.leer('estado=Todos', VAL)), { estado: 'Todos' });
+  assert.deepEqual(plano(FiltrosURL.leer('', VAL)), {});
+  // El Catálogo abre en «Todos»: ahí es «Pendientes» lo que se escribe.
+  assert.equal(FiltrosURL.escribir({ ...vacio, estado: 'Todos', estado_defecto: 'Todos' }), '');
+  assert.equal(new URLSearchParams(FiltrosURL.escribir({ ...vacio, estado: 'Pendientes', estado_defecto: 'Todos' })).get('estado'), 'Pendientes');
 });

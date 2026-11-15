@@ -133,6 +133,9 @@ const Ubicacion = (() => {
 
   return {
     pintar, esperarClic, comparables,
+    // Los contenedores de los mapas cambian de sitio al repintar la ficha (listing.js,
+    // acomodarFijos): se vuelve a medir el lienzo.
+    redimensionar: () => { map?.resize(); mapaCmp?.resize(); },
     zoom: d => map && (d > 0 ? map.zoomIn() : map.zoomOut()),
     zoomCmp: d => mapaCmp && (d > 0 ? mapaCmp.zoomIn() : mapaCmp.zoomOut()),
   };

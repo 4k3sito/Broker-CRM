@@ -330,6 +330,13 @@ contenedor de la API. Lo usa `scrapers/v2/ia.py` con el cliente `api/modelo.py`.
 - **Tabla `anuncio_ia`** en `public` (creada el 2026-11-04): lo leído por el modelo y su
   frase de evidencia; sin datos de usuario. La lee el filtro del tablero (abajo).
 
+### Endpoints (2026-11-15) — `estado_excluir` en el tablero
+
+- `GET /api/listings` y `/api/listings.csv` aceptan `estado_excluir` (lista, hasta 10
+  valores): la vista «Pendientes» del tablero pide todo menos `rented` y `discarded`. Va
+  parametrizado (`coalesce(ul.status,'new') <> ALL(%s)`) sobre el `user_listing` del propio
+  asesor, igual que `estado`; no abre nada nuevo. `/api/v1` no lo recibe.
+
 ### Endpoints (2026-11-14) — contraseña actual equivocada da 403
 
 - `POST /api/password` responde **403** (antes 401) cuando la contraseña actual no coincide.

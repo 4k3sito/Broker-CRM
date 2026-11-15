@@ -525,6 +525,7 @@ def list_listings(
     asesor: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),   # quién la presentó
     etapa: list[str] | None = Query(None),
     estado: str | None = None,
+    estado_excluir: list[str] | None = Query(None, max_length=10),   # «Pendientes»: todo menos estos
     favoritos: bool = False,
     near: str | None = None,
     radio: int = Query(2000, ge=100, le=50000),
@@ -639,6 +640,7 @@ def listings_csv(
     asesor: str | None = Query(None, pattern="^[0-9a-f-]{36}$"),
     etapa: list[str] | None = Query(None),
     estado: str | None = None,
+    estado_excluir: list[str] | None = Query(None, max_length=10),   # «Pendientes»: todo menos estos
     favoritos: bool = False,
     near: str | None = None,
     radio: int = Query(2000, ge=100, le=50000),

@@ -18,12 +18,15 @@ const ETAPAS = [
   { key: 'finalizado',    label: 'Finalizado',    ayuda: 'Todo concluido después de la firma: entrega, pagos y comisión.' },
   { key: 'pausa',         label: 'En pausa',      ayuda: 'On hold: se espera al dueño, al cliente o a un tercero.', lateral: true },
   // La clave sigue siendo `rechazado` (es la de la base); sólo cambia lo que se lee. «Descartado»
-  // ya es otra cosa —el estado de un anuncio en el tablero— y se confundían.
-  { key: 'rechazado',     label: 'Rechazado por el cliente', ayuda: 'Cancelada, descartada o rentada a otro.', lateral: true },
+  // ya es otra cosa —el estado de un anuncio en el tablero— y se confundían. La etiqueta es
+  // corta; «por el cliente» queda en `ayuda`, que se ve como tooltip y en el tablero.
+  { key: 'rechazado',     label: 'Rechazado', ayuda: 'Rechazado por el cliente: cancelada, descartada o rentada a otro.', lateral: true },
 ];
 const ETAPA = Object.fromEntries(ETAPAS.map((e, i) => [e.key, { ...e, orden: i }]));
 const etapaLabel = k => ETAPA[k]?.label ?? k;
 const etapaActiva = k => !ETAPA[k]?.lateral;
+// Las etapas que piden un porqué al entrar (clientes.js, «¿Por qué?»): salirse del camino.
+const etapaPideMotivo = k => !!ETAPA[k]?.lateral;
 
 // La etapa de un cliente es la de su proceso más avanzado. Un cliente con todo
 // descartado sale como descartado; uno sin procesos, sin etapa.
@@ -36,4 +39,4 @@ function etapaMayor(estados) {
 
 // <option>s de un <select> de etapa.
 const etapaOpciones = sel => ETAPAS.map(e =>
-  `<option value="${e.key}"${e.key === sel ? ' selected' : ''}>${e.label}</option>`).join('');
+  `<option value="${e.key}" title="${e.ayuda}"${e.key === sel ? ' selected' : ''}>${e.label}</option>`).join('');

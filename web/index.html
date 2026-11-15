@@ -25,7 +25,7 @@
   <!-- Las pestañas las pone menu.js: un solo lugar para las seis páginas. -->
   <div class="topbar-right">
     <span id="authBox"><a class="btn-ghost" href="login.html">Entrar</a></span>
-    <span id="userBox" hidden><button class="btn-ghost" id="logout-btn">Salir</button></span>
+    <span id="userBox" hidden></span>
   </div>
 </header>
 <!-- El título que anuncia un lector al llegar; la topbar ya lo dice a la vista. -->
@@ -121,6 +121,8 @@
     <button type="button" class="fb-todos" id="fbTodos" aria-haspopup="dialog" aria-expanded="false">Filtros<span id="fbTodosN"></span></button>
     <button class="qbar-clear" id="qbar-clear" hidden>Restablecer</button>
   </div>
+  <!-- Sólo en el teléfono (≤760 px, hermes.css): los filtros puestos, en una fila que se desliza. app.js la llena. -->
+  <div class="chips-movil" id="chipsMovil" role="group" aria-label="Filtros activos" hidden></div>
 </div>
 
 <!-- Sólo en la Bolsa: app.js lo enciende si una fuente lleva días sin cargar. -->
@@ -151,6 +153,8 @@
     <label class="orden-chip"><span>Ordenar</span>
       <select id="ordenSel" aria-label="Ordenar por"></select>
     </label>
+    <!-- Sólo en el teléfono (≤760 px): el mapa a pantalla completa en vez de la lista, y de vuelta. -->
+    <button type="button" class="btn-clear mapa-btn" id="mapaToggle" aria-pressed="false">Mapa</button>
     <!-- Sólo en el teléfono: CSV y «Nueva propiedad» no caben en la fila de estado. -->
     <button type="button" class="btn-clear mas-btn" id="masBtn" aria-haspopup="menu" aria-expanded="false" aria-label="M&#225;s acciones">&#8943;</button>
     <div class="mas-menu" id="masMenu" role="menu" hidden>
@@ -185,7 +189,7 @@
   <div class="tray-actions">
     <select class="tray-btn" id="trayEstado" aria-label="Cambiar estado">
       <option value="">Cambiar estado&#8230;</option>
-      <option>Nuevo</option><option>Revisado</option><option>Contactado</option><option>Rentado</option><option>Descartado</option>
+      <option>Nuevo</option><option>Revisado</option><option>Contactado</option><option value="Rentado">Cerrado</option><option>Descartado</option>
     </select>
     <select class="tray-btn" id="trayCliente" aria-label="Asignar a cliente">
       <option value="">Asignar a cliente&#8230;</option>

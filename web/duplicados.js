@@ -6,11 +6,12 @@
 // La misma cola revisa los precios atípicos (`?vista=outliers`): rentas que no cuadran,
 // ocultas del tablero hasta que alguien diga que son reales (api/outliers.py).
 //
-// La página es una cola: cada par decidido sale de la lista, el siguiente sube a su
-// lugar y durante unos segundos se puede deshacer. La cola de pares son miles, así que
-// se decide con el teclado: S = «Son el mismo» (o «Es real»), N = «No son» (o «Dato
-// erróneo») y Z = deshacer. Los filtros viven en la URL: recargar o compartir la liga
-// vuelve a la misma cola.
+// La página es una cola, no un listado con páginas: cada par decidido sale de la lista, el
+// siguiente sube a su lugar, se rellena con el lote que sigue y durante unos segundos se
+// puede deshacer. La cola de pares son miles, así que se decide con el teclado: S = «Son
+// el mismo» (o «Es real»), N = «No son» (o «Dato erróneo»), Z = deshacer y X = saltar
+// (manda el par al final de la cola local sin decidir). Los filtros viven en la URL:
+// recargar o compartir la liga vuelve a la misma cola.
 
 const TIPOS = [['', 'Todos'], ['oficina', 'Oficinas'], ['local', 'Locales'], ['bodega', 'Bodegas'], ['terreno', 'Terrenos']];
 const SENALES = [['', 'Cualquier señal'], ['foto', 'Misma foto'], ['ubicacion', 'Misma ubicación']];
@@ -20,28 +21,30 @@ const MOTIVO_TXT = { precio_imposible: 'Precio imposible para una renta', titulo
 // y `titulo` sólo completa el título de la pestaña del navegador.
 const VISTAS = {
   pares: { pestana: 'Duplicados', titulo: 'Duplicados', kpi: 'pares por revisar',
-           atajos: [['S', 'son el mismo'], ['N', 'no son el mismo'], ['Z', 'deshacer']],
+           atajos: [['S', 'son el mismo'], ['N', 'no son el mismo'], ['X', 'saltar'], ['Z', 'deshacer']],
            nota: 'Anuncios que se parecen pero no lo bastante para fusionarlos solos. Lo que decidas vale para todo el equipo: «Son el mismo» los deja en una sola tarjeta del tablero; «No son el mismo» quita el par de esta lista y no se vuelve a sugerir.' },
   outliers: { pestana: 'Precios atípicos', titulo: 'Precios atípicos', kpi: 'anuncios por revisar',
-              atajos: [['S', 'es real'], ['N', 'dato erróneo'], ['Z', 'deshacer']],
+              atajos: [['S', 'es real'], ['N', 'dato erróneo'], ['X', 'saltar'], ['Z', 'deshacer']],
               nota: 'Rentas de más de $10 millones al mes que no cuadran. Están ocultas del tablero hasta que alguien las valide, y lo que decidas vale para todo el equipo: «Es real» las regresa al tablero; «Dato erróneo» las deja ocultas. Si el portal cambia el precio, vuelven a esta lista.' },
 };
 const AVISOS = { igual: 'Fusionados en una tarjeta', distinto: 'Marcados como distintos',
                  real: 'Regresa al tablero', erroneo: 'Se queda oculto' };
-const POR_PAGINA = 20;
+// Cuántos pares se muestran por lote, y lo más que la API da en una página (/outliers
+// acepta 60 y /duplicados/sugerencias 50: se pide con el menor).
+const LOTE = 20;
+const TOPE = 50;
 const ESTADOS = [['Nuevo León', 'Nuevo León'], ['', 'Todo el país']];
 // Se abre en Nuevo León, que es donde trabaja el equipo.
 const ESTADO_INICIAL = 'Nuevo León';
-// Los filtros salen de la URL (`?vista=outliers&tipo=local&pagina=3`): lo que no esté, o no
+// Los filtros salen de la URL (`?vista=outliers&tipo=local`): lo que no esté, o no
 // sea una opción válida, queda en su valor de fábrica.
 function filtrosDeURL() {
   const q = new URLSearchParams(location.search);
   const valido = (lista, v, defecto) => lista.some(([x]) => x === v) ? v : defecto;
-  const pagina = Math.floor(Number(q.get('pagina')));
   return { vista: q.get('vista') === 'outliers' ? 'outliers' : 'pares',
            estado: q.has('estado') ? valido(ESTADOS, q.get('estado'), ESTADO_INICIAL) : ESTADO_INICIAL,
            tipo: valido(TIPOS, q.get('tipo'), ''), senal: valido(SENALES, q.get('senal'), ''),
-           motivo: valido(MOTIVOS, q.get('motivo'), ''), page: pagina >= 1 ? pagina : 1 };
+           motivo: valido(MOTIVOS, q.get('motivo'), '') };
 }
 const F = filtrosDeURL();
 // Sin `pushState`: cada filtro no es una página del historial, pero sí tiene que
@@ -53,7 +56,6 @@ function guardarURL() {
   if (F.tipo) q.set('tipo', F.tipo);
   if (F.vista === 'pares' && F.senal) q.set('senal', F.senal);
   if (F.vista === 'outliers' && F.motivo) q.set('motivo', F.motivo);
-  if (F.page > 1) q.set('pagina', F.page);
   const t = q.toString();
   history.replaceState(null, '', t ? `?${t}` : location.pathname);
 }
@@ -76,9 +78,19 @@ function pintarFiltros() {
     `<button class="pill-line${F[campo] === v ? ' active' : ''}" data-campo="${esc(campo)}" data-valor="${esc(v)}" aria-pressed="${F[campo] === v}">${esc(t)}</button>`).join('');
   const ultimo = F.vista === 'outliers' ? pildoras(MOTIVOS, 'motivo') : pildoras(SENALES, 'senal');
   document.getElementById('dpFiltros').innerHTML = [pildoras(ESTADOS, 'estado'), pildoras(TIPOS, 'tipo'), ultimo].join('<span class="dp-sep"></span>');
+  // En el teléfono la nota y las píldoras se esconden tras «Filtros (n)» (n = lo que se
+  // apartó de lo de fábrica); en pantallas anchas el botón no se ve (hermes.css).
+  const nFiltros = [F.estado !== ESTADO_INICIAL, !!F.tipo, !!(F.vista === 'outliers' ? F.motivo : F.senal)].filter(Boolean).length;
+  const bf = document.getElementById('dpFiltrosBtn');
+  bf.textContent = nFiltros ? `Filtros (${nFiltros})` : 'Filtros';
+  bf.classList.toggle('on', nFiltros > 0);
   const v = VISTAS[F.vista];
+  // Pestañas: tablist/tab con aria-selected; sólo la activa entra por Tab, las flechas
+  // mueven entre ellas. El número es lo que queda por revisar en esa vista (si se sabe).
   document.getElementById('dpVistas').innerHTML = Object.entries(VISTAS).map(([k, x]) =>
-    `<button class="dp-tab${F.vista === k ? ' active' : ''}" data-campo="vista" data-valor="${esc(k)}"${F.vista === k ? ' aria-current="true"' : ''}>${esc(x.pestana)}</button>`).join('');
+    `<button class="dp-tab${F.vista === k ? ' active' : ''}" role="tab" id="dpTab-${esc(k)}" aria-selected="${F.vista === k}" aria-controls="dpLista" tabindex="${F.vista === k ? 0 : -1}" data-campo="vista" data-valor="${esc(k)}">${esc(x.pestana)}<span class="dp-tab-n" data-conteo="${esc(k)}"></span></button>`).join('');
+  lista.setAttribute('aria-labelledby', `dpTab-${F.vista}`);
+  pintarConteos();
   document.title = `${v.titulo} · Revisión · OfficeLab`;
   document.getElementById('dpTitulo').textContent = v.titulo;
   document.getElementById('dpKpi').textContent = v.kpi;
@@ -88,12 +100,34 @@ function pintarFiltros() {
     v.atajos.map(([k, t]) => `<kbd>${k}</kbd> ${t}`).join(' &#183; ');
 }
 
-function pintarPaginas() {
-  const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
-  document.getElementById('dpPaginas').innerHTML = paginas < 2 ? '' :
-    `<button class="pill-line" data-pag="${F.page - 1}"${F.page <= 1 ? ' disabled' : ''}>&#8592; Anterior</button>
-     <span class="dp-pag">Página ${F.page} de ${mx(paginas)}</span>
-     <button class="pill-line" data-pag="${F.page + 1}"${F.page >= paginas ? ' disabled' : ''}>Siguiente &#8594;</button>`;
+// Cuántos hay por revisar en cada pestaña. La activa lo sabe por su propia lista; la otra
+// se pregunta una vez por carga con la misma API (una página de un renglón, sólo para su
+// `total`). Mientras no se sepa, la pestaña no enseña número.
+const conteos = { pares: null, outliers: null };
+function pintarConteos() {
+  for (const el of document.querySelectorAll('#dpVistas [data-conteo]')) {
+    const n = conteos[el.dataset.conteo];
+    el.textContent = n == null ? '' : ` (${mx(n)})`;
+  }
+}
+function fijarConteo() {
+  conteos[F.vista] = total;
+  pintarConteos();
+}
+async function contarOtra() {
+  const otra = F.vista === 'pares' ? 'outliers' : 'pares';
+  const turno = vuelta;
+  try {
+    const r = await pedirPagina(otra, 1, 1);
+    if (turno === vuelta) { conteos[otra] = r.total; pintarConteos(); }
+  } catch (err) { console.error(err); }
+}
+
+// «Cargar más»: sólo si el servidor tiene más de lo que ya se ve.
+function pintarMas() {
+  const restan = total - lista.querySelectorAll('.dp-par:not(.saliendo)').length;
+  const el = document.getElementById('dpMas');
+  el.innerHTML = restan > 0 ? `<button class="pill-line" id="dpMasBtn" type="button">Cargar más <span class="pill-count">${mx(restan)}</span></button>` : '';
 }
 
 // Quien pide menos movimiento al sistema: la regla de hermes.css no alcanza a animate().
@@ -103,6 +137,8 @@ const llave = (a, b) => `${a}|${b}`;
 function ponerTotal(n) {
   const baja = n < total;
   total = n;
+  fijarConteo();
+  pintarMas();
   const el = document.getElementById('dpTotal');
   el.textContent = mx(total);
   el.animate([{ opacity: .35, transform: `translateY(${baja ? 7 : -7}px)` }, { opacity: 1, transform: 'none' }],
@@ -133,8 +169,10 @@ function diferencias(a, b) {
 // Cada botón dice su tecla. Los dos pesan igual: con uno en sólido se leía como «lo
 // normal» y se decidía sin mirar (en la cola de precios atípicos premiaba el dato
 // imposible). `tabindex="-1"` deja que el foco caiga en el par, no en un botón.
+// «Saltar» no decide: manda el par al final de la cola de esta sesión (pesa menos que los otros dos).
 const botonesHtml = (si, no) => `<button class="fx-btn" data-decide="${si[0]}">${si[1]} <kbd>S</kbd></button>
-      <button class="fx-btn" data-decide="${no[0]}">${no[1]} <kbd>N</kbd></button>`;
+      <button class="fx-btn" data-decide="${no[0]}">${no[1]} <kbd>N</kbd></button>
+      <button class="fx-btn dp-saltar" data-saltar type="button" title="Dejarlo para el final de la cola sin decidir">Saltar <kbd>X</kbd></button>`;
 
 const parHtml = s => {
   const dif = diferencias(s.a, s.b);
@@ -160,11 +198,26 @@ const outlierHtml = s => `<article class="dp-par dp-uno" tabindex="-1" data-a="$
   </article>`;
 const itemHtml = s => F.vista === 'outliers' ? outlierHtml(s) : parHtml(s);
 
-async function pedir() {
-  const comun = { estado: F.estado, tipo: F.tipo, page: F.page, per_page: POR_PAGINA };
-  if (F.vista === 'pares') return API.get(`/duplicados/sugerencias${API.qs({ ...comun, senal: F.senal })}`);
+async function pedirPagina(vista, page, per_page) {
+  const comun = { estado: F.estado, tipo: F.tipo, page, per_page };
+  if (vista === 'pares') return API.get(`/duplicados/sugerencias${API.qs({ ...comun, senal: F.senal })}`);
   const r = await API.get(`/outliers${API.qs({ ...comun, motivo: F.motivo })}`);
   return { ...r, items: r.items.map(a => ({ a, b: { id: '' } })) };
+}
+// La cola siempre se pide desde el principio: lo decidido ya no está, así que lo que sigue
+// ocupa su lugar. `adelante` son los que ya se ven (o esperan su envío) y que el servidor
+// todavía devuelve primero; se piden además de un lote para que lo nuevo llegue detrás.
+async function pedir(adelante = 0) {
+  const querer = adelante + LOTE;
+  const por = Math.min(TOPE, querer);
+  let items = [], total = 0;
+  for (let page = 1; page <= Math.ceil(querer / por); page++) {
+    const r = await pedirPagina(F.vista, page, por);
+    total = r.total;
+    items = items.concat(r.items);
+    if (r.items.length < por) break;
+  }
+  return { total, items };
 }
 
 // Lo que el servidor todavía no sabe: la decisión en espera y las que van en camino.
@@ -180,7 +233,7 @@ async function cargar() {
   const turno = ++vuelta;
   guardarURL();
   lista.classList.add('cargando');
-  // Cambiar de filtro, vista o página con el aviso de deshacer abierto confirma la decisión:
+  // Cambiar de filtro o de vista con el aviso de deshacer abierto confirma la decisión:
   // se cierra el aviso (ya no se puede deshacer) y se dice que se guardó.
   const habia = !!pendiente;
   if (await confirmar() && habia) UI.aviso('Se guardó la decisión anterior.');
@@ -199,35 +252,34 @@ async function cargar() {
   }
   if (turno !== vuelta) return;
   lista.classList.remove('cargando');
-  // Una liga con `pagina=` de más (o una lista que se acortó) cae en la última página.
-  if (!r.items.length && r.total > 0 && F.page > 1) {
-    F.page = Math.max(1, Math.ceil(r.total / POR_PAGINA));
-    return cargar();
-  }
   total = r.total;
   document.getElementById('dpTotal').textContent = mx(total);
-  pintarPaginas();
-  const pares = nuevos(r.items);
-  if (!pares.length) return vacio();
+  fijarConteo();
+  contarOtra();
+  const pares = nuevos(r.items).slice(0, LOTE);
+  if (!pares.length) { pintarMas(); return vacio(); }
   lista.innerHTML = pares.map(itemHtml).join('');
+  pintarMas();
   lista.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms(160) });
 }
 
-// Los pares decididos ya salieron de la consulta, así que la misma página trae los que
-// seguían: la lista nunca se acaba mientras queden pares y nada se mueve bajo el cursor.
-async function rellenar() {
-  if (rellenando || lista.querySelectorAll('.dp-par:not(.saliendo)').length >= RESERVA) return;
+// Los pares decididos ya salieron de la consulta, así que el siguiente lote es lo que viene
+// detrás de lo que ya se ve: la lista nunca se acaba mientras queden pares y nada se mueve
+// bajo el cursor. Con `forzar` (el botón «Cargar más») se pide aunque haya reserva.
+async function rellenar(forzar = false) {
+  if (rellenando || (!forzar && lista.querySelectorAll('.dp-par:not(.saliendo)').length >= RESERVA)) return;
   rellenando = true;
   const turno = vuelta;
   try {
     await guardando;
-    const r = await pedir();
+    // Lo que se ve, más la decisión en espera (que el servidor aún devuelve).
+    const r = await pedir(lista.querySelectorAll('.dp-par:not(.saliendo)').length + (pendiente ? 1 : 0));
     if (turno !== vuelta) return;
     total = Math.max(0, r.total - (pendiente ? 1 : 0));
     document.getElementById('dpTotal').textContent = mx(total);
-    pintarPaginas();
+    fijarConteo();
     const hay = new Set([...lista.querySelectorAll('.dp-par')].map(p => llave(p.dataset.a, p.dataset.b)));
-    const pares = nuevos(r.items).filter(s => !hay.has(llave(s.a.id, s.b.id)));
+    const pares = nuevos(r.items).filter(s => !hay.has(llave(s.a.id, s.b.id))).slice(0, LOTE);
     if (pares.length) {
       lista.querySelector('.pg-empty')?.remove();
       lista.insertAdjacentHTML('beforeend', pares.map(itemHtml).join(''));
@@ -235,10 +287,9 @@ async function rellenar() {
         [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
         { duration: ms(240), easing: 'cubic-bezier(.2,0,0,1)' }));
     } else if (!lista.querySelector('.dp-par:not(.saliendo)')) {
-      // Se terminó la página y detrás de ella no venía nada: queda la anterior.
-      if (F.page > 1) { F.page = Math.max(1, Math.ceil(total / POR_PAGINA)); return cargar(); }
       vacio();
     }
+    pintarMas();
   } catch (err) {
     console.error(err);
   } finally {
@@ -276,6 +327,7 @@ function devolver({ par, antes }) {
   par.salida.forEach(a => a.reverse());
   par.scrollIntoView({ block: 'nearest' });
   par.focus({ preventScroll: true });
+  pintarMas();
 }
 
 // La decisión no se manda al tocar el botón sino cuando ya no se puede deshacer: fusionar
@@ -339,8 +391,8 @@ function cambiarFiltro(e) {
   if (!b) return;
   const { campo, valor } = b.dataset;
   const zona = b.closest('#dpFiltros, #dpVistas');
+  if (campo === 'vista' && F.vista === valor) return;
   F[campo] = valor;
-  F.page = 1;
   pintarFiltros();
   // pintarFiltros reconstruye los botones: el foco vuelve al que se pulsó (mismo campo y valor).
   zona.querySelector(`[data-campo="${CSS.escape(campo)}"][data-valor="${CSS.escape(valor)}"]`)?.focus();
@@ -350,11 +402,25 @@ function cambiarFiltro(e) {
 document.getElementById('dpFiltros').addEventListener('click', cambiarFiltro);
 document.getElementById('dpVistas').addEventListener('click', cambiarFiltro);
 
-document.getElementById('dpPaginas').addEventListener('click', e => {
-  const b = e.target.closest('[data-pag]');
-  if (!b || b.disabled) return;
-  F.page = Number(b.dataset.pag);
-  cargar().then(() => window.scrollTo({ top: 0 }));
+document.getElementById('dpMas').addEventListener('click', e => {
+  if (e.target.closest('#dpMasBtn')) rellenar(true);
+});
+
+// Teléfono: la nota y los filtros se pliegan tras un botón (el CSS lo esconde en pantallas anchas).
+document.getElementById('dpFiltrosBtn').addEventListener('click', e => {
+  const abierto = document.getElementById('dpPlegable').classList.toggle('abierto');
+  e.currentTarget.setAttribute('aria-expanded', abierto);
+});
+
+// Flechas entre pestañas (patrón tablist): Izquierda/Derecha, Inicio y Fin.
+document.getElementById('dpVistas').addEventListener('keydown', e => {
+  const tabs = [...e.currentTarget.querySelectorAll('[role="tab"]')];
+  const i = tabs.indexOf(document.activeElement);
+  const j = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length
+    : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+  if (i < 0 || j < 0) return;
+  e.preventDefault();
+  tabs[j].click();
 });
 
 // El par que se decide: el que tiene el foco y, si el foco anda fuera de la lista, el
@@ -393,12 +459,31 @@ function decidir(par, tipo) {
   rellenar();
 }
 
+// Saltar no decide ni se manda: el par pasa al final de la cola de esta sesión (si se
+// recarga, vuelve a su lugar) y el siguiente sube. Comparte la PAUSA de `decidir` para que
+// un doble clic no salte dos.
+function saltar(par) {
+  if (!par || performance.now() - ultimaDecision < PAUSA) return;
+  if (lista.querySelectorAll('.dp-par:not(.saliendo)').length < 2) {
+    UI.aviso('No hay otro a dónde saltar: es el último de la cola.');
+    return;
+  }
+  ultimaDecision = performance.now();
+  const siguiente = vecino(par);
+  lista.append(par);
+  par.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
+    { duration: ms(240), easing: 'cubic-bezier(.2,0,0,1)' });
+  siguiente?.focus({ preventScroll: true });
+}
+
 lista.addEventListener('click', e => {
   const b = e.target.closest('[data-decide]');
-  if (b) decidir(b.closest('.dp-par'), b.dataset.decide);
+  if (b) return decidir(b.closest('.dp-par'), b.dataset.decide);
+  const s = e.target.closest('[data-saltar]');
+  if (s) saltar(s.closest('.dp-par'));
 });
 
-// S y N deciden, Z deshace. No se disparan con un modificador (Ctrl+Z es del navegador),
+// S y N deciden, X salta, Z deshace. No se disparan con un modificador (Ctrl+Z es del navegador),
 // escribiendo en un campo, con un diálogo abierto, ni con la tecla sostenida; la PAUSA
 // de `decidir` cubre además el segundo toque seguido.
 addEventListener('keydown', e => {
@@ -407,6 +492,11 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === 'z') {
     if (pendiente) { e.preventDefault(); deshacer(); }
+    return;
+  }
+  if (k === 'x') {
+    const par = parActivo();
+    if (par) { e.preventDefault(); saltar(par); }
     return;
   }
   const i = k === 's' ? 0 : k === 'n' ? 1 : -1;
@@ -426,11 +516,6 @@ for (const ev of ['mouseleave', 'focusout']) aviso.addEventListener(ev, () => cu
 addEventListener('pagehide', () => {
   if (pendiente) enviar(pendiente, { keepalive: true }).catch(() => {});
   pendiente = null;
-});
-
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  await API.logout().catch(() => {});
-  location.replace('login.html');
 });
 
 API.me().then(() => {
