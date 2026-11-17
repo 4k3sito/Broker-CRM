@@ -130,7 +130,7 @@
       if (!u.scrapers) nav.querySelector('[href="scrapers.html"]')?.remove();
       memoria.poner('ol-scrapers', u.scrapers ? '1' : '');
       const nombre = (u.nombre || u.email || '').trim();
-      const ini = nombre.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+      const ini = nombre.split(/[^\p{L}\d]+/u).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
       const box = document.getElementById('userBox');
       if (box && !document.querySelector('.tb-ava')) montarCuenta(box, u, nombre, ini, salir);
       cargarInsignias(u.id);

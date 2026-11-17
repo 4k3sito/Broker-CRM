@@ -345,7 +345,7 @@ function completarTarea(id, hecha) {
 
 // ── Derivados ────────────────────────────────────────────────────────────────
 const cuenta = (procs, st) => procs.filter(p => p.status === st).length;
-const iniciales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+const iniciales = n => (n || "?").split(/[^\p{L}\d]+/u).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 // Quién trajo/presentó una propiedad: la cuenta ligada manda; si no hay, el texto del
 // sheet. El tono sale del id con la misma fórmula que tareas.js, para que cada
 // persona tenga el mismo color en el pipeline y aquí.

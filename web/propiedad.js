@@ -22,6 +22,12 @@ const Propiedad = (() => {
   // el marcado de sus botones; `nota` una etiqueta junto al portal («Este anuncio»).
   // «Ficha» abre en pestaña nueva con opener, como desde el tablero: la ficha cierra su
   // pestaña al volver, y en Duplicados la cola que se estaba decidiendo no se pierde.
+  // La ficha abierta no ofrece «Ficha» de sí misma: abriría la misma página.
+  const aqui = new URLSearchParams(location.search).get('id');
+  // Los precios atípicos llegan a billones: «$130,000,000,000,000» no se lee. Desde mil
+  // millones se abrevia (el valor completo queda en el title); abajo, la cifra completa.
+  const enorme = n => n >= 1e12 ? `$${mx(Math.round(n / 1e11) / 10)} billones`
+    : n >= 1e9 ? `$${mx(Math.round(n / 1e8) / 10)} mil millones` : '$' + mx(Math.round(n));
   function fila(t, acciones = '', nota = '') {
     const op = t.transaction_type === 'rent' ? ' / mes' : '';
     const ppm = t.precio && t.property_size_m2 ? ` · $${mx(Math.round(t.precio / t.property_size_m2))}/m²` : '';
@@ -29,14 +35,14 @@ const Propiedad = (() => {
     return `<div class="dp-fila${t.activo ? '' : ' baja'}" data-id="${esc(t.id)}">
       ${foto ? `<img class="dp-foto" src="${foto}" alt="" loading="lazy">` : '<span class="dp-foto sin-foto">Sin foto</span>'}
       <div class="dp-txt">
-        <div class="dp-precio"><b>${t.precio ? '$' + mx(Math.round(t.precio)) : 'Sin precio'}</b>
+        <div class="dp-precio"><b${t.precio >= 1e9 ? ` title="$${mx(Math.round(t.precio))}"` : ''}>${t.precio ? enorme(t.precio) : 'Sin precio'}</b>
           <span>${esc(t.currency ?? 'MXN')}${op}${t.property_size_m2 ? ' · ' + m2Txt(t.property_size_m2) : ''}${ppm}</span></div>
         <div class="dp-tit">${esc(t.title ?? 'Sin título')}</div>
         <div class="dp-meta"><b>${esc(Anuncio.fuente(t.source))}</b>${nota ? ` · <i>${esc(nota)}</i>` : ''}${t.anuncios > 1 ? ` · ya junta ${t.anuncios} anuncios` : ''}
           · ${esc(t.broker_name ?? 'Anunciante sin nombre')}${t.location || t.zona ? ' · ' + esc(t.location ?? t.zona) : ''}${t.activo ? '' : ' · dado de baja'}</div>
       </div>
       <div class="dp-acc">
-        <a class="fx-btn" href="listing.html?id=${encodeURIComponent(t.id)}" target="_blank" rel="opener">Ficha</a>
+        ${t.id === aqui ? '' : `<a class="fx-btn" href="listing.html?id=${encodeURIComponent(t.id)}" target="_blank" rel="opener">Ficha</a>`}
         <a class="fx-btn" href="${hrefSeguro(t.url)}" target="_blank" rel="noopener">Portal &#8599;</a>
         ${acciones}
       </div>

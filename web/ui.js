@@ -126,3 +126,17 @@ const UI = (() => {
 
   return { confirmar, pedir, aviso, guardar, errorCarga };
 })();
+
+// Una foto de portal que no carga (liga muerta, el portal bloquea el hotlink) se cambia por
+// un recuadro «Sin foto» del mismo tamaño, en vez del icono de imagen rota. Vale para la
+// tarjeta, la ficha, comparar y la bandeja. `error` no burbujea: se escucha en captura.
+// Las miniaturas de Revisión (`.dp-foto`) tienen su propio reemplazo en propiedad.js.
+document.addEventListener('error', e => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.closest('.card-img, .cmp-foto, .fx-ph, .tray-item')) return;
+  const m = document.createElement('span');
+  // En la bandeja es una miniatura: el mismo hueco que ya pinta cuando no hay foto.
+  if (img.closest('.tray-item')) m.className = 'tray-thumb';
+  else { m.className = 'foto-falla'; m.textContent = 'Sin foto'; }
+  img.replaceWith(m);
+}, true);

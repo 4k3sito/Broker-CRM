@@ -41,8 +41,8 @@ let yaArrastro = almacen.get('tk-arrastro') === '1';          // la pista de arr
 // misma persona sin tener que guardarlo.
 const TONOS = Array.from({ length: 7 }, (_, i) => `var(--tono-${i})`);
 const tono = id => TONOS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % TONOS.length];
-const iniciales = p => (p?.nombre || p?.email || '?').trim().split(/\s+/).slice(0, 2)
-  .map(w => w[0]).join('').toUpperCase();
+const iniciales = p => (p?.nombre || p?.email || '?').split(/[^\p{L}\d]+/u).filter(Boolean).slice(0, 2)
+  .map(w => w[0]).join('').toUpperCase() || '?';
 
 // ── Checklist en markdown ────────────────────────────────────────────────────
 // El diseño escribe el checklist dentro de la descripción como `- [ ]` / `- [x]`.
@@ -295,6 +295,12 @@ function avisoPersona(base) {
   return div;
 }
 
+// Lo que vence antes va primero, y a igual fecha la de más prioridad; sin fecha, al final.
+// La usan la Lista y cada columna del Tablero.
+const porUrgencia = (a, b) =>
+  (a.vence_el ?? '9999') < (b.vence_el ?? '9999') ? -1 : (a.vence_el ?? '9999') > (b.vence_el ?? '9999') ? 1
+    : PRIOS.indexOf(a.prioridad) - PRIOS.indexOf(b.prioridad);
+
 function renderTablero(lista) {
   const kb = document.createElement('div');
   kb.className = 'kb';
@@ -302,7 +308,7 @@ function renderTablero(lista) {
   if (persona && !lista.length) out.appendChild(avisoPersona('Sin tareas con este filtro.'));
   out.appendChild(kb);
   for (const col of COLS) {
-    const items = lista.filter(t => t.columna === col.key);
+    const items = lista.filter(t => t.columna === col.key).sort(porUrgencia);
     const div = document.createElement('div');
     // Una columna vacía se pliega (hermes.css): «Pendiente 0» y «En curso 0» ocupaban
     // media pantalla mientras 38 tarjetas se apretaban en las otras dos. Sigue siendo
@@ -443,9 +449,7 @@ function renderLista(lista) {
     if (b) { listaVer = b.dataset.ver; render(); }
   });
   wrap.appendChild(seg);
-  const filas = (listaVer === 'abiertas' ? abiertas : hechas).slice().sort((a, b) =>
-    (a.vence_el ?? '9999') < (b.vence_el ?? '9999') ? -1 : (a.vence_el ?? '9999') > (b.vence_el ?? '9999') ? 1
-      : PRIOS.indexOf(a.prioridad) - PRIOS.indexOf(b.prioridad));
+  const filas = (listaVer === 'abiertas' ? abiertas : hechas).slice().sort(porUrgencia);
   if (!filas.length) {
     const vacio = document.createElement('div');
     const base = listaVer === 'abiertas' ? 'No hay tareas abiertas para este filtro.' : 'Nada completado con este filtro.';

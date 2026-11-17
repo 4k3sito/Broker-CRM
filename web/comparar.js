@@ -23,22 +23,23 @@ function adapt(fila) {
 
 // Moneda y «/mes» pegados al monto: sin ellos, $5,000,034 USD y $46,500,000 MXN se leen
 // como pesos los dos, y esta tabla se imprime para el cliente.
-const monTxt = (l, mes) => `<small class="cmp-mon">${esc(Anuncio.moneda(l))}${mes && l.transaccion === 'Renta' ? '/mes' : ''}</small>`;
+// `m2`: en la fila del $/m² el sufijo lo dice, para que no se lea como el total.
+const monTxt = (l, mes, m2) => `<small class="cmp-mon">${esc(Anuncio.moneda(l))}${m2 ? '/m²' : ''}${mes && l.transaccion === 'Renta' ? '/mes' : ''}</small>`;
 
 // Filas: etiqueta, valor, formato y cuál gana (min/max). Sin `gana` no se resalta. Sólo el
 // precio y el $/m² lo traen: «más superficie» o «más fotos» es opinión, no un mejor valor.
 // `dinero` marca las filas cuyo número depende de la moneda y de la operación.
 const FILAS = [
   { k: 'Precio',      v: Anuncio.total, f: (v, l) => v != null ? `<span class="cmp-monto">$${mx(Math.round(v))}</span> ${monTxt(l, true)}` : '—', cls: 'precio', gana: 'min', dinero: true },
-  { k: '$ / m²',      v: Anuncio.porMetro,    f: (v, l) => v != null ? `<span class="cmp-monto">$${mx(Math.round(v))}</span> ${monTxt(l, true)}` : '—', cls: 'mono', gana: 'min', dinero: true },
+  { k: '$ / m²',      v: Anuncio.porMetro,    f: (v, l) => v != null ? `<span class="cmp-monto">$${mx(Math.round(v))}</span> ${monTxt(l, true, true)}` : '—', cls: 'mono', gana: 'min', dinero: true },
   { k: 'Superficie',  v: l => l.size,   f: v => v != null ? `${mx(Math.round(v))} m²` : '—', cls: 'mono' },
   { k: 'Terreno',      v: l => l.terreno,      f: v => v != null ? m2Txt(v) : '—', cls: 'mono' },
   { k: 'Construcción', v: l => l.construccion, f: v => v != null ? m2Txt(v) : '—', cls: 'mono' },
-  { k: 'Tipo',        v: l => l.tipo,   f: v => v ? v[0].toUpperCase() + v.slice(1) : '—' },
-  { k: 'Operación',   v: l => l.transaccion, f: v => v ?? '—' },
+  { k: 'Tipo',        v: l => l.tipo,   f: v => v ? esc(v[0].toUpperCase() + v.slice(1)) : '—' },
+  { k: 'Operación',   v: l => l.transaccion, f: v => esc(v ?? '—') },
   { k: 'Ubicación',   v: Anuncio.ubicacion, f: v => esc(v ?? '—') },
   { k: 'Fotos',       v: l => l.fotos.length,  f: v => String(v), cls: 'mono' },
-  { k: 'Estado',      v: l => l.status, f: v => `<span class="cmp-estado s-${esc(v)}">${esc(v)}</span>` },
+  { k: 'Estado',      v: l => l.status, f: v => `<span class="cmp-estado s-${esc(v)}">${esc(Anuncio.etiquetaEstado(v))}</span>` },
   { k: 'Fuente',      v: l => Anuncio.fuente(l.fuente), f: v => esc(v), cls: 'mono' },
 ];
 
