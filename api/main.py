@@ -46,6 +46,7 @@ import duplicados
 import outliers
 import entorno
 import excel
+import ficha_pdf
 import fichas
 import inventario
 from duplicados import DuplicadoInvalido
@@ -746,7 +747,7 @@ def outliers_cola(
     user: dict = Depends(current_user),
     tipo: str | None = Query(None, pattern="^(oficina|local|bodega|terreno)$"),
     estado: str | None = Query(None, max_length=60),
-    motivo: str | None = Query(None, pattern="^(precio_imposible|titulo_venta)$"),
+    motivo: str | None = Query(None, pattern="^(precio_imposible|titulo_venta|venta_imposible)$"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=60),
 ) -> dict:
@@ -2217,9 +2218,34 @@ def get_analisis_pdf(listing_id: str, user: dict = Depends(current_user)) -> Res
                     headers={"Content-Disposition":
                              f'attachment; filename="analisis-{limpio}.pdf"'})
 
+class FichaPdfIn(BaseModel):
+    html: str = Field(max_length=ficha_pdf.MAX_HTML)
+    nombre: str = Field("Ficha", max_length=80)
+
+
+@app.post("/api/ficha-pdf")
+def post_ficha_pdf(body: FichaPdfIn, _: dict = Depends(current_user)) -> Response:
+    """La ficha técnica en PDF (E5). El marcado lo arma la ficha en el navegador; aquí se
+    pagina con la hoja propia y sólo con las imágenes que `ficha_pdf` deja pasar."""
+    def leer(aid: str):
+        with POOL.connection() as conn:
+            a = conn.execute("SELECT mime, datos FROM archivo WHERE id = %s", (aid,)).fetchone()
+        return (bytes(a["datos"]), a["mime"]) if a else None
+
+    try:
+        datos, faltan = ficha_pdf.pdf(body.html, leer)
+    except ficha_pdf.FichaInvalida as e:
+        raise HTTPException(422, str(e))
+    limpio = re.sub(r"[^A-Za-z0-9._-]+", "-", body.nombre).strip("-")[:60] or "Ficha"
+    return Response(datos, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{limpio}.pdf"',
+                             "X-Imagenes-Faltantes": str(faltan)})
+
+
 # ───────────────────────────────────────────────────────────────────────── cli
 def selfcheck() -> None:
     excel.selfcheck()
+    ficha_pdf.selfcheck()
     assert que_busca({"tipos": ["local", "bodega"], "operacion": "rent", "m2_min": 200, "m2_max": 500,
                       "precio_max": 80000, "lugares": [{"nombre": "San Pedro"}]}) == \
         "Tipo: Local, Bodega · Operación: Renta · Superficie: 200 m² – 500 m² · Precio total: hasta $80,000 · Ubicación: San Pedro"

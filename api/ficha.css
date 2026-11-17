@@ -1,0 +1,38 @@
+/* La ficha técnica (formato Pro Realtors) que arma api/ficha_pdf.py con WeasyPrint.
+   Es copia de las reglas .pr-* de web/hermes.css (@media print): el navegador las usa si el
+   servidor no contesta y cae a window.print(). Si cambias una, cambia la otra. */
+@page { size:letter; margin:0.35in 0.45in; }
+.pr-sheet {
+  font-family:'Montserrat',Arial,sans-serif; color:#111; background:#fff;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  page-break-after:always; break-after:page; display:flex; flex-direction:column;
+}
+.pr-sheet:last-child { page-break-after:auto; break-after:auto; }
+.pr-head { display:flex; justify-content:space-between; align-items:flex-start; padding-left:10px; }
+.pr-asesor { display:flex; flex-direction:column; gap:3px; font-size:10.5pt; }
+.pr-asesor b { font-size:15pt; font-weight:700; }
+.pr-logo { width:1.45in; height:auto; margin-top:12px; }
+.pr-mini { font-size:12pt; font-weight:700; align-self:center; }
+.pr-rule { height:1px; background:#111; margin-top:16px; }
+.pr-precio { display:flex; justify-content:flex-end; align-items:baseline; gap:6px; margin-top:16px; }
+.pr-precio b { font-size:18pt; font-weight:700; }
+.pr-precio span { font-size:10.5pt; font-weight:600; }
+.pr-precio + .pr-precio { margin-top:2px; }
+.pr-colonia { font-size:12pt; margin-top:14px; }
+.pr-titulo { font-family:'Montserrat',Arial,sans-serif; font-size:17pt; font-weight:700; margin:8px 0 0; }
+.pr-foto { width:92%; height:3.05in; object-fit:cover; margin:12px auto 0; display:block; }
+.pr-datos {
+  width:92%; margin:10px auto 0; display:grid; grid-template-columns:repeat(3,1fr);
+  border-top:1px solid #111; border-bottom:1px solid #111;
+}
+.pr-datos.cuatro { grid-template-columns:repeat(4,1fr); }
+.pr-datos.cuatro b { font-size:13pt; }
+.pr-datos div { display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 6px; }
+.pr-datos div + div { border-left:1px solid #D0D0D0; }
+.pr-datos span { font-size:7.5pt; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#555; }
+.pr-datos b { font-size:15pt; font-weight:700; white-space:nowrap; }
+.pr-h2 { font-family:'Montserrat',Arial,sans-serif; font-size:13pt; font-weight:700; margin-top:22px; }
+.pr-desc { font-size:10.5pt; line-height:1.45; margin-top:10px; display:flex; flex-direction:column; gap:12px; }
+.pr-maps { color:#1a0dab; text-decoration:underline; font-size:11pt; word-break:break-all; }
+.pr-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+.pr-grid img { width:100%; height:2.9in; object-fit:cover; display:block; }

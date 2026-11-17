@@ -15,8 +15,8 @@
 
 const TIPOS = [['', 'Todos'], ['oficina', 'Oficinas'], ['local', 'Locales'], ['bodega', 'Bodegas'], ['terreno', 'Terrenos']];
 const SENALES = [['', 'Cualquier señal'], ['foto', 'Misma foto'], ['ubicacion', 'Misma ubicación']];
-const MOTIVOS = [['', 'Cualquier motivo'], ['precio_imposible', 'Precio imposible'], ['titulo_venta', 'El título dice venta']];
-const MOTIVO_TXT = { precio_imposible: 'Precio imposible para una renta', titulo_venta: 'El título dice venta y el portal, renta' };
+const MOTIVOS = [['', 'Cualquier motivo'], ['precio_imposible', 'Precio imposible'], ['titulo_venta', 'El título dice venta'], ['venta_imposible', 'Venta imposible']];
+const MOTIVO_TXT = { precio_imposible: 'Precio imposible para una renta', titulo_venta: 'El título dice venta y el portal, renta', venta_imposible: 'Precio imposible para una venta' };
 // Las dos vistas son pestañas de una misma sección, «Revisión»: la página se llama así
 // y `titulo` sólo completa el título de la pestaña del navegador.
 const VISTAS = {
@@ -25,7 +25,7 @@ const VISTAS = {
            nota: 'Anuncios que se parecen pero no lo bastante para fusionarlos solos. Lo que decidas vale para todo el equipo: «Son el mismo» los deja en una sola tarjeta del tablero; «No son el mismo» quita el par de esta lista y no se vuelve a sugerir.' },
   outliers: { pestana: 'Precios atípicos', titulo: 'Precios atípicos', kpi: 'anuncios por revisar',
               atajos: [['S', 'es real'], ['N', 'dato erróneo'], ['X', 'saltar'], ['Z', 'deshacer']],
-              nota: 'Rentas de más de $10 millones al mes que no cuadran. Están ocultas del tablero hasta que alguien las valide, y lo que decidas vale para todo el equipo: «Es real» las regresa al tablero; «Dato erróneo» las deja ocultas. Si el portal cambia el precio, vuelven a esta lista.' },
+              nota: 'Rentas de más de $10 millones al mes y ventas de más de $1,000 millones que no cuadran. Están ocultas del tablero hasta que alguien las valide, y lo que decidas vale para todo el equipo: «Es real» las regresa al tablero; «Dato erróneo» las deja ocultas. Si el portal cambia el precio, vuelven a esta lista.' },
 };
 const AVISOS = { igual: 'Fusionados en una tarjeta', distinto: 'Marcados como distintos',
                  real: 'Regresa al tablero', erroneo: 'Se queda oculto' };

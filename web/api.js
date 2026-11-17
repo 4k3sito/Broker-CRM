@@ -92,6 +92,17 @@ const API = {
   // El PDF del análisis de mercado. No es un `<a href>` normal a propósito: si la
   // propiedad no se puede analizar la API responde 422 con el motivo, y un enlace
   // llevaría al asesor a una página de JSON en vez de decírselo en su sitio.
+  // La ficha técnica en PDF hecha en el servidor (api/ficha_pdf.py) a partir del marcado
+  // que arma la ficha. Devuelve el PDF y cuántas imágenes no pudo incluir.
+  async fichaPdf(html, nombre) {
+    const r = await fetch('/api/ficha-pdf', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ html, nombre }) });
+    if (r.status === 401) { alLogin(); throw new Error('Sesión expirada'); }
+    if (!r.ok) throw new Error(`Error ${r.status}`);
+    return { blob: await r.blob(), faltan: Number(r.headers.get('X-Imagenes-Faltantes')) || 0 };
+  },
+
   async pdfAnalisis(listingId) {
     const r = await fetch(`/api/analisis-pdf/${encodeURIComponent(listingId)}`,
                           { credentials: 'same-origin' });

@@ -66,6 +66,23 @@ def marca_lo_imposible_y_respeta_las_naves(conn):
     assert outliers.cola(conn, {"estado": "Nuevo León", "tipo": "bodega"})["total"] == 1
 
 
+def marca_las_ventas_imposibles(conn):
+    # $2,000 M de dólares por 294 m² (la captura de la revisión) entra; 14 hectáreas en
+    # $350 M, no: es un precio real con la superficie que sea.
+    for lid, precio, moneda, m2 in (("VIMP", 2_000_000_000, "USD", 294), ("VREAL", 350_000_000, "MXN", 140_000)):
+        conn.execute(
+            """INSERT INTO listings (source, listing_id, url, title, norm, operation, price, currency,
+                 price_is_per_m2, area_m2, property_type, zona_id, activo)
+               VALUES ('lamudi', %s, %s, 'Terreno en venta', 'terreno en venta', 'sale', %s, %s,
+                       false, %s, 'Terreno', %s, true)""",
+            (lid, f"https://lamudi.example/{lid}", precio, moneda, m2, MONTERREY))
+    marcar(conn)
+    motivos = {x["id"]: x["motivo"] for x in outliers.cola(conn, {})["items"]}
+    assert motivos.get("lamudi:VIMP") == "venta_imposible"
+    assert "lamudi:VREAL" not in motivos
+    assert "lamudi:VIMP" not in ids(conn, {"operacion": "sale"})
+
+
 def lo_marcado_no_se_ofrece(conn):
     marcar(conn)
     vistos = ids(conn)

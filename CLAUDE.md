@@ -155,6 +155,11 @@ Tres piezas que se encuentran en la tabla `listings` de PostGIS:
   inmueble (`de`) y lo que el equipo decide de ellos (`fusionar`, `separar`, `descartar`,
   `sugerencias`). Para un asesor, `inventario.buscar` devuelve **una fila por propiedad**
   (`fusion=false` la apaga); ver "Propiedades" en Modelo de datos.
+  **`ficha_pdf.py` + `ficha.css` son la ficha técnica en PDF** (2026-11-17, `POST /api/ficha-pdf`):
+  la plantilla sigue siendo la de `imprimirFicha()` en `listing.js`; el servidor sólo pagina
+  con su hoja (copia de las `.pr-*` de `hermes.css`: si cambias una, cambia la otra) y un
+  `url_fetcher` cerrado (SECURITY.md). Si falta una foto (Navent da 403 al servidor), la
+  ficha cae a `window.print()`. Montserrat va en `api/fuentes/`.
   `documento.py` + `documento.css` son la maqueta del PDF del análisis, y `fuentes/`
   las tres familias de Hermes Tinta empaquetadas en la imagen —el PDF no puede depender
   de que Google Fonts conteste al renderizar—. **La imagen ya no es sólo `pip install`**:
@@ -346,7 +351,9 @@ es su propia propiedad. La rehace entera `scrapers/v2/duplicados.py agrupar` des
 carga (lo llama `vps/cron-v2.sh`), y `api/duplicados.py` la retoca cuando un asesor decide.
 
 **Outliers** (2026-11-02): `marcar_outliers()` llena `anuncio_outlier` tras cada carga con las
-rentas de más de $10 M al mes que además pasan de $5,000/m² o cuyo título dice venta. Lo
+rentas de más de $10 M al mes que además pasan de $5,000/m² o cuyo título dice venta.
+Y desde el 2026-11-17 las ventas de más de $1,000 M (USD a 18) con más de $200,000/m² o sin m²
+(`venta_imposible`). Lo
 marcado no sale en el tablero, `/api/v1` ni los comparables hasta que alguien decida «Es real»
 en `duplicados.html?vista=outliers` (`api/outliers.py`). La decisión vale para ese total.
 **Filtros de Características**: `anuncio_atributo`, que rehace `python -m v2.db atributos

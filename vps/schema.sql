@@ -1193,7 +1193,7 @@ CREATE TABLE IF NOT EXISTS anuncio_atributo (
 CREATE TABLE IF NOT EXISTS anuncio_outlier (
   source       text NOT NULL,
   listing_id   text NOT NULL,
-  motivo       text NOT NULL CHECK (motivo IN ('precio_imposible', 'titulo_venta')),
+  motivo       text NOT NULL CHECK (motivo IN ('precio_imposible', 'titulo_venta', 'venta_imposible')),
   total        numeric NOT NULL,
   marcado_at   timestamptz NOT NULL DEFAULT now(),
   decision     text CHECK (decision IN ('real', 'erroneo')),
@@ -1202,12 +1202,19 @@ CREATE TABLE IF NOT EXISTS anuncio_outlier (
   PRIMARY KEY (source, listing_id)
 );
 CREATE INDEX IF NOT EXISTS anuncio_outlier_cola_idx ON anuncio_outlier (total DESC) WHERE decision IS NULL;
+-- 2026-11-17: tercer motivo, ventas imposibles. La tabla ya existía con el CHECK de dos.
+ALTER TABLE anuncio_outlier DROP CONSTRAINT IF EXISTS anuncio_outlier_motivo_check;
+ALTER TABLE anuncio_outlier ADD CONSTRAINT anuncio_outlier_motivo_check
+  CHECK (motivo IN ('precio_imposible', 'titulo_venta', 'venta_imposible'));
 
 -- Medido el 2026-11-02: 811 rentas activas pasan de $10 M al mes. Unas 370 son un total
 -- leído como $/m² y las corrige inferir_precio_m2(); unas 110 son naves enormes con un
 -- $/m² normal ($128 × 225,492 m²), y por eso el total solo no basta: hace falta además
 -- más de $5,000/m² al mes (el percentil 90 de las comerciales es $688), o que el título
 -- diga venta sin decir renta. Corre al final, sobre los precios y superficies ya corregidos.
+-- Ventas (2026-11-17): de 320,000 activas, 245 pasan de $1,000 M (el dólar a 18) con más de
+-- $200,000/m² o sin m²: un lote de 205 m² en $6,150 M, $2,000 M de dólares por 294 m². Bajar
+-- a $20 M y $1 M/m² marcaba 985, casi todas hectáreas escritas como m² con precio real.
 CREATE OR REPLACE FUNCTION marcar_outliers() RETURNS bigint AS $$
   WITH rentas AS (
     SELECT source, listing_id, area_m2,
@@ -1222,7 +1229,16 @@ CREATE OR REPLACE FUNCTION marcar_outliers() RETURNS bigint AS $$
     FROM rentas
     WHERE total > 10000000
       AND (coalesce(total / nullif(area_m2, 0), 'infinity') > 5000
-           OR (titulo ~ '\m(venta|vendo|vende)\M' AND titulo !~ '\m(renta|arrend\w*)\M'))),
+           OR (titulo ~ '\m(venta|vendo|vende)\M' AND titulo !~ '\m(renta|arrend\w*)\M'))
+    UNION ALL
+    SELECT source, listing_id, total, 'venta_imposible'
+    FROM (SELECT source, listing_id, area_m2,
+                 CASE WHEN price_is_per_m2 AND area_m2 > 0 THEN price * area_m2 ELSE price END
+                 * CASE WHEN currency = 'USD' THEN 18 ELSE 1 END AS total
+          FROM listings
+          WHERE operation = 'sale' AND activo IS NOT FALSE AND price > 0) v
+    WHERE total > 1000000000
+      AND coalesce(total / nullif(area_m2, 0), 'infinity') > 200000),
   fuera AS (
     DELETE FROM anuncio_outlier o
     WHERE NOT EXISTS (SELECT 1 FROM hoy h WHERE h.source = o.source AND h.listing_id = o.listing_id)),

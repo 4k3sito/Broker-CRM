@@ -330,6 +330,23 @@ contenedor de la API. Lo usa `scrapers/v2/ia.py` con el cliente `api/modelo.py`.
 - **Tabla `anuncio_ia`** en `public` (creada el 2026-11-04): lo leído por el modelo y su
   frase de evidencia; sin datos de usuario. La lee el filtro del tablero (abajo).
 
+### Endpoints (2026-11-17) — `POST /api/ficha-pdf`, la ficha técnica en el servidor
+
+- Recibe el marcado de la ficha que arma `listing.js` (`html`, tope 300 KB) y lo pagina con
+  WeasyPrint (`api/ficha_pdf.py`). Detrás de sesión. **El HTML lo controla el cliente**, así
+  que el servidor no le cree nada:
+  - el estilo es `api/ficha.css`; `<style>`, `<link>` y `style=` del cuerpo se quitan;
+  - WeasyPrint no ejecuta scripts;
+  - el `url_fetcher` es cerrado: `file:` sólo dentro de `api/` (la hoja), el logo de la
+    imagen, fotos subidas por id (`/api/archivos/<uuid>`, sólo `image/*`, leídas de la base)
+    e imágenes **https** cuyo host resuelve **sólo a direcciones públicas**
+    (`ipaddress.is_global`): nada de loopback, red privada ni `169.254.169.254` (SSRF).
+    También después de cada redirección. Tope de 16 recursos, 12 MB y 10 s cada uno.
+  - Riesgo que queda: *DNS rebinding* entre la comprobación del host y la conexión. Un
+    atacante necesita sesión y sólo obtendría la imagen dentro de su propio PDF.
+- `X-Imagenes-Faltantes` dice cuántas no entraron; con alguna, la página imprime desde el
+  navegador como antes (Navent contesta 403 al servidor).
+
 ### Endpoints (2026-11-17) — `/api/lugares` devuelve coordenadas
 
 - Cada sugerencia de `GET /api/lugares` trae `lat` y `lng`: un punto dentro del polígono
@@ -337,6 +354,8 @@ contenedor de la API. Lo usa `scrapers/v2/ia.py` con el cliente `api/modelo.py`.
   polígonos públicos (OpenStreetMap e INEGI) que ya estaban en `zona`; la consulta va
   parametrizada (`id = ANY(%s)`) con los ids de las propias sugerencias, sigue detrás de
   sesión y no toca el CRM.
+- `GET /api/outliers` acepta `motivo=venta_imposible` (ventas imposibles, `marcar_outliers()`):
+  sólo amplía la lista blanca del patrón; no cambia quién ve qué.
 - Tareas busca el anuncio de una tarea con `GET /api/listings?q=`, que ya existía: no hay
   endpoint nuevo.
 

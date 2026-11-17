@@ -676,12 +676,12 @@ function pintar() {
           ${conGeneral() ? `<div class="fx-ver${vSel ? '' : ' on'}">
             <button class="fx-ver-n" data-v="">Ficha-General.pdf</button>
             <small>${esPropia(l) ? 'Datos de la propiedad' : 'Datos del anuncio'}</small>
-            <button class="fx-ver-pdf" data-v="" title="Imprimir o guardar como PDF">PDF</button>
+            <button class="fx-ver-pdf" data-v="" title="Descargar la ficha en PDF">PDF</button>
           </div>` : ''}
           ${versionesVisibles().map(v => `<div class="fx-ver${String(v.id) === versionSel ? ' on' : ''}">
             <button class="fx-ver-n" data-v="${esc(v.id)}">${esc(nombrePdf(v))}.pdf</button>
             <small>${esc([v.autor, fechaCorta(v.updated_at)].filter(Boolean).join(' · '))}</small>
-            <button class="fx-ver-pdf" data-v="${esc(v.id)}" title="Imprimir o guardar como PDF">PDF</button>
+            <button class="fx-ver-pdf" data-v="${esc(v.id)}" title="Descargar la ficha en PDF">PDF</button>
             ${PRESENTA_A ? '' : `<button class="fx-ver-del" data-v="${esc(v.id)}" title="Borrar esta ficha">&times;</button>`}
           </div>`).join('')}
           ${PRESENTA_A ? '' : `<select class="fx-asignar" id="verAdd" aria-label="Nueva ficha">
@@ -760,7 +760,7 @@ function pintar() {
         <details class="fx-mas-menu" id="fxMas">
           <summary class="fx-btn">&#8943; Más</summary>
           <div class="fx-mas-lista">
-            <button class="fx-mas-item" id="btnPdf"${crmOk ? '' : ' disabled'} title="Abre el cuadro de impresión de ${esc(nombrePdf(vSel))}.pdf: ahí se elige «Guardar como PDF»">Imprimir / guardar PDF</button>
+            <button class="fx-mas-item" id="btnPdf"${crmOk ? '' : ' disabled'} title="Descarga ${esc(nombrePdf(vSel))}.pdf">Descargar PDF</button>
             <button class="fx-mas-item" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
             ${!crmOk ? '' : esPropia(l) ? (ficha ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra la propiedad con todo lo que cuelga de ella">Eliminar propiedad</button>' : '') : (ficha
               ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar del Catálogo</button>' : '')}
@@ -1367,6 +1367,33 @@ function imprimirFicha(versionId) {
       <div class="pr-rule"></div>
       <div class="pr-grid">${extra.map(s => `<img src="${esc(s)}" alt="">`).join('')}</div>
     </section>` : ''}`;
+  // Primero el PDF del servidor (E5): pagina igual en cualquier navegador y en el teléfono
+  // se comparte como archivo. Si falla, o si le faltó alguna foto (Navent no se las da al
+  // servidor), se imprime aquí como antes, donde las fotos sí cargan.
+  fichaServidor(v).then(ok => { if (!ok) imprimirAqui(v); });
+}
+
+async function fichaServidor(v) {
+  const nombre = nombrePdf(v);
+  let r;
+  try { r = await API.fichaPdf(document.getElementById('ficha-print').innerHTML, nombre); } catch { return false; }
+  if (r.faltan) return false;
+  const archivo = new File([r.blob], `${nombre}.pdf`, { type: 'application/pdf' });
+  if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [archivo] })) {
+    try { await navigator.share({ files: [archivo], title: nombre }); return true; }
+    catch (e) { if (e?.name === 'AbortError') return true; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(archivo);
+  a.download = archivo.name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  return true;
+}
+
+function imprimirAqui(v) {
   // Espera a que carguen las fotos: si no, el PDF sale con huecos.
   const imgs = [...document.querySelectorAll('#ficha-print img')];
   // El navegador propone el título de la página como nombre del archivo: así el PDF
