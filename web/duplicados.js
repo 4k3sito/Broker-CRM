@@ -29,9 +29,9 @@ const VISTAS = {
 };
 const AVISOS = { igual: 'Fusionados en una tarjeta', distinto: 'Marcados como distintos',
                  real: 'Regresa al tablero', erroneo: 'Se queda oculto' };
-// Cuántos pares se muestran por lote, y lo más que la API da en una página (/outliers
-// acepta 60 y /duplicados/sugerencias 50: se pide con el menor).
-const LOTE = 20;
+// Cuántos pares se muestran por lote (en el teléfono 10: D6), y lo más que la API da en una
+// página (/outliers acepta 60 y /duplicados/sugerencias 50: se pide con el menor).
+const LOTE = matchMedia('(max-width: 760px)').matches ? 10 : 20;
 const TOPE = 50;
 const ESTADOS = [['Nuevo León', 'Nuevo León'], ['', 'Todo el país']];
 // Se abre en Nuevo León, que es donde trabaja el equipo.

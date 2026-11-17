@@ -20,9 +20,9 @@ const Propiedad = (() => {
 
   // Un anuncio en un renglón: foto, precio, superficie, quién y dónde. `acciones` es
   // el marcado de sus botones; `nota` una etiqueta junto al portal («Este anuncio»).
-  // «Ficha» abre en pestaña nueva con opener, como desde el tablero: la ficha cierra su
-  // pestaña al volver, y en Duplicados la cola que se estaba decidiendo no se pierde.
-  // La ficha abierta no ofrece «Ficha» de sí misma: abriría la misma página.
+  // «Abrir» va a pestaña nueva con opener: la página del anuncio cierra su pestaña al
+  // volver, y en Duplicados la cola que se estaba decidiendo no se pierde.
+  // La página abierta no se ofrece a sí misma.
   const aqui = new URLSearchParams(location.search).get('id');
   // Los precios atípicos llegan a billones: «$130,000,000,000,000» no se lee. Desde mil
   // millones se abrevia (el valor completo queda en el title); abajo, la cifra completa.
@@ -42,7 +42,7 @@ const Propiedad = (() => {
           · ${esc(t.broker_name ?? 'Anunciante sin nombre')}${t.location || t.zona ? ' · ' + esc(t.location ?? t.zona) : ''}${t.activo ? '' : ' · dado de baja'}</div>
       </div>
       <div class="dp-acc">
-        ${t.id === aqui ? '' : `<a class="fx-btn" href="listing.html?id=${encodeURIComponent(t.id)}" target="_blank" rel="opener">Ficha</a>`}
+        ${t.id === aqui ? '' : `<a class="fx-btn" href="listing.html?id=${encodeURIComponent(t.id)}" target="_blank" rel="opener">Abrir</a>`}
         <a class="fx-btn" href="${hrefSeguro(t.url)}" target="_blank" rel="noopener">Portal &#8599;</a>
         ${acciones}
       </div>

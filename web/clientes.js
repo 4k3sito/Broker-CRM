@@ -986,9 +986,9 @@ function panelHtml(c, p) {
       </div>
     </div>
     <div class="cl-exp-links">
-      ${lid ? `<a href="listing.html${API.qs({ id: lid, cliente: c.id, proc: p.id })}">Abrir ficha completa &#8594;</a>` : ''}
+      ${lid ? `<a href="listing.html${API.qs({ id: lid, cliente: c.id, proc: p.id })}">Abrir la página del anuncio &#8594;</a>` : ''}
       ${f.mapa_url ? `<a href="${hrefSeguro(f.mapa_url)}" target="_blank" rel="noopener">Ver en mapa &#8599;</a>` : ''}
-      <span>Los datos del inmueble son de la ficha: cambian para todos los clientes a los que se presentó.</span>
+      <span>Los datos del inmueble son de la propiedad: cambian para todos los clientes a los que se presentó.</span>
     </div>
     <div class="cl-exp-tareas">
       <h3>Tareas de esta propiedad · ${suyas.filter(t => t.columna !== 'completado').length}</h3>

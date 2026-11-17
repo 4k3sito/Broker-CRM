@@ -45,3 +45,16 @@ ciclo se cierra aquí y lo que sigue se decide fuera del método.
   scrapers (única restricción por cuenta, SECURITY.md §5).
 - Mensaje de login para cuenta desactivada: la API no tiene cuentas desactivadas.
 - El resto (bajas) queda en las respuestas de los revisores; ninguno es un error.
+
+## Decisiones aplicadas (2026-11-17)
+
+El usuario aprobó las ocho. Cómo quedó cada una:
+
+- **D1** La página del anuncio abre en la misma pestaña también en escritorio (Ctrl/⌘+clic abre otra). «Volver» regresa en el historial con búsqueda y scroll.
+- **D2** Fuera la caja «N anuncios» (pasa al `title` de la insignia de portales), «en renta/venta» cuando el filtro de operación ya lo dice, y la dirección cuando repite el título. Terreno y Construcción se quedan aunque sean iguales: el equipo pidió distinguirlos. «FOTO 1/n» y las etiquetas ya estaban ocultas.
+- **D3** Chip sin filtro = sólo su nombre con ▾. La ubicación siempre muestra su valor.
+- **D4** Teléfono: datos, Clientes, Notas, Ubicación, Mercado, Documentos, Contacto, Fichas.
+- **D5** «Ficha» es sólo el PDF para el cliente («Fichas para clientes», «Nueva ficha»). La página se «abre», el bloque es «Datos del inmueble», lo del Catálogo es «la propiedad».
+- **D6** Revisión en el teléfono: par lado a lado (miniatura, precio, m², título y anunciante en un renglón) y lotes de 10.
+- **D7** Paginación con primera, última y número de página editable.
+- **D8** Bandeja: Fusionar, Eliminar y Quitar selección en un menú «Más» (también en el teléfono, donde Quitar selección no estaba).

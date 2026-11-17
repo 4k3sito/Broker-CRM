@@ -114,7 +114,7 @@ function render() {
     </tr></thead>
     <tbody>${filas}
       <tr><td></td>${items.map(l => `<td><div class="cmp-acc">
-        <a class="btn-outline" href="listing.html?id=${encodeURIComponent(l.id)}">Abrir ficha</a>
+        <a class="btn-outline" href="listing.html?id=${encodeURIComponent(l.id)}">Abrir</a>
       </div></td>`).join('')}${faltan ? '<td class="cmp-add-cell"></td>' : ''}</tr>
     </tbody>
   </table>`;

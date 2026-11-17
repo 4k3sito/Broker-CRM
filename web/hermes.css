@@ -179,6 +179,13 @@ a:hover { color:var(--ink); }
   letter-spacing:.08em; color:var(--faint);
 }
 .fb-chip.on .fb-k { color:var(--accent); opacity:.65; }
+/* Sin filtro puesto: sólo el nombre, como un botón, con su flecha (D3). */
+.fb-chip.vacio .fb-k {
+  font-family:var(--font-ui); font-size:13.5px; font-weight:600; text-transform:none;
+  letter-spacing:0; color:var(--ink);
+}
+.fb-chip.vacio .fb-k::after { content:"\25BE" / ""; margin-left:6px; color:var(--faint); }
+.fb-chip.vacio .fb-open:hover .fb-k { color:var(--accent); }
 .fb-v { max-width:230px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .fb-x {
   height:38px; padding:0 10px; border:none; background:transparent; color:var(--accent);
@@ -510,9 +517,15 @@ a:hover { color:var(--ink); }
 .btn-clear:disabled { opacity:.35; cursor:not-allowed; }
 
 .pagination {
-  display:flex; align-items:center; justify-content:center; gap:16px;
+  display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
   padding:0 26px 40px; font-family:var(--font-mono); font-size:11px; color:var(--muted);
 }
+.pg-ir { display:inline-flex; align-items:center; gap:6px; margin:0 6px; }
+.pg-ir input {
+  width:64px; height:30px; padding:0 6px; border:1px solid var(--border-2); background:var(--surface);
+  color:var(--ink); font-family:var(--font-mono); font-size:12px; text-align:center;
+}
+@media (max-width: 760px) { .pg-txt { display:none; } }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Reglas base que faltaban aquí y vivían en login.css. `[hidden]` no es
@@ -1491,6 +1504,23 @@ body.has-tray .inm-list { padding-bottom:70px; }
 .tray-btn:hover { background:rgba(255,255,255,.1); }
 .tray-btn.solid { background:var(--paper); color:var(--blue); border-color:var(--paper); font-weight:700; }
 .tray-btn:disabled { opacity:.4; cursor:not-allowed; }
+/* «Más» de la bandeja: abre hacia arriba, la bandeja está pegada abajo (D8). */
+.tray-mas { position:relative; }
+.tray-mas > summary { display:inline-flex; align-items:center; list-style:none; }
+.tray-mas > summary::-webkit-details-marker { display:none; }
+.tray-mas[open] > summary { background:rgba(255,255,255,.1); }
+.tray-mas-lista {
+  position:absolute; right:0; bottom:calc(100% + 6px); z-index:30; min-width:200px;
+  display:flex; flex-direction:column; padding:4px; background:var(--surface); border:1px solid var(--border-2);
+}
+.tray-mas-item {
+  min-height:40px; padding:0 12px; border:none; background:transparent; color:var(--ink);
+  text-align:left; font-family:var(--font-ui); font-size:13.5px; font-weight:600; cursor:pointer;
+}
+.tray-mas-item:hover { background:var(--accent-soft); }
+.tray-mas-item:disabled { color:var(--faint); cursor:not-allowed; background:transparent; }
+.tray-mas-item.peligro { color:var(--s-rechazado); }
+.tray-mas-item[hidden] { display:none; }
 
 .toast {
   position:fixed; left:50%; bottom:84px; transform:translateX(-50%); z-index:90;
@@ -1592,7 +1622,6 @@ tr.igual.ocultar { display:none; }
   .tray { padding:8px 12px; }
   .tray-items { display:none; }
   .tray-actions { margin-left:auto; }
-  #trayClear { display:none; }
 }
 /* Tarjeta horizontal: a 390 px dos columnas eran de 179 px y no cabían precio, título,
    dirección y estado. Una columna con la foto a la izquierda enseña más tarjetas por
@@ -2392,10 +2421,6 @@ textarea.base-in { resize:vertical; }
 .card-price.rango { flex-wrap:wrap; row-gap:0; }
 .card-price.rango strong { font-size:16px; }
 .card-a { font-family:var(--font-mono); font-size:11px; color:var(--muted); }
-.card-dup {
-  display:inline-block; margin-top:6px; padding:2px 6px; border:1px solid var(--border-2);
-  font-family:var(--font-mono); font-size:11px; color:var(--ink); letter-spacing:.02em;
-}
 .dp-fila {
   display:grid; grid-template-columns:84px minmax(0,1fr) auto; gap:12px; align-items:center;
   padding:10px 0; border-top:1px solid var(--border);
@@ -2483,6 +2508,17 @@ textarea.base-in { resize:vertical; }
   .dp-foto { width:64px; height:48px; }
   .dp-acc { grid-column:1 / -1; justify-content:flex-start; }
   .dp-tit, .dp-meta { white-space:normal; }
+}
+/* Revisión en el teléfono (D6, 2026-11-17): el par lado a lado y compacto —miniatura, precio y
+   m² arriba; título y anunciante en un renglón— para comparar sin bajar dos pantallas por par. */
+@media (max-width: 760px) {
+  .dp-par:not(.dp-uno) .dp-lados { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .dp-par:not(.dp-uno) .dp-fila { grid-template-columns:minmax(0,1fr); grid-template-rows:auto; gap:4px; padding:10px; }
+  .dp-par:not(.dp-uno) .dp-fila + .dp-fila { border-top:0; border-left:1px solid var(--border); }
+  .dp-par:not(.dp-uno) .dp-foto { grid-row:auto; width:100%; height:84px; }
+  .dp-par:not(.dp-uno) .dp-precio b { font-size:17px; }
+  .dp-par:not(.dp-uno) .dp-tit, .dp-par:not(.dp-uno) .dp-meta { -webkit-line-clamp:1; line-clamp:1; font-size:12px; }
+  .dp-par:not(.dp-uno) .dp-acc { grid-column:1; gap:12px; }
 }
 
 @media (pointer: coarse) {
@@ -2774,15 +2810,18 @@ a, button, select, summary, label, [role="button"] { touch-action:manipulation; 
 @media (max-width: 700px) {
   .fx-largo, .fx-ayuda { display:none; }
   .fx-vertodas { display:flex; top:auto; bottom:10px; right:10px; min-height:44px; padding:0 12px; }
-  /* Lo que se trabaja a diario va primero: clientes y notas antes que documentos, contacto
-     y fichas PDF. Las pilas se deshacen (display:contents) para poder ordenar sus tarjetas. */
+  /* Lo que se trabaja a diario va primero: tras los datos del inmueble, clientes y notas;
+     luego ubicación y mercado (D4, 2026-11-17), y al final documentos, contacto y fichas.
+     Las pilas se deshacen (display:contents) para poder ordenar sus tarjetas. */
   .fx-cols, .fx-cols.pres { display:flex; flex-direction:column; }
   .fx-cols > .fx-stack { display:contents; }
-  #cliCard { order:1; }
+  #cliCard, #crmCli { order:1; }
   .fx-notas { order:2; }
-  #docsCard, #crmDocs { order:3; }
-  #ctoCard { order:4; }
-  #pdfCard { }
+  #ubicacion { order:3; }
+  #mercado { order:4; }
+  #docsCard, #crmDocs { order:5; }
+  #ctoCard { order:6; }
+  #pdfCard { order:7; }
   /* La barra de abajo está fija: el deshacer sube sobre ella. */
   .fx-deshacer { bottom:calc(76px + env(safe-area-inset-bottom)); }
   /* En 390 px no caben estado + ☆ + WhatsApp + anuncio + Más con texto: el estado se
@@ -2880,7 +2919,7 @@ button.tb-ava { border:none; padding:0; }
 .card-status { position:relative; z-index:2; }
 /* El texto que se puede seleccionar y copiar (precio, dirección, datos) también va encima del
    enlace; un clic sobre él abre la ficha, salvo que haya texto seleccionado (app.js). */
-.card-price, .card-ppm, .price-note, .card-dup, .card-dir, .card-hechos, .card-mercado { position:relative; z-index:2; }
+.card-price, .card-ppm, .price-note, .card-dir, .card-hechos, .card-mercado { position:relative; z-index:2; }
 .card-dir-t { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .card.fuera { opacity:.45; }
 /* La casilla de comparar se veía sólo con el ratón encima, y nadie sabía que existía. */
@@ -2893,7 +2932,7 @@ button.tb-ava { border:none; padding:0; }
 .card-ppm { font-size:var(--fs-dato); }
 .price-note { font-family:var(--font-ui); font-size:var(--fs-dato); }
 .card-hechos { font-size:var(--fs-dato); }
-.card-m2 small, .card-mercado, .card-dup { font-size:var(--fs-etiqueta); }
+.card-m2 small, .card-mercado { font-size:var(--fs-etiqueta); }
 .card .badge-src, .card .badge-mercado, .badge { font-size:var(--fs-etiqueta); }
 .status-select { font-size:var(--fs-etiqueta); }
 .hecho-et { display:none; font-size:var(--fs-etiqueta); color:var(--muted); }

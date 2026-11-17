@@ -194,13 +194,19 @@
     <select class="tray-btn" id="trayCliente" aria-label="Asignar a cliente">
       <option value="">Asignar a cliente&#8230;</option>
     </select>
-    <!-- Sólo en Bolsa: las tarjetas elegidas son el mismo inmueble y quedan en una. -->
-    <button class="tray-btn" id="trayFusionar">Fusionar</button>
     <!-- Sólo en Bolsa: guarda la selección en la bolsa propia sin asignarla a nadie. -->
     <button class="tray-btn" id="trayInmo">+ Cat&#225;logo</button>
-    <!-- Sólo en Inmobiliaria: lo contrario, borra la ficha de lo seleccionado. -->
-    <button class="tray-btn" id="trayQuitar">Eliminar</button>
-    <button class="tray-btn" id="trayClear">Quitar selecci&#243;n</button>
+    <!-- Lo que se usa poco o no se deshace, fuera de la vista (D8, 2026-11-17). -->
+    <details class="tray-mas" id="trayMas">
+      <summary class="tray-btn">&#8943; M&#225;s</summary>
+      <div class="tray-mas-lista">
+        <!-- Sólo en Bolsa: las tarjetas elegidas son el mismo inmueble y quedan en una. -->
+        <button class="tray-mas-item" id="trayFusionar">Fusionar</button>
+        <!-- Sólo en Catálogo: lo contrario de «+ Catálogo», con todo lo que cuelga. -->
+        <button class="tray-mas-item peligro" id="trayQuitar">Eliminar</button>
+        <button class="tray-mas-item" id="trayClear">Quitar selecci&#243;n</button>
+      </div>
+    </details>
     <button class="tray-btn solid" id="trayComparar">Comparar &#8594;</button>
   </div>
 </div>

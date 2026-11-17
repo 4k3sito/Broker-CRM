@@ -23,7 +23,7 @@ const ORDENES = { recientes: 'Recientes', precio_asc: 'Precio: menor a mayor', p
 
 // Qué es cada pestaña y de dónde sale «todo»: Bolsa y Catálogo son la misma página con
 // otra consulta, y nada en pantalla lo decía (R1-05).
-const AYUDA_TAB = INMO ? 'Propiedades con ficha o propuestas a clientes.' : 'Anuncios de portales sin seguimiento comercial.';
+const AYUDA_TAB = INMO ? 'Propiedades guardadas por el equipo o propuestas a clientes.' : 'Anuncios de portales sin seguimiento comercial.';
 const DONDE = INMO ? 'todo el Catálogo' : 'toda la Bolsa';
 document.getElementById('tabAyuda').textContent = AYUDA_TAB;
 
@@ -143,9 +143,8 @@ const cuentaDe = (v, f) => {
     : v === 'Pendientes' ? Math.max(0, (f?.total ?? 0) - ESTADOS_CERRADOS.reduce((a, k) => a + de(k), 0))
     : pe[Anuncio.estadoApi(v)] ?? 0;
 };
-// ≤760 px: la ficha se abre en la misma pestaña y el mapa ocupa toda la pantalla bajo un botón.
+// ≤760 px: el mapa ocupa toda la pantalla bajo un botón.
 const TELEFONO = matchMedia('(max-width: 760px)');
-const esTelefono = () => TELEFONO.matches;
 // ¿Este estado entra en el filtro de estado activo?
 const coincideEstado = st => filterStatus === 'Todos' || (filterStatus === 'Pendientes' ? !ESTADOS_CERRADOS.includes(st) : st === filterStatus);
 // Lo que la API recibe del filtro de estado: uno (`estado`), o los que se excluyen (`estado_excluir`).
@@ -253,7 +252,8 @@ const claseMoneda = mon => mon === 'MXN' ? 'currency' : 'currency usd';
 
 // La operación pegada a su precio («$2,650,000 MXN en venta»), con la misma marca que
 // los dos precios de un inmueble en renta y venta.
-const opTxt = op => op ? `<span class="price-op">en ${esc(op.toLowerCase())}</span>` : '';
+// Con filtro de operación todas las tarjetas son de esa operación: repetirlo en cada una sobra (D2).
+const opTxt = op => op && !F.operacion ? `<span class="price-op">en ${esc(op.toLowerCase())}</span>` : '';
 // Un inmueble en renta Y en venta lleva los dos precios con el mismo peso, cada uno con
 // su operación, como en EasyBroker. La que pide el filtro de operación va arriba.
 function preciosDualHtml(l, ofs, rg) {
@@ -319,14 +319,16 @@ function renderCard(l) {
 
   const sel = seleccion.has(l.id);
   const ins = Anuncio.insignia(l), mercado = Anuncio.tiempoEnMercado(l);
+  // Hay portales que publican el título como dirección: dos renglones iguales no dicen nada (D2).
+  const dir = norm(Anuncio.ubicacion(l)) === norm(l.titulo) ? null : Anuncio.ubicacion(l);
   // El título es el enlace de la tarjeta, extendido a toda ella con ::after (CSS): clic medio,
-  // Ctrl+clic, «copiar dirección del enlace» y Tab funcionan. En escritorio la ficha abre en otra
-  // pestaña a propósito, para que «Volver» la cierre y la búsqueda siga en ésta; en el teléfono
-  // (≤760 px) abre en la misma, sin `target`.
+  // Ctrl+clic, «copiar dirección del enlace» y Tab funcionan. La página del anuncio abre en la
+  // misma pestaña (D1, 2026-11-17; antes, en escritorio, en otra): «Volver» regresa en el
+  // historial con la búsqueda y el scroll como estaban (SCROLL_KEY).
   return `<article class="card ${l.starred ? 'starred' : ''}${sel ? ' sel' : ''} status-${l.status.toLowerCase()}" data-id="${esc(l.id)}">
     <div class="card-img">
       ${imgHtml}
-      <span class="badge badge-src">${esc(l.fuentes.length > 1 ? `${l.fuentes.length} PORTALES` : blabel)}</span>
+      <span class="badge badge-src"${dup ? ` title="${esc(dup)}, fusionados en esta tarjeta"` : ''}>${esc(l.fuentes.length > 1 ? `${l.fuentes.length} PORTALES` : blabel)}</span>
       ${l.fotos?.length ? `<span class="badge badge-foto">FOTO 1/${l.fotos.length}</span>` : ''}
       ${ins ? `<span class="badge badge-mercado" title="${esc(ins.detalle)}">${esc(ins.texto)}</span>` : ''}
       <button type="button" class="card-chk" title="Seleccionar para comparar" aria-label="Seleccionar para comparar" aria-pressed="${sel}">${sel ? '&#10003;' : ''}</button>
@@ -337,11 +339,10 @@ function renderCard(l) {
         <div style="min-width:0">
           ${priceHtml}
           ${ppm ? `<div class="card-ppm">${ppm}</div>` : ''}
-          ${dup ? `<div class="card-dup" title="Anuncios del mismo inmueble, fusionados en esta tarjeta">${dup}</div>` : ''}
         </div>
       </div>
-      <div class="card-title"><a class="card-link" href="listing.html?id=${encodeURIComponent(l.id)}"${esTelefono() ? '' : ' target="_blank" rel="opener"'} title="${esc(l.titulo ?? '')}">${esc(l.titulo || 'Ver el inmueble')}</a></div>
-      ${Anuncio.ubicacion(l) ? `<div class="card-dir" title="${esc(Anuncio.ubicacion(l))}">${ICON_PIN}<span class="card-dir-t">${esc(Anuncio.ubicacion(l))}</span></div>` : ''}
+      <div class="card-title"><a class="card-link" href="listing.html?id=${encodeURIComponent(l.id)}" title="${esc(l.titulo ?? '')}">${esc(l.titulo || 'Ver el inmueble')}</a></div>
+      ${dir ? `<div class="card-dir" title="${esc(dir)}">${ICON_PIN}<span class="card-dir-t">${esc(dir)}</span></div>` : ''}
       ${hechosHtml(l)}
       ${l.anunciante && l.anunciante !== l.titulo ? `<div class="card-anunciante" title="Anunciante: ${esc(l.anunciante)}">${esc(l.anunciante)}</div>` : ''}
       <div class="card-tags">
@@ -467,15 +468,23 @@ function renderStatusPills() {
 function renderPagination(totalPages) {
   const box = document.getElementById('pagination');
   if (totalPages <= 1) { box.innerHTML = ''; return; }
+  // Con cientos de páginas, Anterior/Siguiente no alcanzan: primera, última y el número a
+  // mano (D7, 2026-11-17).
+  const ini = page <= 1, fin = page >= totalPages;
   box.innerHTML = `
-    <button class="btn-clear" id="page-prev" ${page <= 1 ? 'disabled' : ''}>&larr; Anterior</button>
-    <span>P&#225;gina ${mx(page)} de ${mx(totalPages)}</span>
-    <button class="btn-clear" id="page-next" ${page >= totalPages ? 'disabled' : ''}>Siguiente &rarr;</button>`;
+    <button class="btn-clear" data-pg="1" ${ini ? 'disabled' : ''} title="Primera página" aria-label="Primera página">&laquo;</button>
+    <button class="btn-clear" data-pg="${page - 1}" ${ini ? 'disabled' : ''}>&larr;<span class="pg-txt"> Anterior</span></button>
+    <label class="pg-ir">P&#225;gina <input type="number" id="pageNum" min="1" max="${totalPages}" value="${page}" inputmode="numeric" aria-label="Ir a la página"> de ${mx(totalPages)}</label>
+    <button class="btn-clear" data-pg="${page + 1}" ${fin ? 'disabled' : ''}><span class="pg-txt">Siguiente </span>&rarr;</button>
+    <button class="btn-clear" data-pg="${totalPages}" ${fin ? 'disabled' : ''} title="Última página" aria-label="Última página">&raquo;</button>`;
   // Volver al inicio de la lista lo hace `_render` al ver que cambió la consulta (el scroll
   // vive en `.inm-list`, no en la ventana).
-  const ir = d => { page += d; render(); };
-  document.getElementById('page-prev')?.addEventListener('click', () => ir(-1));
-  document.getElementById('page-next')?.addEventListener('click', () => ir(1));
+  const ir = n => {
+    n = Math.min(totalPages, Math.max(1, Math.round(Number(n)) || page));
+    if (n !== page) { page = n; render(); } else document.getElementById('pageNum').value = page;
+  };
+  box.querySelectorAll('[data-pg]').forEach(b => b.addEventListener('click', () => ir(b.dataset.pg)));
+  document.getElementById('pageNum').addEventListener('change', e => ir(e.target.value));
 }
 
 let renderEnCurso = null;
@@ -818,8 +827,14 @@ const fbPuesto = {
 
 function renderFB() {
   for (const k of FB_CLAVES) {
-    document.getElementById(`fbv-${k}`).textContent = fbResumen[k]();
+    const v = document.getElementById(`fbv-${k}`);
+    v.textContent = fbResumen[k]();
     const chip = document.querySelector(`.fb-chip[data-f="${k}"]`);
+    // Sin filtro, el chip es sólo su nombre («Precio ▾»): «Cualquiera» en cada uno era ruido (D3).
+    // La ubicación siempre dice cuál es: la de fábrica también limita.
+    const vacio = k !== 'ubicacion' && !fbPuesto[k]();
+    chip.classList.toggle('vacio', vacio);
+    v.hidden = vacio;
     // La ubicación de fábrica se ve, pero no se pinta como un filtro puesto por la persona.
     chip.classList.toggle('on', k === 'ubicacion' ? !ubicacionDeFabrica() : fbPuesto[k]());
     chip.querySelector('.fb-x').hidden = !fbPuesto[k]();
@@ -1387,10 +1402,9 @@ document.getElementById('grid').addEventListener('click', e => {
   if (e.target.closest('select, a, button, label')) return;
   // Arrastrar para copiar una dirección o un precio no debe abrir la ficha al soltar.
   if (String(getSelection()).trim()) return;
-  // La ficha abre en otra pestaña: la búsqueda se queda donde estaba en ésta.
-  // En el teléfono se abre en la misma pestaña (no hay pestañas a la vista): «Volver» regresa aquí.
+  // Misma pestaña, como el enlace del título; Ctrl/⌘ o clic medio sobre él abren otra.
   const url = `listing.html?id=${encodeURIComponent(id)}`;
-  if (esTelefono()) location.href = url; else window.open(url, '_blank');
+  if (e.ctrlKey || e.metaKey) window.open(url, '_blank'); else location.href = url;
 });
 
 // Hover tarjeta → pin. mouseover burbujea; se ignoran los movimientos internos. El foco del
@@ -1698,13 +1712,17 @@ document.getElementById('trayEstado').addEventListener('change', async e => {
 // traía detrás. Lo decide un asesor y vale para el equipo; se deshace desde la ficha,
 // separando el anuncio que no era.
 document.getElementById('trayFusionar').hidden = INMO;
+// «Más» de la bandeja (D8): se cierra al elegir algo o al hacer clic fuera.
+const trayMas = document.getElementById('trayMas');
+trayMas.addEventListener('click', e => { if (e.target.closest('.tray-mas-item')) trayMas.open = false; });
+document.addEventListener('click', e => { if (trayMas.open && !trayMas.contains(e.target)) trayMas.open = false; });
 document.getElementById('trayFusionar').addEventListener('click', async () => {
   const lista = [...seleccion.values()];
   const anuncios = lista.reduce((t, l) => t + l.anuncios, 0);
   if (!(await UI.confirmar({
     titulo: `¿Estas ${lista.length} tarjetas son el mismo inmueble?`,
     texto: `Quedarán en una sola tarjeta con sus ${anuncios} anuncios, para todo el equipo. `
-      + 'Si alguno no era, se separa desde la ficha.',
+      + 'Si alguno no era, se separa desde la página del anuncio.',
     verbo: 'Fusionar' }))) return;
   try {
     await API.post('/duplicados/fusionar', { ids: lista.map(l => l.id) });
@@ -1751,7 +1769,7 @@ document.getElementById('trayCliente').addEventListener('change', async e => {
   if (!(await UI.confirmar({
     titulo: `¿Proponer ${cuantos} a ${nombre}?`,
     texto: INMO ? 'Se agregan a lo que ya se le presentó.'
-      : 'Pasan de la Bolsa al Catálogo, con su ficha, y quedan presentados a este cliente.',
+      : 'Pasan de la Bolsa al Catálogo y quedan presentados a este cliente.',
     verbo: 'Proponer' }))) return;
   toast(`Proponiendo ${cuantos} a ${nombre}\u2026`);
   const res = await Promise.allSettled(lista.map(async l => {
@@ -1795,7 +1813,7 @@ document.getElementById('trayQuitar').addEventListener('click', async () => {
   const cuantas = lista.length === 1 ? 'esta propiedad' : `estas ${lista.length} propiedades`;
   if (!(await UI.confirmar({
     titulo: `¿Eliminar ${cuantas} del Catálogo?`,
-    texto: 'Se borra su ficha con sus documentos, fotos subidas, fichas PDF y lo presentado a clientes. No se puede deshacer.\n\n'
+    texto: 'Se borra del Catálogo con sus documentos, fotos subidas, fichas y lo presentado a clientes. No se puede deshacer.\n\n'
       + (propias < lista.length ? 'Los anuncios de portal vuelven a la Bolsa. ' : '')
       + (propias ? `${propias === 1 ? 'La que se dio' : `Las ${propias} que se dieron`} de alta a mano se ${propias === 1 ? 'pierde' : 'pierden'} por completo.` : ''),
     verbo: 'Eliminar', peligro: true }))) return;

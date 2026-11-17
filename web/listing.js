@@ -22,9 +22,9 @@ const VOLVER = (() => {
   return c ? { href: `clientes.html${API.qs({ proc: u.get('proc') })}#${encodeURIComponent(c)}`, texto: 'Volver al cliente' }
            : { href: TABLERO, texto: 'Volver al tablero', tablero: true };
 })();
-// La ficha se abre en otra pestaña desde el tablero (con opener) o, en el teléfono, en la
-// misma. Con opener, Volver cierra la pestaña y regresa a la del tablero, que sigue como
-// se dejó. Sin opener, si se vino del tablero se regresa en el historial (conserva scroll
+// Desde el tablero la ficha abre en la misma pestaña (D1, 2026-11-17); con Ctrl+clic, o desde
+// Duplicados, en otra con opener: ahí Volver cierra la pestaña y regresa a la del tablero, que
+// sigue como se dejó. Sin opener, si se vino del tablero se regresa en el historial (conserva scroll
 // y filtros); si no, el enlace abre el tablero con la búsqueda en su URL (`ol-tablero`).
 const esTablero = u => { try { const r = new URL(u, location.href); return r.origin === location.origin && /\/(index\.html)?$/.test(r.pathname); } catch { return false; } };
 document.addEventListener('click', e => {
@@ -376,7 +376,7 @@ async function saveFicha(field, value) {
     v.datos = { ...v.datos, [field]: val };
     fichaEstado('guardando');
     UI.guardar(API.patch(`/versiones/${v.id}`, { datos: v.datos }), {
-      que: 'la ficha', revertir: () => { v.datos = antes; fichaFalla(field, value); repintar(); },
+      que: 'el dato', revertir: () => { v.datos = antes; fichaFalla(field, value); repintar(); },
     }).then(() => fichaOk(field), () => {});
     // El $/m² que se propone cuando se deja vacío sale de precio y m²: que se actualice.
     if (field === 'precio' || field === 'tamano_m2') repintar();
@@ -384,14 +384,14 @@ async function saveFicha(field, value) {
   }
   fichaEstado('guardando');
   let sinFicha = false;
-  await asegurarFicha().catch(err => { sinFicha = true; UI.aviso('No se pudo guardar la ficha: ' + err.message); });
+  await asegurarFicha().catch(err => { sinFicha = true; UI.aviso('No se pudo guardar el dato: ' + err.message); });
   if (sinFicha || !ficha) { fichaFalla(field, value); return; }
   if ((ficha[field] ?? null) === val) { fichaOk(field); return; }
   const antes = ficha[field];
   ficha[field] = val;
   if (!esPropia(listing)) {
     UI.guardar(API.patch(`/fichas/${ficha.id}`, { [field]: val }), {
-      que: 'la ficha', revertir: () => { ficha[field] = antes; fichaFalla(field, value); repintar(); },
+      que: 'el dato', revertir: () => { ficha[field] = antes; fichaFalla(field, value); repintar(); },
     }).then(() => fichaOk(field), () => {});
     return;
   }
@@ -451,7 +451,7 @@ async function crearVersion(nombre, clienteId) {
     versionSel = String(v.id);
     pdfAbierto = true;
     render();
-  } catch (err) { UI.aviso('No se pudo guardar la ficha: ' + err.message); }
+  } catch (err) { UI.aviso('No se pudo crear la ficha: ' + err.message); }
 }
 async function borrarVersion(id) {
   const v = versiones.find(x => String(x.id) === id);
@@ -527,7 +527,7 @@ async function guardarFotos(lista) {
   const v = versionActual();
   if (!v) return saveBase('fotos', lista);
   try { Object.assign(v, await API.patch(`/versiones/${v.id}`, { datos: { ...v.datos, fotos: lista } })); }
-  catch (err) { UI.aviso('No se pudo guardar la ficha: ' + err.message); }
+  catch (err) { UI.aviso('No se pudieron guardar las fotos: ' + err.message); }
   repintar();
 }
 // De quién son las fotos de la caja (ver fotos.js): de la versión cargada o de la ficha.
@@ -560,7 +560,7 @@ async function quitarDeInmobiliaria() {
   const propia = esPropia(listing), n = procesos.length;
   if (!(await UI.confirmar({
     titulo: propia ? '¿Eliminar esta propiedad?' : '¿Quitar esta propiedad del Catálogo?',
-    texto: 'Se borra su ficha con sus documentos, fotos subidas y fichas PDF'
+    texto: 'Se borra del Catálogo con sus documentos, fotos subidas y fichas'
       + (n ? `, y lo presentado a ${n} ${n === 1 ? 'cliente' : 'clientes'}` : '') + '. No se puede deshacer.'
       + (propia ? '' : '\n\nEl anuncio vuelve a la Bolsa.'),
     verbo: propia ? 'Eliminar' : 'Quitar', peligro: true }))) return;
@@ -670,9 +670,9 @@ function pintar() {
 
   // Fichas PDF y sus datos, en su propia tarjeta: ocupaban media columna dentro de «Ficha» y
   // dejaban esa columna el doble de larga que las otras.
-  const pdfHtml = !crmOk ? '' : plegable('pdfCard', !versionesVisibles().length && !propia && !pdfAbierto, 'Fichas PDF · solo la General', `
+  const pdfHtml = !crmOk ? '' : plegable('pdfCard', !versionesVisibles().length && !propia && !pdfAbierto, 'Fichas para clientes · sólo la General', `
         <div class="fx-vers">
-          <h2>Fichas PDF <span class="fx-n">${versionesVisibles().length + conGeneral()}</span></h2>
+          <h2>Fichas para clientes <span class="fx-n">${versionesVisibles().length + conGeneral()}</span></h2>
           ${conGeneral() ? `<div class="fx-ver${vSel ? '' : ' on'}">
             <button class="fx-ver-n" data-v="">Ficha-General.pdf</button>
             <small>${esPropia(l) ? 'Datos de la propiedad' : 'Datos del anuncio'}</small>
@@ -746,7 +746,7 @@ function pintar() {
         <b>${total != null ? '$' + mx(Math.round(total)) : (l.porM2 && l.precio != null ? '$' + mx(l.precio) : 'Sin precio')}</b>
         <span>${total != null ? sufijo : (l.porM2 && l.precio != null ? 'por m²' : '')}${pm && total != null ? ` · $${mx(Math.round(pm))}/m²` : ''}</span>`}
       </div>
-      ${crmOk && !esPropia(l) && ficha ? '<span class="fx-tag" title="Tiene ficha: aparece en la pestaña Catálogo">En Catálogo</span>' : ''}
+      ${crmOk && !esPropia(l) && ficha ? '<span class="fx-tag" title="Guardada por el equipo: aparece en la pestaña Catálogo">En Catálogo</span>' : ''}
       <!-- Ocho acciones con el mismo peso competían entre sí: quedan a la vista el
            estado, destacar y WhatsApp; lo demás va en «Más». En el teléfono esta fila
            es una barra fija abajo (hermes.css). -->
@@ -763,7 +763,7 @@ function pintar() {
             <button class="fx-mas-item" id="btnPdf"${crmOk ? '' : ' disabled'} title="Descarga ${esc(nombrePdf(vSel))}.pdf">Descargar PDF</button>
             <button class="fx-mas-item" id="mkt-pdf" title="Análisis de mercado de esta propiedad, para adjuntar a la propuesta">Análisis de mercado</button>
             ${!crmOk ? '' : esPropia(l) ? (ficha ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra la propiedad con todo lo que cuelga de ella">Eliminar propiedad</button>' : '') : (ficha
-              ? '<button class="fx-mas-item peligro" id="btnQuitar" title="Borra su ficha; el anuncio vuelve a la Bolsa">Quitar del Catálogo</button>' : '')}
+              ? '<button class="fx-mas-item peligro" id="btnQuitar" title="La quita del Catálogo; el anuncio vuelve a la Bolsa">Quitar del Catálogo</button>' : '')}
           </div>
         </details>
       </div>
@@ -774,7 +774,7 @@ function pintar() {
     <div class="fx-cols${PRESENTA_A ? ' pres' : ''}">
       <div class="fx-stack" id="colFicha">
       <section class="fx-card" id="fichaCard">
-        <h2>Ficha</h2>
+        <h2>Datos del inmueble</h2>
         <dl class="fx-facts">${facts.map(([k, v, ic]) => `<div><dt>${ic ? Iconos.de(ic, 12) : ''}${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
         ${l.descripcion ? `<p class="fx-desc">${esc(l.descripcion)}</p>` : ''}
         ${features.length ? `<ul class="fx-feat">${features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
@@ -855,7 +855,7 @@ function pintar() {
 // Ubicación y Mercado viven fuera de #detail (render() lo reescribe entero y se llevaría
 // los mapas). Se meten en la rejilla de la ficha —Ubicación bajo la columna Ficha, Mercado
 // a todo lo ancho— y antes de cada render vuelven al contenedor fijo #fijos. Así el CSS
-// los ordena junto con las tarjetas (en el teléfono: Ficha, Ubicación, Mercado, y luego el CRM).
+// los ordena junto con las tarjetas (en el teléfono, D4: datos, clientes, notas, Ubicación, Mercado y el resto).
 function guardarFijos() {
   const fijos = document.getElementById('fijos');
   for (const id of ['ubicacion', 'mercado']) { const el = document.getElementById(id); if (el && fijos && el.parentNode !== fijos) fijos.appendChild(el); }
@@ -934,7 +934,7 @@ function enlazarCrm() {
     const v = e.target.value;
     e.target.value = '';
     if (v === '__otro') {
-      const nombre = await UI.pedir({ titulo: 'Nueva ficha PDF', etiqueta: 'Nombre (el archivo sale como Ficha-<nombre>.pdf)', verbo: 'Crear ficha' });
+      const nombre = await UI.pedir({ titulo: 'Nueva ficha', etiqueta: 'Nombre (el archivo sale como Ficha-<nombre>.pdf)', verbo: 'Crear ficha' });
       return nombre && crearVersion(nombre);
     }
     const c = clientes.find(x => String(x.id) === v);
