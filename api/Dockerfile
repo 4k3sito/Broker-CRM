@@ -11,7 +11,7 @@ WORKDIR /app
 # —y sale sin avisar, que es lo peor—. Aquí son parte del artefacto.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libjpeg62-turbo \
-      libopenjp2-7 fontconfig \
+      libopenjp2-7 fontconfig fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
 COPY fuentes/ /usr/share/fonts/truetype/officelab/
