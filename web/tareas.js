@@ -542,6 +542,27 @@ function opciones(lista, sel, valor = x => x, texto = x => x) {
 // Antes era una sola función de 128 líneas donde la plantilla y los listeners se
 // turnaban, y había que leerla entera para encontrar cualquiera de los dos.
 
+// El anuncio de una tarea se busca por título en el inventario (la misma búsqueda del
+// tablero) y se guarda su código: la opción del datalist lleva el código como valor y el
+// título como rótulo. Un código pegado (lleva «:») no dispara la búsqueda.
+function buscadorAnuncio(input) {
+  const lista = document.getElementById('f-listing-op');
+  let reloj, pedido = 0;
+  input.addEventListener('input', () => {
+    clearTimeout(reloj);
+    const q = input.value.trim();
+    if (q.length < 3 || q.includes(':')) { lista.innerHTML = ''; return; }
+    reloj = setTimeout(async () => {
+      const yo = ++pedido;
+      let r;
+      try { r = await API.get(`/listings${API.qs({ q, per_page: 8 })}`); } catch { return; }
+      if (yo !== pedido) return;
+      lista.innerHTML = (r.items ?? []).map(a =>
+        `<option value="${esc(a.id)}" label="${esc([a.title, a.neighborhood || a.location].filter(Boolean).join(' · '))}"></option>`).join('');
+    }, 300);
+  });
+}
+
 function panelCamposHtml(t, nueva) {
   return `
     ${nueva ? '' : `<h2>${esc(t.titulo)}</h2>`}
@@ -556,7 +577,7 @@ function panelCamposHtml(t, nueva) {
     </div>
     <div><label for="f-asg">Asignada a</label>
       <select id="f-asg"><option value="">Sin asignar</option>${opciones(equipo, t.asignado_a, p => p.id, p => `${esc(p.nombre ?? p.email)}${p.rol ? ' — ' + esc(p.rol) : ''}`)}</select></div>
-    <div><label for="f-listing">Código del anuncio (opcional)</label><input id="f-listing" value="${esc(t.listing_id ?? '')}" placeholder="Si la tarea es de un anuncio, su código. Ej. pincali:EB-7741" autocomplete="off"></div>
+    <div><label for="f-listing">Anuncio (opcional)</label><input id="f-listing" list="f-listing-op" value="${esc(t.listing_id ?? '')}" placeholder="Busca por título, colonia o pega el código" autocomplete="off"><datalist id="f-listing-op"></datalist></div>
     ${panelProcesoHtml(t)}`;
 }
 
@@ -686,6 +707,7 @@ function conectarPanel(t, nueva) {
     adjuntos: document.getElementById('f-adj').value.split('\n').map(x => x.trim()).filter(Boolean),
   });
 
+  buscadorAnuncio(document.getElementById('f-listing'));
   document.getElementById('tkClose').addEventListener('click', cerrarPanel);
   document.getElementById('tkAbrirProc')?.addEventListener('click', async () => {
     if (!(await descartar())) return;

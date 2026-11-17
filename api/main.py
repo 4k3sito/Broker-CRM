@@ -900,7 +900,20 @@ def lugares(q: str = Query(min_length=2, max_length=80),
     Los municipios van primero a igualdad de coincidencia: quien escribe "san pedro"
     quiere el municipio, no una colonia homónima de otro estado.
     """
-    return _buscar_lugares(_lugares_con_inventario(), q, MAX_LUGARES)
+    res = _buscar_lugares(_lugares_con_inventario(), q, MAX_LUGARES)
+    # «Cerca de…» (R1-10) busca alrededor de un lugar: un punto dentro de su polígono.
+    # Sólo para las sugerencias que salen, no en la caché: son unas cuantas por tecla.
+    if res:
+        with POOL.connection() as conn:
+            pts = {f["id"]: f for f in conn.execute(
+                """SELECT id, ST_Y(p) AS lat, ST_X(p) AS lng
+                   FROM (SELECT id, ST_PointOnSurface(geom::geometry) AS p
+                         FROM zona WHERE id = ANY(%s)) s""",
+                ([int(r["valor"][1:]) for r in res],)).fetchall()}
+        for r in res:
+            pt = pts.get(int(r["valor"][1:]))
+            r["lat"], r["lng"] = (pt["lat"], pt["lng"]) if pt else (None, None)
+    return res
 
 
 # Fuentes con scraper propio en scrapers/. Lo que aparezca en la tabla y no aquí es

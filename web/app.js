@@ -777,7 +777,7 @@ const fbResumen = {
   ubicacion: () => {
     if (F.lugares.length) return F.lugares.length === 1 ? F.lugares[0].nombre : `${F.lugares[0].nombre} +${F.lugares.length - 1}`;
     if (!F.near) return 'Todo México';
-    const donde = F.nearTxt === CENTRO_NOMBRE ? CENTRO_NOMBRE : F.nearTxt ? 'Zona del mapa' : 'Un punto';
+    const donde = F.nearTxt === MAPA_TXT ? 'Zona del mapa' : F.nearTxt || 'Un punto';
     return `${donde} · ${kmTxt(F.radio)}`;
   },
   operacion: () => ({ rent: 'Renta', sale: 'Venta' }[F.operacion] ?? 'Todas'),
@@ -945,12 +945,16 @@ function fbCuerpoUbicacion() {
     <div class="fb-sels" id="fbSels"></div>
     <div class="fb-sugs" id="fbSugs"></div>
     <p class="fb-nota" id="fbNota">Municipios y colonias.</p>`;
-  const de = d.nearTxt === CENTRO_NOMBRE ? CENTRO_NOMBRE : d.nearTxt ? 'la zona que muestra el mapa' : 'el punto elegido';
+  const de = d.nearTxt === MAPA_TXT ? 'la zona que muestra el mapa' : d.nearTxt || 'el punto elegido';
+  // Mismos ids que el modo de lugares: la búsqueda y las sugerencias son las de /lugares;
+  // aquí elegir una pone el punto en vez de sumarla a la lista.
   return modos + `
+    <input class="fb-in" id="fbBuscaLugar" type="search" autocomplete="off" aria-label="Buscar un lugar"
+           placeholder="Cerca de un municipio o colonia&#8230;">
+    <div class="fb-sugs" id="fbSugs"></div>
     <p class="fb-nota">Anuncios a menos de <b id="fbRadioTxt">${kmTxt(d.radio)}</b> de ${esc(de)}.</p>
     <input class="fb-rango-km" id="fbRadio" type="range" min="500" max="12000" step="500" value="${esc(d.radio)}" aria-label="Radio en kilómetros">
-    <button type="button" class="fb-seg" data-centro="mapa">Usar el centro del mapa ahora</button>
-    <p class="fb-nota">Para buscar cerca de otro lugar, mueve el mapa y pulsa el bot&#243;n.</p>`;
+    <button type="button" class="fb-seg" data-centro="mapa">Usar el centro del mapa</button>`;
 }
 
 function fbPintarSeleccion() {
@@ -1227,6 +1231,11 @@ document.getElementById('fbPop').addEventListener('click', e => {
   const add = e.target.closest('.fb-sug');
   if (add) {
     const s = fbDraft.sug.find(x => x.valor === add.dataset.add);
+    if (s && fbDraft.modo === 'cerca') {
+      if (s.lat == null) return;
+      Object.assign(fbDraft, { near: `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`, nearTxt: s.nombre, sug: [] });
+      return fbPintarPop();
+    }
     if (s && fbDraft.lugares.length < MAX_LUGARES) {
       fbDraft.lugares.push({ valor: s.valor, nombre: s.nombre, contexto: s.contexto });
       fbDraft.sug = fbDraft.sug.filter(x => x.valor !== s.valor);

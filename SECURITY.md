@@ -330,6 +330,16 @@ contenedor de la API. Lo usa `scrapers/v2/ia.py` con el cliente `api/modelo.py`.
 - **Tabla `anuncio_ia`** en `public` (creada el 2026-11-04): lo leído por el modelo y su
   frase de evidencia; sin datos de usuario. La lee el filtro del tablero (abajo).
 
+### Endpoints (2026-11-17) — `/api/lugares` devuelve coordenadas
+
+- Cada sugerencia de `GET /api/lugares` trae `lat` y `lng`: un punto dentro del polígono
+  del municipio o la colonia (`ST_PointOnSurface`), para «Cerca de…» del tablero. Son
+  polígonos públicos (OpenStreetMap e INEGI) que ya estaban en `zona`; la consulta va
+  parametrizada (`id = ANY(%s)`) con los ids de las propias sugerencias, sigue detrás de
+  sesión y no toca el CRM.
+- Tareas busca el anuncio de una tarea con `GET /api/listings?q=`, que ya existía: no hay
+  endpoint nuevo.
+
 ### Endpoints (2026-11-15) — `estado_excluir` en el tablero
 
 - `GET /api/listings` y `/api/listings.csv` aceptan `estado_excluir` (lista, hasta 10
