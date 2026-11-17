@@ -1854,6 +1854,12 @@ tr.igual.ocultar { display:none; }
 
 /* ── Clientes (1a): maestro-detalle ───────────────────────────────────────── */
 .cl { display:grid; grid-template-columns:340px minmax(0,1fr); height:calc(100vh - 52px); height:calc(100dvh - 52px); }
+/* En escritorio la página no se desplaza: sólo la lista y el detalle. Cualquier cosa que
+   alargue el documento (un absolute sin ancestro posicionado, un aviso) ya no la mueve. */
+@media (min-width: 801px) {
+  html:has(> body > main.cl), body:has(> main.cl) { height:100%; overflow:hidden; }
+  .cl { position:relative; overflow:hidden; }
+}
 /* Modo presentación (clientes.js): en pantalla sólo el cliente abierto. */
 .cl.presenta { grid-template-columns:minmax(0,1fr); }
 .cl.presenta .cl-list, .cl.presenta .cl-busca, .cl.presenta .cl-back, .cl.presenta #clDel { display:none; }
